@@ -1,0 +1,59 @@
+{
+  "buildPresets": [
+    {
+      "configurePreset": "Debug",
+      "name": "Debug"
+    },
+    {
+      "configurePreset": "RelWithDebInfo",
+      "name": "RelWithDebInfo"
+    },
+    {
+      "configurePreset": "Release",
+      "name": "Release"
+    },
+    {
+      "configurePreset": "MinSizeRel",
+      "name": "MinSizeRel"
+    }
+  ],
+  "configurePresets": [
+    {
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {},
+      "generator": "Unix Makefiles",
+      "hidden": true,
+      "name": "default",
+      "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake"
+    },
+    {
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "inherits": "default",
+      "name": "Debug"
+    },
+    {
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      },
+      "inherits": "default",
+      "name": "RelWithDebInfo"
+    },
+    {
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      },
+      "inherits": "default",
+      "name": "Release"
+    },
+    {
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      },
+      "inherits": "default",
+      "name": "MinSizeRel"
+    }
+  ],
+  "version": 3
+}

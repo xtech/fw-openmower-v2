@@ -1,1 +1,2 @@
-# fw-openmower-v2
+# OpenMower V2 Firmware
+Readme: TODO
