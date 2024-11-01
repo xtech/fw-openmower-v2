@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.22)
 
 set(CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cfg)
 set(BOARD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boards/XCORE)
+# Set custom port path
+set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable)
+
 
 # Setup compiler settings
 set(CMAKE_CXX_STANDARD 20)
@@ -41,7 +44,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-        main.c
+        main.cpp
         src/globals.c
         src/globals.h
         src/heartbeat.c
@@ -52,6 +55,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/boot_service_discovery.h
         src/status_led.c
         src/status_led.h
+        src/services/imu_service.cpp
+        src/services/imu_service.hpp
 )
 
 # Add include paths
@@ -70,6 +75,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         # Add user defined libraries
         ChibiOS
 )
+
+target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")

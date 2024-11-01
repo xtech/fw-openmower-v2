@@ -4,7 +4,9 @@
 
 #ifndef STATUS_LED_H
 #define STATUS_LED_H
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 enum LED_MODE {
   LED_MODE_OFF,
   LED_MODE_ON,
@@ -15,5 +17,7 @@ enum LED_MODE {
 void InitStatusLed(void);
 
 void SetStatusLedMode(enum LED_MODE mode);
-
+#ifdef __cplusplus
+}
+#endif
 #endif  // STATUS_LED_H

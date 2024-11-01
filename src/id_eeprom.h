@@ -4,7 +4,9 @@
 
 #ifndef ID_EEPROM_H
 #define ID_EEPROM_H
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "stdbool.h"
 #include "stddef.h"
 #include "stdint.h"
@@ -49,5 +51,7 @@ bool ID_EEPROM_GetBootloaderInfo(struct bootloader_info* buffer);
 bool ID_EEPROM_GetBoardInfo(struct board_info* buffer);
 bool ID_EEPROM_GetCarrierBoardInfo(struct carrier_board_info* buffer);
 bool ID_EEPROM_SaveBootloaderInfo(struct bootloader_info* buffer);
-
+#ifdef __cplusplus
+}
+#endif
 #endif  // ID_EEPROM_H

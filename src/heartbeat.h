@@ -4,7 +4,9 @@
 
 #ifndef HEARTBEAT_H
 #define HEARTBEAT_H
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 #define HEARTBEAT_RECENT_MS 100
 
 /**
@@ -12,5 +14,7 @@
  * crashed)
  */
 void InitHeartbeat(void);
-
+#ifdef __cplusplus
+}
+#endif
 #endif  // HEARTBEAT_H

@@ -10,6 +10,11 @@
 #include <lwipthread.h>
 #include <status_led.h>
 
+#include <xbot-service/Io.hpp>
+#include <xbot-service/portable/system.hpp>
+#include "services/imu_service.hpp"
+ImuService imu_service{4};
+
 /*
  * Application entry point.
  */
@@ -64,5 +69,8 @@ int main(void) {
 
   InitBootloaderServiceDiscovery();
 
+  xbot::service::system::initSystem();
+  xbot::service::Io::start();
+  imu_service.start();
   chThdSleep(TIME_INFINITE);
 }

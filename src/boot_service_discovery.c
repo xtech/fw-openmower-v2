@@ -16,7 +16,7 @@
 
 static char boardAdvertisementBuffer[1000];
 static char boardAdvertisementRequestBuffer[1000];
-static THD_WORKING_AREA(waServiceDiscovery, 128000);
+static THD_WORKING_AREA(waServiceDiscovery, 12800);
 
 static void multicast_sender_thread(void *p) {
   (void)p;
