@@ -66,4 +66,6 @@
 // Size of flash memory for the user program
 #define PROGRAM_FLASH_SIZE_BYTES (FLASH_PAGE_COUNT * FLASH_PAGE_SIZE_BYTES)
 
+#define SPID_IMU SPID3
+
 #endif

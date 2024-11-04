@@ -9,11 +9,11 @@
 
 class ImuService : public ImuServiceBase {
  private:
-  THD_WORKING_AREA(stack, 25600){};
+  THD_WORKING_AREA(wa, 500);
 
  public:
   explicit ImuService(const uint16_t service_id)
-      : ImuServiceBase(service_id, 10000, stack, sizeof(stack)) {}
+      : ImuServiceBase(service_id, 10000, wa, sizeof(wa)) {}
 
  protected:
   bool Configure() override;
@@ -24,6 +24,12 @@ class ImuService : public ImuServiceBase {
  private:
   bool imu_found = false;
   void tick() override;
+
+  int16_t data_raw_acceleration[3];
+  int16_t data_raw_angular_rate[3];
+  int16_t data_raw_temperature;
+  double axes[9]{};
+  float temperature_degC;
 };
 
 #endif  // IMU_SERVICE_HPP

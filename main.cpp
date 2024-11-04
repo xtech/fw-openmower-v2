@@ -16,7 +16,7 @@
 #include <xbot-service/Io.hpp>
 #include <xbot-service/portable/system.hpp>
 
-#include "services/imu_service.hpp"
+#include "services/imu_service/imu_service.hpp"
 ImuService imu_service{4};
 
 /*

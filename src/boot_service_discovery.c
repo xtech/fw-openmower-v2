@@ -16,7 +16,7 @@
 
 static char boardAdvertisementBuffer[1000];
 static char boardAdvertisementRequestBuffer[1000];
-static THD_WORKING_AREA(waServiceDiscovery, 12800);
+static THD_WORKING_AREA(waServiceDiscovery, 500);
 
 static void multicast_sender_thread(void *p) {
   (void)p;
@@ -83,7 +83,7 @@ static void multicast_sender_thread(void *p) {
 void InitBootloaderServiceDiscovery() {
   memset(boardAdvertisementBuffer, 0, sizeof(boardAdvertisementBuffer));
   chsnprintf(boardAdvertisementBuffer, sizeof(boardAdvertisementBuffer),
-             "BOARD_ADVERTISEMENT:xcore-boot");
+             "BOARD_ADVERTISEMENT:xcore-boot;application-mode");
 
   // Create a multicast sender thread
   chThdCreateStatic(waServiceDiscovery, sizeof(waServiceDiscovery), NORMALPRIO,

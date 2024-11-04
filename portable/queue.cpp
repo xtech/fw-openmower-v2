@@ -12,7 +12,7 @@ bool xbot::service::queue::initialize(QueuePtr queue, size_t queue_length,
 
 bool xbot::service::queue::queuePopItem(QueuePtr queue, void** result,
                                         uint32_t timeout_micros) {
-  sysinterval_t timeout = TIME_INFINITE;
+  sysinterval_t timeout = TIME_IMMEDIATE;
   if (timeout_micros > 0) {
     timeout = TIME_US2I(timeout_micros);
   }

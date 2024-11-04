@@ -55,8 +55,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/boot_service_discovery.h
         src/status_led.c
         src/status_led.h
-        src/services/imu_service.cpp
-        src/services/imu_service.hpp
+        src/services/imu_service/imu_service.cpp
+        src/services/imu_service/imu_service.hpp
 )
 
 # Add include paths
@@ -74,6 +74,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         # Add user defined libraries
         ChibiOS
+        LSM6DS3TR
 )
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
