@@ -55,6 +55,9 @@ bool xbot::service::sock::subscribeMulticast(SocketPtr socket, const char* ip) {
 
 bool xbot::service::sock::receivePacket(SocketPtr socket, PacketPtr* packet) {
   const PacketPtr pkt = allocatePacket();
+  if (!pkt) {
+    return false;
+  }
   sockaddr_in fromAddr{};
   socklen_t fromLen = sizeof(fromAddr);
   const ssize_t recvLen =

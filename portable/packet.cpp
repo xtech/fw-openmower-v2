@@ -10,10 +10,19 @@
 
 using namespace xbot::service::packet;
 
-LWIP_MEMPOOL_DECLARE(xbot_packet_pool, 8, sizeof(Packet), "xbot packets")
+#define XBOT_PACKET_POOL_SIZE 10
+
+LWIP_MEMPOOL_DECLARE(xbot_packet_pool, XBOT_PACKET_POOL_SIZE, sizeof(Packet),
+                     "xbot packets")
+SEMAPHORE_DECL(xbot_packet_sema, XBOT_PACKET_POOL_SIZE);
 
 PacketPtr xbot::service::packet::allocatePacket() {
+  chSemWait(&xbot_packet_sema);
   auto buffer = static_cast<Packet *>(LWIP_MEMPOOL_ALLOC(xbot_packet_pool));
+  if (!buffer) {
+    while (1)
+      ;
+  }
 #ifdef DEBUG_MEM
 #warning DEBUG_MEM enabled, disable for performance
   memset(buffer, 0x42, sizeof(Packet));
@@ -26,6 +35,7 @@ PacketPtr xbot::service::packet::allocatePacket() {
 
 void xbot::service::packet::freePacket(PacketPtr packet_ptr) {
   LWIP_MEMPOOL_FREE(xbot_packet_pool, packet_ptr);
+  chSemSignal(&xbot_packet_sema);
 }
 
 bool xbot::service::packet::packetAppendData(PacketPtr packet,

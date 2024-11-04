@@ -557,7 +557,15 @@ extern volatile uint32_t last_idle_tick;
  * @note    The default is @p FALSE.
  */
 #if !defined(CH_DBG_STATISTICS)
-#define CH_DBG_STATISTICS                   FALSE
+#ifdef DEBUG_BUILD
+#define CH_DBG_STATISTICS           TRUE
+#else
+#ifdef RELEASE_BUILD
+#define CH_DBG_STATISTICS           FALSE
+#else
+#error "Need to define either DEBUG_BUILD or RELEASE_BUILD"
+#endif
+#endif
 #endif
 
 /**
@@ -568,10 +576,10 @@ extern volatile uint32_t last_idle_tick;
  * @note    The default is @p FALSE.
  */
 #if !defined(CH_DBG_SYSTEM_STATE_CHECK)
-#ifdef DEBUG_BUILD
+#if defined(DEBUG_BUILD) && !defined(USE_SEGGER_SYSTEMVIEW)
 #define CH_DBG_SYSTEM_STATE_CHECK           TRUE
 #else
-#ifdef RELEASE_BUILD
+#if defined(RELEASE_BUILD) || defined(USE_SEGGER_SYSTEMVIEW)
 #define CH_DBG_SYSTEM_STATE_CHECK           FALSE
 #else
 #error "Need to define either DEBUG_BUILD or RELEASE_BUILD"
@@ -749,7 +757,7 @@ extern volatile uint32_t last_idle_tick;
  *
  * @param[in] tp        pointer to the @p thread_t structure
  */
-#define CH_CFG_THREAD_INIT_HOOK(tp) {                                       \
+#define _CH_CFG_THREAD_INIT_HOOK(tp) {                                       \
   /* Add threads initialization code here.*/                                \
 }
 
@@ -759,7 +767,7 @@ extern volatile uint32_t last_idle_tick;
  *
  * @param[in] tp        pointer to the @p thread_t structure
  */
-#define CH_CFG_THREAD_EXIT_HOOK(tp) {                                       \
+#define _CH_CFG_THREAD_EXIT_HOOK(tp) {                                       \
   /* Add threads finalization code here.*/                                  \
 }
 
@@ -770,21 +778,21 @@ extern volatile uint32_t last_idle_tick;
  * @param[in] ntp       thread being switched in
  * @param[in] otp       thread being switched out
  */
-#define CH_CFG_CONTEXT_SWITCH_HOOK(ntp, otp) {                              \
+#define _CH_CFG_CONTEXT_SWITCH_HOOK(ntp, otp) {                              \
   /* Context switch code here.*/                                            \
 }
 
 /**
  * @brief   ISR enter hook.
  */
-#define CH_CFG_IRQ_PROLOGUE_HOOK() {                                        \
+#define _CH_CFG_IRQ_PROLOGUE_HOOK() {                                        \
   /* IRQ prologue code here.*/                                              \
 }
 
 /**
  * @brief   ISR exit hook.
  */
-#define CH_CFG_IRQ_EPILOGUE_HOOK() {                                        \
+#define _CH_CFG_IRQ_EPILOGUE_HOOK() {                                        \
   /* IRQ epilogue code here.*/                                              \
 }
 
@@ -814,7 +822,7 @@ extern volatile uint32_t last_idle_tick;
  */
 #define CH_CFG_IDLE_LOOP_HOOK() {                                           \
   /* Idle loop code here.*/                                                 \
-  last_idle_tick = chVTGetSystemTimeX();                              \
+  last_idle_tick = chVTGetSystemTime();                              \
 }
 
 /**
@@ -831,7 +839,7 @@ extern volatile uint32_t last_idle_tick;
  * @details This hook is invoked in case to a system halting error before
  *          the system is halted.
  */
-#define CH_CFG_SYSTEM_HALT_HOOK(reason) {                                   \
+#define _CH_CFG_SYSTEM_HALT_HOOK(reason) {                                   \
   /* System halt code here.*/                                               \
 }
 
@@ -857,6 +865,18 @@ extern volatile uint32_t last_idle_tick;
 /*===========================================================================*/
 /* Port-specific settings (override port settings defaulted in chcore.h).    */
 /*===========================================================================*/
+#ifdef USE_SEGGER_SYSTEMVIEW
+#ifndef __ASSEMBLER__
+#include "SEGGER_SYSVIEW_ChibiOS.h"
+#endif
+#else
+#define CH_CFG_SYSTEM_HALT_HOOK _CH_CFG_SYSTEM_HALT_HOOK
+#define CH_CFG_IRQ_EPILOGUE_HOOK _CH_CFG_IRQ_EPILOGUE_HOOK
+#define CH_CFG_IRQ_PROLOGUE_HOOK _CH_CFG_IRQ_PROLOGUE_HOOK
+#define CH_CFG_CONTEXT_SWITCH_HOOK _CH_CFG_CONTEXT_SWITCH_HOOK
+#define CH_CFG_THREAD_INIT_HOOK _CH_CFG_THREAD_INIT_HOOK
+#define CH_CFG_THREAD_EXIT_HOOK _CH_CFG_THREAD_EXIT_HOOK
+#endif
 
 #endif  /* CHCONF_H */
 

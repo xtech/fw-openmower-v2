@@ -5,6 +5,14 @@
       "name": "Debug"
     },
     {
+      "configurePreset": "DebugRTT",
+      "name": "DebugRTT"
+    },
+    {
+      "configurePreset": "DebugSystemView",
+      "name": "DebugSystemView"
+    },
+    {
       "configurePreset": "RelWithDebInfo",
       "name": "RelWithDebInfo"
     },
@@ -32,6 +40,23 @@
       },
       "inherits": "default",
       "name": "Debug"
+    },
+    {
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_SEGGER_RTT": true
+      },
+      "inherits": "default",
+      "name": "DebugRTT"
+    },
+    {
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_SEGGER_RTT": true,
+        "USE_SEGGER_SYSTEMVIEW": true
+      },
+      "inherits": "default",
+      "name": "DebugSystemView"
     },
     {
       "cacheVariables": {

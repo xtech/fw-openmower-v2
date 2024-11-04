@@ -3,7 +3,10 @@
 #include "hal.h"
 // clang-format on
 
+#include <SEGGER_RTT.h>
+#include <SEGGER_RTT_streams.h>
 #include <boot_service_discovery.h>
+#include <chprintf.h>
 #include <globals.h>
 #include <heartbeat.h>
 #include <id_eeprom.h>
@@ -12,6 +15,7 @@
 
 #include <xbot-service/Io.hpp>
 #include <xbot-service/portable/system.hpp>
+
 #include "services/imu_service.hpp"
 ImuService imu_service{4};
 
@@ -37,7 +41,12 @@ int main(void) {
    */
   halInit();
   chSysInit();
-
+#ifdef USE_SEGGER_RTT
+  rttInit();
+#endif
+#ifdef USE_SEGGER_SYSTEMVIEW
+  SYSVIEW_ChibiOS_Start(STM32_SYS_CK, STM32_SYS_CK, "I#15=SysTick");
+#endif
   ID_EEPROM_Init();
 
   /*
@@ -72,5 +81,16 @@ int main(void) {
   xbot::service::system::initSystem();
   xbot::service::Io::start();
   imu_service.start();
+
+  int i = 0;
+  while (1) {
+    chThdSleep(TIME_MS2I(100));
+    const auto idle_thread = chSysGetIdleThreadX();
+    const auto first_thread = chRegFirstThread();
+    for (thread_t* t = first_thread; t; t = chRegNextThread(t)) {
+      chprintf((BaseSequentialStream*)&RTTD0, "chprintf: %s\t %llu\n", t->name,
+               t->stats.cumulative);
+    }
+  }
   chThdSleep(TIME_INFINITE);
 }

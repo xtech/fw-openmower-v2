@@ -153,3 +153,36 @@ target_include_directories(ChibiOS PUBLIC
         os/various
         ${LWIP_DIR}/src/include
 )
+
+
+if (USE_SEGGER_RTT OR USE_SEGGER_SYSTEMVIEW)
+    message("Using Segger RTT")
+    target_compile_definitions(ChibiOS PUBLIC USE_SEGGER_RTT)
+    target_sources(ChibiOS PRIVATE
+            # Segger RTT
+            ext/SEGGER/RTT/SEGGER_RTT_ASM_ARMv7M.s
+            ext/SEGGER/RTT/SEGGER_RTT.c
+            ext/SEGGER/RTT/SEGGER_RTT_printf.c
+            os/various/segger_bindings/RTT/SEGGER_RTT_streams.c
+    )
+    target_include_directories(ChibiOS PUBLIC
+            # Segger RTT
+            ext/SEGGER/RTT
+            os/various/segger_bindings/RTT
+    )
+endif ()
+
+if(${USE_SEGGER_SYSTEMVIEW})
+    message("Using Segger SystemView")
+    target_compile_definitions(ChibiOS PUBLIC USE_SEGGER_SYSTEMVIEW)
+    target_sources(ChibiOS PRIVATE
+            # Segger SystemView
+            ext/SEGGER/SYSTEMVIEW/SEGGER_SYSVIEW.c
+            os/various/segger_bindings/SYSTEMVIEW/SEGGER_SYSVIEW_ChibiOS.c
+    )
+    target_include_directories(ChibiOS PUBLIC
+            # Segger SystemView
+            ext/SEGGER/SYSTEMVIEW
+            os/various/segger_bindings/SYSTEMVIEW
+    )
+endif ()
