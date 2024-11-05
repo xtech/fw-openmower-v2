@@ -148,6 +148,8 @@
 #define STM32_DMAMUX1_SAI3_A        113
 #define STM32_DMAMUX1_SAI3_B        114
 #define STM32_DMAMUX1_ADC3          115
+#define STM32_DMAMUX1_USART10_RX    118
+#define STM32_DMAMUX1_USART10_TX    119
 /** @} */
 
 /**
