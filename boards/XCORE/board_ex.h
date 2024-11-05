@@ -67,5 +67,7 @@
 #define PROGRAM_FLASH_SIZE_BYTES (FLASH_PAGE_COUNT * FLASH_PAGE_SIZE_BYTES)
 
 #define SPID_IMU SPID3
-
+#ifndef __ASSEMBLER__
+void initBoardPeriphs(void);
+#endif
 #endif

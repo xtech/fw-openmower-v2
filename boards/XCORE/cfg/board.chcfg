@@ -11,7 +11,11 @@
   </configuration_settings>
   <board_name>xcore</board_name>
   <board_id>XCORE</board_id>
-  <board_functions></board_functions>
+  <board_functions>
+    <boardInit>
+        initBoardPeriphs();
+    </boardInit>
+  </board_functions>
   <headers>
     <header>board_ex.h</header>
   </headers>

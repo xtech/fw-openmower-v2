@@ -264,4 +264,7 @@ bool mmc_lld_is_write_protected(MMCDriver *mmcp) {
  */
 void boardInit(void) {
 
+  
+        initBoardPeriphs();
+    
 }

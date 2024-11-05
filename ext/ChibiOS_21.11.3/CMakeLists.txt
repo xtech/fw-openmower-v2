@@ -99,6 +99,7 @@ add_library(
         os/oslib/src/chfactory.c
         # board
         ${BOARD_DIR}/board.c
+        ${BOARD_DIR}/board_ex.c
         # LwIP
         os/various/lwip_bindings/lwipthread.c
         os/various/lwip_bindings/arch/sys_arch.c

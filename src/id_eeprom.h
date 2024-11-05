@@ -45,7 +45,6 @@ struct carrier_board_info {
 } __attribute__((packed));
 #pragma pack(pop)
 
-void ID_EEPROM_Init(void);
 bool ID_EEPROM_GetMacAddress(uint8_t* buf, size_t buflen);
 bool ID_EEPROM_GetBootloaderInfo(struct bootloader_info* buffer);
 bool ID_EEPROM_GetBoardInfo(struct board_info* buffer);

@@ -17,8 +17,9 @@
 #include <xbot-service/portable/system.hpp>
 
 #include "services/imu_service/imu_service.hpp"
+#include "services/power_service/power_service.hpp"
 ImuService imu_service{4};
-
+PowerService power_service{5};
 /*
  * Application entry point.
  */
@@ -47,7 +48,6 @@ int main(void) {
 #ifdef USE_SEGGER_SYSTEMVIEW
   SYSVIEW_ChibiOS_Start(STM32_SYS_CK, STM32_SYS_CK, "I#15=SysTick");
 #endif
-  ID_EEPROM_Init();
 
   /*
    * InitGlobals() sets up global variables shared by threads. (e.g. mutex)
@@ -81,16 +81,6 @@ int main(void) {
   xbot::service::system::initSystem();
   xbot::service::Io::start();
   imu_service.start();
-
-  int i = 0;
-  while (1) {
-    chThdSleep(TIME_MS2I(100));
-    const auto idle_thread = chSysGetIdleThreadX();
-    const auto first_thread = chRegFirstThread();
-    for (thread_t* t = first_thread; t; t = chRegNextThread(t)) {
-      chprintf((BaseSequentialStream*)&RTTD0, "chprintf: %s\t %llu\n", t->name,
-               t->stats.cumulative);
-    }
-  }
+  power_service.start();
   chThdSleep(TIME_INFINITE);
 }

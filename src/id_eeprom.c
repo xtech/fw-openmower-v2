@@ -5,9 +5,8 @@
 #include "board_ex.h"
 #include "ch.h"
 #include "hal.h"
-static I2CConfig i2cConfig = {0};
 
-uint16_t checksum(void *data, size_t length) {
+static uint16_t checksum(void *data, size_t length) {
   uint16_t sum = 0;
   for (size_t i = 0; i < length; i++) {
     if (i % 2 == 0) {
@@ -17,20 +16,6 @@ uint16_t checksum(void *data, size_t length) {
     }
   }
   return sum;
-}
-
-void ID_EEPROM_Init() {
-  // TODO: init eeprom
-  i2cAcquireBus(&I2CD4);
-
-  // Calculated depending on clock source, check reference manual
-  i2cConfig.timingr = 0xE14;
-
-  if (i2cStart(&I2CD4, &i2cConfig) != HAL_RET_SUCCESS) {
-    while (1)
-      ;
-  }
-  i2cReleaseBus(&I2CD4);
 }
 
 bool ID_EEPROM_GetMacAddress(uint8_t *buf, size_t buflen) {

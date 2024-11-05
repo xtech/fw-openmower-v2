@@ -57,6 +57,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/status_led.h
         src/services/imu_service/imu_service.cpp
         src/services/imu_service/imu_service.hpp
+        src/services/power_service/power_service.cpp
+        src/services/power_service/power_service.hpp
+        src/services/power_service/bq_2576/bq_2576.cpp
+        src/services/power_service/bq_2576/bq_2576.hpp
+
 )
 
 # Add include paths
@@ -78,6 +83,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
 )
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} PowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/power_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")
