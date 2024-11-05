@@ -21,27 +21,11 @@
 #include "services/emergency_service/emergency_service.hpp"
 #include "services/imu_service/imu_service.hpp"
 #include "services/power_service/power_service.hpp"
+#include "services/diff_drive_service/diff_drive_service.hpp"
 EmergencyService emergency_service{1};
+DiffDriveService diff_drive{2};
 ImuService imu_service{4};
 PowerService power_service{5};
-
-static THD_WORKING_AREA(waTestThread, 500);
-
-static void test_thread(void *p) {
-  static VescUart vesc_uart(&UARTD2);
-  while (1) {
-#ifdef USE_SEGGER_SYSTEMVIEW
-    SEGGER_SYSVIEW_Print("keepalive");
-    vesc_uart.sendKeepalive();
-    SEGGER_SYSVIEW_Print("request");
-    vesc_uart.requestVescValues();
-    SEGGER_SYSVIEW_Print("parse");
-    vesc_uart.parseVescValues();
-    SEGGER_SYSVIEW_Print("wait");
-#endif
-    chThdSleepMilliseconds(1000);
-  }
-}
 
 /*
  * Application entry point.
@@ -106,9 +90,7 @@ int main(void) {
   emergency_service.start();
   imu_service.start();
   power_service.start();
-
-  chThdCreateStatic(waTestThread, sizeof(waTestThread), NORMALPRIO, test_thread,
-                    NULL);
+  diff_drive.start();
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;
@@ -125,9 +107,8 @@ int main(void) {
         uint32_t status_copy = mower_status;
         chMtxUnlock(&mower_status_mutex);
         // Notify services
+        diff_drive.OnMowerStatusChanged(status_copy);
       }
     }
   }
-
-  chThdSleep(TIME_INFINITE);
 }

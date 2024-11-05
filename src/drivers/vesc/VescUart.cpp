@@ -17,57 +17,60 @@ int VescUart::receiveUartMessage(uint8_t* payloadReceived) {
   bool messageRead = false;
   uint8_t messageReceived[256];
   uint16_t lenPayload = 0;
-  size_t bytes_read = 1;
-  const auto start = chVTGetSystemTimeX();
-  while (chVTTimeElapsedSinceX(start) < TIME_US2I(_TIMEOUT) &&
-         messageRead == false) {
-    while (uartReceiveTimeout(uart_, &bytes_read, messageReceived + counter,
-                              _TIMEOUT) == MSG_OK) {
-      counter += bytes_read;
-      // read one more byte
-      bytes_read = 1;
-      if (counter == 2) {
-        switch (messageReceived[0]) {
-          case 2:
-            endMessage = messageReceived[1] +
-                         5;  // Payload size + 2 for sice + 3 for SRC and End.
-            lenPayload = messageReceived[1];
+  size_t bytes_read = 0;
+  size_t bytes_to_read = 1;
+  while (bytes_to_read > 0 &&
+         (bytes_read = sdReadTimeout(uart_, messageReceived + counter,
+                                     bytes_to_read, TIME_MS2I(_TIMEOUT))) > 0) {
+    counter += bytes_read;
+    // keep on reading, if a larger chunk was requested
+    bytes_to_read -= bytes_read;
+    // if only one byte was requested, read another one
+    if (bytes_to_read == 0) {
+      bytes_to_read = 1;
+    }
+    if (counter == 2) {
+      switch (messageReceived[0]) {
+        case 2:
+          endMessage = messageReceived[1] +
+                       5;  // Payload size + 2 for sice + 3 for SRC and End.
+          lenPayload = messageReceived[1];
 
-            if (endMessage >= sizeof(messageReceived)) {
-              // invalid message length, try again
-              counter = 0;
-              bytes_read = 1;
-            } else {
-              // we know exactly how many more bytes to read
-              bytes_read = endMessage - counter;
-            }
-            break;
+          if (endMessage >= sizeof(messageReceived)) {
+            // invalid message length, try again
+            counter = 0;
+            bytes_to_read = 1;
+          } else {
+            // we know exactly how many more bytes to read
+            bytes_to_read = endMessage - counter;
+          }
+          break;
 
-          case 3:
-            // ToDo: Add Message Handling > 255 (starting with 3)
+        case 3:
+          // ToDo: Add Message Handling > 255 (starting with 3)
 
-            break;
+          break;
 
-          default:
+        default:
 
-            break;
-        }
-      }
-
-      if (counter >= sizeof(messageReceived)) {
-        counter = 0;
-        break;
-      }
-
-      if (counter == endMessage && messageReceived[endMessage - 1] == 3) {
-        messageReceived[endMessage] = 0;
-
-        messageRead = true;
-        break;  // Exit if end of message is reached, even if there is still
-                // more data in the buffer.
+          break;
       }
     }
+
+    if (counter >= sizeof(messageReceived)) {
+      counter = 0;
+      break;
+    }
+
+    if (counter == endMessage && messageReceived[endMessage - 1] == 3) {
+      messageReceived[endMessage] = 0;
+
+      messageRead = true;
+      break;  // Exit if end of message is reached, even if there is still
+              // more data in the buffer.
+    }
   }
+
   // if(messageRead == false && debugPort != nullptr ) {
   //		debugPort->println("Timeout");
   //	}
@@ -214,17 +217,17 @@ bool VescUart::processReadPacket(uint8_t* message) {
   }
 }
 
-VescUart::VescUart(UARTDriver* uart_handle, uint32_t timeout_ms)
+VescUart::VescUart(SerialDriver* uart_handle, uint32_t timeout_ms)
     : _TIMEOUT(timeout_ms), uart_(uart_handle) {
   nunchuck.valueX = 127;
   nunchuck.valueY = 127;
   nunchuck.lowerButton = false;
   nunchuck.upperButton = false;
+}
+bool VescUart::startDriver() {
   // acquire the UART and never let go
-  uartAcquireBus(uart_);
-  uart_config_.speed = 115200;
-  uart_config_.cr2 = USART_CR2_LINEN | USART_CR2_STOP1_BITS;
-  uartStart(uart_, &uart_config_);
+  serial_config_.speed = 115200;
+  return sdStart(uart_, &serial_config_) == MSG_OK;
 }
 bool VescUart::getFWversion(void) { return getFWversion(0); }
 
@@ -401,5 +404,5 @@ void VescUart::sendKeepalive(uint8_t canId) {
   packSendPayload(payload, payloadSize);
 }
 void VescUart::sendRaw(uint8_t* data, size_t size) {
-  uartSendFullTimeout(uart_, &size, data, TIME_INFINITE);
+  sdWrite(uart_, data, size);
 }

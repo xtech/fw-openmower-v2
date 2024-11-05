@@ -53,6 +53,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/imu_service/imu_service.cpp
         src/services/power_service/power_service.cpp
         src/services/emergency_service/emergency_service.cpp
+        src/services/diff_drive_service/diff_drive_service.cpp
         # BQ2567 driver
         src/drivers/bq_2576/bq_2576.cpp
         # VESC driver
@@ -83,6 +84,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} PowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/power_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} EmergencyService ${CMAKE_CURRENT_SOURCE_DIR}/services/emergency_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} DiffDriveService ${CMAKE_CURRENT_SOURCE_DIR}/services/diff_drive_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")

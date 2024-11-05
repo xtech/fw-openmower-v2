@@ -47,7 +47,9 @@ class VescUart {
   /**
    * @brief      Class constructor
    */
-  explicit VescUart(UARTDriver* uart, uint32_t timeout_ms = 100);
+  explicit VescUart(SerialDriver* uart, uint32_t timeout_ms = 100);
+
+  bool startDriver();
 
   /** Variabel to hold measurements returned from VESC */
   dataPackage data;
@@ -185,8 +187,8 @@ class VescUart {
   void printVescValues(void);
 
  private:
-  UARTDriver* uart_;
-  UARTConfig uart_config_{};
+  SerialDriver* uart_;
+  SerialConfig serial_config_{};
   void sendRaw(uint8_t* data, size_t size);
 
   /**
