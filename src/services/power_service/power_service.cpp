@@ -4,7 +4,7 @@
 
 #include "power_service.hpp"
 
-#include "bq_2576/bq_2576.hpp"
+#include <drivers/bq_2576/bq_2576.hpp>
 
 PowerService::PowerService(uint16_t service_id)
     : PowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {}
@@ -22,7 +22,7 @@ void PowerService::tick() {
       bool success = true;
       success &= BQ2576::setPreChargeCurrent(0.250f);
       success &= BQ2576::setTerminationCurrent(0.250f);
-      success &= BQ2576::setChargingCurrent(0.4f, false);
+      success &= BQ2576::setChargingCurrent(1.0f, false);
       // Disable temperature sense, the battery doesnt have it
       success &= BQ2576::setTsEnabled(false);
       charger_configured_ = success;
