@@ -8,3 +8,4 @@ target_link_libraries(xbot-service PUBLIC ChibiOS)
 target_compile_definitions(xbot-service PUBLIC XBOT_ENABLE_STATIC_STACK)
 
 add_subdirectory(LSM6DS3TR-C-PID)
+add_subdirectory(etl)

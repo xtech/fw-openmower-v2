@@ -3,22 +3,25 @@
 #include "hal.h"
 // clang-format on
 
+#ifdef USE_SEGGER_SYSTEMVIEW
 #include <SEGGER_RTT.h>
 #include <SEGGER_RTT_streams.h>
+#endif
 #include <boot_service_discovery.h>
-#include <chprintf.h>
 #include <drivers/vesc/VescUart.h>
-#include <globals.h>
 #include <heartbeat.h>
 #include <id_eeprom.h>
 #include <lwipthread.h>
 #include <status_led.h>
 
+#include <globals.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/portable/system.hpp>
 
+#include "services/emergency_service/emergency_service.hpp"
 #include "services/imu_service/imu_service.hpp"
 #include "services/power_service/power_service.hpp"
+EmergencyService emergency_service{1};
 ImuService imu_service{4};
 PowerService power_service{5};
 
@@ -27,6 +30,7 @@ static THD_WORKING_AREA(waTestThread, 500);
 static void test_thread(void *p) {
   static VescUart vesc_uart(&UARTD2);
   while (1) {
+#ifdef USE_SEGGER_SYSTEMVIEW
     SEGGER_SYSVIEW_Print("keepalive");
     vesc_uart.sendKeepalive();
     SEGGER_SYSVIEW_Print("request");
@@ -34,7 +38,8 @@ static void test_thread(void *p) {
     SEGGER_SYSVIEW_Print("parse");
     vesc_uart.parseVescValues();
     SEGGER_SYSVIEW_Print("wait");
-    chThdSleepMilliseconds(50);
+#endif
+    chThdSleepMilliseconds(1000);
   }
 }
 
@@ -98,11 +103,31 @@ int main(void) {
 
   xbot::service::system::initSystem();
   xbot::service::Io::start();
+  emergency_service.start();
   imu_service.start();
   power_service.start();
 
   chThdCreateStatic(waTestThread, sizeof(waTestThread), NORMALPRIO, test_thread,
                     NULL);
+
+  // Subscribe to global events and dispatch to our services
+  event_listener_t event_listener;
+  chEvtRegister(&mower_events, &event_listener, 1);
+  while (1) {
+    uint32_t event = chEvtWaitAnyTimeout(ALL_EVENTS, TIME_INFINITE);
+    // event no 1 == "mower_events"
+    if (event == 1) {
+      // Get the flags provided by the event
+      uint32_t flags = chEvtGetAndClearFlags(&event_listener);
+      if (flags & MOWER_EVT_EMERGENCY_CHANGED) {
+        // Get the new emergency value
+        chMtxLock(&mower_status_mutex);
+        uint32_t status_copy = mower_status;
+        chMtxUnlock(&mower_status_mutex);
+        // Notify services
+      }
+    }
+  }
 
   chThdSleep(TIME_INFINITE);
 }
