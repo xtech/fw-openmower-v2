@@ -7,6 +7,7 @@
 #include <SEGGER_RTT_streams.h>
 #include <boot_service_discovery.h>
 #include <chprintf.h>
+#include <drivers/vesc/VescUart.h>
 #include <globals.h>
 #include <heartbeat.h>
 #include <id_eeprom.h>
@@ -20,6 +21,23 @@
 #include "services/power_service/power_service.hpp"
 ImuService imu_service{4};
 PowerService power_service{5};
+
+static THD_WORKING_AREA(waTestThread, 500);
+
+static void test_thread(void *p) {
+  static VescUart vesc_uart(&UARTD2);
+  while (1) {
+    SEGGER_SYSVIEW_Print("keepalive");
+    vesc_uart.sendKeepalive();
+    SEGGER_SYSVIEW_Print("request");
+    vesc_uart.requestVescValues();
+    SEGGER_SYSVIEW_Print("parse");
+    vesc_uart.parseVescValues();
+    SEGGER_SYSVIEW_Print("wait");
+    chThdSleepMilliseconds(50);
+  }
+}
+
 /*
  * Application entry point.
  */
@@ -82,5 +100,9 @@ int main(void) {
   xbot::service::Io::start();
   imu_service.start();
   power_service.start();
+
+  chThdCreateStatic(waTestThread, sizeof(waTestThread), NORMALPRIO, test_thread,
+                    NULL);
+
   chThdSleep(TIME_INFINITE);
 }

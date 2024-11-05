@@ -38,8 +38,7 @@
 #ifndef __LWIPOPT_H__
 #define __LWIPOPT_H__
 
-// LWIP_LINK_POLL_INTERVAL is set low here in order to have quicker startup time.
-#define LWIP_LINK_POLL_INTERVAL TIME_MS2I(1000)
+#define LWIP_LINK_POLL_INTERVAL TIME_S2I(5000)
 
 /*
    -----------------------------------------------

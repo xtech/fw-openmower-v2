@@ -59,8 +59,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/imu_service/imu_service.hpp
         src/services/power_service/power_service.cpp
         src/services/power_service/power_service.hpp
+        # BQ2567 driver
         src/drivers/bq_2576/bq_2576.cpp
         src/drivers/bq_2576/bq_2576.hpp
+        # VESC driver
+        src/drivers/vesc/buffer.cpp
+        src/drivers/vesc/VescUart.cpp
+        src/drivers/vesc/crc.cpp
 )
 
 # Add include paths

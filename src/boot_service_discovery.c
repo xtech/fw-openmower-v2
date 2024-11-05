@@ -13,7 +13,6 @@
 
 #include "chprintf.h"
 #include "lwip/sockets.h"
-
 static char boardAdvertisementBuffer[1000];
 static char boardAdvertisementRequestBuffer[1000];
 static THD_WORKING_AREA(waServiceDiscovery, 500);
@@ -64,7 +63,6 @@ static void multicast_sender_thread(void *p) {
   multicast_addr.sin_family = AF_INET;
   multicast_addr.sin_addr.s_addr = inet_addr(SD_MULTICAST_GROUP);
   multicast_addr.sin_port = htons(SD_MULTICAST_PORT);
-
   while (true) {
     int received =
         recvfrom(sockfd, boardAdvertisementRequestBuffer,
