@@ -22,8 +22,10 @@
 #include "services/imu_service/imu_service.hpp"
 #include "services/power_service/power_service.hpp"
 #include "services/diff_drive_service/diff_drive_service.hpp"
+#include "services/mower_service/mower_service.hpp"
 EmergencyService emergency_service{1};
 DiffDriveService diff_drive{2};
+MowerService mower_service{3};
 ImuService imu_service{4};
 PowerService power_service{5};
 
@@ -75,7 +77,7 @@ int main(void) {
     while (1)
       ;
   }
-  lwipthread_opts_t lwipconf_opts = {0};
+  lwipthread_opts_t lwipconf_opts{};
   lwipconf_opts.addrMode = NET_ADDRESS_DHCP;
   lwipconf_opts.address = 0;
   lwipconf_opts.gateway = 0;
@@ -91,6 +93,7 @@ int main(void) {
   imu_service.start();
   power_service.start();
   diff_drive.start();
+  mower_service.start();
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;

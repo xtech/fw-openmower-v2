@@ -102,5 +102,6 @@ void PowerService::tick() {
   CommitTransaction();
 }
 bool PowerService::OnChargingAllowedChanged(const uint8_t& new_value) {
+  (void)new_value;
   return true;
 }

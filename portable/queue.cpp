@@ -5,6 +5,7 @@
 
 bool xbot::service::queue::initialize(QueuePtr queue, size_t queue_length,
                                       void* buffer, size_t buffer_size) {
+  (void)queue_length;
   chMBObjectInit(queue, static_cast<msg_t*>(buffer),
                  buffer_size / sizeof(msg_t));
   return true;
@@ -26,4 +27,4 @@ bool xbot::service::queue::queuePushItem(QueuePtr queue, void* item) {
                          TIME_IMMEDIATE) == MSG_OK;
 }
 
-void xbot::service::queue::deinitialize(QueuePtr queue) {}
+void xbot::service::queue::deinitialize(QueuePtr queue) { (void)queue; }

@@ -7,37 +7,16 @@
 #include <lsm6ds3tr-c_reg.h>
 
 static SPIConfig spi_config = {
-    .circular = false,
-    .slave = false,
-    .data_cb = nullptr,
-    .error_cb = nullptr,
-    .ssline = LINE_IMU_CS,
-    .cfg1 = SPI_CFG1_MBR_DIV32 | SPI_CFG1_DSIZE_0 | SPI_CFG1_DSIZE_1 |
-            SPI_CFG1_DSIZE_2,
-    .cfg2 = SPI_CFG2_COMM_FULL_DUPLEX | SPI_CFG2_CPOL | SPI_CFG2_CPHA,
+    false,
+    false,
+    nullptr,
+    nullptr,
+    LINE_IMU_CS,
+    SPI_CFG1_MBR_DIV32 | SPI_CFG1_DSIZE_0 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_2,
+    SPI_CFG2_COMM_FULL_DUPLEX | SPI_CFG2_CPOL | SPI_CFG2_CPHA,
 };
 
-static stmdev_ctx_t dev_ctx{
-    .write_reg =
-        [](void *, uint8_t reg, const uint8_t *bufp, uint16_t len) {
-          spiSelect(&SPID_IMU);
-          spiSend(&SPID_IMU, 1, &reg);
-          spiSend(&SPID_IMU, len, bufp);
-          spiUnselect(&SPID_IMU);
-          return (int32_t)0;
-        },
-    .read_reg =
-        [](void *, uint8_t reg, uint8_t *bufp, uint16_t len) {
-          reg |= 0x80;
-
-          spiSelect(&SPID_IMU);
-          spiSend(&SPID_IMU, 1, &reg);
-          spiReceive(&SPID_IMU, len, bufp);
-          spiUnselect(&SPID_IMU);
-          return (int32_t)0;
-        },
-    .mdelay = nullptr,
-    .handle = nullptr};
+static stmdev_ctx_t dev_ctx{};
 
 bool ImuService::Configure() { return true; }
 void ImuService::OnStart() {}
@@ -47,6 +26,23 @@ void ImuService::OnCreate() {
   spiAcquireBus(&SPID_IMU);
   spiStart(&SPID_IMU, &spi_config);
 
+  dev_ctx.write_reg =
+      [](void *, uint8_t reg, const uint8_t *bufp, uint16_t len) {
+        spiSelect(&SPID_IMU);
+        spiSend(&SPID_IMU, 1, &reg);
+        spiSend(&SPID_IMU, len, bufp);
+        spiUnselect(&SPID_IMU);
+        return (int32_t)0;
+      },
+  dev_ctx.read_reg = [](void *, uint8_t reg, uint8_t *bufp, uint16_t len) {
+    reg |= 0x80;
+
+    spiSelect(&SPID_IMU);
+    spiSend(&SPID_IMU, 1, &reg);
+    spiReceive(&SPID_IMU, len, bufp);
+    spiUnselect(&SPID_IMU);
+    return (int32_t)0;
+  };
   uint8_t whoamI = 0;
   lsm6ds3tr_c_device_id_get(&dev_ctx, &whoamI);
 

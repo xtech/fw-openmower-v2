@@ -234,7 +234,8 @@ bool VescUart::getFWversion(void) { return getFWversion(0); }
 bool VescUart::getFWversion(uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 1 : 3);
-  uint8_t payload[payloadSize];
+  // 3 = max payload size
+  uint8_t payload[3];
 
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
@@ -257,7 +258,8 @@ bool VescUart::getVescValues(void) { return getVescValues(0); }
 bool VescUart::getVescValues(uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 1 : 3);
-  uint8_t payload[payloadSize];
+  // 3 = max payload size
+  uint8_t payload[3];
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
     payload[index++] = canId;
@@ -279,7 +281,8 @@ void VescUart::requestVescValues(void) { requestVescValues(0); }
 void VescUart::requestVescValues(uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 1 : 3);
-  uint8_t payload[payloadSize];
+  // 3 = max payload size
+  uint8_t payload[3];
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
     payload[index++] = canId;
@@ -302,7 +305,8 @@ void VescUart::setNunchuckValues() { return setNunchuckValues(0); }
 void VescUart::setNunchuckValues(uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 11 : 13);
-  uint8_t payload[payloadSize];
+  // 13 = max payload size
+  uint8_t payload[13];
 
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
@@ -330,7 +334,8 @@ void VescUart::setCurrent(float current) { return setCurrent(current, 0); }
 void VescUart::setCurrent(float current, uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 5 : 7);
-  uint8_t payload[payloadSize];
+  // 7 = max payload size
+  uint8_t payload[7];
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
     payload[index++] = canId;
@@ -347,7 +352,8 @@ void VescUart::setBrakeCurrent(float brakeCurrent) {
 void VescUart::setBrakeCurrent(float brakeCurrent, uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 5 : 7);
-  uint8_t payload[payloadSize];
+  // 7 = max payload size
+  uint8_t payload[7];
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
     payload[index++] = canId;
@@ -364,7 +370,8 @@ void VescUart::setRPM(float rpm) { return setRPM(rpm, 0); }
 void VescUart::setRPM(float rpm, uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 5 : 7);
-  uint8_t payload[payloadSize];
+  // 7 = max payload size
+  uint8_t payload[7];
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
     payload[index++] = canId;
@@ -379,7 +386,8 @@ void VescUart::setDuty(float duty) { return setDuty(duty, 0); }
 void VescUart::setDuty(float duty, uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 5 : 7);
-  uint8_t payload[payloadSize];
+  // 7 = max payload size
+  uint8_t payload[7];
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
     payload[index++] = canId;
@@ -395,7 +403,8 @@ void VescUart::sendKeepalive(void) { return sendKeepalive(0); }
 void VescUart::sendKeepalive(uint8_t canId) {
   int32_t index = 0;
   int payloadSize = (canId == 0 ? 1 : 3);
-  uint8_t payload[payloadSize];
+  // 3 = max payload size
+  uint8_t payload[3];
   if (canId != 0) {
     payload[index++] = {COMM_FORWARD_CAN};
     payload[index++] = canId;

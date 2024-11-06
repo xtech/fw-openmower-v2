@@ -11,8 +11,8 @@
 #include "../../globals.hpp"
 
 void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
-  if (new_status &
-      (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE) == 0) {
+  if ((new_status &
+       (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }

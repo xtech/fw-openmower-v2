@@ -830,7 +830,7 @@ netconn_free(struct netconn *conn)
 static void
 netconn_drain(struct netconn *conn)
 {
-  void *mem;
+  void *mem = NULL;
 
   /* This runs when mbox and netconn are marked as closed,
      so we don't need to lock against rx packets */

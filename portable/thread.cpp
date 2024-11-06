@@ -11,4 +11,8 @@ bool xbot::service::thread::initialize(ThreadPtr thread,
   return true;
 }
 
-void xbot::service::thread::deinitialize(ThreadPtr thread) {}
+void xbot::service::thread::deinitialize(ThreadPtr thread) {
+  (void)thread;
+  // Currently not implemented, since we should probably rather reset the MCU
+  chDbgAssert(false, "Not Implemented");
+}

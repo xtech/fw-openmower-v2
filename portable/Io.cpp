@@ -33,6 +33,7 @@ fd_set socket_set;
 using namespace xbot::service;
 
 void runIo(void* arg) {
+  (void)arg;
   while (true) {
     packet::PacketPtr packet = nullptr;
 

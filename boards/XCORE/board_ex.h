@@ -46,8 +46,10 @@
     mii_write(&ETHD1, 0x00, 0x2A05);           \
   } while (0)
 
-#define EEPROM_DEVICE_ADDRESS 0b1010011
-#define CARRIER_EEPROM_DEVICE_ADDRESS 0b1010000
+// eeprom address = 0b1010011
+#define EEPROM_DEVICE_ADDRESS 0x53
+// carrier eeprom address = 0b1010000
+#define CARRIER_EEPROM_DEVICE_ADDRESS 0x50
 
 // Define the fallback IP settings for this board (if DHCP fails)
 // 10.0.0.254

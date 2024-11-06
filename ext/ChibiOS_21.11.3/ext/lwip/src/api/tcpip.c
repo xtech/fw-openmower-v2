@@ -126,7 +126,7 @@ again:
 static void
 tcpip_thread(void *arg)
 {
-  struct tcpip_msg *msg;
+  struct tcpip_msg *msg = NULL;
   LWIP_UNUSED_ARG(arg);
 
   LWIP_MARK_TCPIP_THREAD();
