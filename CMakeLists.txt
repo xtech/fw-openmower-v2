@@ -34,6 +34,10 @@ set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
         CXX_STANDARD_REQUIRED ON
         CXX_EXTENSIONS ON
 )
+
+target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
+
+
 # Add lib subdirectory
 add_subdirectory(ext)
 
