@@ -31,21 +31,19 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: false
-          context: bootloader
+          context: .
           cache-from: type=gha
           cache-to: type=gha,mode=max
           outputs: type=local,dest=./out
       - name: Copy Artifacts
         run: |
           mkdir artifacts
-          cp -r ./host-software ./artifacts
-          mkdir ./artifacts/bootloader
-          cp ./out/xcore-boot.bin ./artifacts/bootloader
-          cp ./out/xcore-boot.elf ./artifacts/bootloader
+          cp ./out/openmower.bin ./artifacts
+          cp ./out/openmower.elf ./artifacts
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bootloader
+          name: openmower
           path: artifacts/
   tagged-release:
     runs-on: ubuntu-latest
@@ -55,7 +53,7 @@ jobs:
       - name: Download artifacts from build stage
         uses: actions/download-artifact@v4
         with:
-          name: bootloader
+          name: openmower
           path: artifacts
       - name: Compress release directory into a versioned ZIP file
         run: zip -r "xcore-boot-${{ github.ref_name }}.zip" artifacts/*
