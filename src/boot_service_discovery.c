@@ -68,6 +68,14 @@ static void multicast_sender_thread(void *p) {
         recvfrom(sockfd, boardAdvertisementRequestBuffer,
                  sizeof(boardAdvertisementRequestBuffer) - 1, 0, NULL, NULL);
     if (received > 0) {
+      // check, if the command was "RESET", if so, we reset
+      if(strncmp(boardAdvertisementBuffer, "RESET", sizeof(boardAdvertisementBuffer)) == 0) {
+        // Set the boot address to bootloader and reset the system
+        MODIFY_REG(SYSCFG->UR2, SYSCFG_UR2_BOOT_ADD0,
+           (0x8000000 >> 16) << SYSCFG_UR2_BOOT_ADD0_Pos);
+        NVIC_SystemReset();
+        while(1);
+      }
       // Send the multicast message
       sendto(sockfd, boardAdvertisementBuffer, strlen(boardAdvertisementBuffer),
              0, (struct sockaddr *)&multicast_addr, sizeof(multicast_addr));

@@ -51,6 +51,8 @@ class UbxGpsInterface : public GpsInterface {
   void handle_nav_pvt(const UbxNavPvt *msg);
 
   uint8_t gbuffer[4096]{};
+  uint8_t debug_buffer[3][4096]{};
+  uint8_t current_debug_buffer = 0;
   size_t gbuffer_fill = 0;
 
   // flag if we found the header for time tracking only

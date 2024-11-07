@@ -59,14 +59,6 @@
 // 255.255.255.0
 #define FALLBACK_NETMASK 0xFFFFFF00
 
-// Flash information for the bootloader
-#define BOOT_ADDRESS 0x8020000
-// Available flash pages for user program
-#define FLASH_PAGE_COUNT 7
-// Size of each flash page in bytes
-#define FLASH_PAGE_SIZE_BYTES 0x20000
-// Size of flash memory for the user program
-#define PROGRAM_FLASH_SIZE_BYTES (FLASH_PAGE_COUNT * FLASH_PAGE_SIZE_BYTES)
 
 #define SPID_IMU SPID3
 #ifndef __ASSEMBLER__

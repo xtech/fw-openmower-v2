@@ -126,6 +126,7 @@ int main(void) {
 
   // chThdCreateStatic(testWa, sizeof(testWa), NORMALPRIO, testThreadFunc, NULL);
   gps.set_state_callback(etl::delegate<void(const xbot::driver::gps::GpsInterface::GpsState &new_state)>::create<gpsUpdated>());
+  gps.set_datum(49.0, 10.0, 150);
   gps.start_driver(&UARTD6, 921600);
 
   // Subscribe to global events and dispatch to our services
