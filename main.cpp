@@ -3,12 +3,12 @@
 #include "hal.h"
 // clang-format on
 
-#ifdef USE_SEGGER_SYSTEMVIEW
+#ifdef USE_SEGGER_RTT
 #include <SEGGER_RTT.h>
 #include <SEGGER_RTT_streams.h>
 #endif
 #include <boot_service_discovery.h>
-#include <drivers/vesc/VescUart.h>
+#include <drivers/gps/ublox_gps_interface.h>
 #include <heartbeat.h>
 #include <id_eeprom.h>
 #include <lwipthread.h>
@@ -17,18 +17,47 @@
 #include <globals.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/portable/system.hpp>
-
+#include <etl/to_string.h>
+#include "services/diff_drive_service/diff_drive_service.hpp"
 #include "services/emergency_service/emergency_service.hpp"
 #include "services/imu_service/imu_service.hpp"
-#include "services/power_service/power_service.hpp"
-#include "services/diff_drive_service/diff_drive_service.hpp"
 #include "services/mower_service/mower_service.hpp"
+#include "services/power_service/power_service.hpp"
 EmergencyService emergency_service{1};
 DiffDriveService diff_drive{2};
 MowerService mower_service{3};
 ImuService imu_service{4};
 PowerService power_service{5};
 
+xbot::driver::gps::UbxGpsInterface gps{};
+
+THD_WORKING_AREA(testWa, 100);
+void testThreadFunc(void* arg) {
+  (void)arg;
+  while(1) {
+    auto start = chVTGetSystemTime();
+    while(chVTTimeElapsedSinceX(start) < TIME_MS2I(100)) {
+
+    }
+    chThdYield();
+  }
+}
+
+
+int i = 0;
+void gpsUpdated(const xbot::driver::gps::GpsInterface::GpsState &new_state) {
+  (void)new_state;
+  etl::string<100> lat{};
+  etl::format_spec format{};
+  format.width(8).fill(' ').precision(3);
+  lat += "lat:";
+  etl::to_string(new_state.pos_lat, lat, format, true);
+  lat += "lon:";
+  etl::to_string(new_state.pos_lon, lat, format, true);
+
+  SEGGER_RTT_printf(0, "got data: %s!\n", lat.c_str());
+  i++;
+}
 /*
  * Application entry point.
  */
@@ -94,6 +123,10 @@ int main(void) {
   power_service.start();
   diff_drive.start();
   mower_service.start();
+
+  // chThdCreateStatic(testWa, sizeof(testWa), NORMALPRIO, testThreadFunc, NULL);
+  gps.set_state_callback(etl::delegate<void(const xbot::driver::gps::GpsInterface::GpsState &new_state)>::create<gpsUpdated>());
+  gps.start_driver(&UARTD6, 921600);
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;

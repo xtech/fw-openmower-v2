@@ -364,11 +364,11 @@
 #define STM32_SERIAL_USE_USART3             FALSE
 #define STM32_SERIAL_USE_UART4              TRUE
 #define STM32_SERIAL_USE_UART5              FALSE
-#define STM32_SERIAL_USE_USART6             TRUE
-#define STM32_SERIAL_USE_UART7              TRUE
-#define STM32_SERIAL_USE_UART8              TRUE
+#define STM32_SERIAL_USE_USART6             FALSE
+#define STM32_SERIAL_USE_UART7              FALSE
+#define STM32_SERIAL_USE_UART8              FALSE
 #define STM32_SERIAL_USE_UART9              FALSE
-#define STM32_SERIAL_USE_USART10            TRUE
+#define STM32_SERIAL_USE_USART10            FALSE
 #define STM32_SERIAL_USE_LPUART1            FALSE
 
 /*
@@ -440,11 +440,11 @@
 #define STM32_UART_USE_USART3               FALSE
 #define STM32_UART_USE_UART4                FALSE
 #define STM32_UART_USE_UART5                FALSE
-#define STM32_UART_USE_USART6               FALSE
-#define STM32_UART_USE_UART7                FALSE
-#define STM32_UART_USE_UART8                FALSE
+#define STM32_UART_USE_USART6               TRUE
+#define STM32_UART_USE_UART7                TRUE
+#define STM32_UART_USE_UART8                TRUE
 #define STM32_UART_USE_UART9                FALSE
-#define STM32_UART_USE_USART10              FALSE
+#define STM32_UART_USE_USART10              TRUE
 #define STM32_UART_USART1_RX_DMA_STREAM     STM32_DMA_STREAM_ID_ANY
 #define STM32_UART_USART1_TX_DMA_STREAM     STM32_DMA_STREAM_ID_ANY
 #define STM32_UART_USART2_RX_DMA_STREAM     STM32_DMA_STREAM_ID_ANY

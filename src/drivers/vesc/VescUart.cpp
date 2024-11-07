@@ -225,7 +225,6 @@ VescUart::VescUart(SerialDriver* uart_handle, uint32_t timeout_ms)
   nunchuck.upperButton = false;
 }
 bool VescUart::startDriver() {
-  // acquire the UART and never let go
   serial_config_.speed = 115200;
   return sdStart(uart_, &serial_config_) == MSG_OK;
 }
