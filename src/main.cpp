@@ -29,35 +29,6 @@ MowerService mower_service{3};
 ImuService imu_service{4};
 PowerService power_service{5};
 
-xbot::driver::gps::UbxGpsInterface gps{};
-
-THD_WORKING_AREA(testWa, 100);
-void testThreadFunc(void* arg) {
-  (void)arg;
-  while(1) {
-    auto start = chVTGetSystemTime();
-    while(chVTTimeElapsedSinceX(start) < TIME_MS2I(100)) {
-
-    }
-    chThdYield();
-  }
-}
-
-
-int i = 0;
-void gpsUpdated(const xbot::driver::gps::GpsDriver::GpsState &new_state) {
-  (void)new_state;
-  etl::string<100> lat{};
-  etl::format_spec format{};
-  format.width(8).fill(' ').precision(3);
-  lat += "lat:";
-  etl::to_string(new_state.pos_lat, lat, format, true);
-  lat += "lon:";
-  etl::to_string(new_state.pos_lon, lat, format, true);
-
-  SEGGER_RTT_printf(0, "got data: %s!\n", lat.c_str());
-  i++;
-}
 /*
  * Application entry point.
  */
@@ -123,11 +94,6 @@ int main(void) {
   power_service.start();
   diff_drive.start();
   mower_service.start();
-
-  // chThdCreateStatic(testWa, sizeof(testWa), NORMALPRIO, testThreadFunc, NULL);
-  gps.SetStateCallback(etl::delegate<void(const xbot::driver::gps::GpsDriver::GpsState &new_state)>::create<gpsUpdated>());
-  gps.SetDatum(49.0, 10.0, 150);
-  gps.StartDriver(&UARTD6, 921600);
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;

@@ -160,9 +160,7 @@ void UbxGpsInterface::ProcessUbxPacket(const uint8_t *data, const size_t &size) 
     // substract class, id and length
     if (size - 4 == sizeof(UbxNavPvt)) {
       const auto *msg = reinterpret_cast<const UbxNavPvt *>(data + 4);
-      SEGGER_SYSVIEW_MarkStart(1);
       HandleNavPvt(msg);
-      SEGGER_SYSVIEW_MarkStop(1);
     } else {
       ULOG_WARNING("size mismatch for PVT message!");
     }
