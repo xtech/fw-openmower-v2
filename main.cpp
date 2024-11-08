@@ -45,7 +45,7 @@ void testThreadFunc(void* arg) {
 
 
 int i = 0;
-void gpsUpdated(const xbot::driver::gps::GpsInterface::GpsState &new_state) {
+void gpsUpdated(const xbot::driver::gps::GpsDriver::GpsState &new_state) {
   (void)new_state;
   etl::string<100> lat{};
   etl::format_spec format{};
@@ -125,9 +125,9 @@ int main(void) {
   mower_service.start();
 
   // chThdCreateStatic(testWa, sizeof(testWa), NORMALPRIO, testThreadFunc, NULL);
-  gps.set_state_callback(etl::delegate<void(const xbot::driver::gps::GpsInterface::GpsState &new_state)>::create<gpsUpdated>());
-  gps.set_datum(49.0, 10.0, 150);
-  gps.start_driver(&UARTD6, 921600);
+  gps.SetStateCallback(etl::delegate<void(const xbot::driver::gps::GpsDriver::GpsState &new_state)>::create<gpsUpdated>());
+  gps.SetDatum(49.0, 10.0, 150);
+  gps.StartDriver(&UARTD6, 921600);
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;

@@ -2,22 +2,20 @@
 // Created by clemens on 10.01.23.
 //
 
-#ifndef OPEN_MOWER_ROS_GPS_INTERFACE_H
-#define OPEN_MOWER_ROS_GPS_INTERFACE_H
+#ifndef XBOT_DRIVER_GPS_GPS_INTERFACE_H
+#define XBOT_DRIVER_GPS_GPS_INTERFACE_H
 
 #include <etl/delegate.h>
 
 #include "ch.h"
 #include "hal.h"
 
-namespace xbot {
-namespace driver {
-namespace gps {
-class GpsInterface {
+namespace xbot::driver::gps {
+class GpsDriver {
  public:
-  explicit GpsInterface();
+  explicit GpsDriver();
 
-  virtual ~GpsInterface() = default;
+  virtual ~GpsDriver() = default;
 
   /*
    * The final GPS state we're interested in.
@@ -60,17 +58,15 @@ class GpsInterface {
   typedef etl::delegate<void(const GpsState &new_state)> StateCallback;
 
  public:
-  bool start_driver(UARTDriver *uart, uint32_t baudrate);
-  void set_state_callback(const GpsInterface::StateCallback &function);
+  bool StartDriver(UARTDriver *uart, uint32_t baudrate);
+  void SetStateCallback(const GpsDriver::StateCallback &function);
 
-  void set_datum(double datum_lat, double datum_long, double datum_height);
+  void SetDatum(double datum_lat, double datum_long, double datum_height);
 
-  void send_rtcm(const uint8_t *data, size_t size);
-
-  void read_uart(uint32_t timeout);
+  void SendRTCM(const uint8_t *data, size_t size);
 
  protected:
-  StateCallback state_callback{};
+  StateCallback state_callback_{};
 
   double datum_lat_ = 0, datum_long_ = 0, datum_u_ = 0;
 
@@ -84,38 +80,38 @@ class GpsInterface {
   bool send_raw(const void *data, size_t size);
 
   // Called on serial reconnect
-  virtual void reset_parser_state() = 0;
+  virtual void ResetParserState() = 0;
 
-  virtual size_t process_bytes(const uint8_t *buffer, size_t len) = 0;
+  virtual size_t ProcessBytes(const uint8_t *buffer, size_t len) = 0;
 
  private:
   // Extend the config struct by a pointer to this instance, so that we can access it in callbacks.
-  struct UARTConfigEx : public UARTConfig {
-    GpsInterface *context;
+  struct UARTConfigEx : UARTConfig {
+    GpsDriver *context;
   };
 
   static constexpr size_t RECV_BUFFER_SIZE = 100;
   // Keep two buffers for streaming data while doing processing
-  uint8_t recv_buffer1[RECV_BUFFER_SIZE]{};
-  uint8_t recv_buffer2[RECV_BUFFER_SIZE]{};
+  uint8_t recv_buffer1_[RECV_BUFFER_SIZE]{};
+  uint8_t recv_buffer2_[RECV_BUFFER_SIZE]{};
   // We start by receiving into recv_buffer1, so processing_buffer is the 2 (but empty)
-  uint8_t *volatile processing_buffer = recv_buffer2;
-  volatile size_t processing_buffer_len = 0;
+  uint8_t *volatile processing_buffer_ = recv_buffer2_;
+  volatile size_t processing_buffer_len_ = 0;
 
-  UARTDriver *uart{};
-  UARTConfigEx uart_config{};
+  UARTDriver *uart_{};
+  UARTConfigEx uart_config_{};
 
-  THD_WORKING_AREA(wa, 512){};
+  THD_WORKING_AREA(thd_wa_, 512){};
   thread_t *processing_thread_ = nullptr;
   // This is reset by the receiving ISR and set by the thread to signal if it's safe to process more data.
-  volatile bool processing_done = true;
+  volatile bool processing_done_ = true;
   bool stopped_ = true;
 
   void threadFunc();
 
   static void threadHelper(void *instance);
 };
-}  // namespace gps
-}  // namespace driver
-}  // namespace xbot
-#endif  // OPEN_MOWER_ROS_GPS_INTERFACE_H
+} // namespace xbot::driver::gps
+
+
+#endif  // XBOT_DRIVER_GPS_GPS_INTERFACE_H

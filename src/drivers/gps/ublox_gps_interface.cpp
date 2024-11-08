@@ -11,18 +11,18 @@
 #include <chrono>
 #include <cmath>
 
-namespace xbot {
-namespace driver {
-namespace gps {
 
-bool UbxGpsInterface::send_packet(uint8_t *frame, size_t size) {
+
+namespace xbot::driver::gps {
+
+bool UbxGpsInterface::SendPacket(uint8_t *frame, size_t size) {
   frame[0] = 0xb5;
   frame[1] = 0x62;
   auto *length_ptr = reinterpret_cast<uint16_t *>(frame + 4);
   *length_ptr = size - 8;
 
   uint8_t ck_a, ck_b;
-  calculate_checksum(frame + 2, size - 4, ck_a, ck_b);
+  CalculateChecksum(frame + 2, size - 4, ck_a, ck_b);
 
   frame[size - 2] = ck_a;
   frame[size - 1] = ck_b;
@@ -33,7 +33,7 @@ bool UbxGpsInterface::send_packet(uint8_t *frame, size_t size) {
 /**
  * parses the buffer and returns how many more bytes to read
  */
-size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
+size_t UbxGpsInterface::ProcessBytes(const uint8_t *buffer, size_t len) {
   static int invocations = 0;
   static int success = 0;
   static int error = 0;
@@ -55,7 +55,7 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
           // Throw away all bytes before the header start
           len -= (header_start-buffer);
           buffer = header_start;
-          gbuffer[gbuffer_fill++] = *buffer;
+          gbuffer_[gbuffer_fill++] = *buffer;
           buffer++;
           len--;
         }
@@ -63,7 +63,7 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
         case 1:
           // we have one byte, looking for 0x62
           if (buffer[0] == 0x62) {
-            gbuffer[gbuffer_fill++] = *buffer;
+            gbuffer_[gbuffer_fill++] = *buffer;
             found_header_ = true;
           } else {
             // we had the 0xb5 but didn't get 0x62, reset to searching 0xb5
@@ -88,7 +88,7 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
     // need 6 bytes to determine the packet length
     if (gbuffer_fill < 6) {
       size_t bytes_to_take = etl::min(len, 6 - gbuffer_fill);
-      memcpy(&gbuffer[gbuffer_fill], buffer, bytes_to_take);
+      memcpy(&gbuffer_[gbuffer_fill], buffer, bytes_to_take);
       gbuffer_fill += bytes_to_take;
       buffer += bytes_to_take;
       len -= bytes_to_take;
@@ -97,10 +97,10 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
       }
     } else {
       // get the length first to check, if we already got enough bytes
-      uint16_t payload_length = gbuffer[5] << 8 | gbuffer[4];
+      uint16_t payload_length = gbuffer_[5] << 8 | gbuffer_[4];
       uint16_t total_length = payload_length + 8;
 
-      if (total_length > sizeof(gbuffer)) {
+      if (total_length > sizeof(gbuffer_)) {
         // cannot read whole packet, so probably error in size, skip to next
         found_header_ = false;
         gbuffer_fill = 0;
@@ -109,7 +109,7 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
 
       // Take remaining bytes up to the requested length
       size_t bytes_to_take = etl::min(len, total_length - gbuffer_fill);
-      memcpy(&gbuffer[gbuffer_fill], buffer, bytes_to_take);
+      memcpy(&gbuffer_[gbuffer_fill], buffer, bytes_to_take);
       gbuffer_fill += bytes_to_take;
       buffer += bytes_to_take;
       len -= bytes_to_take;
@@ -119,7 +119,7 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
         return total_length - gbuffer_fill;
       }
 
-      if (!validate_checksum(gbuffer, total_length)) {
+      if (!ValidateChecksum(gbuffer_, total_length)) {
         // invalid packet, reset header
         found_header_ = false;
         gbuffer_fill = 0;
@@ -127,7 +127,7 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
         continue;
       }
 
-      process_ubx_packet(gbuffer + 2, gbuffer_fill - 4);
+      ProcessUbxPacket(gbuffer_ + 2, gbuffer_fill - 4);
       success++;
 
       found_header_ = false;
@@ -139,9 +139,9 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
   return 1;
 }
 
-bool UbxGpsInterface::validate_checksum(const uint8_t *packet, size_t size) {
+bool UbxGpsInterface::ValidateChecksum(const uint8_t *packet, size_t size) {
   uint8_t ck_a, ck_b;
-  calculate_checksum(packet + 2, size - 4, ck_a, ck_b);
+  CalculateChecksum(packet + 2, size - 4, ck_a, ck_b);
 
   bool valid = packet[size - 2] == ck_a && packet[size - 1] == ck_b;
 
@@ -152,7 +152,7 @@ bool UbxGpsInterface::validate_checksum(const uint8_t *packet, size_t size) {
   return valid;
 }
 
-void UbxGpsInterface::process_ubx_packet(const uint8_t *data, const size_t &size) {
+void UbxGpsInterface::ProcessUbxPacket(const uint8_t *data, const size_t &size) {
   // data = no header bytes (starts with class) and stops before checksum
 
   uint16_t packet_id = data[0] << 8 | data[1];
@@ -161,7 +161,7 @@ void UbxGpsInterface::process_ubx_packet(const uint8_t *data, const size_t &size
     if (size - 4 == sizeof(UbxNavPvt)) {
       const auto *msg = reinterpret_cast<const UbxNavPvt *>(data + 4);
       SEGGER_SYSVIEW_MarkStart(1);
-      handle_nav_pvt(msg);
+      HandleNavPvt(msg);
       SEGGER_SYSVIEW_MarkStop(1);
     } else {
       ULOG_WARNING("size mismatch for PVT message!");
@@ -169,7 +169,7 @@ void UbxGpsInterface::process_ubx_packet(const uint8_t *data, const size_t &size
   }
 }
 
-void UbxGpsInterface::handle_nav_pvt(const UbxNavPvt *msg) {
+void UbxGpsInterface::HandleNavPvt(const UbxNavPvt *msg) {
   // We have received a nav pvt message, copy to GPS state
   // check, if message is even roughly valid. If not - ignore it.
   bool gnssFixOK = (msg->flags & 0b0000001);
@@ -255,10 +255,10 @@ void UbxGpsInterface::handle_nav_pvt(const UbxNavPvt *msg) {
 
   gps_state_valid_ = true;
 
-  if (state_callback) state_callback(gps_state_);
+  if (state_callback_) state_callback_(gps_state_);
 }
 
-void UbxGpsInterface::calculate_checksum(const uint8_t *packet, size_t size, uint8_t &ck_a, uint8_t &ck_b) {
+void UbxGpsInterface::CalculateChecksum(const uint8_t *packet, size_t size, uint8_t &ck_a, uint8_t &ck_b) {
   ck_a = 0;
   ck_b = 0;
 
@@ -271,10 +271,9 @@ void UbxGpsInterface::calculate_checksum(const uint8_t *packet, size_t size, uin
 UbxGpsInterface::UbxGpsInterface() {
 }
 
-void UbxGpsInterface::reset_parser_state() {
+void UbxGpsInterface::ResetParserState() {
   found_header_ = false;
+  gbuffer_fill = 0;
 }
 
-}  // namespace gps
-}  // namespace driver
-}  // namespace xbot
+} // namespace xbot::driver::gps
