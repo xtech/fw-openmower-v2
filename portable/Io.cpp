@@ -30,6 +30,8 @@ XBOT_THREAD_TYPEDEF io_thread_{};
 
 fd_set socket_set;
 
+static const char* IO_THD_NAME = "xbot-io";
+
 using namespace xbot::service;
 
 void runIo(void* arg) {
@@ -106,7 +108,7 @@ bool Io::start() {
     return false;
   }
   return thread::initialize(&io_thread_, runIo, nullptr, &waIoThread,
-                            sizeof(waIoThread));
+                            sizeof(waIoThread), IO_THD_NAME);
 }
 
 }  // namespace xbot::service

@@ -13,9 +13,9 @@
 
 #include "chprintf.h"
 #include "lwip/sockets.h"
-static char boardAdvertisementBuffer[1000];
-static char boardAdvertisementRequestBuffer[1000];
-static THD_WORKING_AREA(waServiceDiscovery, 500);
+static char boardAdvertisementBuffer[100];
+static char boardAdvertisementRequestBuffer[100];
+static THD_WORKING_AREA(waServiceDiscovery, 512);
 
 static void multicast_sender_thread(void *p) {
   (void)p;
@@ -92,6 +92,9 @@ void InitBootloaderServiceDiscovery() {
              "BOARD_ADVERTISEMENT:xcore-boot;application-mode");
 
   // Create a multicast sender thread
-  chThdCreateStatic(waServiceDiscovery, sizeof(waServiceDiscovery), NORMALPRIO,
+  thread_t* threadPointer = chThdCreateStatic(waServiceDiscovery, sizeof(waServiceDiscovery), NORMALPRIO,
                     multicast_sender_thread, NULL);
+#ifdef USE_SEGGER_SYSTEMVIEW
+  threadPointer->name = "Boot SD";
+#endif
 }

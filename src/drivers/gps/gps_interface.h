@@ -90,7 +90,9 @@ class GpsDriver {
     GpsDriver *context;
   };
 
-  static constexpr size_t RECV_BUFFER_SIZE = 100;
+  static constexpr size_t RECV_BUFFER_SIZE = 512;
+  // 10Hz timeout for reception
+  static constexpr uint32_t RECV_TIMEOUT_MILLIS = 100;
   // Keep two buffers for streaming data while doing processing
   uint8_t recv_buffer1_[RECV_BUFFER_SIZE]{};
   uint8_t recv_buffer2_[RECV_BUFFER_SIZE]{};
@@ -101,7 +103,7 @@ class GpsDriver {
   UARTDriver *uart_{};
   UARTConfigEx uart_config_{};
 
-  THD_WORKING_AREA(thd_wa_, 512){};
+  THD_WORKING_AREA(thd_wa_, 1024){};
   thread_t *processing_thread_ = nullptr;
   // This is reset by the receiving ISR and set by the thread to signal if it's safe to process more data.
   volatile bool processing_done_ = true;
@@ -111,7 +113,6 @@ class GpsDriver {
 
   static void threadHelper(void *instance);
 };
-} // namespace xbot::driver::gps
-
+}  // namespace xbot::driver::gps
 
 #endif  // XBOT_DRIVER_GPS_GPS_INTERFACE_H

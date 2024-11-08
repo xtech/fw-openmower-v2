@@ -658,6 +658,7 @@ extern volatile uint32_t last_idle_tick;
 #if !defined(CH_DBG_ENABLE_STACK_CHECK)
 #ifdef DEBUG_BUILD
 #define CH_DBG_ENABLE_STACK_CHECK           TRUE
+#define PORT_ENABLE_GUARD_PAGES TRUE
 #else
 #ifdef RELEASE_BUILD
 #define CH_DBG_ENABLE_STACK_CHECK           FALSE
