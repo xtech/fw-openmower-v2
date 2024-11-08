@@ -34,11 +34,6 @@ bool UbxGpsInterface::send_packet(uint8_t *frame, size_t size) {
  * parses the buffer and returns how many more bytes to read
  */
 size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
-
-  current_debug_buffer = (current_debug_buffer+1)%3;
-  memset(debug_buffer[current_debug_buffer], 0xEF, 4096);
-  memcpy(debug_buffer[current_debug_buffer], buffer, len);
-
   static int invocations = 0;
   static int success = 0;
   static int error = 0;
@@ -49,13 +44,21 @@ size_t UbxGpsInterface::process_bytes(const uint8_t *buffer, size_t len) {
         continue;
       }
       switch (gbuffer_fill) {
-        case 0:
+        case 0: {
           // buffer empty, looking for 0xb5
-          if (buffer[0] == 0xb5) {
-            gbuffer[gbuffer_fill++] = *buffer;
+          const auto header_start = static_cast<uint8_t*>(memchr(buffer, 0xb5, len));
+          if(header_start == nullptr) {
+            // reject the whole input, we don't have 0xb5
+            len = 0;
+            continue;
           }
+          // Throw away all bytes before the header start
+          len -= (header_start-buffer);
+          buffer = header_start;
+          gbuffer[gbuffer_fill++] = *buffer;
           buffer++;
           len--;
+        }
         break;
         case 1:
           // we have one byte, looking for 0x62

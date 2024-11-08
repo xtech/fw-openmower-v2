@@ -89,29 +89,31 @@ class GpsInterface {
   virtual size_t process_bytes(const uint8_t *buffer, size_t len) = 0;
 
  private:
- static constexpr size_t RECV_BUFFER_SIZE=512;
- // Keep two buffers for streaming data while doing processing
+  // Extend the config struct by a pointer to this instance, so that we can access it in callbacks.
+  struct UARTConfigEx : public UARTConfig {
+    GpsInterface *context;
+  };
+
+  static constexpr size_t RECV_BUFFER_SIZE = 100;
+  // Keep two buffers for streaming data while doing processing
   uint8_t recv_buffer1[RECV_BUFFER_SIZE]{};
   uint8_t recv_buffer2[RECV_BUFFER_SIZE]{};
-  uint8_t* processing_buffer = recv_buffer1;
-  size_t processing_buffer_len = 0;
+  // We start by receiving into recv_buffer1, so processing_buffer is the 2 (but empty)
+  uint8_t *volatile processing_buffer = recv_buffer2;
+  volatile size_t processing_buffer_len = 0;
+
   UARTDriver *uart{};
-  UARTConfig uart_config{};
+  UARTConfigEx uart_config{};
 
-  THD_WORKING_AREA(wa, 1024){};
-  THD_WORKING_AREA(recvThdWa, 100){};
-  thread_t* processing_thread_ = nullptr;
-  // mutex held while processing data
-  // i.e. receiving thread cannot swap buffers when this is held
-  ch_mutex processing_mutex{};
-
+  THD_WORKING_AREA(wa, 512){};
+  thread_t *processing_thread_ = nullptr;
+  // This is reset by the receiving ISR and set by the thread to signal if it's safe to process more data.
+  volatile bool processing_done = true;
   bool stopped_ = true;
 
   void threadFunc();
-  void receivingThreadFunc();
 
   static void threadHelper(void *instance);
-  static void receivingThreadHelper(void *instance);
 };
 }  // namespace gps
 }  // namespace driver

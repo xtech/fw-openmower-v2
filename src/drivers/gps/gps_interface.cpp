@@ -15,7 +15,6 @@ namespace gps {
 
 GpsInterface::GpsInterface() {
   datum_lat_ = datum_long_ = NAN;
-  chMtxObjectInit(&processing_mutex);
 }
 bool GpsInterface::start_driver(UARTDriver *uart, uint32_t baudrate) {
   chDbgAssert(stopped_, "don't start the driver twice");
@@ -25,15 +24,51 @@ bool GpsInterface::start_driver(UARTDriver *uart, uint32_t baudrate) {
   }
   this->uart = uart;
   uart_config.speed = baudrate;
+  uart_config.context = this;
   bool uartStarted = uartStart(uart, &uart_config) == MSG_OK;
   if(!uartStarted) {
     return false;
   }
 
+
+  uart_config.rxchar_cb = [](UARTDriver* uartp, uint16_t c) {
+    (void)uartp;
+    (void)c;
+    static int missing_bytes=0;
+    missing_bytes++;
+  };
+
+  uart_config.rxend_cb = [](UARTDriver* uartp) {
+    (void)uartp;
+    static int i = 0;
+    i++;
+    GpsInterface* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
+    if(!instance->processing_done) {
+      // This is bad, processing is too slow to keep up with updates!
+      // We just read into the same buffer again
+      uint8_t* next_recv_buffer = (instance->processing_buffer == instance->recv_buffer1) ? instance->recv_buffer2 : instance->recv_buffer1;
+      uartStartReceiveI(uartp, RECV_BUFFER_SIZE, next_recv_buffer);
+    } else {
+      // Swap buffers and read into the next one
+      // Get the pointer to the receiving buffer (it's not the processing buffer)
+      uint8_t* next_recv_buffer = instance->processing_buffer;
+      uartStartReceiveI(uartp, RECV_BUFFER_SIZE, next_recv_buffer);
+      instance->processing_buffer = (instance->processing_buffer == instance->recv_buffer1) ? instance->recv_buffer2 : instance->recv_buffer1;
+      instance->processing_buffer_len = RECV_BUFFER_SIZE;
+      instance->processing_done = false;
+      // Signal the processing thread
+      if(instance->processing_thread_) {
+        chEvtSignalI(instance->processing_thread_, 1);
+      }
+    }
+  };
+
+
+
   stopped_ = false;
   processing_thread_ = chThdCreateStatic(&wa, sizeof(wa), NORMALPRIO, threadHelper, this);
-  // Allow higher prio in order to not lose buffers. Active time in this thread is very minimal (it's just swapping buffers)
-  chThdCreateStatic(&recvThdWa, sizeof(recvThdWa), NORMALPRIO+1, receivingThreadHelper, this);
+
+  uartStartReceive(uart, RECV_BUFFER_SIZE, recv_buffer1);
   return true;
 }
 
@@ -54,58 +89,17 @@ bool GpsInterface::send_raw(const void *data, size_t size) {
 }
 
 void GpsInterface::threadFunc() {
-  // size_t bytes_to_process = 1;
   while(!stopped_) {
-    // Wait for data to arrive
+    // Wait for data to arrive, process and mark as done
     chEvtWaitAny(ALL_EVENTS);
-    // Lock the processing buffer and process the data
-    chMtxLock(&processing_mutex);
-    // try to read as much as possible in order to not interrupt on single bytes
-    // size_t processed = 0;
-    // while(processed < processing_buffer_len) {
-      // const size_t in = etl::min(bytes_to_process, processing_buffer_len-processed);
-      // bytes_to_process = process_bytes(processing_buffer+processed, in);
-      // processed+=in;
-    // }
     process_bytes(processing_buffer, processing_buffer_len);
-    chMtxUnlock(&processing_mutex);
+    processing_done = true;
   }
 }
-
-
-void GpsInterface::receivingThreadFunc() {
-  while(!stopped_) {
-    // try to read as much as possible in order to not interrupt on single bytes
-    size_t read = RECV_BUFFER_SIZE;
-    // Get the pointer to the receiving buffer (it's not the processing buffer)
-    uint8_t* buffer = (processing_buffer == recv_buffer1) ? recv_buffer2 : recv_buffer1;
-    memset(buffer, 0, RECV_BUFFER_SIZE);
-    uartReceiveTimeout(uart, &read, buffer, TIME_S2I(1));
-    // swap buffers and instantly restart DMA
-    bool locked = chMtxTryLock(&processing_mutex);
-    if(!locked) {
-      ULOG_WARNING("GPS processing too slow to keep up with incoming data");
-      chMtxLock(&processing_mutex);
-    }
-    // Swap the buffers
-    processing_buffer = buffer;
-    processing_buffer_len = read;
-    chMtxUnlock(&processing_mutex);
-    // Signal the processing thread
-    if(processing_thread_) {
-      chEvtSignal(processing_thread_, 1);
-    }
-  }
-}
-
 
 void GpsInterface::threadHelper(void *instance) {
   auto *gps_interface = static_cast<GpsInterface *>(instance);
   gps_interface->threadFunc();
-}
-void GpsInterface::receivingThreadHelper(void *instance) {
-  auto *gps_interface = static_cast<GpsInterface *>(instance);
-  gps_interface->receivingThreadFunc();
 }
 
 void GpsInterface::send_rtcm(const uint8_t *data, size_t size) {
