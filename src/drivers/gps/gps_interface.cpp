@@ -29,9 +29,6 @@ bool GpsDriver::StartDriver(UARTDriver *uart, uint32_t baudrate) {
   }
 
   uart_config_.rxend_cb = [](UARTDriver *uartp) {
-    (void)uartp;
-    static int i = 0;
-    i++;
     GpsDriver *instance = reinterpret_cast<const UARTConfigEx *>(uartp->config)->context;
     if (!instance->processing_done_) {
       // This is bad, processing is too slow to keep up with updates!

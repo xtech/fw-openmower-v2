@@ -6,7 +6,7 @@
 #define MOWER_SERVICE_HPP
 
 #include <ch.h>
-#include <drivers/vesc/VescUart.h>
+#include <drivers/vesc/VescDriver.h>
 
 #include <MowerServiceBase.hpp>
 
@@ -25,7 +25,7 @@ class MowerService : public MowerServiceBase {
  private:
   void tick() override;
   void SetDuty();
-  mutex_t mtx{};
+  MUTEX_DECL(mtx);
 
  protected:
   bool OnMowerEnabledChanged(const uint8_t& new_value) override;
@@ -34,7 +34,7 @@ class MowerService : public MowerServiceBase {
   THD_WORKING_AREA(wa, 1024){};
   float mower_duty_ = 0;
   bool duty_sent_ = false;
-  VescUart mower_uart_;
+  xbot::driver::esc::VescDriver mower_driver_{};
 };
 
 #endif  // MOWER_SERVICE_HPP

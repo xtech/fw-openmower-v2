@@ -5,32 +5,39 @@
 #ifndef DIFF_DRIVE_SERVICE_HPP
 #define DIFF_DRIVE_SERVICE_HPP
 
-#include <drivers/vesc/VescUart.h>
 
 #include <DiffDriveServiceBase.hpp>
 #include <xbot-service/portable/socket.hpp>
+#include <drivers/vesc/VescDriver.h>
+using namespace xbot::driver::esc;
 
 class DiffDriveService : public DiffDriveServiceBase {
  private:
   THD_WORKING_AREA(wa, 1024);
-  VescUart left_uart_{&SD1};
-  VescUart right_uart_{&SD4};
+  VescDriver left_esc_driver_{};
+  VescDriver right_esc_driver_{};
 
-  long last_ticks_left = 0;
-  long last_ticks_right = 0;
+  VescDriver::ESCState left_esc_state_{};
+  VescDriver::ESCState right_esc_state_{};
+  bool left_esc_state_valid_ = false;
+  bool right_esc_state_valid_ = false;
+  uint32_t last_valid_esc_state_micros_ = 0;
+
+  uint32_t last_ticks_left = 0;
+  uint32_t last_ticks_right = 0;
   bool last_ticks_valid = false;
   uint32_t last_ticks_micros_ = 0;
 
-  mutex_t mtx{};
+  MUTEX_DECL(mtx);
   float speed_l_ = 0;
   float speed_r_ = 0;
-
   bool duty_sent_ = false;
+
+
 
  public:
   explicit DiffDriveService(uint16_t service_id)
       : DiffDriveServiceBase(service_id, 20000, wa, sizeof(wa)) {
-    chMtxObjectInit(&mtx);
   }
 
   void OnMowerStatusChanged(uint32_t new_status);
@@ -45,6 +52,10 @@ class DiffDriveService : public DiffDriveServiceBase {
   void tick() override;
 
   void SetDuty();
+
+  void LeftESCCallback(const VescDriver::ESCState &state);
+  void RightESCCallback(const VescDriver::ESCState &state);
+  void ProcessStatusUpdate();
 
  protected:
   bool OnControlTwistChanged(const double* new_value, uint32_t length) override;

@@ -4,7 +4,6 @@
 
 #include "mower_service.hpp"
 
-#include <drivers/vesc/esc_status.h>
 
 #include <globals.hpp>
 
@@ -12,7 +11,7 @@ bool MowerService::Configure() {
   // No configuration needed
   return true;
 }
-void MowerService::OnCreate() { mower_uart_.startDriver(); }
+void MowerService::OnCreate() { mower_driver_.StartDriver(&UARTD2, 115200); }
 void MowerService::OnStart() { mower_duty_ = 0; }
 void MowerService::OnStop() { mower_duty_ = 0; }
 
@@ -24,20 +23,6 @@ void MowerService::tick() {
     SetDuty();
   }
 
-  mower_uart_.requestVescValues();
-
-  bool parse_success = mower_uart_.parseVescValues();
-
-  StartTransaction();
-  if (parse_success) {
-    SendMowerESCTemperature(mower_uart_.data.tempMosfet);
-    SendMowerMotorCurrent(mower_uart_.data.avgMotorCurrent);
-    SendMowerStatus(mower_uart_.data.error == 0 ? ESC_STATUS_OK
-                                                : ESC_STATUS_ERROR);
-  } else {
-    SendMowerStatus(ESC_STATUS_DISCONNECTED);
-  }
-  CommitTransaction();
 
   duty_sent_ = false;
   chMtxUnlock(&mtx);
@@ -49,9 +34,9 @@ void MowerService::SetDuty() {
   uint32_t status_copy = mower_status;
   chMtxUnlock(&mower_status_mutex);
   if (status_copy & MOWER_FLAG_EMERGENCY_LATCH) {
-    mower_uart_.setDuty(0);
+    mower_driver_.SetDuty(0);
   } else {
-    mower_uart_.setDuty(mower_duty_);
+    mower_driver_.SetDuty(mower_duty_);
   }
   duty_sent_ = true;
 }
@@ -83,6 +68,5 @@ void MowerService::OnMowerStatusChanged(uint32_t new_status) {
 }
 
 MowerService::MowerService(const uint16_t service_id)
-    : MowerServiceBase(service_id, 1000000, wa, sizeof(wa)), mower_uart_(&SD2) {
-  chMtxObjectInit(&mtx);
+    : MowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
 }

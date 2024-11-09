@@ -64,8 +64,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/bq_2576/bq_2576.cpp
         # VESC driver
         src/drivers/vesc/buffer.cpp
-        src/drivers/vesc/VescUart.cpp
         src/drivers/vesc/crc.cpp
+        src/drivers/vesc/VescDriver.cpp
         # GPS driver
         src/drivers/gps/gps_interface.cpp
         src/drivers/gps/ublox_gps_interface.cpp

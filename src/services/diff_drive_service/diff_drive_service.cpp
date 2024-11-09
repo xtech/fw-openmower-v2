@@ -4,15 +4,12 @@
 
 #include "diff_drive_service.hpp"
 
-#include <drivers/vesc/esc_status.h>
-
 #include <xbot-service/portable/system.hpp>
 
 #include "../../globals.hpp"
 
 void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
-  if ((new_status &
-       (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
+  if ((new_status & (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }
@@ -25,8 +22,8 @@ void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
 }
 bool DiffDriveService::Configure() {
   // Check, if configuration is valid, if not retry
-  if (!WheelDistance.valid || !WheelTicksPerMeter.valid ||
-      WheelDistance.value == 0 || WheelTicksPerMeter.value == 0.0) {
+  if (!WheelDistance.valid || !WheelTicksPerMeter.valid || WheelDistance.value == 0 ||
+      WheelTicksPerMeter.value == 0.0) {
     return false;
   }
   // It's fine, we don't actually need to configure anything
@@ -37,8 +34,16 @@ void DiffDriveService::OnStart() {
   last_ticks_valid = false;
 }
 void DiffDriveService::OnCreate() {
-  left_uart_.startDriver();
-  right_uart_.startDriver();
+  using namespace xbot::driver::esc;
+  // Register callbacks
+  left_esc_driver_.SetStateCallback(
+      etl::delegate<void(const VescDriver::ESCState&)>::create<DiffDriveService, &DiffDriveService::LeftESCCallback>(
+          *this));
+  right_esc_driver_.SetStateCallback(
+      etl::delegate<void(const VescDriver::ESCState&)>::create<DiffDriveService, &DiffDriveService::RightESCCallback>(
+          *this));
+  left_esc_driver_.StartDriver(&UARTD1, 115200);
+  right_esc_driver_.StartDriver(&UARTD4, 115200);
 }
 void DiffDriveService::OnStop() {
   speed_l_ = speed_r_ = 0;
@@ -52,61 +57,21 @@ void DiffDriveService::tick() {
     SetDuty();
   }
 
-  uint32_t micros = xbot::service::system::getTimeMicros();
-  left_uart_.requestVescValues();
-  right_uart_.requestVescValues();
+  left_esc_driver_.RequestStatus();
+  right_esc_driver_.RequestStatus();
 
-  bool parse_left_success = left_uart_.parseVescValues();
-  bool parse_right_success = right_uart_.parseVescValues();
-
-  StartTransaction();
-
-  if (parse_left_success) {
-    SendLeftESCTemperature(left_uart_.data.tempMosfet);
-    SendLeftESCCurrent(left_uart_.data.avgMotorCurrent);
-    SendLeftESCStatus(left_uart_.data.error == 0 ? ESC_STATUS_OK
-                                                 : ESC_STATUS_ERROR);
-  } else {
-    SendLeftESCStatus(ESC_STATUS_DISCONNECTED);
-  }
-
-  if (parse_right_success) {
-    SendRightESCTemperature(right_uart_.data.tempMosfet);
-    SendRightESCCurrent(right_uart_.data.avgMotorCurrent);
-    SendRightESCStatus(left_uart_.data.error == 0 ? ESC_STATUS_OK
-                                                  : ESC_STATUS_ERROR);
-  } else {
-    SendRightESCStatus(ESC_STATUS_DISCONNECTED);
-  }
-
-  if (parse_left_success && parse_right_success) {
-    // Calculate the twist according to wheel ticks
-    if (last_ticks_valid) {
-      float dt = static_cast<float>(micros - last_ticks_micros_) / 1000000.0f;
-      auto d_left =
-          static_cast<float>(left_uart_.data.tachometer - last_ticks_left);
-      auto d_right =
-          static_cast<float>(right_uart_.data.tachometer - last_ticks_right);
-      float vx = (d_right - d_left) /
-                 (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));
-      float vr = (d_left + d_right) /
-                 (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));
-      double data[6]{};
-      data[0] = vx;
-      data[5] = vr;
-      SendActualTwist(data, 6);
-      uint32_t ticks[2];
-      ticks[0] = left_uart_.data.tachometer;
-      ticks[1] = right_uart_.data.tachometer;
-      SendWheelTicks(ticks, 2);
+  // Check, if we have received ESC status updates recently. If not, send a disconnected message
+  if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1000000) {
+    StartTransaction();
+    if (!left_esc_state_valid_) {
+      SendLeftESCStatus(static_cast<uint8_t>(VescDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
     }
-    last_ticks_valid = true;
-    last_ticks_left = left_uart_.data.tachometer;
-    last_ticks_right = right_uart_.data.tachometer;
-    last_ticks_micros_ = micros;
+    if (!right_esc_state_valid_) {
+      SendRightESCStatus(static_cast<uint8_t>(VescDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
+    }
+    CommitTransaction();
   }
 
-  CommitTransaction();
   duty_sent_ = false;
   chMtxUnlock(&mtx);
 }
@@ -116,17 +81,72 @@ void DiffDriveService::SetDuty() {
   uint32_t status_copy = mower_status;
   chMtxUnlock(&mower_status_mutex);
   if (status_copy & MOWER_FLAG_EMERGENCY_LATCH) {
-    left_uart_.setDuty(0);
-    right_uart_.setDuty(0);
+    left_esc_driver_.SetDuty(0);
+    right_esc_driver_.SetDuty(0);
   } else {
-    left_uart_.setDuty(speed_l_);
-    right_uart_.setDuty(speed_r_);
+    left_esc_driver_.SetDuty(speed_l_);
+    right_esc_driver_.SetDuty(speed_r_);
   }
   duty_sent_ = true;
 }
+void DiffDriveService::LeftESCCallback(const VescDriver::ESCState& state) {
+  chMtxLock(&mtx);
+  left_esc_state_ = state;
+  left_esc_state_valid_ = true;
+  if (right_esc_state_valid_) {
+    ProcessStatusUpdate();
+  }
+  chMtxUnlock(&mtx);
+}
+void DiffDriveService::RightESCCallback(const VescDriver::ESCState& state) {
+  chMtxLock(&mtx);
+  right_esc_state_ = state;
+  right_esc_state_valid_ = true;
+  if (left_esc_state_valid_) {
+    ProcessStatusUpdate();
+  }
+  chMtxUnlock(&mtx);
+}
 
-bool DiffDriveService::OnControlTwistChanged(const double* new_value,
-                                             uint32_t length) {
+void DiffDriveService::ProcessStatusUpdate() {
+  uint32_t micros = xbot::service::system::getTimeMicros();
+  last_valid_esc_state_micros_ = micros;
+  StartTransaction();
+  SendLeftESCTemperature(left_esc_state_.temperature_pcb);
+  SendLeftESCCurrent(left_esc_state_.current_input);
+  SendLeftESCStatus(static_cast<uint8_t>(left_esc_state_.status));
+
+  SendRightESCTemperature(right_esc_state_.temperature_pcb);
+  SendRightESCCurrent(right_esc_state_.current_input);
+  SendRightESCStatus(static_cast<uint8_t>(right_esc_state_.status));
+
+  // Calculate the twist according to wheel ticks
+  if (last_ticks_valid) {
+    float dt = static_cast<float>(micros - last_ticks_micros_) / 1000000.0f;
+    auto d_left = static_cast<float>(left_esc_state_.tacho - last_ticks_left);
+    auto d_right = static_cast<float>(right_esc_state_.tacho - last_ticks_right);
+    float vx = (d_right - d_left) / (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));
+    float vr = (d_left + d_right) / (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));
+    double data[6]{};
+    data[0] = vx;
+    data[5] = vr;
+    SendActualTwist(data, 6);
+    uint32_t ticks[2];
+    ticks[0] = left_esc_state_.tacho;
+    ticks[1] = right_esc_state_.tacho;
+    SendWheelTicks(ticks, 2);
+  }
+  last_ticks_valid = true;
+  last_ticks_left = left_esc_state_.tacho;
+  last_ticks_right = right_esc_state_.tacho;
+  last_ticks_micros_ = micros;
+
+  right_esc_state_valid_ = left_esc_state_valid_ = false;
+
+  CommitTransaction();
+}
+
+bool DiffDriveService::OnControlTwistChanged(const double* new_value, uint32_t length) {
   if (length != 6) return false;
   chMtxLock(&mtx);
   // we can only do forward and rotation around one axis
@@ -135,8 +155,7 @@ bool DiffDriveService::OnControlTwistChanged(const double* new_value,
 
   // TODO: update this to rad/s values and implement xESC speed control
   speed_r_ = linear + 0.5f * static_cast<float>(WheelDistance.value) * angular;
-  speed_l_ =
-      -(linear - 0.5f * static_cast<float>(WheelDistance.value) * angular);
+  speed_l_ = -(linear - 0.5f * static_cast<float>(WheelDistance.value) * angular);
 
   if (speed_l_ >= 1.0) {
     speed_l_ = 1.0;
