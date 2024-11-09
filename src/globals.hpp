@@ -17,8 +17,9 @@ static constexpr uint32_t MOWER_FLAG_EMERGENCY_LATCH = 1;
 // high-prio emergency task)
 static constexpr uint32_t MOWER_FLAG_EMERGENCY_ACTIVE = 2;
 
-extern struct board_info board_info;
-extern struct carrier_board_info carrier_board_info;
+CC_SECTION(".ram4") extern struct board_info board_info;
+CC_SECTION(".ram4") extern struct carrier_board_info carrier_board_info;
+
 
 // event source for mower events (e.g. emergency)
 extern event_source_t mower_events;

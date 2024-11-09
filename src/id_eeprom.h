@@ -49,7 +49,6 @@ bool ID_EEPROM_GetMacAddress(uint8_t* buf, size_t buflen);
 bool ID_EEPROM_GetBootloaderInfo(struct bootloader_info* buffer);
 bool ID_EEPROM_GetBoardInfo(struct board_info* buffer);
 bool ID_EEPROM_GetCarrierBoardInfo(struct carrier_board_info* buffer);
-bool ID_EEPROM_SaveBootloaderInfo(struct bootloader_info* buffer);
 #ifdef __cplusplus
 }
 #endif

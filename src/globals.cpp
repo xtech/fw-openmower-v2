@@ -4,9 +4,8 @@
 
 #include "globals.hpp"
 
-struct board_info board_info {};
-struct carrier_board_info carrier_board_info {};
-
+CC_SECTION(".ram4") struct board_info board_info {};
+CC_SECTION(".ram4") struct carrier_board_info carrier_board_info {};
 EVENTSOURCE_DECL(mower_events);
 MUTEX_DECL(mower_status_mutex);
 // Start with emergency engaged

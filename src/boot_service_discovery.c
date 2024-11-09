@@ -94,7 +94,5 @@ void InitBootloaderServiceDiscovery() {
   // Create a multicast sender thread
   thread_t* threadPointer = chThdCreateStatic(waServiceDiscovery, sizeof(waServiceDiscovery), NORMALPRIO,
                     multicast_sender_thread, NULL);
-#ifdef USE_SEGGER_SYSTEMVIEW
   threadPointer->name = "Boot SD";
-#endif
 }

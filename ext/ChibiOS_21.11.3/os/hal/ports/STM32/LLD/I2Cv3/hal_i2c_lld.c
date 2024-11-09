@@ -948,8 +948,8 @@ void i2c_lld_start(I2CDriver *i2cp) {
 
          i2cp->rxdmamode |= STM32_DMA_CR_PL(STM32_I2C_I2C4_DMA_PRIORITY);
          i2cp->txdmamode |= STM32_DMA_CR_PL(STM32_I2C_I2C4_DMA_PRIORITY);
-         dmaSetRequestSource(i2cp->rx.dma, STM32_DMAMUX1_I2C4_RX);
-         dmaSetRequestSource(i2cp->tx.dma, STM32_DMAMUX1_I2C4_TX);
+         dmaSetRequestSource(i2cp->rx.dma, STM32_DMAMUX2_I2C4_RX);
+         dmaSetRequestSource(i2cp->tx.dma, STM32_DMAMUX2_I2C4_TX);
 #endif /* STM32_I2C4_USE_BDMA != TRUE */
       }
 #endif /* STM32_I2C_USE_DMA == TRUE */
@@ -1224,6 +1224,8 @@ msg_t i2c_lld_master_transmit_timeout(I2CDriver *i2cp, i2caddr_t addr,
 #endif
 #if defined(STM32_I2C_BDMA_REQUIRED)
   {
+    chDbgAssert((uint32_t)txbuf >= 0x38000000 && (uint32_t)txbuf < 0x38004000, "TX Buffer needs to be in SRAM4 for BDMA!");
+    chDbgAssert((uint32_t)rxbuf >= 0x38000000 && (uint32_t)rxbuf < 0x38004000, "RX Buffer needs to be in SRAM4 for BDMA!");
     bdmaStreamSetMode(i2cp->tx.bdma, i2cp->txdmamode);
     bdmaStreamSetMemory(i2cp->tx.bdma, txbuf);
     bdmaStreamSetTransactionSize(i2cp->tx.bdma, txbytes);

@@ -6,6 +6,10 @@
 #include "ch.h"
 #include "hal.h"
 
+// keep a buffer in the correct RAM for BDMA
+CC_SECTION(".ram4") uint8_t i2c4_tx_buffer[1]={0};
+CC_SECTION(".ram4") uint8_t i2c4_rx_buffer[256]={0};
+
 static uint16_t checksum(void *data, size_t length) {
   uint16_t sum = 0;
   for (size_t i = 0; i < length; i++) {
@@ -19,11 +23,18 @@ static uint16_t checksum(void *data, size_t length) {
 }
 
 bool ID_EEPROM_GetMacAddress(uint8_t *buf, size_t buflen) {
+  chDbgAssert(buflen <= sizeof(i2c4_rx_buffer), "I2C4 RX buffer too small");
   i2cAcquireBus(&I2CD4);
 
   uint8_t reg = 0xFA;
-  bool success = i2cMasterTransmit(&I2CD4, EEPROM_DEVICE_ADDRESS, &reg, 1, buf,
+  i2c4_tx_buffer[0] = reg;
+
+  bool success = i2cMasterTransmit(&I2CD4, EEPROM_DEVICE_ADDRESS, i2c4_tx_buffer, 1, i2c4_rx_buffer,
                                    buflen) == MSG_OK;
+
+  if(success) {
+    memcpy(buf, i2c4_rx_buffer, buflen);
+  }
   i2cReleaseBus(&I2CD4);
   return success;
 }
@@ -32,7 +43,9 @@ bool ID_EEPROM_GetBootloaderInfo(struct bootloader_info *buffer) {
   i2cAcquireBus(&I2CD4);
 
   uint8_t reg = BOOTLOADER_INFO_ADDRESS;
-  bool success = i2cMasterTransmit(&I2CD4, EEPROM_DEVICE_ADDRESS, &reg, 1,
+  i2c4_tx_buffer[0] = reg;
+
+  bool success = i2cMasterTransmit(&I2CD4, EEPROM_DEVICE_ADDRESS, i2c4_tx_buffer, 1,
                                    (uint8_t *)buffer,
                                    sizeof(struct bootloader_info)) == MSG_OK;
   i2cReleaseBus(&I2CD4);
@@ -43,8 +56,9 @@ bool ID_EEPROM_GetBoardInfo(struct board_info *buffer) {
   i2cAcquireBus(&I2CD4);
 
   uint8_t reg = BOARD_INFO_ADDRESS;
+  i2c4_tx_buffer[0] = reg;
   bool success =
-      i2cMasterTransmit(&I2CD4, EEPROM_DEVICE_ADDRESS, &reg, 1,
+      i2cMasterTransmit(&I2CD4, EEPROM_DEVICE_ADDRESS, i2c4_tx_buffer, 1,
                         (uint8_t *)buffer, sizeof(struct board_info)) == MSG_OK;
   i2cReleaseBus(&I2CD4);
 
@@ -61,7 +75,9 @@ bool ID_EEPROM_GetCarrierBoardInfo(struct carrier_board_info *buffer) {
   i2cAcquireBus(&I2CD4);
 
   uint8_t reg = CARRIER_BOARD_INFO_ADDRESS;
-  bool success = i2cMasterTransmit(&I2CD4, CARRIER_EEPROM_DEVICE_ADDRESS, &reg,
+  i2c4_tx_buffer[0] = reg;
+
+  bool success = i2cMasterTransmit(&I2CD4, CARRIER_EEPROM_DEVICE_ADDRESS, i2c4_tx_buffer,
                                    1, (uint8_t *)buffer,
                                    sizeof(struct carrier_board_info)) == MSG_OK;
   i2cReleaseBus(&I2CD4);
@@ -73,30 +89,5 @@ bool ID_EEPROM_GetCarrierBoardInfo(struct carrier_board_info *buffer) {
     strncpy(buffer->board_id, "N/A", sizeof(buffer->board_id));
   }
 
-  return success;
-}
-
-bool ID_EEPROM_SaveBootloaderInfo(struct bootloader_info *buffer) {
-  i2cAcquireBus(&I2CD4);
-
-  bool success = true;
-  // Write single bytes
-  for (uint8_t i = 0; success && i < sizeof(struct bootloader_info); i++) {
-    uint8_t data[2] = {i + BOOTLOADER_INFO_ADDRESS, ((uint8_t *)buffer)[i]};
-    success &= i2cMasterTransmit(&I2CD4, EEPROM_DEVICE_ADDRESS, data, 2, NULL,
-                                 0) == MSG_OK;
-    // Wait for write to finish
-    uint8_t dummy = 0;
-    while (i2cMasterTransmit(&I2CD4, EEPROM_DEVICE_ADDRESS, &dummy, 1, NULL,
-                             0) == MSG_RESET) {
-      if (i2cGetErrors(&I2CD4) != I2C_ACK_FAILURE) {
-        success = false;
-        break;
-      }
-      chThdSleep(1);
-    }
-  }
-
-  i2cReleaseBus(&I2CD4);
   return success;
 }
