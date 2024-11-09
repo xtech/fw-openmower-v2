@@ -20,14 +20,14 @@
       if (tries == 100) {                      \
         mii_write(&ETHD1, 0x1F, 0xFA00);       \
         mii_write(&ETHD1, 0x01, 0xFFFF);       \
-        i = STM32_SYS_CK / 100;                \
+        i = STM32_SYS_CK / 10;                 \
         while (i-- > 0) {                      \
           asm("nop");                          \
         };                                     \
       }                                        \
       if (tries > 200) {                       \
         palClearLine(LINE_RESET_PHY);          \
-        i = STM32_SYS_CK / 100;                \
+        i = STM32_SYS_CK / 10;                 \
         while (i-- > 0) {                      \
           asm("nop");                          \
         };                                     \
@@ -35,7 +35,7 @@
         tries = 0;                             \
       }                                        \
     }                                          \
-    i = STM32_SYS_CK / 100;                    \
+    i = STM32_SYS_CK / 10;                     \
     while (i-- > 0) {                          \
       asm("nop");                              \
     };                                         \
