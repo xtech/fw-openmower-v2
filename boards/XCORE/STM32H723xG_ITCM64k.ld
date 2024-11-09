@@ -41,7 +41,7 @@ MEMORY
     ram4   (wx) : org = 0x38000000, len = 16k       /* AHB SRAM4 */
     ram5   (wx) : org = 0x20000000, len = 128k      /* DTCM-RAM */
     ram6   (wx) : org = 0x00000000, len = 64k       /* ITCM-RAM */
-    ram7   (wx) : org = 0x38800000, len = 4k        /* BCKP SRAM */
+    ram7   (wx) : org = 0x38800000, len = 0         /* BCKP SRAM, don't use it */
 }
 
 /* For each data/text section two region are defined, a virtual region

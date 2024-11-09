@@ -115,6 +115,7 @@ int main() {
         chMtxUnlock(&mower_status_mutex);
         // Notify services
         diff_drive.OnMowerStatusChanged(status_copy);
+        mower_service.OnMowerStatusChanged(status_copy);
       }
     }
   }
