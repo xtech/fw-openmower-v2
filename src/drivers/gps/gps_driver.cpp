@@ -10,6 +10,11 @@
 
 namespace xbot::driver::gps {
 
+void GpsDriver::RawDataInput(uint8_t *data, size_t size) {
+  if(!IsRawMode())
+    return;
+  send_raw(data, size);
+}
 GpsDriver::GpsDriver() {
   datum_lat_ = datum_long_ = NAN;
 }
@@ -74,8 +79,9 @@ void GpsDriver::SetDatum(double datum_lat, double datum_long, double datum_heigh
 }
 
 bool GpsDriver::send_raw(const void *data, size_t size) {
-  // sdWrite(uart, static_cast<const uint8_t*>(data), size);
+  chMtxLock(&mutex_);
   uartSendFullTimeout(uart_, &size, data, TIME_INFINITE);
+  chMtxUnlock(&mutex_);
   return true;
 }
 
@@ -118,8 +124,12 @@ void GpsDriver::threadFunc() {
     }
     if (processing_buffer_len_ > 0) {
       ProcessBytes(processing_buffer_, processing_buffer_len_);
-      last_ndtr = 0;
+      if(IsRawMode()) {
+        RawDataOutput(processing_buffer_, processing_buffer_len_);
+      }
     }
+    last_ndtr = 0;
+    processing_buffer_len_ = 0;
     processing_done_ = true;
   }
 }

@@ -6,10 +6,10 @@
 #ifndef XBOT_DRIVER_GPS_UBLOX_GPS_DRIVER_H
 #define XBOT_DRIVER_GPS_UBLOX_GPS_DRIVER_H
 
+#include <debug/debuggable_driver.hpp>
+
 #include "gps_driver.h"
 #include "ubx_datatypes.h"
-
-
 
 namespace xbot::driver::gps {
 class UbxGpsDriver : public GpsDriver {

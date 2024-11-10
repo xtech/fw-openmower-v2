@@ -7,15 +7,18 @@
 
 #include <etl/delegate.h>
 
+#include <debug/debuggable_driver.hpp>
+
 #include "ch.h"
 #include "hal.h"
 
 namespace xbot::driver::gps {
-class GpsDriver {
+class GpsDriver : public DebuggableDriver {
  public:
+  void RawDataInput(uint8_t *data, size_t size) override;
   explicit GpsDriver();
 
-  virtual ~GpsDriver() = default;
+  ~GpsDriver() override = default;
 
   /*
    * The final GPS state we're interested in.
