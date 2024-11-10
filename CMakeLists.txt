@@ -67,8 +67,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/vesc/crc.cpp
         src/drivers/vesc/VescDriver.cpp
         # GPS driver
-        src/drivers/gps/gps_interface.cpp
-        src/drivers/gps/ublox_gps_interface.cpp
+        src/drivers/gps/gps_driver.cpp
+        src/drivers/gps/ublox_gps_driver.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp

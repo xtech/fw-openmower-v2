@@ -2,8 +2,8 @@
 // Created by clemens on 10.01.23.
 //
 
-#ifndef XBOT_DRIVER_GPS_GPS_INTERFACE_H
-#define XBOT_DRIVER_GPS_GPS_INTERFACE_H
+#ifndef XBOT_DRIVER_GPS_GPS_DRIVER_H
+#define XBOT_DRIVER_GPS_GPS_DRIVER_H
 
 #include <etl/delegate.h>
 

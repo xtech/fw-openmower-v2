@@ -3,18 +3,18 @@
 // Copyright (c) 2022 Clemens Elflein. All rights reserved.
 //
 
-#ifndef XBOT_DRIVER_GPS_UBLOX_GPS_INTERFACE_H
-#define XBOT_DRIVER_GPS_UBLOX_GPS_INTERFACE_H
+#ifndef XBOT_DRIVER_GPS_UBLOX_GPS_DRIVER_H
+#define XBOT_DRIVER_GPS_UBLOX_GPS_DRIVER_H
 
-#include "gps_interface.h"
+#include "gps_driver.h"
 #include "ubx_datatypes.h"
 
 
 
 namespace xbot::driver::gps {
-class UbxGpsInterface : public GpsDriver {
+class UbxGpsDriver : public GpsDriver {
  public:
-  UbxGpsInterface();
+  UbxGpsDriver();
 
  private:
  protected:

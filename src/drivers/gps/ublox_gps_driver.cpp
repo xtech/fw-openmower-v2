@@ -3,7 +3,7 @@
 // Copyright (c) 2022 Clemens Elflein. All rights reserved.
 //
 
-#include "ublox_gps_interface.h"
+#include "ublox_gps_driver.h"
 
 #include <ulog.h>
 
@@ -15,7 +15,7 @@
 
 namespace xbot::driver::gps {
 
-bool UbxGpsInterface::SendPacket(uint8_t *frame, size_t size) {
+bool UbxGpsDriver::SendPacket(uint8_t *frame, size_t size) {
   frame[0] = 0xb5;
   frame[1] = 0x62;
   auto *length_ptr = reinterpret_cast<uint16_t *>(frame + 4);
@@ -33,7 +33,7 @@ bool UbxGpsInterface::SendPacket(uint8_t *frame, size_t size) {
 /**
  * parses the buffer and returns how many more bytes to read
  */
-size_t UbxGpsInterface::ProcessBytes(const uint8_t *buffer, size_t len) {
+size_t UbxGpsDriver::ProcessBytes(const uint8_t *buffer, size_t len) {
   static int invocations = 0;
   static int success = 0;
   static int error = 0;
@@ -139,7 +139,7 @@ size_t UbxGpsInterface::ProcessBytes(const uint8_t *buffer, size_t len) {
   return 1;
 }
 
-bool UbxGpsInterface::ValidateChecksum(const uint8_t *packet, size_t size) {
+bool UbxGpsDriver::ValidateChecksum(const uint8_t *packet, size_t size) {
   uint8_t ck_a, ck_b;
   CalculateChecksum(packet + 2, size - 4, ck_a, ck_b);
 
@@ -152,7 +152,7 @@ bool UbxGpsInterface::ValidateChecksum(const uint8_t *packet, size_t size) {
   return valid;
 }
 
-void UbxGpsInterface::ProcessUbxPacket(const uint8_t *data, const size_t &size) {
+void UbxGpsDriver::ProcessUbxPacket(const uint8_t *data, const size_t &size) {
   // data = no header bytes (starts with class) and stops before checksum
 
   uint16_t packet_id = data[0] << 8 | data[1];
@@ -167,7 +167,7 @@ void UbxGpsInterface::ProcessUbxPacket(const uint8_t *data, const size_t &size) 
   }
 }
 
-void UbxGpsInterface::HandleNavPvt(const UbxNavPvt *msg) {
+void UbxGpsDriver::HandleNavPvt(const UbxNavPvt *msg) {
   // We have received a nav pvt message, copy to GPS state
   // check, if message is even roughly valid. If not - ignore it.
   bool gnssFixOK = (msg->flags & 0b0000001);
@@ -256,7 +256,7 @@ void UbxGpsInterface::HandleNavPvt(const UbxNavPvt *msg) {
   if (state_callback_) state_callback_(gps_state_);
 }
 
-void UbxGpsInterface::CalculateChecksum(const uint8_t *packet, size_t size, uint8_t &ck_a, uint8_t &ck_b) {
+void UbxGpsDriver::CalculateChecksum(const uint8_t *packet, size_t size, uint8_t &ck_a, uint8_t &ck_b) {
   ck_a = 0;
   ck_b = 0;
 
@@ -266,10 +266,10 @@ void UbxGpsInterface::CalculateChecksum(const uint8_t *packet, size_t size, uint
   }
 }
 
-UbxGpsInterface::UbxGpsInterface() {
+UbxGpsDriver::UbxGpsDriver() {
 }
 
-void UbxGpsInterface::ResetParserState() {
+void UbxGpsDriver::ResetParserState() {
   found_header_ = false;
   gbuffer_fill = 0;
 }

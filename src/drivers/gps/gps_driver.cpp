@@ -2,10 +2,9 @@
 // Created by clemens on 10.01.23.
 //
 
-#include "gps_interface.h"
+#include "gps_driver.h"
 
 #include <etl/algorithm.h>
-#include <ulog.h>
 
 #include <cmath>
 
