@@ -5,10 +5,11 @@
 #ifndef DIFF_DRIVE_SERVICE_HPP
 #define DIFF_DRIVE_SERVICE_HPP
 
+#include <drivers/vesc/VescDriver.h>
 
 #include <DiffDriveServiceBase.hpp>
+#include <debug/debug_tcp_interface.hpp>
 #include <xbot-service/portable/socket.hpp>
-#include <drivers/vesc/VescDriver.h>
 using namespace xbot::driver::esc;
 
 class DiffDriveService : public DiffDriveServiceBase {
@@ -16,6 +17,9 @@ class DiffDriveService : public DiffDriveServiceBase {
   THD_WORKING_AREA(wa, 1024);
   VescDriver left_esc_driver_{};
   VescDriver right_esc_driver_{};
+
+  DebugTCPInterface left_esc_driver_interface_{65102,&left_esc_driver_};
+  DebugTCPInterface right_esc_driver_interface_{65104,&right_esc_driver_};
 
   VescDriver::ESCState left_esc_state_{};
   VescDriver::ESCState right_esc_state_{};

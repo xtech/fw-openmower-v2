@@ -69,6 +69,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # GPS driver
         src/drivers/gps/gps_interface.cpp
         src/drivers/gps/ublox_gps_interface.cpp
+        # Raw driver debug interface
+        src/debug/debug_tcp_interface.cpp
+        src/debug/debug_udp_interface.cpp
+        src/debug/debuggable_driver.cpp
 )
 
 # Add include paths

@@ -44,6 +44,9 @@ void DiffDriveService::OnCreate() {
           *this));
   left_esc_driver_.StartDriver(&UARTD1, 115200);
   right_esc_driver_.StartDriver(&UARTD4, 115200);
+
+  left_esc_driver_interface_.Start();
+  right_esc_driver_interface_.Start();
 }
 void DiffDriveService::OnStop() {
   speed_l_ = speed_r_ = 0;

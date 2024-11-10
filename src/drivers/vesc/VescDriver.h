@@ -5,15 +5,17 @@
 #ifndef VESCDRIVER_H
 #define VESCDRIVER_H
 
+#include <etl/delegate.h>
+
+#include <cstdint>
+#include <debug/debuggable_driver.hpp>
+
 #include "ch.h"
 #include "hal.h"
-#include <etl/delegate.h>
-#include <cstdint>
 
 namespace xbot::driver::esc {
-class VescDriver {
-public:
-
+class VescDriver : public DebuggableDriver {
+ public:
 
   struct ESCState {
     enum class ESCStatus : uint8_t {
@@ -44,7 +46,7 @@ public:
 
   VescDriver();
 
-  ~VescDriver() = default;
+  ~VescDriver() override = default;
 
   bool StartDriver(UARTDriver *uart, uint32_t baudrate);
   void SetStatusUpdateInterval(uint32_t interval_millis);
@@ -52,7 +54,8 @@ public:
   void RequestStatus();
   void SetDuty(float duty);
 
-private:
+  void RawDataInput(uint8_t *data, size_t size) override;
+ private:
   StateCallback state_callback_{};
 
   ESCState latest_state{};
@@ -69,7 +72,6 @@ private:
   } __attribute__((packed));
 #pragma pack(pop)
 
-  MUTEX_DECL(mutex_);
   // A buffer to prepare the next payload, so that we don't need to allocate on the stack
   // make sure to lock mutex_ before using.
   VescPayload payload_buffer_{};

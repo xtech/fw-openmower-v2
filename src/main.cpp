@@ -8,8 +8,6 @@
 #include <SEGGER_RTT_streams.h>
 #endif
 #include <boot_service_discovery.h>
-#include <drivers/gps/ublox_gps_interface.h>
-#include <drivers/vesc/VescDriver.h>
 #include <etl/to_string.h>
 #include <heartbeat.h>
 #include <id_eeprom.h>

@@ -30,7 +30,9 @@ bool VescDriver::StartDriver(UARTDriver* uart, uint32_t baudrate) {
   }
 
   uart_config_.rxend_cb = [](UARTDriver* uartp) {
+    chSysLockFromISR();
     VescDriver* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
+    chDbgAssert(instance != nullptr, "instance cannot be null!");
     if (!instance->processing_done_) {
       // This is bad, processing is too slow to keep up with updates!
       // We just read into the same buffer again
@@ -51,6 +53,7 @@ bool VescDriver::StartDriver(UARTDriver* uart, uint32_t baudrate) {
         chEvtSignalI(instance->processing_thread_, 1);
       }
     }
+    chSysUnlockFromISR();
   };
 
   stopped_ = false;
@@ -96,7 +99,7 @@ void VescDriver::ProcessPayload() {
   uint8_t packet_id = working_buffer_[2];
   int32_t index = 0;
   // 3 = start of actual payload
-  uint8_t *message = working_buffer_+3;
+  uint8_t* message = working_buffer_ + 3;
   switch (packet_id) {
     case COMM_FW_VERSION:  // Structure defined here:
                            // https://github.com/vedderb/bldc/blob/43c3bbaf91f5052a35b75c2ff17b5fe99fad94d1/commands.c#L164
@@ -107,35 +110,30 @@ void VescDriver::ProcessPayload() {
     case COMM_GET_VALUES:  // Structure defined here:
                            // https://github.com/vedderb/bldc/blob/43c3bbaf91f5052a35b75c2ff17b5fe99fad94d1/commands.c#L164
 
-      latest_state.temperature_pcb = buffer_get_float16(
-          message, 10.0, &index);  // 2 bytes - mc_interface_temp_fet_filtered()
-      latest_state.temperature_motor = buffer_get_float16(
-          message, 10.0,
-          &index);  // 2 bytes - mc_interface_temp_motor_filtered()
-      index += 4;// 4 bytes - mc_interface_read_reset_avg_motor_current()
-      latest_state.current_input = buffer_get_float32(
-          message, 100.0,
-          &index);  // 4 bytes - mc_interface_read_reset_avg_input_current()
-      index += 4;   // Skip 4 bytes - mc_interface_read_reset_avg_id()
-      index += 4;   // Skip 4 bytes - mc_interface_read_reset_avg_iq()
-      latest_state.duty_cycle = buffer_get_float16(
-          message, 1000.0,
-          &index);  // 2 bytes - mc_interface_get_duty_cycle_now()
-      latest_state.rpm = buffer_get_float32(
-          message, 1.0, &index);  // 4 bytes - mc_interface_get_rpm()
-      latest_state.voltage_input = buffer_get_float16(
-          message, 10.0, &index);  // 2 bytes - GET_INPUT_VOLTAGE()
+      latest_state.temperature_pcb =
+          buffer_get_float16(message, 10.0, &index);  // 2 bytes - mc_interface_temp_fet_filtered()
+      latest_state.temperature_motor = buffer_get_float16(message, 10.0,
+                                                          &index);  // 2 bytes - mc_interface_temp_motor_filtered()
+      index += 4;  // 4 bytes - mc_interface_read_reset_avg_motor_current()
+      latest_state.current_input = buffer_get_float32(message, 100.0,
+                                                      &index);  // 4 bytes - mc_interface_read_reset_avg_input_current()
+      index += 4;                                               // Skip 4 bytes - mc_interface_read_reset_avg_id()
+      index += 4;                                               // Skip 4 bytes - mc_interface_read_reset_avg_iq()
+      latest_state.duty_cycle = buffer_get_float16(message, 1000.0,
+                                                   &index);         // 2 bytes - mc_interface_get_duty_cycle_now()
+      latest_state.rpm = buffer_get_float32(message, 1.0, &index);  // 4 bytes - mc_interface_get_rpm()
+      latest_state.voltage_input = buffer_get_float16(message, 10.0, &index);  // 2 bytes - GET_INPUT_VOLTAGE()
       index += 4;  // 4 bytes - mc_interface_get_amp_hours(false)
       index += 4;  // 4 bytes - mc_interface_get_amp_hours_charged(false)
       index += 4;  // 4 bytes - mc_interface_get_watt_hours(false)
       index += 4;  // 4 bytes - mc_interface_get_watt_hours_charged(false)
-      latest_state.tacho = buffer_get_int32(
-          message,
-          &index);  // 4 bytes - mc_interface_get_tachometer_value(false)
-      latest_state.tacho_absolute = buffer_get_int32(
-          message,
-          &index);  // 4 bytes - mc_interface_get_tachometer_abs_value(false)
-      latest_state.status = static_cast<mc_fault_code>(message[index++]) != FAULT_CODE_NONE ? ESCState::ESCStatus::ESC_STATUS_ERROR : ESCState::ESCStatus::ESC_STATUS_OK;
+      latest_state.tacho = buffer_get_int32(message,
+                                            &index);  // 4 bytes - mc_interface_get_tachometer_value(false)
+      latest_state.tacho_absolute = buffer_get_int32(message,
+                                                     &index);  // 4 bytes - mc_interface_get_tachometer_abs_value(false)
+      latest_state.status = static_cast<mc_fault_code>(message[index++]) != FAULT_CODE_NONE
+                                ? ESCState::ESCStatus::ESC_STATUS_ERROR
+                                : ESCState::ESCStatus::ESC_STATUS_OK;
       index += 4;  // 4 bytes - mc_interface_get_pid_pos_now()
       latest_state.direction = latest_state.rpm < 0;
       break;
@@ -221,6 +219,10 @@ void VescDriver::SendPacket() {
 }
 
 void VescDriver::RequestStatus() {
+  if (IsRawMode()) {
+    // ignore when a raw data stream is connected
+    return;
+  }
   chMtxLock(&mutex_);
   payload_buffer_.payload_length = 1;
   payload_buffer_.payload[0] = COMM_GET_VALUES;
@@ -230,6 +232,11 @@ void VescDriver::RequestStatus() {
   chMtxUnlock(&mutex_);
 }
 void VescDriver::SetDuty(float duty) {
+  if (IsRawMode()) {
+    // ignore when a raw data stream is connected
+    return;
+  }
+
   chMtxLock(&mutex_);
   payload_buffer_.payload_length = 5;
   payload_buffer_.payload[0] = COMM_SET_DUTY;
@@ -238,9 +245,21 @@ void VescDriver::SetDuty(float duty) {
   SendPacket();
   chMtxUnlock(&mutex_);
 }
+void VescDriver::RawDataInput(uint8_t* data, size_t size) {
+  if (!IsRawMode()) {
+    return;
+  }
+  // Lock mutex so that during transmission we don't start a second one
+  chMtxLock(&mutex_);
+  uartSendFullTimeout(uart_, &size, data, TIME_INFINITE);
+  // Signal that we are waiting for a response, so the receiving thread becomes active
+  chEvtSignal(processing_thread_, EVT_ID_EXPECT_PACKET);
+  chMtxUnlock(&mutex_);
+}
 
 void VescDriver::threadFunc() {
   bool expects_packet = false;
+  uint32_t last_ndtr = 0;
   while (!stopped_) {
     uint32_t events;
     if (expects_packet) {
@@ -250,7 +269,7 @@ void VescDriver::threadFunc() {
     } else {
       // we don't expect a packet, so in order to not loop all the time for empty buffers,
       // wait an infinite time (or status_request_millis_ if we need to request status periodically)
-      if(status_request_millis_ > 0) {
+      if (status_request_millis_ > 0) {
         events = chEvtWaitOneTimeout(ALL_EVENTS, TIME_MS2I(status_request_millis_));
       } else {
         events = chEvtWaitOneTimeout(ALL_EVENTS, TIME_INFINITE);
@@ -262,11 +281,18 @@ void VescDriver::threadFunc() {
     // this will wait for the reception with a timeout
     if (expects_packet_received) {
       expects_packet = true;
+      last_ndtr = 0;
       continue;
     }
 
     bool packet_received = (events & EVT_ID_RECEIVED) != 0;
     if (!packet_received) {
+      // If there is still reception going on, wait for the timeout again
+      if(last_ndtr != uart_->dmarx->stream->NDTR) {
+        last_ndtr = uart_->dmarx->stream->NDTR;
+        continue;
+      }
+
       // If timeout, we take the buffer and restart the reception
       // Else, the ISR has already prepared the buffer for us
       // Lock the core to prevent the RX interrupt from firing
@@ -275,7 +301,10 @@ void VescDriver::threadFunc() {
       // (in case ISR happened between the timeout and now, this will be set to false by ISR)
       if (processing_done_) {
         // Stop reception and get the partial received length
+        uint8_t* next_recv_buffer = processing_buffer_;
+        chDbgAssert(uart_->dmarx->stream->M0AR != (uint32_t)(next_recv_buffer), "invalid buffer");
         size_t not_received_len = uartStopReceiveI(uart_);
+        uartStartReceiveI(uart_, RECV_BUFFER_SIZE, next_recv_buffer);
         if (not_received_len != UART_ERR_NOT_ACTIVE) {
           // Uart was still receiving, so the buffer length is not complete
           processing_buffer_len_ = RECV_BUFFER_SIZE - not_received_len;
@@ -285,8 +314,6 @@ void VescDriver::threadFunc() {
           // we ignore this buffer, but carry on as usual
           processing_buffer_len_ = 0;
         }
-        uint8_t* next_recv_buffer = processing_buffer_;
-        uartStartReceiveI(uart_, RECV_BUFFER_SIZE, next_recv_buffer);
         processing_buffer_ = (processing_buffer_ == recv_buffer1_) ? recv_buffer2_ : recv_buffer1_;
         processing_done_ = false;
       }
@@ -294,9 +321,15 @@ void VescDriver::threadFunc() {
       chSysUnlock();
     }
     if (processing_buffer_len_ > 0) {
-      if (!ProcessBytes(processing_buffer_, processing_buffer_len_)) {
-        // we don't expect more data, so we can wait for the next request
-        expects_packet = false;
+      // Process and call callbacks
+      if(!IsRawMode()) {
+        if (!ProcessBytes(processing_buffer_, processing_buffer_len_) && !IsRawMode()) {
+          // we don't expect more data, so we can wait for the next request
+          expects_packet = false;
+        }
+      } else {
+        // Send to raw data receiver
+        RawDataOutput(processing_buffer_, processing_buffer_len_);
       }
       // In any case (partial payload received), the processing buffer needs to be reset
       processing_buffer_len_ = 0;
