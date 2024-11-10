@@ -29,7 +29,9 @@ bool GpsDriver::StartDriver(UARTDriver *uart, uint32_t baudrate) {
   }
 
   uart_config_.rxend_cb = [](UARTDriver *uartp) {
+    chSysLockFromISR();
     GpsDriver *instance = reinterpret_cast<const UARTConfigEx *>(uartp->config)->context;
+    chDbgAssert(instance != nullptr, "instance cannot be null!");
     if (!instance->processing_done_) {
       // This is bad, processing is too slow to keep up with updates!
       // We just read into the same buffer again
@@ -50,6 +52,7 @@ bool GpsDriver::StartDriver(UARTDriver *uart, uint32_t baudrate) {
         chEvtSignalI(instance->processing_thread_, 1);
       }
     }
+    chSysUnlockFromISR();
   };
 
   stopped_ = false;
@@ -78,10 +81,16 @@ bool GpsDriver::send_raw(const void *data, size_t size) {
 }
 
 void GpsDriver::threadFunc() {
+  uint32_t last_ndtr = 0;
   while (!stopped_) {
     // Wait for data to arrive
     bool timeout = chEvtWaitAnyTimeout(ALL_EVENTS, TIME_MS2I(RECV_TIMEOUT_MILLIS)) == 0;
     if (timeout) {
+      // If there is still reception going on, wait for the timeout again
+      if(last_ndtr != uart_->dmarx->stream->NDTR) {
+        last_ndtr = uart_->dmarx->stream->NDTR;
+        continue;
+      }
       // If timeout, we take the buffer and restart the reception
       // Else, the ISR has already prepared the buffer for us
       // Lock the core to prevent the RX interrupt from firing
@@ -110,6 +119,7 @@ void GpsDriver::threadFunc() {
     }
     if (processing_buffer_len_ > 0) {
       ProcessBytes(processing_buffer_, processing_buffer_len_);
+      last_ndtr = 0;
     }
     processing_done_ = true;
   }
