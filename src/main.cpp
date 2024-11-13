@@ -8,6 +8,8 @@
 #include <SEGGER_RTT_streams.h>
 #endif
 #include <boot_service_discovery.h>
+#include <drivers/gps/gps_driver.h>
+#include <drivers/gps/ublox_gps_driver.h>
 #include <etl/to_string.h>
 #include <heartbeat.h>
 #include <id_eeprom.h>
@@ -18,17 +20,20 @@
 #include <xbot-service/Io.hpp>
 #include <xbot-service/portable/system.hpp>
 
+#include "services/diff_drive_service/diff_drive_service.hpp"
 #include "services/emergency_service/emergency_service.hpp"
 #include "services/imu_service/imu_service.hpp"
-#include "services/power_service/power_service.hpp"
-#include "services/diff_drive_service/diff_drive_service.hpp"
 #include "services/mower_service/mower_service.hpp"
+#include "services/power_service/power_service.hpp"
 EmergencyService emergency_service{1};
 DiffDriveService diff_drive{2};
 MowerService mower_service{3};
 ImuService imu_service{4};
 PowerService power_service{5};
 
+xbot::driver::gps::UbxGpsDriver ubx_gps_driver{};
+DebugTCPInterface gps_debug{1000, &ubx_gps_driver};
+uint8_t id[6]{};
 /*
  * Application entry point.
  */
@@ -36,8 +41,7 @@ int main() {
 #ifdef RELEASE_BUILD
   // Reset the boot register for a release build, so that the chip
   // resets to bootloader
-  MODIFY_REG(SYSCFG->UR2, SYSCFG_UR2_BOOT_ADD0,
-             (0x8000000 >> 16) << SYSCFG_UR2_BOOT_ADD0_Pos);
+  MODIFY_REG(SYSCFG->UR2, SYSCFG_UR2_BOOT_ADD0, (0x8000000 >> 16) << SYSCFG_UR2_BOOT_ADD0_Pos);
 #endif
 
   // Need to disable D-Cache for the Ethernet MAC to work properly
@@ -57,6 +61,7 @@ int main() {
 #ifdef USE_SEGGER_SYSTEMVIEW
   SYSVIEW_ChibiOS_Start(STM32_SYS_CK, STM32_SYS_CK, "I#15=SysTick");
 #endif
+
 
   /*
    * InitGlobals() sets up global variables shared by threads. (e.g. mutex)
@@ -95,7 +100,8 @@ int main() {
   diff_drive.start();
   mower_service.start();
 
-
+  ubx_gps_driver.StartDriver(&UARTD6, 921600);
+  gps_debug.Start();
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;

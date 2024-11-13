@@ -9,6 +9,7 @@
 #include <drivers/vesc/VescDriver.h>
 
 #include <MowerServiceBase.hpp>
+#include <debug/debug_tcp_interface.hpp>
 
 class MowerService : public MowerServiceBase {
  public:
@@ -35,6 +36,7 @@ class MowerService : public MowerServiceBase {
   float mower_duty_ = 0;
   bool duty_sent_ = false;
   xbot::driver::esc::VescDriver mower_driver_{};
+ DebugTCPInterface mower_esc_driver_interface_{65103,&mower_driver_};
 };
 
 #endif  // MOWER_SERVICE_HPP

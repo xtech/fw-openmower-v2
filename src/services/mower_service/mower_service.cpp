@@ -11,7 +11,10 @@ bool MowerService::Configure() {
   // No configuration needed
   return true;
 }
-void MowerService::OnCreate() { mower_driver_.StartDriver(&UARTD2, 115200); }
+void MowerService::OnCreate() {
+  mower_driver_.StartDriver(&UARTD2, 115200);
+  mower_esc_driver_interface_.Start();
+}
 void MowerService::OnStart() { mower_duty_ = 0; }
 void MowerService::OnStop() { mower_duty_ = 0; }
 
