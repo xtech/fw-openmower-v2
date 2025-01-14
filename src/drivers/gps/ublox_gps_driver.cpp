@@ -7,11 +7,8 @@
 
 #include <ulog.h>
 
-#include <WGS84toCartesian.hpp>
 #include <chrono>
 #include <cmath>
-
-
 
 namespace xbot::driver::gps {
 
@@ -205,17 +202,10 @@ void UbxGpsDriver::HandleNavPvt(const UbxNavPvt *msg) {
   }
 
   // Calculate the position
-  double lat = (double)msg->lat / 10000000.0;
-  double lon = (double)msg->lon / 10000000.0;
-  double u = (double)msg->hMSL / 1000.0;
-  const auto ne = wgs84::toCartesian({datum_lat_, datum_long_}, {lat, lon});
-
-  gps_state_.pos_lat = lat;
-  gps_state_.pos_lon = lon;
+  gps_state_.pos_lat = (double)msg->lat / 10000000.0;
+  gps_state_.pos_lon = (double)msg->lon / 10000000.0;
+  gps_state_.pos_height = (double)msg->hMSL / 1000.0;
   gps_state_.position_valid = true;
-  gps_state_.pos_e = ne[1];
-  gps_state_.pos_n = ne[0];
-  gps_state_.pos_u = u - datum_u_;
   gps_state_.position_accuracy = (double)sqrt(pow((double)msg->hAcc / 1000.0, 2) + pow((double)msg->vAcc / 1000.0, 2));
 
   gps_state_.vel_e = msg->velE / 1000.0;
@@ -264,9 +254,6 @@ void UbxGpsDriver::CalculateChecksum(const uint8_t *packet, size_t size, uint8_t
     ck_a += packet[i];
     ck_b += ck_a;
   }
-}
-
-UbxGpsDriver::UbxGpsDriver() {
 }
 
 void UbxGpsDriver::ResetParserState() {

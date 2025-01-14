@@ -16,7 +16,6 @@ namespace xbot::driver::gps {
 class GpsDriver : public DebuggableDriver {
  public:
   void RawDataInput(uint8_t *data, size_t size) override;
-  explicit GpsDriver();
 
   ~GpsDriver() override = default;
 
@@ -35,10 +34,7 @@ class GpsDriver : public DebuggableDriver {
     bool position_valid;
     // Position accuracy in m
     double position_accuracy;
-    double pos_e, pos_n, pos_u;
-
-    // Pos in lat/lon for VRS
-    double pos_lat, pos_lon;
+    double pos_lat, pos_lon, pos_height;
 
     // Motion
     bool motion_heading_valid;
@@ -64,14 +60,10 @@ class GpsDriver : public DebuggableDriver {
   bool StartDriver(UARTDriver *uart, uint32_t baudrate);
   void SetStateCallback(const GpsDriver::StateCallback &function);
 
-  void SetDatum(double datum_lat, double datum_long, double datum_height);
-
   void SendRTCM(const uint8_t *data, size_t size);
 
  protected:
   StateCallback state_callback_{};
-
-  double datum_lat_ = 0, datum_long_ = 0, datum_u_ = 0;
 
   bool gps_state_valid_{};
   GpsState gps_state_{};

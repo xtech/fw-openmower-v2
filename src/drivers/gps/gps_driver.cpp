@@ -15,9 +15,7 @@ void GpsDriver::RawDataInput(uint8_t *data, size_t size) {
     return;
   send_raw(data, size);
 }
-GpsDriver::GpsDriver() {
-  datum_lat_ = datum_long_ = NAN;
-}
+
 bool GpsDriver::StartDriver(UARTDriver *uart, uint32_t baudrate) {
   chDbgAssert(stopped_, "don't start the driver twice");
   chDbgAssert(uart != nullptr, "need to provide a driver");
@@ -71,11 +69,6 @@ bool GpsDriver::StartDriver(UARTDriver *uart, uint32_t baudrate) {
 
 void GpsDriver::SetStateCallback(const GpsDriver::StateCallback &function) {
   state_callback_ = function;
-}
-void GpsDriver::SetDatum(double datum_lat, double datum_long, double datum_height) {
-  datum_lat_ = datum_lat;
-  datum_long_ = datum_long;
-  datum_u_ = datum_height;
 }
 
 bool GpsDriver::send_raw(const void *data, size_t size) {
