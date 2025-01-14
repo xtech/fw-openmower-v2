@@ -9,7 +9,7 @@
   "outputs": [
     {
       "id": 0,
-      "name": "PositionXYZ",
+      "name": "Position",
       "type": "double[3]"
     },
     {
@@ -36,11 +36,6 @@
       "id": 5,
       "name": "VehicleHeadingAndAccuracy",
       "type": "double[3]"
-    },
-    {
-      "id": 6,
-      "name": "NMEA",
-      "type": "char[128]"
     }
   ],
   "registers": [

@@ -13,10 +13,6 @@
 
 namespace xbot::driver::gps {
 class UbxGpsDriver : public GpsDriver {
- public:
-  UbxGpsDriver();
-
- private:
  protected:
   void ResetParserState() override;
 
