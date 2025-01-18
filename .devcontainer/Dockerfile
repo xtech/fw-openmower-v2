@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     gcc gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib  \
     libasio-dev iproute2 \
     python3 python3-venv python3-pip \
-    cmake \
-    make
+    cmake make \
+    gdb-multiarch
 
 USER $USERNAME
