@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug on STM32",
+            "type": "cppdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/build/Debug/openmower.elf",
+            "postRemoteConnectCommands": [
+                {"text": "load"},
+            ],
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "/usr/bin/gdb-multiarch",
+                "miDebuggerServerAddress": "${input:hostname}:3333"
+            },
+        }
+    ],
+    "inputs": [
+        {
+            "id": "hostname",
+            "description": "Select OpenMower hostname",
+            "type": "promptString",
+        }
+    ]
+}
