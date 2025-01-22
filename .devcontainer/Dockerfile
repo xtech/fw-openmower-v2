@@ -16,6 +16,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libasio-dev iproute2 \
     python3 python3-venv python3-pip \
     cmake make \
-    gdb-multiarch
+    gdb-multiarch && \
+    ln -s /usr/bin/nm /usr/bin/nm-multiarch && \
+    ln -s /usr/bin/objdump /usr/bin/objdump-multiarch
 
 USER $USERNAME
