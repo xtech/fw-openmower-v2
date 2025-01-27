@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 set(CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cfg)
 set(BOARD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boards/XCORE)
 # Set custom port path
-set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable)
+set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
 
 
 
