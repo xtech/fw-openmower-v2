@@ -17,7 +17,7 @@ void initBoardPeriphs(void) {
   i2cAcquireBus(&I2CD1);
 
   // Calculated depending on clock source, check reference manual
-  i2c1Config.timingr = 0xE14;
+  i2c1Config.timingr = 0x60404E72;
 
   if (i2cStart(&I2CD1, &i2c1Config) != HAL_RET_SUCCESS) {
     while (1)
@@ -30,7 +30,7 @@ void initBoardPeriphs(void) {
   i2cAcquireBus(&I2CD2);
 
   // Calculated depending on clock source, check reference manual
-  i2c2Config.timingr = 0xE14;
+  i2c2Config.timingr = 0x60404E72;
 
   if (i2cStart(&I2CD2, &i2c2Config) != HAL_RET_SUCCESS) {
     while (1)

@@ -840,9 +840,16 @@ extern volatile uint32_t last_idle_tick;
  * @details This hook is invoked in case to a system halting error before
  *          the system is halted.
  */
+#ifdef RELEASE_BUILD
 #define _CH_CFG_SYSTEM_HALT_HOOK(reason) {                                   \
-  /* System halt code here.*/                                               \
+ /* Reboot into bootloader */ \
+ NVIC_SystemReset(); \
 }
+#else
+#define _CH_CFG_SYSTEM_HALT_HOOK(reason) {                                   \
+/* Reboot into bootloader */ \
+}
+#endif
 
 /**
  * @brief   Trace hook.

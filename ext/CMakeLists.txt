@@ -12,3 +12,8 @@ add_subdirectory(etl)
 
 add_library(WGS84toCartesian INTERFACE)
 target_include_directories(WGS84toCartesian INTERFACE WGS84toCartesian)
+
+#add_subdirectory(lvgl)
+#target_link_libraries(lvgl PUBLIC ChibiOS)
+
+add_subdirectory(u8g2)
