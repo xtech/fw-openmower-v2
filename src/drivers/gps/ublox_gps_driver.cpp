@@ -206,7 +206,8 @@ void UbxGpsDriver::HandleNavPvt(const UbxNavPvt *msg) {
   gps_state_.pos_lon = (double)msg->lon / 10000000.0;
   gps_state_.pos_height = (double)msg->hMSL / 1000.0;
   gps_state_.position_valid = true;
-  gps_state_.position_accuracy = (double)sqrt(pow((double)msg->hAcc / 1000.0, 2) + pow((double)msg->vAcc / 1000.0, 2));
+  gps_state_.position_h_accuracy = (double)msg->hAcc / 1000.0;
+  gps_state_.position_v_accuracy = (double)msg->vAcc / 1000.0;
 
   gps_state_.vel_e = msg->velE / 1000.0;
   gps_state_.vel_n = msg->velN / 1000.0;

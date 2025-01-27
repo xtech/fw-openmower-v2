@@ -33,7 +33,8 @@ class GpsDriver : public DebuggableDriver {
     // Position
     bool position_valid;
     // Position accuracy in m
-    double position_accuracy;
+    double position_h_accuracy;
+    double position_v_accuracy;
     double pos_lat, pos_lon, pos_height;
 
     // Motion
