@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
+include(robots/CMakeLists.txt)
 
 set(CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cfg)
 set(BOARD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boards/XCORE)
@@ -73,12 +74,14 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
         src/debug/debuggable_driver.cpp
+        ${PLATFORM_SOURCES}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user defined include paths
         src
+        robots/include
 )
 
 # Add project symbols (macros)

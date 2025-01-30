@@ -5,6 +5,8 @@
 #include "power_service.hpp"
 
 #include <drivers/bq_2576/bq_2576.hpp>
+#include <robot.hpp>
+#include "board.h"
 
 PowerService::PowerService(uint16_t service_id)
     : PowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {}
@@ -17,41 +19,41 @@ void PowerService::OnStop() {}
 void PowerService::tick() {
   if (!charger_configured_) {
     // charger not configured, configure it
-    if (BQ2576::init()) {
+    if (charger.init(Robot::Power::GetPowerI2CD())) {
       // Set the currents low
       bool success = true;
-      success &= BQ2576::setPreChargeCurrent(0.250f);
-      success &= BQ2576::setTerminationCurrent(0.250f);
-      success &= BQ2576::setChargingCurrent(1.0f, false);
+      success &= charger.setPreChargeCurrent(0.250f);
+      success &= charger.setTerminationCurrent(0.250f);
+      success &= charger.setChargingCurrent(Robot::Power::GetChargeCurrent(), false);
       // Disable temperature sense, the battery doesnt have it
-      success &= BQ2576::setTsEnabled(false);
+      success &= charger.setTsEnabled(false);
       charger_configured_ = success;
     }
   } else {
     // charger is configured, do monitoring
     bool success = true;
-    success &= BQ2576::resetWatchdog();
-    success &= BQ2576::readChargeCurrent(charge_current);
-    success &= BQ2576::readBatteryVoltage(battery_volts);
-    success &= BQ2576::readAdapterVoltage(adapter_volts);
-    faults = BQ2576::readFaults();
-    success &= BQ2576::getChargerFlags(flags1, flags2, flags3);
-    success &= BQ2576::getChargerStatus(status1, status2, status3);
+    success &= charger.resetWatchdog();
+    success &= charger.readChargeCurrent(charge_current);
+    success &= charger.readBatteryVoltage(battery_volts);
+    success &= charger.readAdapterVoltage(adapter_volts);
+    faults = charger.readFaults();
+    success &= charger.getChargerFlags(flags1, flags2, flags3);
+    success &= charger.getChargerStatus(status1, status2, status3);
 
     if (!success || status1 & 0b1000) {
       // Error during comms or watchdog timer expired, reconfigure charger
       charger_configured_ = false;
     } else {
       // TODO: force CM4 off here
-      /*if (battery_volts < Robot::CRITICAL_VOLTAGE) {
+      if (battery_volts < Robot::Power::GetMinVoltage()) {
         critical_count++;
         if (critical_count > 10) {
-          xcore::CM::PowerPin::reset();
+          palClearLine(LINE_HIGH_LEVEL_GLOBAL_EN);
         }
       } else {
         critical_count = 0;
-        xcore::CM::PowerPin::set();
-      }*/
+        palSetLine(LINE_HIGH_LEVEL_GLOBAL_EN);
+      }
     }
   }
   // Send the sensor values

@@ -5,7 +5,10 @@
 #ifndef POWER_SERVICE_HPP
 #define POWER_SERVICE_HPP
 
+#include <ch.h>
+
 #include <PowerServiceBase.hpp>
+#include <drivers/bq_2576/bq_2576.hpp>
 
 class PowerService : public PowerServiceBase {
  public:
@@ -43,6 +46,7 @@ class PowerService : public PowerServiceBase {
   uint8_t flags1 = 0;
   uint8_t flags2 = 0;
   uint8_t flags3 = 0;
+  BQ2576 charger{};
   THD_WORKING_AREA(wa, 500){};
 
  protected:

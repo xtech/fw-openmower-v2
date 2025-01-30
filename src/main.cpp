@@ -17,6 +17,7 @@
 #include <status_led.h>
 
 #include <globals.hpp>
+#include <robot.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/portable/system.hpp>
 
@@ -31,8 +32,6 @@ MowerService mower_service{3};
 ImuService imu_service{4};
 PowerService power_service{5};
 
-xbot::driver::gps::UbxGpsDriver ubx_gps_driver{};
-DebugTCPInterface gps_debug{1000, &ubx_gps_driver};
 uint8_t id[6]{};
 /*
  * Application entry point.
@@ -92,6 +91,8 @@ int main() {
 
   InitBootloaderServiceDiscovery();
 
+  Robot::General::InitPlatform();
+
   xbot::service::system::initSystem();
   xbot::service::Io::start();
   emergency_service.start();
@@ -100,8 +101,6 @@ int main() {
   diff_drive.start();
   mower_service.start();
 
-  ubx_gps_driver.StartDriver(&UARTD6, 921600);
-  gps_debug.Start();
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;

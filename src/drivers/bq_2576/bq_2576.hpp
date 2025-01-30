@@ -5,6 +5,8 @@
 #ifndef BQ_2576_HPP
 #define BQ_2576_HPP
 
+#include "hal.h"
+
 #include <cstdint>
 class BQ2576 {
  private:
@@ -34,32 +36,34 @@ class BQ2576 {
   static constexpr uint8_t REG_Precharge_Current_Limit = 0x10;
   static constexpr uint8_t REG_Precharge_and_Termination_Control = 0x14;
 
-  static bool readRegister(uint8_t reg, uint8_t &result);
-  static bool readRegister(uint8_t reg, uint16_t &result);
-  static bool writeRegister8(uint8_t reg, uint8_t value);
-  static bool writeRegister16(uint8_t reg, uint16_t value);
+  I2CDriver *i2c_driver_ = nullptr;
+
+  bool readRegister(uint8_t reg, uint8_t &result);
+  bool readRegister(uint8_t reg, uint16_t &result);
+  bool writeRegister8(uint8_t reg, uint8_t value);
+  bool writeRegister16(uint8_t reg, uint16_t value);
 
  public:
-  static bool setChargingCurrent(float current_amps,
+  bool setChargingCurrent(float current_amps,
                                  bool overwrite_hardware_limit);
-  static bool setPreChargeCurrent(float current_amps);
-  static bool setTerminationCurrent(float current_amps);
+  bool setPreChargeCurrent(float current_amps);
+  bool setTerminationCurrent(float current_amps);
 
-  static bool getChargerStatus(uint8_t &status1, uint8_t &status2,
+  bool getChargerStatus(uint8_t &status1, uint8_t &status2,
                                uint8_t &status3);
-  static bool getChargerFlags(uint8_t &flags1, uint8_t &flags2,
+  bool getChargerFlags(uint8_t &flags1, uint8_t &flags2,
                               uint8_t &flags3);
 
-  static bool init();
-  static bool resetWatchdog();
+  bool init(I2CDriver* i2c_driver);
+  bool resetWatchdog();
 
-  static bool setTsEnabled(bool enabled);
+  bool setTsEnabled(bool enabled);
 
-  static uint8_t readFaults();
-  static bool readChargeCurrent(float &result);
-  static bool readAdapterVoltage(float &result);
-  static bool readBatteryVoltage(float &result);
-  static bool readVFB(float &result);
+  uint8_t readFaults();
+  bool readChargeCurrent(float &result);
+  bool readAdapterVoltage(float &result);
+  bool readBatteryVoltage(float &result);
+  bool readVFB(float &result);
 };
 
 #endif  // BQ_2576_HPP

@@ -7,9 +7,8 @@
 #include "ch.h"
 #include "hal.h"
 
-static constexpr auto I2CD_CHARGER = &I2CD1;
-
-bool BQ2576::init() {
+bool BQ2576::init(I2CDriver* i2c_driver) {
+  this->i2c_driver_ = i2c_driver;
   uint8_t result = 0;
 
   bool readOk = readRegister(REG_PART_INFORMATION, result);
@@ -64,10 +63,10 @@ uint8_t BQ2576::readFaults() {
   return result;
 }
 bool BQ2576::readRegister(uint8_t reg, uint8_t& result) {
-  i2cAcquireBus(I2CD_CHARGER);
-  bool ok = i2cMasterTransmit(I2CD_CHARGER, DEVICE_ADDRESS, &reg, sizeof(reg),
+  i2cAcquireBus(i2c_driver_);
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg),
                               &result, sizeof(result)) == MSG_OK;
-  i2cReleaseBus(I2CD_CHARGER);
+  i2cReleaseBus(i2c_driver_);
   return ok;
 }
 bool BQ2576::readChargeCurrent(float& result) {
@@ -79,28 +78,28 @@ bool BQ2576::readChargeCurrent(float& result) {
   return true;
 }
 bool BQ2576::readRegister(uint8_t reg, uint16_t& result) {
-  i2cAcquireBus(I2CD_CHARGER);
-  bool ok = i2cMasterTransmit(I2CD_CHARGER, DEVICE_ADDRESS, &reg, sizeof(reg),
+  i2cAcquireBus(i2c_driver_);
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg),
                               reinterpret_cast<uint8_t*>(&result),
                               sizeof(result)) == MSG_OK;
-  i2cReleaseBus(I2CD_CHARGER);
+  i2cReleaseBus(i2c_driver_);
   return ok;
 }
 bool BQ2576::writeRegister8(uint8_t reg, uint8_t value) {
   uint8_t payload[2] = {reg, value};
-  i2cAcquireBus(I2CD_CHARGER);
-  bool ok = i2cMasterTransmit(I2CD_CHARGER, DEVICE_ADDRESS, payload,
+  i2cAcquireBus(i2c_driver_);
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload,
                               sizeof(payload), nullptr, 0) == MSG_OK;
-  i2cReleaseBus(I2CD_CHARGER);
+  i2cReleaseBus(i2c_driver_);
   return ok;
 }
 bool BQ2576::writeRegister16(uint8_t reg, uint16_t value) {
   const auto ptr = reinterpret_cast<uint8_t*>(&value);
   uint8_t payload[3] = {reg, ptr[0], ptr[1]};
-  i2cAcquireBus(I2CD_CHARGER);
-  bool ok = i2cMasterTransmit(I2CD_CHARGER, DEVICE_ADDRESS, payload,
+  i2cAcquireBus(i2c_driver_);
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload,
                               sizeof(payload), nullptr, 0) == MSG_OK;
-  i2cReleaseBus(I2CD_CHARGER);
+  i2cReleaseBus(i2c_driver_);
   return ok;
 }
 bool BQ2576::readAdapterVoltage(float& result) {
