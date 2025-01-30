@@ -135,4 +135,10 @@ void GpsDriver::threadHelper(void *instance) {
 void GpsDriver::SendRTCM(const uint8_t *data, size_t size) {
   send_raw(data, size);
 }
+
+void GpsDriver::TriggerStateCallback() {
+  if (state_callback_) {
+    state_callback_(gps_state_);
+  }
+}
 }  // namespace xbot::driver::gps

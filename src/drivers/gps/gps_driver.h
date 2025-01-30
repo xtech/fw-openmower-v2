@@ -65,6 +65,7 @@ class GpsDriver : public DebuggableDriver {
 
  protected:
   StateCallback state_callback_{};
+  void TriggerStateCallback();
 
   bool gps_state_valid_{};
   GpsState gps_state_{};
