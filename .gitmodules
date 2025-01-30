@@ -1,3 +1,6 @@
 [submodule "ext/xbot_framework"]
 	path = ext/xbot_framework
 	url = https://github.com/ClemensElflein/xbot_framework.git
+[submodule "ext/minmea"]
+	path = ext/minmea
+	url = https://github.com/rovo89/minmea.git
