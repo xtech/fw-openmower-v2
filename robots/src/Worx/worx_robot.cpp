@@ -12,6 +12,11 @@ void InitPlatform() {
 }
 }
 
+namespace Gps {
+UARTDriver* GetUart() {
+  return &UARTD8;
+}
+}
 
 namespace Power {
 

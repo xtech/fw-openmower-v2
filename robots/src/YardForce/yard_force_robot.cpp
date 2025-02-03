@@ -12,6 +12,12 @@ void InitPlatform() {
 }
 }
 
+namespace Gps {
+UARTDriver* GetUart() {
+  return &UARTD6;
+}
+}
+
 namespace Power {
 
 I2CDriver* GetPowerI2CD() {

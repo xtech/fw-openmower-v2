@@ -13,6 +13,10 @@ namespace General {
 [[maybe_unused]] void InitPlatform();
 }
 
+namespace Gps {
+[[maybe_unused]] UARTDriver* GetUart();
+}
+
 namespace Power {
 
 [[maybe_unused]] I2CDriver* GetPowerI2CD();

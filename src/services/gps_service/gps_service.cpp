@@ -2,6 +2,7 @@
 
 #include <drivers/gps/nmea_gps_driver.h>
 #include <drivers/gps/ublox_gps_driver.h>
+#include "robot.hpp"
 
 void GpsService::OnCreate() {
 }
@@ -29,7 +30,7 @@ void GpsService::OnStart() {
       etl::delegate<void(const GpsDriver::GpsState&)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
 
   // TODO: Make port configurable.
-  gps_driver_->StartDriver(&UARTD8, Baudrate.value);
+  gps_driver_->StartDriver(Robot::Gps::GetUart(), Baudrate.value);
 }
 
 void GpsService::OnStop() {
