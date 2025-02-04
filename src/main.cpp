@@ -8,8 +8,6 @@
 #include <SEGGER_RTT_streams.h>
 #endif
 #include <boot_service_discovery.h>
-#include <drivers/gps/gps_driver.h>
-#include <drivers/gps/ublox_gps_driver.h>
 #include <etl/to_string.h>
 #include <heartbeat.h>
 #include <id_eeprom.h>
@@ -26,11 +24,13 @@
 #include "services/imu_service/imu_service.hpp"
 #include "services/mower_service/mower_service.hpp"
 #include "services/power_service/power_service.hpp"
+#include "services/gps_service/gps_service.hpp"
 EmergencyService emergency_service{1};
 DiffDriveService diff_drive{2};
 MowerService mower_service{3};
 ImuService imu_service{4};
 PowerService power_service{5};
+GpsService gps_service{6};
 
 uint8_t id[6]{};
 /*
@@ -100,6 +100,7 @@ int main() {
   power_service.start();
   diff_drive.start();
   mower_service.start();
+  gps_service.start();
 
 
   // Subscribe to global events and dispatch to our services

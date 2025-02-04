@@ -47,17 +47,20 @@
     {
       "id": 0,
       "name": "Baudrate",
-      "type": "uint32_t"
+      "type": "uint32_t",
+      "default": 460800
     },
     {
       "id": 1,
       "name": "Protocol",
-      "type": "char[10]"
+      "type": "char[10]",
+      "default": "\"NMEA\""
     },
     {
       "id": 2,
       "name": "DatumLatLonHeight",
-      "type": "double[3]"
+      "type": "double[3]",
+      "default": "{0, 0, 0}"
     }
   ],
   "type": "GpsService",
