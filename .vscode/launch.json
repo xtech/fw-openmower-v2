@@ -1,0 +1,57 @@
+// For remote debugging, you need to prepare your CM4 host with a recent OpenOCD version.
+// Simply follow steps 1 and 2 of this description:
+//   https://core.x-tech.online/docs/tutorials/flashing-stm32-from-cm4/
+// Once done, start OpenOCD on your CM4 host via:
+//   openocd -f interface/xcore.cfg -f target/stm32h7x.cfg -c "bindto 0.0.0.0"
+// Also make sure you have the Dev Mode enabled in the bootloader.
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "cppdbg (remote)",
+            "type": "cppdbg",
+            "request": "launch",
+            "preLaunchTask": "CMake: build",
+            "cwd": "${workspaceFolder}",
+            "program": "${command:cmake.launchTargetPath}",
+            "postRemoteConnectCommands": [
+                {
+                    "text": "-target-download",
+                }
+            ],
+            "svdPath": "${workspaceFolder}/cfg/STM32H723.svd",
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb-multiarch",
+                "miDebuggerServerAddress": "${input:target}:3333",
+            },
+        },
+        {
+            "name": "Cortex-Debug (remote)",
+            "type": "cortex-debug",
+            "cwd": "${workspaceFolder}",
+            "request": "launch",
+            "servertype": "external",
+            "gdbPath": "gdb-multiarch",
+            "gdbTarget": "${input:target}:3333",
+            "executable": "${command:cmake.launchTargetPath}",
+            "svdFile": "${workspaceFolder}/cfg/STM32H723.svd",
+            // Rebuild and flash on "Restart", but not on "Reset device".
+            "preLaunchTask": "CMake: build",
+            "preRestartCommands": [
+                "-target-download",
+            ],
+            "preResetCommands": [],
+            "breakAfterReset": false,
+            // Uncomment to break in main before debugging
+            // "runToEntryPoint": "main",
+        },
+    ],
+    "inputs": [
+        {
+            "id": "target",
+            "description": "Select hostname where OpenOCD is running",
+            "type": "promptString",
+        }
+    ],
+}

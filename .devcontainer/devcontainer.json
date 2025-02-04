@@ -1,0 +1,13 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.cpptools-extension-pack",
+				"marus25.cortex-debug",
+			]
+		}
+	}
+}
