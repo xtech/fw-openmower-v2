@@ -28,7 +28,10 @@ class GpsService : public GpsServiceBase {
 
   enum ProtocolType { UBX, NMEA };
   ProtocolType protocol_;
+  UARTDriver* uart_driver_;
   GpsDriver* gps_driver_;
+
+  UARTDriver* GetUARTDriverByIndex(uint8_t index);
   void GpsStateCallback(const GpsDriver::GpsState& state);
 };
 
