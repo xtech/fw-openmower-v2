@@ -10,4 +10,8 @@ endif ()
 # find the platform sources and add them
 file(GLOB_RECURSE PLATFORM_SOURCES "${CMAKE_CURRENT_LIST_DIR}/src/${ROBOT_PLATFORM}/*")
 
+if(NOT PLATFORM_SOURCES)
+message(FATAL_ERROR "No Platform Sources found, check your robot platform name!")
+endif ()
+
 message("Robot Platform Sources: ${PLATFORM_SOURCES}")
