@@ -3,9 +3,6 @@
 #include <drivers/gps/nmea_gps_driver.h>
 #include <drivers/gps/ublox_gps_driver.h>
 
-void GpsService::OnCreate() {
-}
-
 bool GpsService::Configure() {
   if (strncmp(Protocol.value, "UBX", Protocol.length) == 0) {
     protocol_ = UBX;
@@ -75,9 +72,6 @@ void GpsService::OnStart() {
 
 void GpsService::OnStop() {
   delete gps_driver_;
-}
-
-void GpsService::tick() {
 }
 
 bool GpsService::OnRTCMChanged(const uint8_t* new_value, uint32_t length) {

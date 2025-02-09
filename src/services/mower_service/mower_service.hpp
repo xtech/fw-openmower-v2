@@ -18,7 +18,6 @@ class MowerService : public MowerServiceBase {
   void OnMowerStatusChanged(uint32_t new_status);
 
  protected:
-  bool Configure() override;
   void OnCreate() override;
   void OnStart() override;
   void OnStop() override;

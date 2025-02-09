@@ -23,8 +23,7 @@ void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
 
 bool DiffDriveService::Configure() {
   // Check, if configuration is valid, if not retry
-  if (!WheelDistance.valid || !WheelTicksPerMeter.valid || WheelDistance.value == 0 ||
-      WheelTicksPerMeter.value == 0.0) {
+  if (WheelDistance.value == 0 || WheelTicksPerMeter.value == 0.0) {
     return false;
   }
   // It's fine, we don't actually need to configure anything

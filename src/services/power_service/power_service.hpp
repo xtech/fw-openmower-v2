@@ -15,10 +15,7 @@ class PowerService : public PowerServiceBase {
   explicit PowerService(uint16_t service_id);
 
  protected:
-  bool Configure() override;
   void OnStart() override;
-  void OnCreate() override;
-  void OnStop() override;
 
  private:
   static constexpr auto CHARGE_STATUS_ERROR = "Error";

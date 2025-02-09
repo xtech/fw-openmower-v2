@@ -12,18 +12,8 @@
 PowerService::PowerService(uint16_t service_id) : PowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
 }
 
-bool PowerService::Configure() {
-  return true;
-}
-
 void PowerService::OnStart() {
   charger_configured_ = false;
-}
-
-void PowerService::OnCreate() {
-}
-
-void PowerService::OnStop() {
 }
 
 void PowerService::tick() {

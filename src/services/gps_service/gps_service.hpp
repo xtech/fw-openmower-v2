@@ -16,7 +16,6 @@ class GpsService : public GpsServiceBase {
   }
 
  protected:
-  void OnCreate() override;
   bool Configure() override;
   void OnStart() override;
   void OnStop() override;
@@ -24,8 +23,6 @@ class GpsService : public GpsServiceBase {
   bool OnRTCMChanged(const uint8_t* new_value, uint32_t length) override;
 
  private:
-  void tick() override;
-
   enum ProtocolType { UBX, NMEA };
 
   ProtocolType protocol_;

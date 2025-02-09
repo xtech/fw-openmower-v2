@@ -16,9 +16,6 @@ class ImuService : public ImuServiceBase {
   }
 
  protected:
-  bool Configure() override;
-  void OnStart() override;
-  void OnStop() override;
   void OnCreate() override;
 
  private:

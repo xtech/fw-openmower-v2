@@ -18,16 +18,6 @@ static SPIConfig spi_config = {
 
 static stmdev_ctx_t dev_ctx{};
 
-bool ImuService::Configure() {
-  return true;
-}
-
-void ImuService::OnStart() {
-}
-
-void ImuService::OnStop() {
-}
-
 void ImuService::OnCreate() {
   // Acquire Bus and never let it go, there's only the one IMU connected to it.
   spiAcquireBus(&SPID_IMU);

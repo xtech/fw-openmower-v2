@@ -6,11 +6,6 @@
 
 #include <globals.hpp>
 
-bool MowerService::Configure() {
-  // No configuration needed
-  return true;
-}
-
 void MowerService::OnCreate() {
   mower_driver_.StartDriver(&UARTD2, 115200);
   mower_esc_driver_interface_.Start();
