@@ -9,9 +9,6 @@
 
 #include "board.h"
 
-PowerService::PowerService(uint16_t service_id) : PowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
-}
-
 void PowerService::OnStart() {
   charger_configured_ = false;
 }

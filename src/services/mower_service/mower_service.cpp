@@ -68,6 +68,3 @@ void MowerService::OnMowerStatusChanged(uint32_t new_status) {
   SetDuty();
   chMtxUnlock(&mtx);
 }
-
-MowerService::MowerService(const uint16_t service_id) : MowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
-}

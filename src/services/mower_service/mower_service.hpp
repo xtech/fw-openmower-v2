@@ -13,7 +13,8 @@
 
 class MowerService : public MowerServiceBase {
  public:
-  explicit MowerService(const uint16_t service_id);
+  explicit MowerService(const uint16_t service_id) : MowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
+  }
 
   void OnMowerStatusChanged(uint32_t new_status);
 
