@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #include "hal.h"
+
 class BQ2576 {
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x6B;

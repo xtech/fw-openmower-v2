@@ -15,6 +15,7 @@ namespace xbot::driver::esc {
 VescDriver::VescDriver() {
   latest_state.status = ESCState::ESCStatus::ESC_STATUS_DISCONNECTED;
 };
+
 bool VescDriver::StartDriver(UARTDriver* uart, uint32_t baudrate) {
   chDbgAssert(stopped_, "don't start the driver twice");
   chDbgAssert(uart != nullptr, "need to provide a driver");
@@ -65,9 +66,11 @@ bool VescDriver::StartDriver(UARTDriver* uart, uint32_t baudrate) {
   uartStartReceive(uart, RECV_BUFFER_SIZE, recv_buffer1_);
   return true;
 }
+
 void VescDriver::SetStatusUpdateInterval(uint32_t interval_millis) {
   (void)interval_millis;
 }
+
 void VescDriver::SetStateCallback(const StateCallback& function) {
   state_callback_ = function;
 }
@@ -146,6 +149,7 @@ void VescDriver::ProcessPayload() {
 
   working_buffer_fill_ = 0;
 }
+
 bool VescDriver::ProcessBytes(uint8_t* buffer, size_t len) {
   if (len == 0) {
     // expect more data
@@ -205,6 +209,7 @@ bool VescDriver::ProcessBytes(uint8_t* buffer, size_t len) {
   // we expect more data if the working buffer is not clean
   return working_buffer_fill_ != 0;
 }
+
 void VescDriver::SendPacket() {
   // header starts with a 2
   payload_buffer_.prepend[3] = 2;
@@ -231,6 +236,7 @@ void VescDriver::RequestStatus() {
   chEvtSignal(processing_thread_, EVT_ID_EXPECT_PACKET);
   chMtxUnlock(&mutex_);
 }
+
 void VescDriver::SetDuty(float duty) {
   if (IsRawMode()) {
     // ignore when a raw data stream is connected
@@ -245,6 +251,7 @@ void VescDriver::SetDuty(float duty) {
   SendPacket();
   chMtxUnlock(&mutex_);
 }
+
 void VescDriver::RawDataInput(uint8_t* data, size_t size) {
   if (!IsRawMode()) {
     return;

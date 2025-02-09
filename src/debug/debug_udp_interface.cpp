@@ -14,12 +14,14 @@ DebugUDPInterface::DebugUDPInterface(uint16_t listen_port, DebuggableDriver *dri
   listen_port_ = listen_port;
   driver_ = driver;
 }
+
 void DebugUDPInterface::Start() {
   driver_->SetRawDataCallback(
       etl::delegate<void(const uint8_t *, size_t)>::create<DebugUDPInterface, &DebugUDPInterface::OnRawDriverData>(
           *this));
   chThdCreateStatic(waThread, sizeof(waThread), NORMALPRIO, &ThreadFuncHelper, this);
 }
+
 void DebugUDPInterface::ThreadFunc() {
   chRegSetThreadName("DebugUDPInterface");
 
@@ -62,6 +64,7 @@ void DebugUDPInterface::ThreadFunc() {
     }
   }
 }
+
 void DebugUDPInterface::OnRawDriverData(const uint8_t *data, size_t size) {
   chMtxLock(&socket_mutex_);
   struct sockaddr_in multicast_addr;
@@ -74,6 +77,7 @@ void DebugUDPInterface::OnRawDriverData(const uint8_t *data, size_t size) {
   }
   chMtxUnlock(&socket_mutex_);
 }
+
 void DebugUDPInterface::ThreadFuncHelper(void *instance) {
   static_cast<DebugUDPInterface *>(instance)->ThreadFunc();
 }

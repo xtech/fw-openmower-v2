@@ -45,6 +45,7 @@ bool BQ2576::init(I2CDriver* i2c_driver) {
 
   return success;
 }
+
 bool BQ2576::setTsEnabled(bool enabled) {
   uint8_t val;
   if (!readRegister(REG_TS_Charging_Region_Behavior_Control, val)) return false;
@@ -55,18 +56,21 @@ bool BQ2576::setTsEnabled(bool enabled) {
   }
   return writeRegister8(REG_TS_Charging_Region_Behavior_Control, val);
 }
+
 uint8_t BQ2576::readFaults() {
   uint8_t result = 0;
 
   readRegister(REG_Fault_Status, result);
   return result;
 }
+
 bool BQ2576::readRegister(uint8_t reg, uint8_t& result) {
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), &result, sizeof(result)) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
+
 bool BQ2576::readChargeCurrent(float& result) {
   uint16_t raw_result = 0;
   if (!readRegister(REG_IBAT_ADC, raw_result)) return false;
@@ -75,6 +79,7 @@ bool BQ2576::readChargeCurrent(float& result) {
 
   return true;
 }
+
 bool BQ2576::readRegister(uint8_t reg, uint16_t& result) {
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), reinterpret_cast<uint8_t*>(&result),
@@ -82,6 +87,7 @@ bool BQ2576::readRegister(uint8_t reg, uint16_t& result) {
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
+
 bool BQ2576::writeRegister8(uint8_t reg, uint8_t value) {
   uint8_t payload[2] = {reg, value};
   i2cAcquireBus(i2c_driver_);
@@ -89,6 +95,7 @@ bool BQ2576::writeRegister8(uint8_t reg, uint8_t value) {
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
+
 bool BQ2576::writeRegister16(uint8_t reg, uint16_t value) {
   const auto ptr = reinterpret_cast<uint8_t*>(&value);
   uint8_t payload[3] = {reg, ptr[0], ptr[1]};
@@ -97,6 +104,7 @@ bool BQ2576::writeRegister16(uint8_t reg, uint16_t value) {
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
+
 bool BQ2576::readAdapterVoltage(float& result) {
   uint16_t raw_result = 0;
   if (!readRegister(REG_VAC_ADC, raw_result)) return false;
@@ -106,6 +114,7 @@ bool BQ2576::readAdapterVoltage(float& result) {
 
   return true;
 }
+
 bool BQ2576::readBatteryVoltage(float& result) {
   uint16_t raw_result = 0;
   if (!readRegister(REG_VBAT_ADC, raw_result)) return false;
@@ -115,12 +124,14 @@ bool BQ2576::readBatteryVoltage(float& result) {
 
   return true;
 }
+
 bool BQ2576::resetWatchdog() {
   // TODO, if the REG_Charger_Control is used, we need to either store the value
   // or read it here before resetting the watchdog.
   uint8_t val = 0b11101001;
   return writeRegister8(REG_Charger_Control, val);
 }
+
 bool BQ2576::getChargerStatus(uint8_t& status1, uint8_t& status2, uint8_t& status3) {
   bool success = true;
   success &= readRegister(REG_Charger_Status_1, status1);
@@ -128,6 +139,7 @@ bool BQ2576::getChargerStatus(uint8_t& status1, uint8_t& status2, uint8_t& statu
   success &= readRegister(REG_Charger_Status_3, status3);
   return success;
 }
+
 bool BQ2576::getChargerFlags(uint8_t& flags1, uint8_t& flags2, uint8_t& flags3) {
   bool success = true;
   success &= readRegister(REG_Charger_Flag_1, flags1);
@@ -135,6 +147,7 @@ bool BQ2576::getChargerFlags(uint8_t& flags1, uint8_t& flags2, uint8_t& flags3) 
   success &= readRegister(REG_Charger_Flag_3, flags3);
   return success;
 }
+
 bool BQ2576::readVFB(float& result) {
   uint16_t raw_result = 0;
   if (!readRegister(REG_VFB_ADC, raw_result)) return false;
@@ -144,6 +157,7 @@ bool BQ2576::readVFB(float& result) {
 
   return true;
 }
+
 bool BQ2576::setChargingCurrent(float current_amps, bool overwrite_hardware_limit) {
   uint8_t pin_ctl_value;
   if (!readRegister(REG_Pin_Control, pin_ctl_value)) {
@@ -164,11 +178,13 @@ bool BQ2576::setChargingCurrent(float current_amps, bool overwrite_hardware_limi
   uint16_t value = static_cast<uint16_t>(current_amps * 1000.0f / 50.0f) << 2;
   return writeRegister16(REG_Charge_Current_Limit, value);
 }
+
 bool BQ2576::setPreChargeCurrent(float current_amps) {
   if (current_amps < 0.250f) current_amps = 0.250f;
   uint16_t value = static_cast<uint16_t>(current_amps * 1000.0f / 50.0f) << 2;
   return writeRegister16(REG_Precharge_Current_Limit, value);
 }
+
 bool BQ2576::setTerminationCurrent(float current_amps) {
   // Lower values are not allowed
   if (current_amps < 0.250f) current_amps = 0.250f;

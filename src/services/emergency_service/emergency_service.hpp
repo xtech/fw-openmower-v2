@@ -8,6 +8,7 @@
 #include <etl/string.h>
 
 #include <EmergencyServiceBase.hpp>
+
 class EmergencyService : public EmergencyServiceBase {
  private:
   THD_WORKING_AREA(wa, 1024){};

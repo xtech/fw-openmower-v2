@@ -87,12 +87,15 @@ bool Io::registerServiceIo(ServiceIo* service) {
   *last_service = service;
   return true;
 }
+
 bool Io::transmitPacket(packet::PacketPtr packet, uint32_t ip, uint16_t port) {
   return sock::transmitPacket(&udp_socket_, packet, ip, port);
 }
+
 bool Io::transmitPacket(packet::PacketPtr packet, const char* ip, uint16_t port) {
   return sock::transmitPacket(&udp_socket_, packet, ip, port);
 }
+
 bool Io::getEndpoint(char* ip, size_t ip_len, uint16_t* port) {
   return sock::getEndpoint(&udp_socket_, ip, ip_len, port);
 }

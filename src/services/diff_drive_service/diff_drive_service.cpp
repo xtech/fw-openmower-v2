@@ -20,6 +20,7 @@ void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
   SetDuty();
   chMtxUnlock(&mtx);
 }
+
 bool DiffDriveService::Configure() {
   // Check, if configuration is valid, if not retry
   if (!WheelDistance.valid || !WheelTicksPerMeter.valid || WheelDistance.value == 0 ||
@@ -29,10 +30,12 @@ bool DiffDriveService::Configure() {
   // It's fine, we don't actually need to configure anything
   return true;
 }
+
 void DiffDriveService::OnStart() {
   speed_l_ = speed_r_ = 0;
   last_ticks_valid = false;
 }
+
 void DiffDriveService::OnCreate() {
   using namespace xbot::driver::esc;
   // Register callbacks
@@ -48,6 +51,7 @@ void DiffDriveService::OnCreate() {
   left_esc_driver_interface_.Start();
   right_esc_driver_interface_.Start();
 }
+
 void DiffDriveService::OnStop() {
   speed_l_ = speed_r_ = 0;
   last_ticks_valid = false;
@@ -78,6 +82,7 @@ void DiffDriveService::tick() {
   duty_sent_ = false;
   chMtxUnlock(&mtx);
 }
+
 void DiffDriveService::SetDuty() {
   // Get the current emergency state
   chMtxLock(&mower_status_mutex);
@@ -92,6 +97,7 @@ void DiffDriveService::SetDuty() {
   }
   duty_sent_ = true;
 }
+
 void DiffDriveService::LeftESCCallback(const VescDriver::ESCState& state) {
   chMtxLock(&mtx);
   left_esc_state_ = state;
@@ -101,6 +107,7 @@ void DiffDriveService::LeftESCCallback(const VescDriver::ESCState& state) {
   }
   chMtxUnlock(&mtx);
 }
+
 void DiffDriveService::RightESCCallback(const VescDriver::ESCState& state) {
   chMtxLock(&mtx);
   right_esc_state_ = state;

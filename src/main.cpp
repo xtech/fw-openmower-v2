@@ -33,6 +33,7 @@ PowerService power_service{5};
 GpsService gps_service{6};
 
 uint8_t id[6]{};
+
 /*
  * Application entry point.
  */

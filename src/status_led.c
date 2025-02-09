@@ -40,6 +40,7 @@ void InitStatusLed() {
   chVTSetI(&status_led_timer, TIME_MS2I(100), status_led_timer_cb, NULL);
   chSysUnlock();
 }
+
 void SetStatusLedMode(enum LED_MODE mode) {
   chMtxLock(&status_led_mutex);
   current_mode = mode;

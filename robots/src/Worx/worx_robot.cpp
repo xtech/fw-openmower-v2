@@ -21,9 +21,11 @@ I2CDriver* GetPowerI2CD() {
 float GetMaxVoltage() {
   return 5.0f * 4.2f;
 }
+
 float GetChargeCurrent() {
   return 0.5;
 }
+
 float GetMinVoltage() {
   // 3.3V min, 5s pack
   return 5.0f * 3.3;

@@ -40,6 +40,7 @@ class VescDriver : public DebuggableDriver {
 
     ESCStatus status;
   };
+
   typedef etl::delegate<void(const ESCState &new_state)> StateCallback;
 
   VescDriver();

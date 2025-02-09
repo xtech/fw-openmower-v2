@@ -10,13 +10,16 @@ bool MowerService::Configure() {
   // No configuration needed
   return true;
 }
+
 void MowerService::OnCreate() {
   mower_driver_.StartDriver(&UARTD2, 115200);
   mower_esc_driver_interface_.Start();
 }
+
 void MowerService::OnStart() {
   mower_duty_ = 0;
 }
+
 void MowerService::OnStop() {
   mower_duty_ = 0;
 }
@@ -59,6 +62,7 @@ bool MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
   chMtxUnlock(&mtx);
   return true;
 }
+
 void MowerService::OnMowerStatusChanged(uint32_t new_status) {
   if ((new_status & (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
     // only set speed to 0 if the emergency happens, not if it's cleared

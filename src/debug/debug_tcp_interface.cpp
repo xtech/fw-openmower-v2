@@ -14,12 +14,14 @@ DebugTCPInterface::DebugTCPInterface(uint16_t listen_port, DebuggableDriver *dri
   listen_port_ = listen_port;
   driver_ = driver;
 }
+
 void DebugTCPInterface::Start() {
   driver_->SetRawDataCallback(
       etl::delegate<void(const uint8_t *, size_t)>::create<DebugTCPInterface, &DebugTCPInterface::OnRawDriverData>(
           *this));
   chThdCreateStatic(waThread, sizeof(waThread), NORMALPRIO, &ThreadFuncHelper, this);
 }
+
 void DebugTCPInterface::ThreadFunc() {
   chRegSetThreadName("DebugTCPInterface");
 
@@ -82,6 +84,7 @@ void DebugTCPInterface::ThreadFunc() {
     close(incoming);
   }
 }
+
 void DebugTCPInterface::OnRawDriverData(const uint8_t *data, size_t size) {
   chMtxLock(&socket_mutex_);
   if (current_client_socket_ >= 0) {
@@ -89,6 +92,7 @@ void DebugTCPInterface::OnRawDriverData(const uint8_t *data, size_t size) {
   }
   chMtxUnlock(&socket_mutex_);
 }
+
 void DebugTCPInterface::ThreadFuncHelper(void *instance) {
   static_cast<DebugTCPInterface *>(instance)->ThreadFunc();
 }

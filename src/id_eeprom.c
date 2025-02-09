@@ -67,6 +67,7 @@ bool ID_EEPROM_GetBoardInfo(struct board_info *buffer) {
 
   return success;
 }
+
 bool ID_EEPROM_GetCarrierBoardInfo(struct carrier_board_info *buffer) {
   i2cAcquireBus(&I2CD4);
 

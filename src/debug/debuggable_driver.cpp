@@ -3,11 +3,13 @@
 //
 #include <debug/debuggable_driver.hpp>
 DebuggableDriver::DebuggableDriver() = default;
+
 void DebuggableDriver::SetRawAccessMode(bool enabled) {
   chMtxLock(&mutex_);
   this->is_raw_mode_ = enabled;
   chMtxUnlock(&mutex_);
 }
+
 void DebuggableDriver::RawDataOutput(const uint8_t* data, size_t size) {
   chMtxLock(&mutex_);
   if (raw_data_callback_) {
@@ -15,11 +17,13 @@ void DebuggableDriver::RawDataOutput(const uint8_t* data, size_t size) {
   }
   chMtxUnlock(&mutex_);
 }
+
 void DebuggableDriver::SetRawDataCallback(const RawDataCallback& callback) {
   chMtxLock(&mutex_);
   this->raw_data_callback_ = callback;
   chMtxUnlock(&mutex_);
 }
+
 bool DebuggableDriver::IsRawMode() {
   chMtxLock(&mutex_);
   bool cpy = is_raw_mode_;

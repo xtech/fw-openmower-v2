@@ -27,6 +27,7 @@ class GpsService : public GpsServiceBase {
   void tick() override;
 
   enum ProtocolType { UBX, NMEA };
+
   ProtocolType protocol_;
   UARTDriver* uart_driver_;
   GpsDriver* gps_driver_;

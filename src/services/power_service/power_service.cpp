@@ -11,6 +11,7 @@
 
 PowerService::PowerService(uint16_t service_id) : PowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
 }
+
 bool PowerService::Configure() {
   return true;
 }
@@ -18,8 +19,10 @@ bool PowerService::Configure() {
 void PowerService::OnStart() {
   charger_configured_ = false;
 }
+
 void PowerService::OnCreate() {
 }
+
 void PowerService::OnStop() {
 }
 
@@ -89,6 +92,7 @@ void PowerService::tick() {
   SendChargerEnabled(true);
   CommitTransaction();
 }
+
 bool PowerService::OnChargingAllowedChanged(const uint8_t& new_value) {
   (void)new_value;
   return true;
