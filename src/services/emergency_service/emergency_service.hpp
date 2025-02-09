@@ -28,7 +28,7 @@ class EmergencyService : public EmergencyServiceBase {
   etl::string<100> emergency_reason{"Boot"};
 
  protected:
-  bool OnSetEmergencyChanged(const uint8_t& new_value) override;
+  void OnSetEmergencyChanged(const uint8_t& new_value) override;
 };
 
 #endif  // EMERGENCY_SERVICE_HPP

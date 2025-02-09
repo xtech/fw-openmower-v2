@@ -28,7 +28,7 @@ class MowerService : public MowerServiceBase {
   MUTEX_DECL(mtx);
 
  protected:
-  bool OnMowerEnabledChanged(const uint8_t& new_value) override;
+  void OnMowerEnabledChanged(const uint8_t& new_value) override;
 
  private:
   THD_WORKING_AREA(wa, 1024){};

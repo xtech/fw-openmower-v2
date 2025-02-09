@@ -20,7 +20,7 @@ class GpsService : public GpsServiceBase {
   void OnStart() override;
   void OnStop() override;
 
-  bool OnRTCMChanged(const uint8_t* new_value, uint32_t length) override;
+  void OnRTCMChanged(const uint8_t* new_value, uint32_t length) override;
 
  private:
   enum ProtocolType { UBX, NMEA };

@@ -155,8 +155,8 @@ void DiffDriveService::ProcessStatusUpdate() {
   CommitTransaction();
 }
 
-bool DiffDriveService::OnControlTwistChanged(const double* new_value, uint32_t length) {
-  if (length != 6) return false;
+void DiffDriveService::OnControlTwistChanged(const double* new_value, uint32_t length) {
+  if (length != 6) return;
   chMtxLock(&mtx);
   // we can only do forward and rotation around one axis
   const auto linear = static_cast<float>(new_value[0]);
@@ -182,5 +182,4 @@ bool DiffDriveService::OnControlTwistChanged(const double* new_value, uint32_t l
     SetDuty();
   }
   chMtxUnlock(&mtx);
-  return true;
 }

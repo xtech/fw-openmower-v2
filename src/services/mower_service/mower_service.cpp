@@ -44,7 +44,7 @@ void MowerService::SetDuty() {
   duty_sent_ = true;
 }
 
-bool MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
+void MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
   chMtxLock(&mtx);
   if (new_value) {
     mower_duty_ = 1.0;
@@ -55,7 +55,6 @@ bool MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
     SetDuty();
   }
   chMtxUnlock(&mtx);
-  return true;
 }
 
 void MowerService::OnMowerStatusChanged(uint32_t new_status) {

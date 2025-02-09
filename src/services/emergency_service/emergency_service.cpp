@@ -53,7 +53,7 @@ void EmergencyService::tick() {
   CommitTransaction();
 }
 
-bool EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
+void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
   if (new_value) {
     emergency_reason = "High Level Emergency";
     // set the emergency and notify services
@@ -79,5 +79,4 @@ bool EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
       last_clear_emergency_message_ = chVTGetSystemTime();
     }
   }
-  return true;
 }

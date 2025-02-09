@@ -74,9 +74,8 @@ void GpsService::OnStop() {
   delete gps_driver_;
 }
 
-bool GpsService::OnRTCMChanged(const uint8_t* new_value, uint32_t length) {
+void GpsService::OnRTCMChanged(const uint8_t* new_value, uint32_t length) {
   gps_driver_->SendRTCM(new_value, length);
-  return true;
 }
 
 void GpsService::GpsStateCallback(const GpsDriver::GpsState& state) {

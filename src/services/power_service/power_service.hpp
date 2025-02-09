@@ -47,7 +47,7 @@ class PowerService : public PowerServiceBase {
   THD_WORKING_AREA(wa, 500){};
 
  protected:
-  bool OnChargingAllowedChanged(const uint8_t& new_value) override;
+  void OnChargingAllowedChanged(const uint8_t& new_value) override;
 };
 
 #endif  // POWER_SERVICE_HPP
