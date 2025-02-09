@@ -18,8 +18,8 @@ class DiffDriveService : public DiffDriveServiceBase {
   VescDriver left_esc_driver_{};
   VescDriver right_esc_driver_{};
 
-  DebugTCPInterface left_esc_driver_interface_{65102,&left_esc_driver_};
-  DebugTCPInterface right_esc_driver_interface_{65104,&right_esc_driver_};
+  DebugTCPInterface left_esc_driver_interface_{65102, &left_esc_driver_};
+  DebugTCPInterface right_esc_driver_interface_{65104, &right_esc_driver_};
 
   VescDriver::ESCState left_esc_state_{};
   VescDriver::ESCState right_esc_state_{};
@@ -37,11 +37,8 @@ class DiffDriveService : public DiffDriveServiceBase {
   float speed_r_ = 0;
   bool duty_sent_ = false;
 
-
-
  public:
-  explicit DiffDriveService(uint16_t service_id)
-      : DiffDriveServiceBase(service_id, 20000, wa, sizeof(wa)) {
+  explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, 20000, wa, sizeof(wa)) {
   }
 
   void OnMowerStatusChanged(uint32_t new_status);
@@ -62,7 +59,7 @@ class DiffDriveService : public DiffDriveServiceBase {
   void ProcessStatusUpdate();
 
  protected:
-  bool OnControlTwistChanged(const double* new_value, uint32_t length) override;
+  bool OnControlTwistChanged(const double *new_value, uint32_t length) override;
 };
 
 #endif  // DIFF_DRIVE_SERVICE_HPP

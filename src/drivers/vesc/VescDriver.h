@@ -16,7 +16,6 @@
 namespace xbot::driver::esc {
 class VescDriver : public DebuggableDriver {
  public:
-
   struct ESCState {
     enum class ESCStatus : uint8_t {
       ESC_STATUS_DISCONNECTED = 99u,
@@ -43,7 +42,6 @@ class VescDriver : public DebuggableDriver {
   };
   typedef etl::delegate<void(const ESCState &new_state)> StateCallback;
 
-
   VescDriver();
 
   ~VescDriver() override = default;
@@ -55,6 +53,7 @@ class VescDriver : public DebuggableDriver {
   void SetDuty(float duty);
 
   void RawDataInput(uint8_t *data, size_t size) override;
+
  private:
   StateCallback state_callback_{};
 
@@ -108,12 +107,11 @@ class VescDriver : public DebuggableDriver {
   bool stopped_ = true;
 
   void ProcessPayload();
-  bool ProcessBytes(uint8_t * buffer, size_t len);
+  bool ProcessBytes(uint8_t *buffer, size_t len);
   void SendPacket();
   void threadFunc();
   static void threadHelper(void *instance);
-
 };
-}
+}  // namespace xbot::driver::esc
 
-#endif //VESCDRIVER_H
+#endif  // VESCDRIVER_H

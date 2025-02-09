@@ -44,8 +44,7 @@ static void multicast_sender_thread(void *p) {
 
   int broadcast = 1;
 
-  if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast,
-                 sizeof(broadcast)) < 0) {
+  if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
     close(sockfd);
     return;
   }
@@ -65,22 +64,22 @@ static void multicast_sender_thread(void *p) {
   multicast_addr.sin_port = htons(SD_MULTICAST_PORT);
   while (true) {
     int received =
-        recvfrom(sockfd, boardAdvertisementRequestBuffer,
-                 sizeof(boardAdvertisementRequestBuffer) - 1, 0, NULL, NULL);
+        recvfrom(sockfd, boardAdvertisementRequestBuffer, sizeof(boardAdvertisementRequestBuffer) - 1, 0, NULL, NULL);
     if (received > 0) {
       // Make sure, there's a zero terminator
       boardAdvertisementRequestBuffer[received] = 0;
       // check, if the command was "RESET", if so, we reset
-      if(strncmp(boardAdvertisementRequestBuffer, "RESET", sizeof(boardAdvertisementRequestBuffer)) == 0) {
+      if (strncmp(boardAdvertisementRequestBuffer, "RESET", sizeof(boardAdvertisementRequestBuffer)) == 0) {
         // Set the boot address to bootloader and reset the system
-        MODIFY_REG(SYSCFG->UR2, SYSCFG_UR2_BOOT_ADD0,
-           (0x8000000 >> 16) << SYSCFG_UR2_BOOT_ADD0_Pos);
+        MODIFY_REG(SYSCFG->UR2, SYSCFG_UR2_BOOT_ADD0, (0x8000000 >> 16) << SYSCFG_UR2_BOOT_ADD0_Pos);
         NVIC_SystemReset();
-        while(1);
-      } else if(strncmp(boardAdvertisementRequestBuffer, "DISCOVER_REQUEST", sizeof(boardAdvertisementRequestBuffer)) == 0) {
+        while (1)
+          ;
+      } else if (strncmp(boardAdvertisementRequestBuffer, "DISCOVER_REQUEST",
+                         sizeof(boardAdvertisementRequestBuffer)) == 0) {
         // Send the multicast message
-        sendto(sockfd, boardAdvertisementBuffer, strlen(boardAdvertisementBuffer),
-               0, (struct sockaddr *)&multicast_addr, sizeof(multicast_addr));
+        sendto(sockfd, boardAdvertisementBuffer, strlen(boardAdvertisementBuffer), 0,
+               (struct sockaddr *)&multicast_addr, sizeof(multicast_addr));
       }
     }
   }
@@ -95,7 +94,7 @@ void InitBootloaderServiceDiscovery() {
              "BOARD_ADVERTISEMENT:xcore-boot;application-mode");
 
   // Create a multicast sender thread
-  thread_t* threadPointer = chThdCreateStatic(waServiceDiscovery, sizeof(waServiceDiscovery), NORMALPRIO,
-                    multicast_sender_thread, NULL);
+  thread_t *threadPointer =
+      chThdCreateStatic(waServiceDiscovery, sizeof(waServiceDiscovery), NORMALPRIO, multicast_sender_thread, NULL);
   threadPointer->name = "Boot SD";
 }

@@ -7,9 +7,7 @@
 
 namespace xcore {
 static void Init();
-namespace CM {
+namespace CM {}
+};  // namespace xcore
 
-}
-};
-
-#endif //XCORE_HPP
+#endif  // XCORE_HPP

@@ -6,8 +6,6 @@
 #ifndef XBOT_DRIVER_GPS_UBX_DATATYPES_H
 #define XBOT_DRIVER_GPS_UBX_DATATYPES_H
 
-
-
 namespace xbot::driver::gps {
 
 #pragma pack(push, 1)
@@ -79,7 +77,6 @@ struct UbxNavPvt {
   uint16_t magAcc;
 } __attribute__((packed));
 #pragma pack(pop)
-} // namespace xbot::driver::gps
-
+}  // namespace xbot::driver::gps
 
 #endif  // XBOT_DRIVER_GPS_UBX_DATATYPES_H

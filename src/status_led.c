@@ -18,15 +18,9 @@ static void status_led_timer_cb(struct ch_virtual_timer *tp, void *arg) {
   (void)arg;
   (void)tp;
   switch (current_mode) {
-    case LED_MODE_OFF:
-      palClearLine(LINE_STATUS_LED);
-      break;
-    case LED_MODE_ON:
-      palClearLine(LINE_STATUS_LED);
-      break;
-    case LED_MODE_BLINK_FAST:
-      palToggleLine(LINE_STATUS_LED);
-      break;
+    case LED_MODE_OFF: palClearLine(LINE_STATUS_LED); break;
+    case LED_MODE_ON: palClearLine(LINE_STATUS_LED); break;
+    case LED_MODE_BLINK_FAST: palToggleLine(LINE_STATUS_LED); break;
     case LED_MODE_BLINK_SLOW:
       if (blink_state++ % 10 == 0) {
         palToggleLine(LINE_STATUS_LED);

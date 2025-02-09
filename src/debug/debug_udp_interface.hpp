@@ -15,20 +15,20 @@ class DebugUDPInterface {
   void Start();
 
  private:
- THD_WORKING_AREA(waThread, 1024);
- MUTEX_DECL(socket_mutex_);
+  THD_WORKING_AREA(waThread, 1024);
+  MUTEX_DECL(socket_mutex_);
   uint16_t listen_port_ = 0;
   DebuggableDriver *driver_ = nullptr;
   int current_client_socket_ = -1;
   uint32_t target_ip_ = 0;
   uint16_t target_port_ = 0;
- uint8_t input_buffer_[1024]{};
+  uint8_t input_buffer_[1024]{};
 
- void ThreadFunc();
+  void ThreadFunc();
 
- void OnRawDriverData(const uint8_t *data, size_t size);
+  void OnRawDriverData(const uint8_t *data, size_t size);
 
- static void ThreadFuncHelper(void* instance);
+  static void ThreadFuncHelper(void *instance);
 };
 
 #endif  // DEBUG_UDP_INTERFACE_HPP

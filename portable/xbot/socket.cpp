@@ -15,10 +15,8 @@
 using namespace xbot::service::sock;
 using namespace xbot::service::packet;
 
-bool xbot::service::sock::initialize(SocketPtr socket_ptr,
-                                     bool bind_multicast) {
-  chDbgAssert(!bind_multicast,
-              "Multicast is not supported on the MAC implementation");
+bool xbot::service::sock::initialize(SocketPtr socket_ptr, bool bind_multicast) {
+  chDbgAssert(!bind_multicast, "Multicast is not supported on the MAC implementation");
   *socket_ptr = -1;
   // Create a UDP socket
 
@@ -63,9 +61,8 @@ bool xbot::service::sock::receivePacket(SocketPtr socket, PacketPtr* packet) {
   }
   sockaddr_in fromAddr{};
   socklen_t fromLen = sizeof(fromAddr);
-  const ssize_t recvLen =
-      recvfrom(*socket, pkt->buffer, config::max_packet_size, 0,
-               reinterpret_cast<struct sockaddr*>(&fromAddr), &fromLen);
+  const ssize_t recvLen = recvfrom(*socket, pkt->buffer, config::max_packet_size, 0,
+                                   reinterpret_cast<struct sockaddr*>(&fromAddr), &fromLen);
   if (recvLen < 0) {
     freePacket(pkt);
     return false;
@@ -75,36 +72,31 @@ bool xbot::service::sock::receivePacket(SocketPtr socket, PacketPtr* packet) {
   return true;
 }
 
-bool xbot::service::sock::transmitPacket(SocketPtr socket, PacketPtr packet,
-                                         uint32_t ip, uint16_t port) {
+bool xbot::service::sock::transmitPacket(SocketPtr socket, PacketPtr packet, uint32_t ip, uint16_t port) {
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
   addr.sin_addr.s_addr = htonl(ip);
 
-  sendto(*static_cast<int*>(socket), packet->buffer, packet->used_data, 0,
-         reinterpret_cast<const sockaddr*>(&addr), sizeof(addr));
+  sendto(*static_cast<int*>(socket), packet->buffer, packet->used_data, 0, reinterpret_cast<const sockaddr*>(&addr),
+         sizeof(addr));
 
   freePacket(packet);
 
   return true;
 }
 
-bool xbot::service::sock::transmitPacket(SocketPtr socket, PacketPtr packet,
-                                         const char* ip, uint16_t port) {
+bool xbot::service::sock::transmitPacket(SocketPtr socket, PacketPtr packet, const char* ip, uint16_t port) {
   return transmitPacket(socket, packet, ntohl(inet_addr(ip)), port);
 }
 
-bool xbot::service::sock::getEndpoint(SocketPtr socket, char* ip, size_t ip_len,
-                                      uint16_t* port) {
+bool xbot::service::sock::getEndpoint(SocketPtr socket, char* ip, size_t ip_len, uint16_t* port) {
   if (socket == nullptr || ip == nullptr || port == nullptr) return false;
 
   sockaddr_in addr{};
   socklen_t addrLen = sizeof(addr);
 
-  if (getsockname(*static_cast<int*>(socket),
-                  reinterpret_cast<sockaddr*>(&addr), &addrLen) < 0)
-    return false;
+  if (getsockname(*static_cast<int*>(socket), reinterpret_cast<sockaddr*>(&addr), &addrLen) < 0) return false;
 
   const char* addrStr = inet_ntoa(netif_default->ip_addr.addr);
   if (strlen(addrStr) >= ip_len) return false;

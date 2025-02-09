@@ -10,8 +10,14 @@ bool xbot::service::mutex::initialize(MutexPtr mutex) {
   return true;
 }
 
-void xbot::service::mutex::deinitialize(MutexPtr mutex) { (void)mutex; }
+void xbot::service::mutex::deinitialize(MutexPtr mutex) {
+  (void)mutex;
+}
 
-void xbot::service::mutex::lockMutex(MutexPtr mutex) { chMtxLock(mutex); }
+void xbot::service::mutex::lockMutex(MutexPtr mutex) {
+  chMtxLock(mutex);
+}
 
-void xbot::service::mutex::unlockMutex(MutexPtr mutex) { chMtxUnlock(mutex); }
+void xbot::service::mutex::unlockMutex(MutexPtr mutex) {
+  chMtxUnlock(mutex);
+}

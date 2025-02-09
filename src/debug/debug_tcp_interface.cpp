@@ -3,8 +3,10 @@
 //
 
 #include "debug_tcp_interface.hpp"
-#include "lwip/sockets.h"
+
 #include <cstddef>
+
+#include "lwip/sockets.h"
 
 DebugTCPInterface::DebugTCPInterface(uint16_t listen_port, DebuggableDriver *driver) {
   chDbgAssert(listen_port > 0, "port invalid");
@@ -13,7 +15,9 @@ DebugTCPInterface::DebugTCPInterface(uint16_t listen_port, DebuggableDriver *dri
   driver_ = driver;
 }
 void DebugTCPInterface::Start() {
-  driver_->SetRawDataCallback(etl::delegate<void(const uint8_t*, size_t)>::create<DebugTCPInterface, &DebugTCPInterface::OnRawDriverData>(*this));
+  driver_->SetRawDataCallback(
+      etl::delegate<void(const uint8_t *, size_t)>::create<DebugTCPInterface, &DebugTCPInterface::OnRawDriverData>(
+          *this));
   chThdCreateStatic(waThread, sizeof(waThread), NORMALPRIO, &ThreadFuncHelper, this);
 }
 void DebugTCPInterface::ThreadFunc() {
@@ -48,7 +52,6 @@ void DebugTCPInterface::ThreadFunc() {
     if (incoming < 0) {
       continue;
     }
-
 
     int flag = 1;
     int result = setsockopt(incoming, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
@@ -87,5 +90,5 @@ void DebugTCPInterface::OnRawDriverData(const uint8_t *data, size_t size) {
   chMtxUnlock(&socket_mutex_);
 }
 void DebugTCPInterface::ThreadFuncHelper(void *instance) {
-  static_cast<DebugTCPInterface*>(instance)->ThreadFunc();
+  static_cast<DebugTCPInterface *>(instance)->ThreadFunc();
 }

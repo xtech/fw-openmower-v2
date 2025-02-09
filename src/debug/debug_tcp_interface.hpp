@@ -15,17 +15,17 @@ class DebugTCPInterface {
   void Start();
 
  private:
- THD_WORKING_AREA(waThread, 1024);
- MUTEX_DECL(socket_mutex_);
+  THD_WORKING_AREA(waThread, 1024);
+  MUTEX_DECL(socket_mutex_);
   uint16_t listen_port_ = 0;
   DebuggableDriver *driver_ = nullptr;
   int current_client_socket_ = -1;
- uint8_t input_buffer_[1024]{};
- void ThreadFunc();
+  uint8_t input_buffer_[1024]{};
+  void ThreadFunc();
 
- void OnRawDriverData(const uint8_t *data, size_t size);
+  void OnRawDriverData(const uint8_t *data, size_t size);
 
- static void ThreadFuncHelper(void* instance);
+  static void ThreadFuncHelper(void *instance);
 };
 
 #endif  // DEBUG_TCP_INTERFACE_HPP

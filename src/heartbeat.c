@@ -17,8 +17,7 @@ static virtual_timer_t heartbeat_timer;
 static void heartbeat_timer_cb(struct ch_virtual_timer *tp, void *arg) {
   (void)arg;
   (void)tp;
-  bool elapsed =
-      TIME_I2MS(chVTTimeElapsedSinceX(last_idle_tick)) > HEARTBEAT_RECENT_MS;
+  bool elapsed = TIME_I2MS(chVTTimeElapsedSinceX(last_idle_tick)) > HEARTBEAT_RECENT_MS;
   switch (blink_state) {
     case 0:
       if (elapsed) {

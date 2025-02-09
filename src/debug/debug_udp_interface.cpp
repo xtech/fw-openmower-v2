@@ -30,7 +30,7 @@ void DebugUDPInterface::ThreadFunc() {
   }
 
   // if (fcntl(sockfd2, F_SETFL, O_NONBLOCK) < 0) {
-    // return;
+  // return;
   // }
 
   // Bind the socket to a port

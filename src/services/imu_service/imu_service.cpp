@@ -18,9 +18,13 @@ static SPIConfig spi_config = {
 
 static stmdev_ctx_t dev_ctx{};
 
-bool ImuService::Configure() { return true; }
-void ImuService::OnStart() {}
-void ImuService::OnStop() {}
+bool ImuService::Configure() {
+  return true;
+}
+void ImuService::OnStart() {
+}
+void ImuService::OnStop() {
+}
 void ImuService::OnCreate() {
   // Acquire Bus and never let it go, there's only the one IMU connected to it.
   spiAcquireBus(&SPID_IMU);
@@ -77,8 +81,7 @@ void ImuService::OnCreate() {
   /* Accelerometer - LPF1 path ( LPF2 not used )*/
   // lsm6ds3tr_c_xl_lp1_bandwidth_set(&dev_ctx, LSM6DS3TR_C_XL_LP1_ODR_DIV_4);
   /* Accelerometer - LPF1 + LPF2 path */
-  lsm6ds3tr_c_xl_lp2_bandwidth_set(&dev_ctx,
-                                   LSM6DS3TR_C_XL_LOW_NOISE_LP_ODR_DIV_100);
+  lsm6ds3tr_c_xl_lp2_bandwidth_set(&dev_ctx, LSM6DS3TR_C_XL_LOW_NOISE_LP_ODR_DIV_100);
 }
 void ImuService::tick() {
   if (!imu_found) {
@@ -100,15 +103,9 @@ void ImuService::tick() {
     /* Read magnetic field data */
     memset(data_raw_angular_rate, 0x00, 3 * sizeof(int16_t));
     lsm6ds3tr_c_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate);
-    axes[3] = M_PI *
-              lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[0]) /
-              180000.0;
-    axes[4] = -M_PI *
-              lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[1]) /
-              180000.0;
-    axes[5] = -M_PI *
-              lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[2]) /
-              180000.0;
+    axes[3] = M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[0]) / 180000.0;
+    axes[4] = -M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[1]) / 180000.0;
+    axes[5] = -M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[2]) / 180000.0;
   }
 
   /*if (reg.status_reg.tda) {

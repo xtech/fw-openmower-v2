@@ -12,8 +12,7 @@ using namespace xbot::service::packet;
 
 #define XBOT_PACKET_POOL_SIZE 10
 
-LWIP_MEMPOOL_DECLARE(xbot_packet_pool, XBOT_PACKET_POOL_SIZE, sizeof(Packet),
-                     "xbot packets")
+LWIP_MEMPOOL_DECLARE(xbot_packet_pool, XBOT_PACKET_POOL_SIZE, sizeof(Packet), "xbot packets")
 SEMAPHORE_DECL(xbot_packet_sema, XBOT_PACKET_POOL_SIZE);
 
 PacketPtr xbot::service::packet::allocatePacket() {
@@ -38,8 +37,7 @@ void xbot::service::packet::freePacket(PacketPtr packet_ptr) {
   chSemSignal(&xbot_packet_sema);
 }
 
-bool xbot::service::packet::packetAppendData(PacketPtr packet,
-                                             const void *buffer, size_t size) {
+bool xbot::service::packet::packetAppendData(PacketPtr packet, const void *buffer, size_t size) {
   if (packet == nullptr) return false;
   // Data won't fit.
   if (size + packet->used_data > config::max_packet_size) return false;
@@ -50,8 +48,7 @@ bool xbot::service::packet::packetAppendData(PacketPtr packet,
   return true;
 }
 
-bool xbot::service::packet::packetGetData(PacketPtr packet, void **buffer,
-                                          size_t *size) {
+bool xbot::service::packet::packetGetData(PacketPtr packet, void **buffer, size_t *size) {
   if (packet == nullptr) return false;
   *buffer = packet->buffer;
   *size = packet->used_data;

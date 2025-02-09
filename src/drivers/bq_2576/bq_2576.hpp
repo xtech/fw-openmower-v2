@@ -5,9 +5,9 @@
 #ifndef BQ_2576_HPP
 #define BQ_2576_HPP
 
-#include "hal.h"
-
 #include <cstdint>
+
+#include "hal.h"
 class BQ2576 {
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x6B;
@@ -44,17 +44,14 @@ class BQ2576 {
   bool writeRegister16(uint8_t reg, uint16_t value);
 
  public:
-  bool setChargingCurrent(float current_amps,
-                                 bool overwrite_hardware_limit);
+  bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit);
   bool setPreChargeCurrent(float current_amps);
   bool setTerminationCurrent(float current_amps);
 
-  bool getChargerStatus(uint8_t &status1, uint8_t &status2,
-                               uint8_t &status3);
-  bool getChargerFlags(uint8_t &flags1, uint8_t &flags2,
-                              uint8_t &flags3);
+  bool getChargerStatus(uint8_t &status1, uint8_t &status2, uint8_t &status3);
+  bool getChargerFlags(uint8_t &flags1, uint8_t &flags2, uint8_t &flags3);
 
-  bool init(I2CDriver* i2c_driver);
+  bool init(I2CDriver *i2c_driver);
   bool resetWatchdog();
 
   bool setTsEnabled(bool enabled);

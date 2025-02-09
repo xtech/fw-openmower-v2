@@ -12,8 +12,8 @@ class ImuService : public ImuServiceBase {
   THD_WORKING_AREA(wa, 500);
 
  public:
-  explicit ImuService(const uint16_t service_id)
-      : ImuServiceBase(service_id, 10000, wa, sizeof(wa)) {}
+  explicit ImuService(const uint16_t service_id) : ImuServiceBase(service_id, 10000, wa, sizeof(wa)) {
+  }
 
  protected:
   bool Configure() override;

@@ -10,8 +10,7 @@ namespace General {
 void InitPlatform() {
   // Not used, we could star the GUI driver task here for example
 }
-}
-
+}  // namespace General
 
 namespace Power {
 
@@ -20,7 +19,7 @@ I2CDriver* GetPowerI2CD() {
 }
 
 float GetMaxVoltage() {
-  return 5.0f*4.2f;
+  return 5.0f * 4.2f;
 }
 float GetChargeCurrent() {
   return 0.5;
@@ -30,5 +29,5 @@ float GetMinVoltage() {
   return 5.0f * 3.3;
 }
 
-}
-}
+}  // namespace Power
+}  // namespace Robot

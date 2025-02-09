@@ -17,8 +17,7 @@ bool BQ2576::init(I2CDriver* i2c_driver) {
 
   // Reset the charger settings
   {
-    bool writeOk =
-        writeRegister8(REG_Power_Path_and_Reverse_Mode_Control, 0b10100000);
+    bool writeOk = writeRegister8(REG_Power_Path_and_Reverse_Mode_Control, 0b10100000);
     if (!writeOk) {
       return false;
     }
@@ -64,8 +63,7 @@ uint8_t BQ2576::readFaults() {
 }
 bool BQ2576::readRegister(uint8_t reg, uint8_t& result) {
   i2cAcquireBus(i2c_driver_);
-  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg),
-                              &result, sizeof(result)) == MSG_OK;
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), &result, sizeof(result)) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
@@ -79,8 +77,7 @@ bool BQ2576::readChargeCurrent(float& result) {
 }
 bool BQ2576::readRegister(uint8_t reg, uint16_t& result) {
   i2cAcquireBus(i2c_driver_);
-  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg),
-                              reinterpret_cast<uint8_t*>(&result),
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), reinterpret_cast<uint8_t*>(&result),
                               sizeof(result)) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
   return ok;
@@ -88,8 +85,7 @@ bool BQ2576::readRegister(uint8_t reg, uint16_t& result) {
 bool BQ2576::writeRegister8(uint8_t reg, uint8_t value) {
   uint8_t payload[2] = {reg, value};
   i2cAcquireBus(i2c_driver_);
-  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload,
-                              sizeof(payload), nullptr, 0) == MSG_OK;
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload, sizeof(payload), nullptr, 0) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
@@ -97,8 +93,7 @@ bool BQ2576::writeRegister16(uint8_t reg, uint16_t value) {
   const auto ptr = reinterpret_cast<uint8_t*>(&value);
   uint8_t payload[3] = {reg, ptr[0], ptr[1]};
   i2cAcquireBus(i2c_driver_);
-  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload,
-                              sizeof(payload), nullptr, 0) == MSG_OK;
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload, sizeof(payload), nullptr, 0) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
@@ -126,16 +121,14 @@ bool BQ2576::resetWatchdog() {
   uint8_t val = 0b11101001;
   return writeRegister8(REG_Charger_Control, val);
 }
-bool BQ2576::getChargerStatus(uint8_t& status1, uint8_t& status2,
-                              uint8_t& status3) {
+bool BQ2576::getChargerStatus(uint8_t& status1, uint8_t& status2, uint8_t& status3) {
   bool success = true;
   success &= readRegister(REG_Charger_Status_1, status1);
   success &= readRegister(REG_Charger_Status_2, status2);
   success &= readRegister(REG_Charger_Status_3, status3);
   return success;
 }
-bool BQ2576::getChargerFlags(uint8_t& flags1, uint8_t& flags2,
-                             uint8_t& flags3) {
+bool BQ2576::getChargerFlags(uint8_t& flags1, uint8_t& flags2, uint8_t& flags3) {
   bool success = true;
   success &= readRegister(REG_Charger_Flag_1, flags1);
   success &= readRegister(REG_Charger_Flag_2, flags2);
@@ -151,8 +144,7 @@ bool BQ2576::readVFB(float& result) {
 
   return true;
 }
-bool BQ2576::setChargingCurrent(float current_amps,
-                                bool overwrite_hardware_limit) {
+bool BQ2576::setChargingCurrent(float current_amps, bool overwrite_hardware_limit) {
   uint8_t pin_ctl_value;
   if (!readRegister(REG_Pin_Control, pin_ctl_value)) {
     return false;

@@ -27,7 +27,8 @@ void EmergencyService::OnStop() {
   chMtxUnlock(&mower_status_mutex);
   chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
 }
-void EmergencyService::OnCreate() {}
+void EmergencyService::OnCreate() {
+}
 
 void EmergencyService::tick() {
   // Get the current emergency state
@@ -39,8 +40,7 @@ void EmergencyService::tick() {
   // Check timeout, but only overwrite if no emergency is currently active
   // reasoning is that we want to keep the original reason and not overwrite
   // with "timeout"
-  if (!emergency_latch &&
-      chVTTimeElapsedSinceX(last_clear_emergency_message_) > TIME_S2I(1)) {
+  if (!emergency_latch && chVTTimeElapsedSinceX(last_clear_emergency_message_) > TIME_S2I(1)) {
     emergency_reason = "Timeout";
     // set the emergency and notify services
     chMtxLock(&mower_status_mutex);

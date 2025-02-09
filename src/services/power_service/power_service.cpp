@@ -6,15 +6,22 @@
 
 #include <drivers/bq_2576/bq_2576.hpp>
 #include <robot.hpp>
+
 #include "board.h"
 
-PowerService::PowerService(uint16_t service_id)
-    : PowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {}
-bool PowerService::Configure() { return true; }
+PowerService::PowerService(uint16_t service_id) : PowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
+}
+bool PowerService::Configure() {
+  return true;
+}
 
-void PowerService::OnStart() { charger_configured_ = false; }
-void PowerService::OnCreate() {}
-void PowerService::OnStop() {}
+void PowerService::OnStart() {
+  charger_configured_ = false;
+}
+void PowerService::OnCreate() {
+}
+void PowerService::OnStop() {
+}
 
 void PowerService::tick() {
   if (!charger_configured_) {
@@ -63,39 +70,18 @@ void PowerService::tick() {
       SendChargingStatus(CHARGE_STATUS_FAULT, strlen(CHARGE_STATUS_FAULT));
     } else {
       switch (status1 & 0b111) {
-        case 0:
-          SendChargingStatus(CHARGE_STATUS_NOT_CHARGING,
-                             strlen(CHARGE_STATUS_NOT_CHARGING));
-          break;
-        case 1:
-          SendChargingStatus(CHARGE_STATUS_TRICKLE,
-                             strlen(CHARGE_STATUS_TRICKLE));
-          break;
-        case 2:
-          SendChargingStatus(CHARGE_STATUS_PRE_CHARGE,
-                             strlen(CHARGE_STATUS_PRE_CHARGE));
-          break;
-        case 3:
-          SendChargingStatus(CHARGE_STATUS_CC, strlen(CHARGE_STATUS_CC));
-          break;
-        case 4:
-          SendChargingStatus(CHARGE_STATUS_CV, strlen(CHARGE_STATUS_CV));
-          break;
-        case 6:
-          SendChargingStatus(CHARGE_STATUS_TOP_OFF,
-                             strlen(CHARGE_STATUS_TOP_OFF));
-          break;
-        case 7:
-          SendChargingStatus(CHARGE_STATUS_DONE, strlen(CHARGE_STATUS_DONE));
-          break;
-        default:
-          SendChargingStatus(CHARGE_STATUS_ERROR, strlen(CHARGE_STATUS_ERROR));
-          break;
+        case 0: SendChargingStatus(CHARGE_STATUS_NOT_CHARGING, strlen(CHARGE_STATUS_NOT_CHARGING)); break;
+        case 1: SendChargingStatus(CHARGE_STATUS_TRICKLE, strlen(CHARGE_STATUS_TRICKLE)); break;
+        case 2: SendChargingStatus(CHARGE_STATUS_PRE_CHARGE, strlen(CHARGE_STATUS_PRE_CHARGE)); break;
+        case 3: SendChargingStatus(CHARGE_STATUS_CC, strlen(CHARGE_STATUS_CC)); break;
+        case 4: SendChargingStatus(CHARGE_STATUS_CV, strlen(CHARGE_STATUS_CV)); break;
+        case 6: SendChargingStatus(CHARGE_STATUS_TOP_OFF, strlen(CHARGE_STATUS_TOP_OFF)); break;
+        case 7: SendChargingStatus(CHARGE_STATUS_DONE, strlen(CHARGE_STATUS_DONE)); break;
+        default: SendChargingStatus(CHARGE_STATUS_ERROR, strlen(CHARGE_STATUS_ERROR)); break;
       }
     }
   } else {
-    SendChargingStatus(CHARGE_STATUS_CHARGER_NOT_FOUND,
-                       strlen(CHARGE_STATUS_CHARGER_NOT_FOUND));
+    SendChargingStatus(CHARGE_STATUS_CHARGER_NOT_FOUND, strlen(CHARGE_STATUS_CHARGER_NOT_FOUND));
   }
   SendBatteryVoltage(battery_volts);
   SendChargeVoltage(adapter_volts);

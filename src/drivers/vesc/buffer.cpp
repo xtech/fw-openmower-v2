@@ -46,13 +46,11 @@ void buffer_append_uint32(uint8_t *buffer, uint32_t number, int32_t *index) {
   buffer[(*index)++] = number;
 }
 
-void buffer_append_float16(uint8_t *buffer, float number, float scale,
-                           int32_t *index) {
+void buffer_append_float16(uint8_t *buffer, float number, float scale, int32_t *index) {
   buffer_append_int16(buffer, (int16_t)(number * scale), index);
 }
 
-void buffer_append_float32(uint8_t *buffer, float number, float scale,
-                           int32_t *index) {
+void buffer_append_float32(uint8_t *buffer, float number, float scale, int32_t *index) {
   buffer_append_int32(buffer, (int32_t)(number * scale), index);
 }
 
@@ -124,31 +122,27 @@ void buffer_append_float32_auto(uint8_t *buffer, float number, int32_t *index) {
 }
 
 int16_t buffer_get_int16(const uint8_t *buffer, int32_t *index) {
-  int16_t res =
-      ((uint16_t)buffer[*index]) << 8 | ((uint16_t)buffer[*index + 1]);
+  int16_t res = ((uint16_t)buffer[*index]) << 8 | ((uint16_t)buffer[*index + 1]);
   *index += 2;
   return res;
 }
 
 uint16_t buffer_get_uint16(const uint8_t *buffer, int32_t *index) {
-  uint16_t res =
-      ((uint16_t)buffer[*index]) << 8 | ((uint16_t)buffer[*index + 1]);
+  uint16_t res = ((uint16_t)buffer[*index]) << 8 | ((uint16_t)buffer[*index + 1]);
   *index += 2;
   return res;
 }
 
 int32_t buffer_get_int32(const uint8_t *buffer, int32_t *index) {
-  int32_t res =
-      ((uint32_t)buffer[*index]) << 24 | ((uint32_t)buffer[*index + 1]) << 16 |
-      ((uint32_t)buffer[*index + 2]) << 8 | ((uint32_t)buffer[*index + 3]);
+  int32_t res = ((uint32_t)buffer[*index]) << 24 | ((uint32_t)buffer[*index + 1]) << 16 |
+                ((uint32_t)buffer[*index + 2]) << 8 | ((uint32_t)buffer[*index + 3]);
   *index += 4;
   return res;
 }
 
 uint32_t buffer_get_uint32(const uint8_t *buffer, int32_t *index) {
-  uint32_t res =
-      ((uint32_t)buffer[*index]) << 24 | ((uint32_t)buffer[*index + 1]) << 16 |
-      ((uint32_t)buffer[*index + 2]) << 8 | ((uint32_t)buffer[*index + 3]);
+  uint32_t res = ((uint32_t)buffer[*index]) << 24 | ((uint32_t)buffer[*index + 1]) << 16 |
+                 ((uint32_t)buffer[*index + 2]) << 8 | ((uint32_t)buffer[*index + 3]);
   *index += 4;
   return res;
 }

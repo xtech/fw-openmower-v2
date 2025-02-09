@@ -21,10 +21,10 @@
 
 #include "services/diff_drive_service/diff_drive_service.hpp"
 #include "services/emergency_service/emergency_service.hpp"
+#include "services/gps_service/gps_service.hpp"
 #include "services/imu_service/imu_service.hpp"
 #include "services/mower_service/mower_service.hpp"
 #include "services/power_service/power_service.hpp"
-#include "services/gps_service/gps_service.hpp"
 EmergencyService emergency_service{1};
 DiffDriveService diff_drive{2};
 MowerService mower_service{3};
@@ -60,7 +60,6 @@ int main() {
 #ifdef USE_SEGGER_SYSTEMVIEW
   SYSVIEW_ChibiOS_Start(STM32_SYS_CK, STM32_SYS_CK, "I#15=SysTick");
 #endif
-
 
   /*
    * InitGlobals() sets up global variables shared by threads. (e.g. mutex)
@@ -101,7 +100,6 @@ int main() {
   diff_drive.start();
   mower_service.start();
   gps_service.start();
-
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;

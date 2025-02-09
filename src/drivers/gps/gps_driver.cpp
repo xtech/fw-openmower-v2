@@ -11,8 +11,7 @@
 namespace xbot::driver::gps {
 
 void GpsDriver::RawDataInput(uint8_t *data, size_t size) {
-  if(!IsRawMode())
-    return;
+  if (!IsRawMode()) return;
   send_raw(data, size);
 }
 
@@ -85,7 +84,7 @@ void GpsDriver::threadFunc() {
     bool timeout = chEvtWaitAnyTimeout(ALL_EVENTS, TIME_MS2I(RECV_TIMEOUT_MILLIS)) == 0;
     if (timeout) {
       // If there is still reception going on, wait for the timeout again
-      if(last_ndtr != uart_->dmarx->stream->NDTR) {
+      if (last_ndtr != uart_->dmarx->stream->NDTR) {
         last_ndtr = uart_->dmarx->stream->NDTR;
         continue;
       }
@@ -117,7 +116,7 @@ void GpsDriver::threadFunc() {
     }
     if (processing_buffer_len_ > 0) {
       ProcessBytes(processing_buffer_, processing_buffer_len_);
-      if(IsRawMode()) {
+      if (IsRawMode()) {
         RawDataOutput(processing_buffer_, processing_buffer_len_);
       }
     }

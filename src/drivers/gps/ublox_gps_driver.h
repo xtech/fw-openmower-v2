@@ -41,8 +41,7 @@ class UbxGpsDriver : public GpsDriver {
   /**
    * calculates the checksum for a packet
    */
-  void CalculateChecksum(const uint8_t *packet, size_t size, uint8_t &ck_a,
-                          uint8_t &ck_b);
+  void CalculateChecksum(const uint8_t *packet, size_t size, uint8_t &ck_a, uint8_t &ck_b);
 
   void HandleNavPvt(const UbxNavPvt *msg);
 
@@ -52,8 +51,6 @@ class UbxGpsDriver : public GpsDriver {
   // flag if we found the header for time tracking only
   bool found_header_ = false;
 };
-} // namespace xbot::driver::gps
-
-
+}  // namespace xbot::driver::gps
 
 #endif  // XBOT_DRIVER_GPS_UBLOX_GPS_INTERFACE_H

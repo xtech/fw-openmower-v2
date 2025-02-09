@@ -55,14 +55,12 @@ void runIo(void* arg) {
       if (used_data - sizeof(datatypes::XbotHeader) != header->payload_size) {
         // TODO: In order to allow chaining of xBot packets in the future,
         // this needs to be adapted. (scan and split packets)
-        ULOG_ARG_ERROR(&service_id_,
-                       "Packet header size does not match actual packet size.");
+        ULOG_ARG_ERROR(&service_id_, "Packet header size does not match actual packet size.");
         packet::freePacket(packet);
         continue;
       }
       bool packet_delivered = false;
-      for (ServiceIo* service = firstService_; service != nullptr;
-           service = service->next_service_) {
+      for (ServiceIo* service = firstService_; service != nullptr; service = service->next_service_) {
         if (service->service_id_ == header->service_id) {
           Lock lk(&service->state_mutex_);
           if (!service->stopped) {
@@ -92,8 +90,7 @@ bool Io::registerServiceIo(ServiceIo* service) {
 bool Io::transmitPacket(packet::PacketPtr packet, uint32_t ip, uint16_t port) {
   return sock::transmitPacket(&udp_socket_, packet, ip, port);
 }
-bool Io::transmitPacket(packet::PacketPtr packet, const char* ip,
-                        uint16_t port) {
+bool Io::transmitPacket(packet::PacketPtr packet, const char* ip, uint16_t port) {
   return sock::transmitPacket(&udp_socket_, packet, ip, port);
 }
 bool Io::getEndpoint(char* ip, size_t ip_len, uint16_t* port) {
@@ -104,8 +101,7 @@ bool Io::start() {
   if (!sock::initialize(&udp_socket_, false)) {
     return false;
   }
-  return thread::initialize(&io_thread_, runIo, nullptr, &waIoThread,
-                            sizeof(waIoThread), IO_THD_NAME);
+  return thread::initialize(&io_thread_, runIo, nullptr, &waIoThread, sizeof(waIoThread), IO_THD_NAME);
 }
 
 }  // namespace xbot::service

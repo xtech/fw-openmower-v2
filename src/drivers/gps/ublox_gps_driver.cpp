@@ -43,20 +43,19 @@ size_t UbxGpsDriver::ProcessBytes(const uint8_t *buffer, size_t len) {
       switch (gbuffer_fill) {
         case 0: {
           // buffer empty, looking for 0xb5
-          const auto header_start = static_cast<uint8_t*>(memchr(buffer, 0xb5, len));
-          if(header_start == nullptr) {
+          const auto header_start = static_cast<uint8_t *>(memchr(buffer, 0xb5, len));
+          if (header_start == nullptr) {
             // reject the whole input, we don't have 0xb5
             len = 0;
             continue;
           }
           // Throw away all bytes before the header start
-          len -= (header_start-buffer);
+          len -= (header_start - buffer);
           buffer = header_start;
           gbuffer_[gbuffer_fill++] = *buffer;
           buffer++;
           len--;
-        }
-        break;
+        } break;
         case 1:
           // we have one byte, looking for 0x62
           if (buffer[0] == 0x62) {
@@ -68,16 +67,16 @@ size_t UbxGpsDriver::ProcessBytes(const uint8_t *buffer, size_t len) {
           }
           buffer++;
           len--;
-          if(found_header_ && len==0) {
-            return 6-gbuffer_fill;
+          if (found_header_ && len == 0) {
+            return 6 - gbuffer_fill;
           }
-        break;
+          break;
         default:
           // just skip the byte and reset the buffer
           gbuffer_fill = 0;
           buffer++;
           len--;
-        break;
+          break;
       }
       continue;
     }
@@ -89,8 +88,8 @@ size_t UbxGpsDriver::ProcessBytes(const uint8_t *buffer, size_t len) {
       gbuffer_fill += bytes_to_take;
       buffer += bytes_to_take;
       len -= bytes_to_take;
-      if(len == 0 && gbuffer_fill != 6) {
-        return 6-gbuffer_fill;
+      if (len == 0 && gbuffer_fill != 6) {
+        return 6 - gbuffer_fill;
       }
     } else {
       // get the length first to check, if we already got enough bytes
@@ -262,4 +261,4 @@ void UbxGpsDriver::ResetParserState() {
   gbuffer_fill = 0;
 }
 
-} // namespace xbot::driver::gps
+}  // namespace xbot::driver::gps

@@ -68,7 +68,9 @@ void initSystem(uint32_t node_id) {
   ULOG_INIT();
 }
 
-uint32_t getTimeMicros() { return TIME_I2US(chVTGetSystemTimeX()); }
+uint32_t getTimeMicros() {
+  return TIME_I2US(chVTGetSystemTimeX());
+}
 
 bool getNodeId(uint8_t *id, size_t id_len) {
   if (id_len != sizeof(node_id_)) return false;

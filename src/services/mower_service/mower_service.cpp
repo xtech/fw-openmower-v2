@@ -4,7 +4,6 @@
 
 #include "mower_service.hpp"
 
-
 #include <globals.hpp>
 
 bool MowerService::Configure() {
@@ -15,8 +14,12 @@ void MowerService::OnCreate() {
   mower_driver_.StartDriver(&UARTD2, 115200);
   mower_esc_driver_interface_.Start();
 }
-void MowerService::OnStart() { mower_duty_ = 0; }
-void MowerService::OnStop() { mower_duty_ = 0; }
+void MowerService::OnStart() {
+  mower_duty_ = 0;
+}
+void MowerService::OnStop() {
+  mower_duty_ = 0;
+}
 
 void MowerService::tick() {
   chMtxLock(&mtx);
@@ -25,7 +28,6 @@ void MowerService::tick() {
     // (e.g. due to new value or emergency)
     SetDuty();
   }
-
 
   duty_sent_ = false;
   chMtxUnlock(&mtx);
@@ -58,8 +60,7 @@ bool MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
   return true;
 }
 void MowerService::OnMowerStatusChanged(uint32_t new_status) {
-  if ((new_status &
-       (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
+  if ((new_status & (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }
@@ -70,6 +71,5 @@ void MowerService::OnMowerStatusChanged(uint32_t new_status) {
   chMtxUnlock(&mtx);
 }
 
-MowerService::MowerService(const uint16_t service_id)
-    : MowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
+MowerService::MowerService(const uint16_t service_id) : MowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
 }

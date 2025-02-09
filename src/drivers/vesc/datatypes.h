@@ -24,11 +24,7 @@
 #include <stdint.h>
 
 // Data types
-typedef enum {
-  HW_TYPE_VESC = 0,
-  HW_TYPE_VESC_BMS,
-  HW_TYPE_CUSTOM_MODULE
-} HW_TYPE;
+typedef enum { HW_TYPE_VESC = 0, HW_TYPE_VESC_BMS, HW_TYPE_CUSTOM_MODULE } HW_TYPE;
 
 typedef enum {
   MC_STATE_OFF = 0,
@@ -40,16 +36,12 @@ typedef enum {
 typedef enum {
   PWM_MODE_NONSYNCHRONOUS_HISW = 0,  // This mode is not recommended
   PWM_MODE_SYNCHRONOUS,              // The recommended and most tested mode
-  PWM_MODE_BIPOLAR  // Some glitches occasionally, can kill MOSFETs
+  PWM_MODE_BIPOLAR                   // Some glitches occasionally, can kill MOSFETs
 } mc_pwm_mode;
 
 typedef enum { COMM_MODE_INTEGRATE = 0, COMM_MODE_DELAY } mc_comm_mode;
 
-typedef enum {
-  SENSOR_MODE_SENSORLESS = 0,
-  SENSOR_MODE_SENSORED,
-  SENSOR_MODE_HYBRID
-} mc_sensor_mode;
+typedef enum { SENSOR_MODE_SENSORLESS = 0, SENSOR_MODE_SENSORED, SENSOR_MODE_HYBRID } mc_sensor_mode;
 
 typedef enum {
   FOC_SENSOR_MODE_SENSORLESS = 0,
@@ -105,11 +97,7 @@ typedef enum {
   TEMP_SENSOR_DISABLED
 } temp_sensor_type;
 
-typedef enum {
-  MOTOR_TYPE_BLDC = 0,
-  MOTOR_TYPE_DC,
-  MOTOR_TYPE_FOC
-} mc_motor_type;
+typedef enum { MOTOR_TYPE_BLDC = 0, MOTOR_TYPE_DC, MOTOR_TYPE_FOC } mc_motor_type;
 
 // FOC current controller decoupling mode.
 typedef enum {
@@ -241,19 +229,11 @@ typedef enum {
   CAN_BAUD_100K
 } CAN_BAUD;
 
-typedef enum {
-  BATTERY_TYPE_LIION_3_0__4_2,
-  BATTERY_TYPE_LIIRON_2_6__3_6,
-  BATTERY_TYPE_LEAD_ACID
-} BATTERY_TYPE;
+typedef enum { BATTERY_TYPE_LIION_3_0__4_2, BATTERY_TYPE_LIIRON_2_6__3_6, BATTERY_TYPE_LEAD_ACID } BATTERY_TYPE;
 
 typedef enum { BMS_TYPE_NONE = 0, BMS_TYPE_VESC } BMS_TYPE;
 
-typedef enum {
-  BMS_FWD_CAN_MODE_DISABLED = 0,
-  BMS_FWD_CAN_MODE_USB_ONLY,
-  BMS_FWD_CAN_MODE_ANY
-} BMS_FWD_CAN_MODE;
+typedef enum { BMS_FWD_CAN_MODE_DISABLED = 0, BMS_FWD_CAN_MODE_USB_ONLY, BMS_FWD_CAN_MODE_ANY } BMS_FWD_CAN_MODE;
 
 typedef struct {
   BMS_TYPE type;
@@ -284,11 +264,7 @@ typedef enum {
   PID_RATE_10000_HZ,
 } PID_RATE;
 
-typedef enum {
-  MTPA_MODE_OFF = 0,
-  MTPA_MODE_IQ_TARGET,
-  MTPA_MODE_IQ_MEASURED
-} MTPA_MODE;
+typedef enum { MTPA_MODE_OFF = 0, MTPA_MODE_IQ_TARGET, MTPA_MODE_IQ_MEASURED } MTPA_MODE;
 
 typedef enum {
   FOC_SPEED_SRC_CORRECTED = 0,
@@ -301,12 +277,7 @@ typedef enum {
   S_PID_SPEED_SRC_FASTER,
 } S_PID_SPEED_SRC;
 
-typedef enum {
-  SAT_COMP_DISABLED = 0,
-  SAT_COMP_FACTOR,
-  SAT_COMP_LAMBDA,
-  SAT_COMP_LAMBDA_AND_FACTOR
-} SAT_COMP_MODE;
+typedef enum { SAT_COMP_DISABLED = 0, SAT_COMP_FACTOR, SAT_COMP_LAMBDA, SAT_COMP_LAMBDA_AND_FACTOR } SAT_COMP_MODE;
 
 // Applications to use
 typedef enum {
@@ -326,11 +297,7 @@ typedef enum {
 // Throttle curve mode
 typedef enum { THR_EXP_EXPO = 0, THR_EXP_NATURAL, THR_EXP_POLY } thr_exp_mode;
 
-typedef enum {
-  SAFE_START_DISABLED = 0,
-  SAFE_START_REGULAR,
-  SAFE_START_NO_FAULT
-} SAFE_START_MODE;
+typedef enum { SAFE_START_DISABLED = 0, SAFE_START_REGULAR, SAFE_START_NO_FAULT } SAFE_START_MODE;
 
 // PPM control types
 typedef enum {
@@ -468,13 +435,7 @@ typedef struct {
 // NRF Datatypes
 typedef enum { NRF_SPEED_250K = 0, NRF_SPEED_1M, NRF_SPEED_2M } NRF_SPEED;
 
-typedef enum {
-  NRF_POWER_M18DBM = 0,
-  NRF_POWER_M12DBM,
-  NRF_POWER_M6DBM,
-  NRF_POWER_0DBM,
-  NRF_POWER_OFF
-} NRF_POWER;
+typedef enum { NRF_POWER_M18DBM = 0, NRF_POWER_M12DBM, NRF_POWER_M6DBM, NRF_POWER_0DBM, NRF_POWER_OFF } NRF_POWER;
 
 typedef enum { NRF_AW_3 = 0, NRF_AW_4, NRF_AW_5 } NRF_AW;
 
@@ -532,17 +493,9 @@ typedef enum {
   IMU_TYPE_EXTERNAL_LSM6DS3
 } IMU_TYPE;
 
-typedef enum {
-  AHRS_MODE_MADGWICK = 0,
-  AHRS_MODE_MAHONY,
-  AHRS_MODE_MADGWICK_FUSION
-} AHRS_MODE;
+typedef enum { AHRS_MODE_MADGWICK = 0, AHRS_MODE_MAHONY, AHRS_MODE_MADGWICK_FUSION } AHRS_MODE;
 
-typedef enum {
-  IMU_FILTER_LOW = 0,
-  IMU_FILTER_MEDIUM,
-  IMU_FILTER_HIGH
-} IMU_FILTER;
+typedef enum { IMU_FILTER_LOW = 0, IMU_FILTER_MEDIUM, IMU_FILTER_HIGH } IMU_FILTER;
 
 typedef struct {
   IMU_TYPE type;
@@ -579,10 +532,7 @@ typedef enum {
   UAVCAN_RAW_MODE_RPM
 } UAVCAN_RAW_MODE;
 
-typedef enum {
-  UAVCAN_STATUS_CURRENT_MODE_MOTOR = 0,
-  UAVCAN_STATUS_CURRENT_MODE_INPUT
-} UAVCAN_STATUS_CURRENT_MODE;
+typedef enum { UAVCAN_STATUS_CURRENT_MODE_MOTOR = 0, UAVCAN_STATUS_CURRENT_MODE_INPUT } UAVCAN_STATUS_CURRENT_MODE;
 
 typedef enum {
   KILL_SW_MODE_DISABLED = 0,

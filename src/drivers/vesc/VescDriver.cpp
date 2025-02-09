@@ -288,7 +288,7 @@ void VescDriver::threadFunc() {
     bool packet_received = (events & EVT_ID_RECEIVED) != 0;
     if (!packet_received) {
       // If there is still reception going on, wait for the timeout again
-      if(last_ndtr != uart_->dmarx->stream->NDTR) {
+      if (last_ndtr != uart_->dmarx->stream->NDTR) {
         last_ndtr = uart_->dmarx->stream->NDTR;
         continue;
       }
@@ -322,7 +322,7 @@ void VescDriver::threadFunc() {
     }
     if (processing_buffer_len_ > 0) {
       // Process and call callbacks
-      if(!IsRawMode()) {
+      if (!IsRawMode()) {
         if (!ProcessBytes(processing_buffer_, processing_buffer_len_) && !IsRawMode()) {
           // we don't expect more data, so we can wait for the next request
           expects_packet = false;

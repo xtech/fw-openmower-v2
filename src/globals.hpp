@@ -20,7 +20,6 @@ static constexpr uint32_t MOWER_FLAG_EMERGENCY_ACTIVE = 2;
 CC_SECTION(".ram4") extern struct board_info board_info;
 CC_SECTION(".ram4") extern struct carrier_board_info carrier_board_info;
 
-
 // event source for mower events (e.g. emergency)
 extern event_source_t mower_events;
 extern mutex_t mower_status_mutex;
