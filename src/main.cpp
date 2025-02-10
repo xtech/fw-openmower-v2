@@ -19,20 +19,20 @@
 #include <xbot-service/Io.hpp>
 #include <xbot-service/portable/system.hpp>
 
+#include "../services/service_ids.h"
 #include "services/diff_drive_service/diff_drive_service.hpp"
 #include "services/emergency_service/emergency_service.hpp"
 #include "services/gps_service/gps_service.hpp"
 #include "services/imu_service/imu_service.hpp"
 #include "services/mower_service/mower_service.hpp"
 #include "services/power_service/power_service.hpp"
-EmergencyService emergency_service{1};
-DiffDriveService diff_drive{2};
-MowerService mower_service{3};
-ImuService imu_service{4};
-PowerService power_service{5};
-GpsService gps_service{6};
 
-uint8_t id[6]{};
+EmergencyService emergency_service{xbot::service_ids::EMERGENCY};
+DiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
+MowerService mower_service{xbot::service_ids::MOWER};
+ImuService imu_service{xbot::service_ids::IMU};
+PowerService power_service{xbot::service_ids::POWER};
+GpsService gps_service{xbot::service_ids::GPS};
 
 /*
  * Application entry point.
@@ -78,8 +78,7 @@ int main() {
    */
   uint8_t mac_address[6] = {0};
   if (!ID_EEPROM_GetMacAddress(mac_address, sizeof(mac_address))) {
-    while (1)
-      ;
+    while (1);
   }
   lwipthread_opts_t lwipconf_opts{};
   lwipconf_opts.addrMode = NET_ADDRESS_DHCP;
