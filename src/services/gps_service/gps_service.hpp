@@ -23,9 +23,6 @@ class GpsService : public GpsServiceBase {
   void OnRTCMChanged(const uint8_t* new_value, uint32_t length) override;
 
  private:
-  enum ProtocolType { UBX, NMEA };
-
-  ProtocolType protocol_;
   UARTDriver* uart_driver_;
   GpsDriver* gps_driver_;
 

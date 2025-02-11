@@ -4,14 +4,6 @@
 #include <drivers/gps/ublox_gps_driver.h>
 
 bool GpsService::Configure() {
-  if (strncmp(Protocol.value, "UBX", Protocol.length) == 0) {
-    protocol_ = UBX;
-  } else if (strncmp(Protocol.value, "NMEA", Protocol.length) == 0) {
-    protocol_ = NMEA;
-  } else {
-    return false;
-  }
-
   uart_driver_ = GetUARTDriverByIndex(Uart.value);
   if (uart_driver_ == nullptr) {
     return false;
@@ -58,7 +50,7 @@ UARTDriver* GpsService::GetUARTDriverByIndex(uint8_t index) {
 
 void GpsService::OnStart() {
   using namespace xbot::driver::gps;
-  if (protocol_ == UBX) {
+  if (Protocol.value == ProtocolType::UBX) {
     gps_driver_ = new UbxGpsDriver();
   } else {
     gps_driver_ = new NmeaGpsDriver();
