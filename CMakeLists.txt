@@ -41,6 +41,8 @@ target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
 
 # Add lib subdirectory
 add_subdirectory(ext)
+target_compile_definitions(ulog PUBLIC ULOG_ENABLED)
+
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE

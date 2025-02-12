@@ -17,6 +17,7 @@
 #include <globals.hpp>
 #include <robot.hpp>
 #include <xbot-service/Io.hpp>
+#include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
 #include "../services/service_ids.h"
@@ -93,7 +94,9 @@ int main() {
   Robot::General::InitPlatform();
 
   xbot::service::system::initSystem();
+  xbot::service::startRemoteLogging();
   xbot::service::Io::start();
+
   emergency_service.start();
   imu_service.start();
   power_service.start();

@@ -45,7 +45,7 @@ void runIo(void* arg) {
         continue;
       }
       if (used_data < sizeof(datatypes::XbotHeader)) {
-        ULOG_ARG_ERROR(&service_id_, "Packet too short to contain header.");
+        ULOG_ERROR("Packet too short to contain header.");
         packet::freePacket(packet);
         continue;
       }
@@ -55,7 +55,7 @@ void runIo(void* arg) {
       if (used_data - sizeof(datatypes::XbotHeader) != header->payload_size) {
         // TODO: In order to allow chaining of xBot packets in the future,
         // this needs to be adapted. (scan and split packets)
-        ULOG_ARG_ERROR(&service_id_, "Packet header size does not match actual packet size.");
+        ULOG_ERROR("Packet header size does not match actual packet size.");
         packet::freePacket(packet);
         continue;
       }

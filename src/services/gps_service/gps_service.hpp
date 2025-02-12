@@ -12,7 +12,7 @@ class GpsService : public GpsServiceBase {
   THD_WORKING_AREA(wa, 1024){};
 
  public:
-  explicit GpsService(const uint16_t service_id) : GpsServiceBase(service_id, 10000, wa, sizeof(wa)) {
+  explicit GpsService(const uint16_t service_id) : GpsServiceBase(service_id, 1000000, wa, sizeof(wa)) {
   }
 
  protected:
