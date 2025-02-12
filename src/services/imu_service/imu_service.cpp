@@ -43,7 +43,7 @@ void ImuService::OnCreate() {
   uint8_t whoamI = 0;
   lsm6ds3tr_c_device_id_get(&dev_ctx, &whoamI);
 
-  if (whoamI == 0x6a) {
+  if (whoamI == 0x6a || whoamI == 0x6c) {
     imu_found = true;
   } else {
     imu_found = false;
