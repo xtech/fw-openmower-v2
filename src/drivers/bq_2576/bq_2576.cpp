@@ -128,7 +128,7 @@ bool BQ2576::readBatteryVoltage(float& result) {
 bool BQ2576::resetWatchdog() {
   // TODO, if the REG_Charger_Control is used, we need to either store the value
   // or read it here before resetting the watchdog.
-  uint8_t val = 0b11101001;
+  uint8_t val = 0b11111001;
   return writeRegister8(REG_Charger_Control, val);
 }
 
