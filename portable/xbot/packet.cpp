@@ -10,7 +10,7 @@
 
 using namespace xbot::service::packet;
 
-#define XBOT_PACKET_POOL_SIZE 10
+#define XBOT_PACKET_POOL_SIZE 25
 
 LWIP_MEMPOOL_DECLARE(xbot_packet_pool, XBOT_PACKET_POOL_SIZE, sizeof(Packet), "xbot packets")
 SEMAPHORE_DECL(xbot_packet_sema, XBOT_PACKET_POOL_SIZE);
