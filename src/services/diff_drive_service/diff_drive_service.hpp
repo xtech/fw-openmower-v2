@@ -26,19 +26,20 @@ class DiffDriveService : public DiffDriveServiceBase {
   bool left_esc_state_valid_ = false;
   bool right_esc_state_valid_ = false;
   uint32_t last_valid_esc_state_micros_ = 0;
+  uint32_t last_duty_received_ = 0;
 
   uint32_t last_ticks_left = 0;
   uint32_t last_ticks_right = 0;
   bool last_ticks_valid = false;
   uint32_t last_ticks_micros_ = 0;
 
-  MUTEX_DECL(mtx);
+ // MUTEX_DECL(mtx);
   float speed_l_ = 0;
   float speed_r_ = 0;
   bool duty_sent_ = false;
 
  public:
-  explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, 20000, wa, sizeof(wa)) {
+  explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, 40000, wa, sizeof(wa)) {
   }
 
   void OnMowerStatusChanged(uint32_t new_status);

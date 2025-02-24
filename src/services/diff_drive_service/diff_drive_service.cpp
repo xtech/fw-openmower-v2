@@ -7,18 +7,19 @@
 #include <xbot-service/portable/system.hpp>
 
 #include "../../globals.hpp"
+#include "ulog.h"
 
 void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
   if ((new_status & (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }
-  chMtxLock(&mtx);
+  chMtxLock(&state_mutex_);
   speed_l_ = 0;
   speed_r_ = 0;
   // Instantly send the 0 duty cycle
   SetDuty();
-  chMtxUnlock(&mtx);
+  chMtxUnlock(&state_mutex_);
 }
 
 bool DiffDriveService::Configure() {
@@ -57,7 +58,13 @@ void DiffDriveService::OnStop() {
 }
 
 void DiffDriveService::tick() {
-  chMtxLock(&mtx);
+  chMtxLock(&state_mutex_);
+
+  // Check, if we recently received duty. If not, set to zero for safety
+  if(xbot::service::system::getTimeMicros() - last_duty_received_ > 1000000) {
+    // it's ok to set it here, because we know that duty_set_ is false (we're in a timeout after all)
+    speed_l_ = speed_r_ = 0;
+  }
 
   if (!duty_sent_) {
     SetDuty();
@@ -79,7 +86,7 @@ void DiffDriveService::tick() {
   }
 
   duty_sent_ = false;
-  chMtxUnlock(&mtx);
+  chMtxUnlock(&state_mutex_);
 }
 
 void DiffDriveService::SetDuty() {
@@ -98,23 +105,23 @@ void DiffDriveService::SetDuty() {
 }
 
 void DiffDriveService::LeftESCCallback(const VescDriver::ESCState& state) {
-  chMtxLock(&mtx);
+  chMtxLock(&state_mutex_);
   left_esc_state_ = state;
   left_esc_state_valid_ = true;
   if (right_esc_state_valid_) {
     ProcessStatusUpdate();
   }
-  chMtxUnlock(&mtx);
+  chMtxUnlock(&state_mutex_);
 }
 
 void DiffDriveService::RightESCCallback(const VescDriver::ESCState& state) {
-  chMtxLock(&mtx);
+  chMtxLock(&state_mutex_);
   right_esc_state_ = state;
   right_esc_state_valid_ = true;
   if (left_esc_state_valid_) {
     ProcessStatusUpdate();
   }
-  chMtxUnlock(&mtx);
+  chMtxUnlock(&state_mutex_);
 }
 
 void DiffDriveService::ProcessStatusUpdate() {
@@ -132,10 +139,10 @@ void DiffDriveService::ProcessStatusUpdate() {
   // Calculate the twist according to wheel ticks
   if (last_ticks_valid) {
     float dt = static_cast<float>(micros - last_ticks_micros_) / 1000000.0f;
-    auto d_left = static_cast<float>(left_esc_state_.tacho - last_ticks_left);
-    auto d_right = static_cast<float>(right_esc_state_.tacho - last_ticks_right);
-    float vx = (d_right - d_left) / (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));
-    float vr = (d_left + d_right) / (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));
+    int32_t d_left = static_cast<int32_t>(left_esc_state_.tacho - last_ticks_left);
+    int32_t d_right = static_cast<int32_t>(right_esc_state_.tacho - last_ticks_right);
+    float vx = static_cast<float>(d_left - d_right) / (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));
+    float vr = -static_cast<float>(d_left + d_right) / (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));
     double data[6]{};
     data[0] = vx;
     data[5] = vr;
@@ -157,14 +164,15 @@ void DiffDriveService::ProcessStatusUpdate() {
 
 void DiffDriveService::OnControlTwistChanged(const double* new_value, uint32_t length) {
   if (length != 6) return;
-  chMtxLock(&mtx);
+  chMtxLock(&state_mutex_);
+  last_duty_received_ = xbot::service::system::getTimeMicros();
   // we can only do forward and rotation around one axis
   const auto linear = static_cast<float>(new_value[0]);
   const auto angular = static_cast<float>(new_value[5]);
 
   // TODO: update this to rad/s values and implement xESC speed control
-  speed_r_ = linear + 0.5f * static_cast<float>(WheelDistance.value) * angular;
-  speed_l_ = -(linear - 0.5f * static_cast<float>(WheelDistance.value) * angular);
+  speed_r_ = -(linear + 0.5f * static_cast<float>(WheelDistance.value) * angular);
+  speed_l_ = linear - 0.5f * static_cast<float>(WheelDistance.value) * angular;
 
   if (speed_l_ >= 1.0) {
     speed_l_ = 1.0;
@@ -181,5 +189,5 @@ void DiffDriveService::OnControlTwistChanged(const double* new_value, uint32_t l
   if (!duty_sent_) {
     SetDuty();
   }
-  chMtxUnlock(&mtx);
+  chMtxUnlock(&state_mutex_);
 }
