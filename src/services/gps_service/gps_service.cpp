@@ -2,6 +2,7 @@
 
 #include <drivers/gps/nmea_gps_driver.h>
 #include <drivers/gps/ublox_gps_driver.h>
+#include "debug/debug_udp_interface.hpp"
 
 bool GpsService::Configure() {
   uart_driver_ = GetUARTDriverByIndex(Uart.value);
@@ -76,5 +77,12 @@ void GpsService::GpsStateCallback(const GpsDriver::GpsState& state) {
   SendPosition(position, 3);
   SendPositionHorizontalAccuracy(state.position_h_accuracy);
   SendPositionVerticalAccuracy(state.position_v_accuracy);
+  if(state.rtk_type == xbot::driver::gps::GpsDriver::GpsState::RTK_FIX) {
+    SendFixType("FIX",3);
+  } else if(state.rtk_type == xbot::driver::gps::GpsDriver::GpsState::RTK_FLOAT) {
+    SendFixType("FLOAT",5);
+  }
+  double vel[3] = {state.vel_e, state.vel_n, state.vel_u};
+  SendMotionVectorENU(vel, 3);
   CommitTransaction();
 }
