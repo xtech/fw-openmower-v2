@@ -62,7 +62,6 @@ void runIo(void* arg) {
       bool packet_delivered = false;
       for (ServiceIo* service = firstService_; service != nullptr; service = service->next_service_) {
         if (service->service_id_ == header->service_id) {
-          Lock lk(&service->state_mutex_);
           if (!service->stopped) {
             // Give packet to service
             service->ioInput(packet);

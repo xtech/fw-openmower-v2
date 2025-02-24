@@ -125,3 +125,7 @@ int main() {
     }
   }
 }
+
+void unhandled_exception () {
+    while (1); // halt the system.
+}
