@@ -45,7 +45,7 @@ class PowerService : public PowerServiceBase {
   uint8_t flags2 = 0;
   uint8_t flags3 = 0;
   BQ2576 charger{};
-  THD_WORKING_AREA(wa, 500){};
+  THD_WORKING_AREA(wa, 1500){};
 
  protected:
   void OnChargingAllowedChanged(const uint8_t& new_value) override;
