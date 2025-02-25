@@ -3,6 +3,7 @@
 #include <drivers/gps/nmea_gps_driver.h>
 #include <drivers/gps/ublox_gps_driver.h>
 #include "debug/debug_udp_interface.hpp"
+#include "robot.hpp"
 
 bool GpsService::Configure() {
   uart_driver_ = GetUARTDriverByIndex(Uart.value);
@@ -15,6 +16,8 @@ bool GpsService::Configure() {
 
 UARTDriver* GpsService::GetUARTDriverByIndex(uint8_t index) {
   switch (index) {
+      // Get the default port for this platform (nullptr, if we need the user to specify it)
+    case 0: return Robot::GPS::GetUartPort();
 #if STM32_UART_USE_USART1
     case 1: return &UARTD1;
 #endif

@@ -12,6 +12,13 @@ void InitPlatform() {
 }
 }  // namespace General
 
+namespace GPS {
+UARTDriver* GetUartPort() {
+  // on this platform we require a user setting
+  return nullptr;
+}
+}
+
 namespace Power {
 
 I2CDriver* GetPowerI2CD() {

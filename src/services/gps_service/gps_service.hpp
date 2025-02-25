@@ -26,7 +26,7 @@ class GpsService : public GpsServiceBase {
   UARTDriver* uart_driver_;
   GpsDriver* gps_driver_;
 
-  UARTDriver* GetUARTDriverByIndex(uint8_t index);
+  static UARTDriver* GetUARTDriverByIndex(uint8_t index);
   void GpsStateCallback(const GpsDriver::GpsState& state);
 };
 
