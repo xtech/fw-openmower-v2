@@ -8,9 +8,6 @@ set(BOARD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boards/XCORE)
 set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
 
 
-
-
-
 # Set the project name
 set(CMAKE_PROJECT_NAME openmower)
 
@@ -118,4 +115,9 @@ add_custom_command(TARGET ${CMAKE_PROJECT_NAME}
         COMMAND ${CMAKE_OBJCOPY} -Obinary ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.bin
         COMMAND ${CMAKE_OBJCOPY} -Oihex ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.hex
         COMMAND ${CMAKE_OBJCOPY} --pad-to=0x8020000 -O binary ${CMAKE_CURRENT_SOURCE_DIR}/bootloader/xcore-boot-unsafe.elf ${CMAKE_PROJECT_NAME}-with-unsafe-bootloader.bin && cat ${CMAKE_PROJECT_NAME}.bin>>${CMAKE_PROJECT_NAME}-with-unsafe-bootloader.bin
+)
+
+add_custom_target(upload
+        COMMAND docker run --rm --network=host -v ${CMAKE_BINARY_DIR}:/workdir ghcr.io/xtech/fw-xcore-boot:latest -i tap0 upload /workdir/${CMAKE_PROJECT_NAME}.bin
+        DEPENDS ${CMAKE_PROJECT_NAME}
 )
