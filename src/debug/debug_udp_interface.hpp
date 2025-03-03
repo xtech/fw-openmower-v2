@@ -14,6 +14,8 @@ class DebugUDPInterface {
 
   void Start();
 
+  void SetDriver(DebuggableDriver *driver);
+
  private:
   THD_WORKING_AREA(waThread, 1024);
   MUTEX_DECL(socket_mutex_);

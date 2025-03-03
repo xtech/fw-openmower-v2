@@ -2,6 +2,7 @@
 
 #include <drivers/gps/nmea_gps_driver.h>
 #include <drivers/gps/ublox_gps_driver.h>
+
 #include "debug/debug_udp_interface.hpp"
 #include "robot.hpp"
 
@@ -64,9 +65,12 @@ void GpsService::OnStart() {
       etl::delegate<void(const GpsDriver::GpsState&)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
 
   gps_driver_->StartDriver(uart_driver_, Baudrate.value);
+  debug_interface_.SetDriver(gps_driver_);
+  debug_interface_.Start();
 }
 
 void GpsService::OnStop() {
+  // TODO: Stop driver and debug interface
   delete gps_driver_;
 }
 

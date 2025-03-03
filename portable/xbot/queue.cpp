@@ -19,7 +19,7 @@ bool xbot::service::queue::queuePopItem(QueuePtr queue, void** result, uint32_t 
 }
 
 bool xbot::service::queue::queuePushItem(QueuePtr queue, void* item) {
-  return chMBPostTimeout(queue, reinterpret_cast<msg_t>(item), TIME_IMMEDIATE) == MSG_OK;
+  return chMBPostTimeout(queue, reinterpret_cast<msg_t>(item), TIME_MS2I(10)) == MSG_OK;
 }
 
 void xbot::service::queue::deinitialize(QueuePtr queue) {

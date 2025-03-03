@@ -4,6 +4,7 @@
 #include <drivers/gps/gps_driver.h>
 
 #include "GpsServiceBase.hpp"
+#include "debug/debug_tcp_interface.hpp"
 
 using namespace xbot::driver::gps;
 
@@ -25,6 +26,7 @@ class GpsService : public GpsServiceBase {
  private:
   UARTDriver* uart_driver_;
   GpsDriver* gps_driver_;
+  DebugTCPInterface debug_interface_{10000, nullptr};
 
   static UARTDriver* GetUARTDriverByIndex(uint8_t index);
   void GpsStateCallback(const GpsDriver::GpsState& state);

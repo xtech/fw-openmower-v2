@@ -14,10 +14,10 @@ void InitPlatform() {
 
 namespace GPS {
 UARTDriver* GetUartPort() {
-#ifndef STM32_SERIAL_USE_UART8
-#error STM32_SERIAL_USE_UART8 must be enabled for the YardForce build to work
+#ifndef STM32_UART_USE_USART6
+#error STM32_SERIAL_USE_UART6 must be enabled for the YardForce build to work
 #endif
-  return &UARTD8;
+  return &UARTD6;
 }
 }
 

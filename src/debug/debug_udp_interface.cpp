@@ -7,15 +7,16 @@
 #include <cstddef>
 
 #include "lwip/sockets.h"
+#include "ulog.h"
 
 DebugUDPInterface::DebugUDPInterface(uint16_t listen_port, DebuggableDriver *driver) {
   chDbgAssert(listen_port > 0, "port invalid");
-  chDbgAssert(driver != nullptr, "invalid driver");
   listen_port_ = listen_port;
   driver_ = driver;
 }
 
 void DebugUDPInterface::Start() {
+  chDbgAssert(driver_ != nullptr, "invalid driver");
   driver_->SetRawDataCallback(
       etl::delegate<void(const uint8_t *, size_t)>::create<DebugUDPInterface, &DebugUDPInterface::OnRawDriverData>(
           *this));
@@ -26,14 +27,10 @@ void DebugUDPInterface::ThreadFunc() {
   chRegSetThreadName("DebugUDPInterface");
 
   int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-  int sockfd2 = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sockfd < 0 || sockfd2 < 0) {
+  if (sockfd < 0) {
+    ULOG_ERROR("Error creating socket for debug UDP");
     return;
   }
-
-  // if (fcntl(sockfd2, F_SETFL, O_NONBLOCK) < 0) {
-  // return;
-  // }
 
   // Bind the socket to a port
   struct sockaddr_in server_addr;
@@ -47,7 +44,7 @@ void DebugUDPInterface::ThreadFunc() {
     return;
   }
 
-  current_client_socket_ = sockfd2;
+  current_client_socket_ = sockfd;
   struct sockaddr_in client_addr;
   socklen_t client_len = sizeof(client_addr);
   while (1) {
@@ -67,17 +64,20 @@ void DebugUDPInterface::ThreadFunc() {
 
 void DebugUDPInterface::OnRawDriverData(const uint8_t *data, size_t size) {
   chMtxLock(&socket_mutex_);
-  struct sockaddr_in multicast_addr;
-  memset(&multicast_addr, 0, sizeof(multicast_addr));
-  multicast_addr.sin_family = AF_INET;
-  multicast_addr.sin_addr.s_addr = (target_ip_);
-  multicast_addr.sin_port = (target_port_);
+  struct sockaddr_in target_addr;
+  memset(&target_addr, 0, sizeof(target_addr));
+  target_addr.sin_family = AF_INET;
+  target_addr.sin_addr.s_addr = (target_ip_);
+  target_addr.sin_port = (target_port_);
   if (current_client_socket_ >= 0 && target_ip_ > 0 && target_port_ > 0) {
-    sendto(current_client_socket_, data, size, 0, (struct sockaddr *)&multicast_addr, sizeof(multicast_addr));
+    sendto(current_client_socket_, data, size, 0, (struct sockaddr *)&target_addr, sizeof(target_addr));
   }
   chMtxUnlock(&socket_mutex_);
 }
 
 void DebugUDPInterface::ThreadFuncHelper(void *instance) {
   static_cast<DebugUDPInterface *>(instance)->ThreadFunc();
+}
+void DebugUDPInterface::SetDriver(DebuggableDriver *driver) {
+  this->driver_ = driver;
 }

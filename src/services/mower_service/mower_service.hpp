@@ -10,6 +10,7 @@
 
 #include <MowerServiceBase.hpp>
 #include <debug/debug_tcp_interface.hpp>
+using namespace xbot::driver::esc;
 
 class MowerService : public MowerServiceBase {
  public:
@@ -28,11 +29,18 @@ class MowerService : public MowerServiceBase {
   void SetDuty();
   MUTEX_DECL(mtx);
 
+  void ESCCallback(const VescDriver::ESCState &state);
+
  protected:
   void OnMowerEnabledChanged(const uint8_t& new_value) override;
 
  private:
   THD_WORKING_AREA(wa, 1024){};
+  VescDriver::ESCState esc_state_{};
+  bool esc_state_valid_ = false;
+  uint32_t last_duty_received_micros_ = 0;
+  uint32_t last_valid_esc_state_micros_ = 0;
+
   float mower_duty_ = 0;
   bool duty_sent_ = false;
   xbot::driver::esc::VescDriver mower_driver_{};

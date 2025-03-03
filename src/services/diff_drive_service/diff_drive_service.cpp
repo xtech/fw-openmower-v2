@@ -7,7 +7,6 @@
 #include <xbot-service/portable/system.hpp>
 
 #include "../../globals.hpp"
-#include "ulog.h"
 
 void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
   if ((new_status & (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
@@ -61,7 +60,7 @@ void DiffDriveService::tick() {
   chMtxLock(&state_mutex_);
 
   // Check, if we recently received duty. If not, set to zero for safety
-  if(xbot::service::system::getTimeMicros() - last_duty_received_ > 1000000) {
+  if(xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 1000000) {
     // it's ok to set it here, because we know that duty_set_ is false (we're in a timeout after all)
     speed_l_ = speed_r_ = 0;
   }
@@ -165,7 +164,7 @@ void DiffDriveService::ProcessStatusUpdate() {
 void DiffDriveService::OnControlTwistChanged(const double* new_value, uint32_t length) {
   if (length != 6) return;
   chMtxLock(&state_mutex_);
-  last_duty_received_ = xbot::service::system::getTimeMicros();
+  last_duty_received_micros_ = xbot::service::system::getTimeMicros();
   // we can only do forward and rotation around one axis
   const auto linear = static_cast<float>(new_value[0]);
   const auto angular = static_cast<float>(new_value[5]);

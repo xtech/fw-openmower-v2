@@ -10,12 +10,12 @@
 
 DebugTCPInterface::DebugTCPInterface(uint16_t listen_port, DebuggableDriver *driver) {
   chDbgAssert(listen_port > 0, "port invalid");
-  chDbgAssert(driver != nullptr, "invalid driver");
   listen_port_ = listen_port;
   driver_ = driver;
 }
 
 void DebugTCPInterface::Start() {
+  chDbgAssert(driver_ != nullptr, "invalid driver");
   driver_->SetRawDataCallback(
       etl::delegate<void(const uint8_t *, size_t)>::create<DebugTCPInterface, &DebugTCPInterface::OnRawDriverData>(
           *this));
@@ -95,4 +95,7 @@ void DebugTCPInterface::OnRawDriverData(const uint8_t *data, size_t size) {
 
 void DebugTCPInterface::ThreadFuncHelper(void *instance) {
   static_cast<DebugTCPInterface *>(instance)->ThreadFunc();
+}
+void DebugTCPInterface::SetDriver(DebuggableDriver *driver) {
+  this->driver_ = driver;
 }
