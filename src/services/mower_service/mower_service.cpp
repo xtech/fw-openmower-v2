@@ -17,8 +17,9 @@ void MowerService::OnCreate() {
   mower_esc_driver_interface_.Start();
 }
 
-void MowerService::OnStart() {
+bool MowerService::OnStart() {
   mower_duty_ = 0;
+  return true;
 }
 
 void MowerService::OnStop() {

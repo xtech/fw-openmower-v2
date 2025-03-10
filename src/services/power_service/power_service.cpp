@@ -9,8 +9,9 @@
 
 #include "board.h"
 
-void PowerService::OnStart() {
+bool PowerService::OnStart() {
   charger_configured_ = false;
+  return true;
 }
 
 void PowerService::tick() {

@@ -6,13 +6,14 @@
 
 #include "../../globals.hpp"
 
-void EmergencyService::OnStart() {
+bool EmergencyService::OnStart() {
   emergency_reason = "Boot";
   // set the emergency and notify services
   chMtxLock(&mower_status_mutex);
   mower_status |= MOWER_FLAG_EMERGENCY_LATCH;
   chMtxUnlock(&mower_status_mutex);
   chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
+  return true;
 }
 
 void EmergencyService::OnStop() {

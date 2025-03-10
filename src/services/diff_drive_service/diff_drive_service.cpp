@@ -21,18 +21,14 @@ void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
   chMtxUnlock(&state_mutex_);
 }
 
-bool DiffDriveService::Configure() {
+bool DiffDriveService::OnStart() {
   // Check, if configuration is valid, if not retry
   if (WheelDistance.value == 0 || WheelTicksPerMeter.value == 0.0) {
     return false;
   }
-  // It's fine, we don't actually need to configure anything
-  return true;
-}
-
-void DiffDriveService::OnStart() {
   speed_l_ = speed_r_ = 0;
   last_ticks_valid = false;
+  return true;
 }
 
 void DiffDriveService::OnCreate() {

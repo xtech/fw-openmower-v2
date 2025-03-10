@@ -16,7 +16,7 @@ class PowerService : public PowerServiceBase {
   }
 
  protected:
-  void OnStart() override;
+  bool OnStart() override;
 
  private:
   static constexpr auto CHARGE_STATUS_ERROR = "Error";

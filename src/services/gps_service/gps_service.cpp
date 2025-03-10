@@ -6,14 +6,6 @@
 #include "debug/debug_udp_interface.hpp"
 #include "robot.hpp"
 
-bool GpsService::Configure() {
-  uart_driver_ = GetUARTDriverByIndex(Uart.value);
-  if (uart_driver_ == nullptr) {
-    return false;
-  }
-
-  return true;
-}
 
 UARTDriver* GpsService::GetUARTDriverByIndex(uint8_t index) {
   switch (index) {
@@ -53,7 +45,13 @@ UARTDriver* GpsService::GetUARTDriverByIndex(uint8_t index) {
   }
 }
 
-void GpsService::OnStart() {
+bool GpsService::OnStart() {
+  uart_driver_ = GetUARTDriverByIndex(Uart.value);
+  if (uart_driver_ == nullptr) {
+    return false;
+  }
+
+
   using namespace xbot::driver::gps;
   if (Protocol.value == ProtocolType::UBX) {
     gps_driver_ = new UbxGpsDriver();
@@ -67,6 +65,7 @@ void GpsService::OnStart() {
   gps_driver_->StartDriver(uart_driver_, Baudrate.value);
   debug_interface_.SetDriver(gps_driver_);
   debug_interface_.Start();
+  return true;
 }
 
 void GpsService::OnStop() {

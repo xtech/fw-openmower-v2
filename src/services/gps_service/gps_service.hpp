@@ -17,8 +17,7 @@ class GpsService : public GpsServiceBase {
   }
 
  protected:
-  bool Configure() override;
-  void OnStart() override;
+  bool OnStart() override;
   void OnStop() override;
 
   void OnRTCMChanged(const uint8_t* new_value, uint32_t length) override;

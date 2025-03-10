@@ -21,7 +21,7 @@ class MowerService : public MowerServiceBase {
 
  protected:
   void OnCreate() override;
-  void OnStart() override;
+  bool OnStart() override;
   void OnStop() override;
 
  private:

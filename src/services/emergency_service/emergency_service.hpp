@@ -18,7 +18,7 @@ class EmergencyService : public EmergencyServiceBase {
   }
 
  protected:
-  void OnStart() override;
+  bool OnStart() override;
   void OnStop() override;
 
  private:
