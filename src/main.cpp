@@ -106,11 +106,11 @@ int main() {
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;
-  chEvtRegister(&mower_events, &event_listener, 1);
+  const eventid_t MOWER_EVENTS_ID = 1;
+  chEvtRegister(&mower_events, &event_listener, MOWER_EVENTS_ID);
   while (1) {
     uint32_t event = chEvtWaitAnyTimeout(ALL_EVENTS, TIME_INFINITE);
-    // event no 1 == "mower_events"
-    if (event == 1) {
+    if (event == MOWER_EVENTS_ID) {
       // Get the flags provided by the event
       uint32_t flags = chEvtGetAndClearFlags(&event_listener);
       if (flags & MOWER_EVT_EMERGENCY_CHANGED) {
