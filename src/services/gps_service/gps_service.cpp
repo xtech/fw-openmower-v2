@@ -6,8 +6,7 @@
 #include "debug/debug_udp_interface.hpp"
 #include "robot.hpp"
 
-
-UARTDriver* GpsService::GetUARTDriverByIndex(uint8_t index) {
+static UARTDriver* GetUARTDriverByIndex(uint8_t index) {
   switch (index) {
       // Get the default port for this platform (nullptr, if we need the user to specify it)
     case 0: return Robot::GPS::GetUartPort();
@@ -46,11 +45,10 @@ UARTDriver* GpsService::GetUARTDriverByIndex(uint8_t index) {
 }
 
 bool GpsService::OnStart() {
-  uart_driver_ = GetUARTDriverByIndex(Uart.value);
-  if (uart_driver_ == nullptr) {
+  UARTDriver* uart_driver = GetUARTDriverByIndex(Uart.value);
+  if (uart_driver == nullptr) {
     return false;
   }
-
 
   using namespace xbot::driver::gps;
   if (Protocol.value == ProtocolType::UBX) {
@@ -62,7 +60,7 @@ bool GpsService::OnStart() {
   gps_driver_->SetStateCallback(
       etl::delegate<void(const GpsDriver::GpsState&)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
 
-  gps_driver_->StartDriver(uart_driver_, Baudrate.value);
+  gps_driver_->StartDriver(uart_driver, Baudrate.value);
   debug_interface_.SetDriver(gps_driver_);
   debug_interface_.Start();
   return true;
@@ -83,10 +81,10 @@ void GpsService::GpsStateCallback(const GpsDriver::GpsState& state) {
   SendPosition(position, 3);
   SendPositionHorizontalAccuracy(state.position_h_accuracy);
   SendPositionVerticalAccuracy(state.position_v_accuracy);
-  if(state.rtk_type == xbot::driver::gps::GpsDriver::GpsState::RTK_FIX) {
-    SendFixType("FIX",3);
-  } else if(state.rtk_type == xbot::driver::gps::GpsDriver::GpsState::RTK_FLOAT) {
-    SendFixType("FLOAT",5);
+  if (state.rtk_type == xbot::driver::gps::GpsDriver::GpsState::RTK_FIX) {
+    SendFixType("FIX", 3);
+  } else if (state.rtk_type == xbot::driver::gps::GpsDriver::GpsState::RTK_FLOAT) {
+    SendFixType("FLOAT", 5);
   }
   double vel[3] = {state.vel_e, state.vel_n, state.vel_u};
   SendMotionVectorENU(vel, 3);
