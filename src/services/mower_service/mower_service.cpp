@@ -5,7 +5,6 @@
 #include "mower_service.hpp"
 
 #include <cmath>
-#include <globals.hpp>
 #include <xbot-service/portable/system.hpp>
 
 void MowerService::OnCreate() {
@@ -81,9 +80,9 @@ void MowerService::ESCCallback(const VescDriver::ESCState& state) {
 void MowerService::SetDuty() {
   // Get the current emergency state
   chMtxLock(&mower_status_mutex);
-  uint32_t status_copy = mower_status;
+  MowerStatus status_copy = mower_status;
   chMtxUnlock(&mower_status_mutex);
-  if (status_copy & MOWER_FLAG_EMERGENCY_LATCH) {
+  if (status_copy.emergency_latch) {
     mower_driver_.SetDuty(0);
   } else {
     mower_driver_.SetDuty(mower_duty_);
@@ -104,8 +103,8 @@ void MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
   chMtxUnlock(&mtx);
 }
 
-void MowerService::OnMowerStatusChanged(uint32_t new_status) {
-  if ((new_status & (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
+void MowerService::OnMowerStatusChanged(MowerStatus new_status) {
+  if (!new_status.emergency_latch && !new_status.emergency_active) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }

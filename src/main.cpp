@@ -116,7 +116,7 @@ int main() {
       if (flags & MOWER_EVT_EMERGENCY_CHANGED) {
         // Get the new emergency value
         chMtxLock(&mower_status_mutex);
-        uint32_t status_copy = mower_status;
+        MowerStatus status_copy = mower_status;
         chMtxUnlock(&mower_status_mutex);
         // Notify services
         diff_drive.OnMowerStatusChanged(status_copy);

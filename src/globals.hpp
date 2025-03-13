@@ -8,14 +8,16 @@
 #include <id_eeprom.h>
 
 #include "ch.h"
+
 // Event to notify threads whenever the emergency flags have changed
 static constexpr uint32_t MOWER_EVT_EMERGENCY_CHANGED = 1;
 
-// Flag to track if there was an emergency which has not been reset
-static constexpr uint32_t MOWER_FLAG_EMERGENCY_LATCH = 1;
-// Flag to track if there is currently an emergency (this is updated by the
-// high-prio emergency task)
-static constexpr uint32_t MOWER_FLAG_EMERGENCY_ACTIVE = 2;
+struct MowerStatus {
+  // Was there an emergency which has not been reset?
+  bool emergency_latch : 1;
+  // Is there currently an emergency (this is updated by the high-prio emergency task)?
+  bool emergency_active : 1;
+};
 
 CC_SECTION(".ram4") extern struct board_info board_info;
 CC_SECTION(".ram4") extern struct carrier_board_info carrier_board_info;
@@ -23,7 +25,7 @@ CC_SECTION(".ram4") extern struct carrier_board_info carrier_board_info;
 // event source for mower events (e.g. emergency)
 extern event_source_t mower_events;
 extern mutex_t mower_status_mutex;
-extern uint32_t mower_status;
+extern MowerStatus mower_status;
 
 void InitGlobals();
 #endif  // GLOBALS_H

@@ -9,6 +9,7 @@
 
 #include <DiffDriveServiceBase.hpp>
 #include <debug/debug_tcp_interface.hpp>
+#include <globals.hpp>
 #include <xbot-service/portable/socket.hpp>
 using namespace xbot::driver::esc;
 
@@ -42,7 +43,7 @@ class DiffDriveService : public DiffDriveServiceBase {
   explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, 40000, wa, sizeof(wa)) {
   }
 
-  void OnMowerStatusChanged(uint32_t new_status);
+  void OnMowerStatusChanged(MowerStatus new_status);
 
  protected:
   bool OnStart() override;

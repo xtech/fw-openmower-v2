@@ -10,6 +10,7 @@
 
 #include <MowerServiceBase.hpp>
 #include <debug/debug_tcp_interface.hpp>
+#include <globals.hpp>
 using namespace xbot::driver::esc;
 
 class MowerService : public MowerServiceBase {
@@ -17,7 +18,7 @@ class MowerService : public MowerServiceBase {
   explicit MowerService(const uint16_t service_id) : MowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
   }
 
-  void OnMowerStatusChanged(uint32_t new_status);
+  void OnMowerStatusChanged(MowerStatus new_status);
 
  protected:
   void OnCreate() override;

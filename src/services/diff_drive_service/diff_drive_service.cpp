@@ -6,10 +6,8 @@
 
 #include <xbot-service/portable/system.hpp>
 
-#include "../../globals.hpp"
-
-void DiffDriveService::OnMowerStatusChanged(uint32_t new_status) {
-  if ((new_status & (MOWER_FLAG_EMERGENCY_LATCH | MOWER_FLAG_EMERGENCY_ACTIVE)) == 0) {
+void DiffDriveService::OnMowerStatusChanged(MowerStatus new_status) {
+  if (!new_status.emergency_latch && !new_status.emergency_active) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }
@@ -87,9 +85,9 @@ void DiffDriveService::tick() {
 void DiffDriveService::SetDuty() {
   // Get the current emergency state
   chMtxLock(&mower_status_mutex);
-  uint32_t status_copy = mower_status;
+  MowerStatus status_copy = mower_status;
   chMtxUnlock(&mower_status_mutex);
-  if (status_copy & MOWER_FLAG_EMERGENCY_LATCH) {
+  if (status_copy.emergency_latch) {
     left_esc_driver_.SetDuty(0);
     right_esc_driver_.SetDuty(0);
   } else {
