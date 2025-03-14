@@ -115,10 +115,10 @@ int main() {
       uint32_t flags = chEvtGetAndClearFlags(&event_listener);
       if (flags & MOWER_EVT_EMERGENCY_CHANGED) {
         // Get the new emergency value
-        MowerStatus status_copy = GetMowerStatus();
+        MowerStatus mower_status = GetMowerStatus();
         // Notify services
-        diff_drive.OnMowerStatusChanged(status_copy);
-        mower_service.OnMowerStatusChanged(status_copy);
+        diff_drive.OnMowerStatusChanged(mower_status);
+        mower_service.OnMowerStatusChanged(mower_status);
       }
     }
   }

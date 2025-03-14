@@ -79,8 +79,8 @@ void MowerService::ESCCallback(const VescDriver::ESCState& state) {
 
 void MowerService::SetDuty() {
   // Get the current emergency state
-  MowerStatus status_copy = GetMowerStatus();
-  if (status_copy.emergency_latch) {
+  MowerStatus mower_status = GetMowerStatus();
+  if (mower_status.emergency_latch) {
     mower_driver_.SetDuty(0);
   } else {
     mower_driver_.SetDuty(mower_duty_);

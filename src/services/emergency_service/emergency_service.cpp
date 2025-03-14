@@ -23,21 +23,21 @@ void EmergencyService::OnStop() {
 
 void EmergencyService::tick() {
   // Get the current emergency state
-  MowerStatus status_copy = GetMowerStatus();
+  MowerStatus mower_status = GetMowerStatus();
 
   // Check timeout, but only overwrite if no emergency is currently active
   // reasoning is that we want to keep the original reason and not overwrite
   // with "timeout"
-  if (!status_copy.emergency_latch && chVTTimeElapsedSinceX(last_clear_emergency_message_) > TIME_S2I(1)) {
+  if (!mower_status.emergency_latch && chVTTimeElapsedSinceX(last_clear_emergency_message_) > TIME_S2I(1)) {
     emergency_reason = "Timeout";
     // set the emergency and notify services
-    status_copy = UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
+    mower_status = UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
     chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
   }
 
   StartTransaction();
-  SendEmergencyActive(status_copy.emergency_active);
-  SendEmergencyLatch(status_copy.emergency_latch);
+  SendEmergencyActive(mower_status.emergency_active);
+  SendEmergencyLatch(mower_status.emergency_latch);
   SendEmergencyReason(emergency_reason.c_str(), emergency_reason.length());
   CommitTransaction();
 }
@@ -50,10 +50,10 @@ void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
     chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
   } else {
     // Get the current emergency state
-    MowerStatus status_copy = GetMowerStatus();
+    MowerStatus mower_status = GetMowerStatus();
 
     // want to reset emergency, but only do it, if no emergency exists right now
-    if (!status_copy.emergency_active) {
+    if (!mower_status.emergency_active) {
       // clear the emergency and notify services
       UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = false; });
       chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);

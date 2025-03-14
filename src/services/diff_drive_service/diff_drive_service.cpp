@@ -54,7 +54,7 @@ void DiffDriveService::tick() {
   chMtxLock(&state_mutex_);
 
   // Check, if we recently received duty. If not, set to zero for safety
-  if(xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 1000000) {
+  if (xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 1000000) {
     // it's ok to set it here, because we know that duty_set_ is false (we're in a timeout after all)
     speed_l_ = speed_r_ = 0;
   }
@@ -84,8 +84,8 @@ void DiffDriveService::tick() {
 
 void DiffDriveService::SetDuty() {
   // Get the current emergency state
-  MowerStatus status_copy = GetMowerStatus();
-  if (status_copy.emergency_latch) {
+  MowerStatus mower_status = GetMowerStatus();
+  if (mower_status.emergency_latch) {
     left_esc_driver_.SetDuty(0);
     right_esc_driver_.SetDuty(0);
   } else {
