@@ -5,6 +5,7 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#include <etl/delegate.h>
 #include <id_eeprom.h>
 
 #include "ch.h"
@@ -24,8 +25,8 @@ CC_SECTION(".ram4") extern struct carrier_board_info carrier_board_info;
 
 // event source for mower events (e.g. emergency)
 extern event_source_t mower_events;
-extern mutex_t mower_status_mutex;
-extern MowerStatus mower_status;
 
 void InitGlobals();
+MowerStatus GetMowerStatus();
+MowerStatus UpdateMowerStatus(const etl::delegate<void(MowerStatus& mower_status)>& callback);
 #endif  // GLOBALS_H

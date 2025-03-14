@@ -17,3 +17,18 @@ void InitGlobals() {
   ID_EEPROM_GetBoardInfo(&board_info);
   ID_EEPROM_GetCarrierBoardInfo(&carrier_board_info);
 }
+
+MowerStatus GetMowerStatus() {
+  chMtxLock(&mower_status_mutex);
+  MowerStatus status_copy = mower_status;
+  chMtxUnlock(&mower_status_mutex);
+  return status_copy;
+}
+
+MowerStatus UpdateMowerStatus(const etl::delegate<void(MowerStatus& mower_status)>& callback) {
+  chMtxLock(&mower_status_mutex);
+  callback(mower_status);
+  MowerStatus status_copy = mower_status;
+  chMtxUnlock(&mower_status_mutex);
+  return status_copy;
+}

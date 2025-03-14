@@ -84,9 +84,7 @@ void DiffDriveService::tick() {
 
 void DiffDriveService::SetDuty() {
   // Get the current emergency state
-  chMtxLock(&mower_status_mutex);
-  MowerStatus status_copy = mower_status;
-  chMtxUnlock(&mower_status_mutex);
+  MowerStatus status_copy = GetMowerStatus();
   if (status_copy.emergency_latch) {
     left_esc_driver_.SetDuty(0);
     right_esc_driver_.SetDuty(0);

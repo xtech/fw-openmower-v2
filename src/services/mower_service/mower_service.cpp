@@ -79,9 +79,7 @@ void MowerService::ESCCallback(const VescDriver::ESCState& state) {
 
 void MowerService::SetDuty() {
   // Get the current emergency state
-  chMtxLock(&mower_status_mutex);
-  MowerStatus status_copy = mower_status;
-  chMtxUnlock(&mower_status_mutex);
+  MowerStatus status_copy = GetMowerStatus();
   if (status_copy.emergency_latch) {
     mower_driver_.SetDuty(0);
   } else {
