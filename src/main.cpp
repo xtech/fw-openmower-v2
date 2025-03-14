@@ -113,7 +113,7 @@ int main() {
     if (event == MOWER_EVENTS_ID) {
       // Get the flags provided by the event
       uint32_t flags = chEvtGetAndClearFlags(&event_listener);
-      if (flags & MOWER_EVT_EMERGENCY_CHANGED) {
+      if (flags & MowerEvents::EMERGENCY_CHANGED) {
         // Get the new emergency value
         MowerStatus mower_status = GetMowerStatus();
         // Notify services

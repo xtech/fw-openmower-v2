@@ -10,8 +10,12 @@
 
 #include "ch.h"
 
-// Event to notify threads whenever the emergency flags have changed
-static constexpr uint32_t MOWER_EVT_EMERGENCY_CHANGED = 1;
+namespace MowerEvents {
+enum : eventflags_t {
+  // Emergency flags have changed
+  EMERGENCY_CHANGED = 1 << 0,
+};
+}
 
 struct MowerStatus {
   // Was there an emergency which has not been reset?

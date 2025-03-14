@@ -10,7 +10,7 @@ bool EmergencyService::OnStart() {
   emergency_reason = "Boot";
   // set the emergency and notify services
   UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
-  chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
+  chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
   return true;
 }
 
@@ -18,7 +18,7 @@ void EmergencyService::OnStop() {
   emergency_reason = "Stopped";
   // set the emergency and notify services
   UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
-  chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
+  chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
 }
 
 void EmergencyService::tick() {
@@ -32,7 +32,7 @@ void EmergencyService::tick() {
     emergency_reason = "Timeout";
     // set the emergency and notify services
     mower_status = UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
-    chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
+    chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
   }
 
   StartTransaction();
@@ -47,7 +47,7 @@ void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
     emergency_reason = "High Level Emergency";
     // set the emergency and notify services
     UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
-    chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
+    chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
   } else {
     // Get the current emergency state
     MowerStatus mower_status = GetMowerStatus();
@@ -56,7 +56,7 @@ void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
     if (!mower_status.emergency_active) {
       // clear the emergency and notify services
       UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = false; });
-      chEvtBroadcastFlags(&mower_events, MOWER_EVT_EMERGENCY_CHANGED);
+      chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
       emergency_reason = "None";
       last_clear_emergency_message_ = chVTGetSystemTime();
     }
