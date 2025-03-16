@@ -4,6 +4,8 @@
 
 #include "diff_drive_service.hpp"
 
+#include <ulog.h>
+
 #include <xbot-service/portable/system.hpp>
 
 void DiffDriveService::OnMowerStatusChanged(MowerStatus new_status) {
@@ -21,9 +23,16 @@ void DiffDriveService::OnMowerStatusChanged(MowerStatus new_status) {
 
 bool DiffDriveService::OnStart() {
   // Check, if configuration is valid, if not retry
-  if (WheelDistance.value == 0 || WheelTicksPerMeter.value == 0.0) {
+  if (WheelDistance.value == 0) {
+    ULOG_ARG_ERROR(&service_id_, "WheelDistance was 0, cannot start service!");
     return false;
   }
+
+  if (WheelTicksPerMeter.value == 0.0) {
+    ULOG_ARG_ERROR(&service_id_, "WheelTicksPerMeter was 0, cannot start service!");
+    return false;
+  }
+
   speed_l_ = speed_r_ = 0;
   last_ticks_valid = false;
   return true;

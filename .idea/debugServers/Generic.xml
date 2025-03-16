@@ -1,5 +1,5 @@
 <component name="DebugServers">
-  <generic-debug-target name="Generic" uniqueID="083636b8-27f5-4bd5-bd55-012fd06b557b" selected="true">
+  <generic-debug-target name="Generic" uniqueID="083636b8-27f5-4bd5-bd55-012fd06b557b">
     <debugger version="1">
       <debugger kind="GDB" isBundled="true" />
       <env />
