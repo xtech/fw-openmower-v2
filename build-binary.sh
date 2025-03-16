@@ -12,3 +12,4 @@ cd $PRESET
 make -j$(nproc)
 
 cp -v openmower.elf ../../out/openmower-$ROBOT.elf
+cp -v openmower.bin ../../out/openmower-$ROBOT.bin
