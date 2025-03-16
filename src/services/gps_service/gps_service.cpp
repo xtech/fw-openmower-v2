@@ -2,6 +2,9 @@
 
 #include <drivers/gps/nmea_gps_driver.h>
 #include <drivers/gps/ublox_gps_driver.h>
+#include <ulog.h>
+
+#include <cstdio>
 
 #include "debug/debug_udp_interface.hpp"
 #include "robot.hpp"
@@ -47,6 +50,9 @@ static UARTDriver* GetUARTDriverByIndex(uint8_t index) {
 bool GpsService::OnStart() {
   UARTDriver* uart_driver = GetUARTDriverByIndex(Uart.value);
   if (uart_driver == nullptr) {
+    char msg[100]{};
+    snprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", Uart.value);
+    ULOG_ARG_ERROR(&service_id_, msg);
     return false;
   }
 
