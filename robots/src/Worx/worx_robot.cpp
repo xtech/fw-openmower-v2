@@ -30,7 +30,7 @@ float GetMaxVoltage() {
 }
 
 float GetChargeCurrent() {
-  return 0.5;
+  return 1.0;
 }
 
 float GetMinVoltage() {
