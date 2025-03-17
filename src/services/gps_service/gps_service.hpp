@@ -18,13 +18,16 @@ class GpsService : public GpsServiceBase {
 
  protected:
   bool OnStart() override;
-  void OnStop() override;
 
   void OnRTCMChanged(const uint8_t* new_value, uint32_t length) override;
 
  private:
-  GpsDriver* gps_driver_;
+  GpsDriver* gps_driver_ = nullptr;
   DebugTCPInterface debug_interface_{10000, nullptr};
+
+  // Keep track of the protocol type and uart index used by the gps_driver_ loaded (initial value doesn't matter)
+  ProtocolType used_protocol_type_ = ProtocolType::UBX;
+  int used_port_index_ = 0;
 
   void GpsStateCallback(const GpsDriver::GpsState& state);
 };

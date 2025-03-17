@@ -48,33 +48,44 @@ static UARTDriver* GetUARTDriverByIndex(uint8_t index) {
 }
 
 bool GpsService::OnStart() {
-  UARTDriver* uart_driver = GetUARTDriverByIndex(Uart.value);
-  if (uart_driver == nullptr) {
-    char msg[100]{};
-    snprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", Uart.value);
-    ULOG_ARG_ERROR(&service_id_, msg);
-    return false;
-  }
+
 
   using namespace xbot::driver::gps;
-  if (Protocol.value == ProtocolType::UBX) {
-    gps_driver_ = new UbxGpsDriver();
+
+  if (gps_driver_ == nullptr) {
+    UARTDriver* uart_driver = GetUARTDriverByIndex(Uart.value);
+    if (uart_driver == nullptr) {
+      char msg[100]{};
+      snprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", Uart.value);
+      ULOG_ARG_ERROR(&service_id_, msg);
+      return false;
+    }
+
+    // We don't have a gps driver running yet, so create one.
+    if (Protocol.value == ProtocolType::UBX) {
+      gps_driver_ = new UbxGpsDriver();
+    } else {
+      gps_driver_ = new NmeaGpsDriver();
+    }
+
+    gps_driver_->SetStateCallback(
+        etl::delegate<void(const GpsDriver::GpsState&)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
+
+    gps_driver_->StartDriver(uart_driver, Baudrate.value);
+    debug_interface_.SetDriver(gps_driver_);
+    debug_interface_.Start();
+    // Keep track of the protocol type we used to initialize the driver
+    used_protocol_type_ = Protocol.value;
+    used_port_index_ = Uart.value;
   } else {
-    gps_driver_ = new NmeaGpsDriver();
+    // We already have the driver, if the protocol has changed, restart the board
+    // (since we cannot stop the driver)
+    if (used_protocol_type_ != Protocol.value || used_port_index_ != Uart.value) {
+      ULOG_ARG_WARNING(&service_id_, "GPS protocol or port change detected - restarting");
+      NVIC_SystemReset();
+    }
   }
-
-  gps_driver_->SetStateCallback(
-      etl::delegate<void(const GpsDriver::GpsState&)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
-
-  gps_driver_->StartDriver(uart_driver, Baudrate.value);
-  debug_interface_.SetDriver(gps_driver_);
-  debug_interface_.Start();
   return true;
-}
-
-void GpsService::OnStop() {
-  // TODO: Stop driver and debug interface
-  delete gps_driver_;
 }
 
 void GpsService::OnRTCMChanged(const uint8_t* new_value, uint32_t length) {
