@@ -63,7 +63,7 @@ void DiffDriveService::tick() {
   chMtxLock(&state_mutex_);
 
   // Check, if we recently received duty. If not, set to zero for safety
-  if (xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 1000000) {
+  if (xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 1'000'000) {
     // it's ok to set it here, because we know that duty_set_ is false (we're in a timeout after all)
     speed_l_ = speed_r_ = 0;
   }
@@ -76,7 +76,7 @@ void DiffDriveService::tick() {
   right_esc_driver_.RequestStatus();
 
   // Check, if we have received ESC status updates recently. If not, send a disconnected message
-  if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1000000) {
+  if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1'000'000) {
     StartTransaction();
     if (!left_esc_state_valid_) {
       SendLeftESCStatus(static_cast<uint8_t>(VescDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
@@ -138,7 +138,7 @@ void DiffDriveService::ProcessStatusUpdate() {
 
   // Calculate the twist according to wheel ticks
   if (last_ticks_valid) {
-    float dt = static_cast<float>(micros - last_ticks_micros_) / 1000000.0f;
+    float dt = static_cast<float>(micros - last_ticks_micros_) / 1'000'000.0f;
     int32_t d_left = static_cast<int32_t>(left_esc_state_.tacho - last_ticks_left);
     int32_t d_right = static_cast<int32_t>(right_esc_state_.tacho - last_ticks_right);
     float vx = static_cast<float>(d_left - d_right) / (2.0f * dt * static_cast<float>(WheelTicksPerMeter.value));

@@ -40,7 +40,7 @@ class DiffDriveService : public DiffDriveServiceBase {
   bool duty_sent_ = false;
 
  public:
-  explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, 40000, wa, sizeof(wa)) {
+  explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, 40'000, wa, sizeof(wa)) {
   }
 
   void OnMowerStatusChanged(MowerStatus new_status);

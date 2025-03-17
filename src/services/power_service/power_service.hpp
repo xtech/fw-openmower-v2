@@ -12,7 +12,7 @@
 
 class PowerService : public PowerServiceBase {
  public:
-  explicit PowerService(uint16_t service_id) : PowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
+  explicit PowerService(uint16_t service_id) : PowerServiceBase(service_id, 1'000'000, wa, sizeof(wa)) {
   }
 
  protected:

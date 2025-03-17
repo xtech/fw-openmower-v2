@@ -15,7 +15,7 @@ using namespace xbot::driver::esc;
 
 class MowerService : public MowerServiceBase {
  public:
-  explicit MowerService(const uint16_t service_id) : MowerServiceBase(service_id, 1000000, wa, sizeof(wa)) {
+  explicit MowerService(const uint16_t service_id) : MowerServiceBase(service_id, 1'000'000, wa, sizeof(wa)) {
   }
 
   void OnMowerStatusChanged(MowerStatus new_status);

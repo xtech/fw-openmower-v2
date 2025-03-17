@@ -29,11 +29,10 @@ void MowerService::tick() {
   chMtxLock(&mtx);
 
   // Check, if we recently received duty. If not, set to zero for safety
-  if(xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 1000000) {
+  if (xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 1'000'000) {
     // it's ok to set it here, because we know that duty_set_ is false (we're in a timeout after all)
     mower_duty_ = 0;
   }
-
 
   if (!duty_sent_) {
     // Send motor speed to VESC, if we havent in the meantime
@@ -50,7 +49,7 @@ void MowerService::tick() {
   SendRainDetected(rain_detected);
 
   // Check, if we have received ESC status updates recently. If not, send a disconnected message
-  if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1000000 || !esc_state_valid_) {
+  if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1'000'000 || !esc_state_valid_) {
     // No recent update received (or none at all)
     mower_duty_ = 0;
     SendMowerStatus(static_cast<uint8_t>(VescDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));

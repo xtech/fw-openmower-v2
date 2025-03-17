@@ -14,7 +14,7 @@ class EmergencyService : public EmergencyServiceBase {
   THD_WORKING_AREA(wa, 1024){};
 
  public:
-  explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, 100000, wa, sizeof(wa)) {
+  explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, 100'000, wa, sizeof(wa)) {
   }
 
  protected:
