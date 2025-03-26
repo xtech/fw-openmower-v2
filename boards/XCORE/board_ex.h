@@ -55,14 +55,11 @@
     WRITE_REG(RCC->RSR, RCC_RSR_RMVF);                                  \
   } while (0)
 
-#define BOARD_HAS_RGB_STATUS 1
-#define BOARD_HAS_RGB_HEARTBEAT 1
-#define BOARD_STATUS_LED_INVERTED
-#define BOARD_HEARTBEAT_LED_INVERTED
 
-#define BOARD_HAS_EEPROM 1
-#define EEPROM_DEVICE_ADDRESS 0b1010011
-#define CARRIER_EEPROM_DEVICE_ADDRESS 0b1010000
+// eeprom address = 0b1010011
+#define EEPROM_DEVICE_ADDRESS 0x53
+// carrier eeprom address = 0b1010000
+#define CARRIER_EEPROM_DEVICE_ADDRESS 0x50
 
 // Define the fallback IP settings for this board (if DHCP fails)
 // 10.0.0.254
@@ -72,13 +69,9 @@
 // 255.255.255.0
 #define FALLBACK_NETMASK 0xFFFFFF00
 
-// Flash information for the bootloader
-#define BOOT_ADDRESS 0x8020000
-// Available flash pages for user program
-#define FLASH_PAGE_COUNT 7
-// Size of each flash page in bytes
-#define FLASH_PAGE_SIZE_BYTES 0x20000
-// Size of flash memory for the user program
-#define PROGRAM_FLASH_SIZE_BYTES (FLASH_PAGE_COUNT * FLASH_PAGE_SIZE_BYTES)
 
+#define SPID_IMU SPID3
+#ifndef __ASSEMBLER__
+void initBoardPeriphs(void);
+#endif
 #endif
