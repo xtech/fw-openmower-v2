@@ -4,6 +4,23 @@
 // Once done, start OpenOCD on your CM4 host via:
 //   openocd -f interface/xcore.cfg -f target/stm32h7x.cfg -c "bindto 0.0.0.0"
 // Also make sure you have the Dev Mode enabled in the bootloader.
+//
+// Since ROBOT_PLATFORM you also like to create a <project-root>/CMakeUserPresets.json file with a content like:
+//{
+//    "version": 3,
+//    "configurePresets": [
+//        {
+//            "name": "RobotDebug",
+//            "inherits": "Debug",
+//            "cacheVariables": {
+//                "ROBOT_PLATFORM": "YardForce",
+//                "CMAKE_BUILD_TYPE": "Debug"
+//            }
+//        }
+//    ]
+//}
+// and select it in your CMake extension settings.
+
 {
     "version": "0.2.0",
     "configurations": [
@@ -36,8 +53,6 @@
             "gdbTarget": "${input:target}:3333",
             "executable": "${command:cmake.launchTargetPath}",
             "svdFile": "${workspaceFolder}/cfg/STM32H723.svd",
-            // Rebuild and flash on "Restart", but not on "Reset device".
-            "preLaunchTask": "CMake: build",
             "preRestartCommands": [
                 "-target-download",
             ],
