@@ -39,4 +39,19 @@ float GetMinVoltage() {
 }
 
 }  // namespace Power
+
+namespace Emergency {
+std::pair<const Sensor*, size_t> getSensors() {
+  return {nullptr, 0};  // No sensors defined yet
+}
+
+u_int getLiftPeriod() {
+  return 100;
+}
+
+u_int getTiltPeriod() {
+  return 2500;
+}
+}  // namespace Emergency
+
 }  // namespace Robot
