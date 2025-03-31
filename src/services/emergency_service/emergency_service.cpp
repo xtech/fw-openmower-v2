@@ -9,7 +9,8 @@
 bool EmergencyService::OnStart() {
   emergency_reason = "Boot";
   // set the emergency and notify services
-  UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
+  const auto cb = [](MowerStatus& mower_status) { mower_status.emergency_latch = true; };
+  UpdateMowerStatus(cb);
   chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
   return true;
 }
@@ -17,7 +18,8 @@ bool EmergencyService::OnStart() {
 void EmergencyService::OnStop() {
   emergency_reason = "Stopped";
   // set the emergency and notify services
-  UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
+  const auto cb = [](MowerStatus& mower_status) { mower_status.emergency_latch = true; };
+  UpdateMowerStatus(cb);
   chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
 }
 
@@ -31,7 +33,8 @@ void EmergencyService::tick() {
   if (!mower_status.emergency_latch && chVTTimeElapsedSinceX(last_clear_emergency_message_) > TIME_S2I(1)) {
     emergency_reason = "Timeout";
     // set the emergency and notify services
-    mower_status = UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
+    const auto cb = [](MowerStatus& mower_status) { mower_status.emergency_latch = true; };
+    mower_status = UpdateMowerStatus(cb);
     chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
   }
 
@@ -46,7 +49,8 @@ void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
   if (new_value) {
     emergency_reason = "High Level Emergency";
     // set the emergency and notify services
-    UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = true; });
+    const auto cb = [](MowerStatus& mower_status) { mower_status.emergency_latch = true; };
+    UpdateMowerStatus(cb);
     chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
   } else {
     // Get the current emergency state
@@ -55,7 +59,8 @@ void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
     // want to reset emergency, but only do it, if no emergency exists right now
     if (!mower_status.emergency_active) {
       // clear the emergency and notify services
-      UpdateMowerStatus([](MowerStatus& mower_status) { mower_status.emergency_latch = false; });
+      const auto cb =[](MowerStatus& mower_status) { mower_status.emergency_latch = false; };
+      UpdateMowerStatus(cb);
       chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
       emergency_reason = "None";
       last_clear_emergency_message_ = chVTGetSystemTime();
