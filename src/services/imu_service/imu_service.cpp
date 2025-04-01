@@ -4,7 +4,11 @@
 
 #include "imu_service.hpp"
 
+#include <etl/to_string.h>
 #include <lsm6ds3tr-c_reg.h>
+#include <ulog.h>
+
+#include <xbot-service/portable/system.hpp>
 
 static SPIConfig spi_config = {
     false,
@@ -18,35 +22,52 @@ static SPIConfig spi_config = {
 
 static stmdev_ctx_t dev_ctx{};
 
+static constexpr auto write_reg_lambda = [](void *, uint8_t reg, const uint8_t *bufp, uint16_t len) {
+  spiSelect(&SPID_IMU);
+  spiSend(&SPID_IMU, 1, &reg);
+  spiSend(&SPID_IMU, len, bufp);
+  spiUnselect(&SPID_IMU);
+  return (int32_t)0;
+};
+
+static constexpr auto read_reg_lambda = [](void *, uint8_t reg, uint8_t *bufp, uint16_t len) {
+  reg |= 0x80;
+
+  spiSelect(&SPID_IMU);
+  spiSend(&SPID_IMU, 1, &reg);
+  spiReceive(&SPID_IMU, len, bufp);
+  spiUnselect(&SPID_IMU);
+  return (int32_t)0;
+};
+
 void ImuService::OnCreate() {
+  error_message = "";
   // Acquire Bus and never let it go, there's only the one IMU connected to it.
   spiAcquireBus(&SPID_IMU);
   spiStart(&SPID_IMU, &spi_config);
 
   dev_ctx.write_reg =
-      [](void *, uint8_t reg, const uint8_t *bufp, uint16_t len) {
-        spiSelect(&SPID_IMU);
-        spiSend(&SPID_IMU, 1, &reg);
-        spiSend(&SPID_IMU, len, bufp);
-        spiUnselect(&SPID_IMU);
-        return (int32_t)0;
-      },
-  dev_ctx.read_reg = [](void *, uint8_t reg, uint8_t *bufp, uint16_t len) {
-    reg |= 0x80;
+      write_reg_lambda;
+  dev_ctx.read_reg = read_reg_lambda;
+  for (int i = 0; i < 100; i++) {
+    uint8_t whoamI = 0;
+    lsm6ds3tr_c_device_id_get(&dev_ctx, &whoamI);
 
-    spiSelect(&SPID_IMU);
-    spiSend(&SPID_IMU, 1, &reg);
-    spiReceive(&SPID_IMU, len, bufp);
-    spiUnselect(&SPID_IMU);
-    return (int32_t)0;
-  };
-  uint8_t whoamI = 0;
-  lsm6ds3tr_c_device_id_get(&dev_ctx, &whoamI);
+   if (whoamI == 0x6a || whoamI == 0x6c) {
+      imu_found = true;
+      error_message = "None";
+      break;
+    } else {
+      imu_found = false;
+      error_message = "IMU Not Found. Whoami=0x";
+      etl::format_spec hex_spec{};
+      hex_spec.base(16);
+      etl::to_string(whoamI, error_message, hex_spec,true);
+      chThdSleep(TIME_MS2I(100));
+    }
+  }
 
-  if (whoamI == 0x6a || whoamI == 0x6c) {
-    imu_found = true;
-  } else {
-    imu_found = false;
+  if (!imu_found) {
     return;
   }
 
@@ -75,10 +96,17 @@ void ImuService::OnCreate() {
   // lsm6ds3tr_c_xl_lp1_bandwidth_set(&dev_ctx, LSM6DS3TR_C_XL_LP1_ODR_DIV_4);
   /* Accelerometer - LPF1 + LPF2 path */
   lsm6ds3tr_c_xl_lp2_bandwidth_set(&dev_ctx, LSM6DS3TR_C_XL_LOW_NOISE_LP_ODR_DIV_100);
+  ULOG_ARG_INFO(&service_id_, "IMU configured successfully");
 }
 
 void ImuService::tick() {
   if (!imu_found) {
+    static uint32_t last_log = 0;
+    uint32_t now = xbot::service::system::getTimeMicros();
+    if (now - last_log > 1'000'000) {
+      ULOG_ARG_ERROR(&service_id_, error_message.c_str());
+      last_log = now;
+    }
     return;
   }
   lsm6ds3tr_c_reg_t reg;

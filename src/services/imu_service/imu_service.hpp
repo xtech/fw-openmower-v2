@@ -6,6 +6,7 @@
 #define IMU_SERVICE_HPP
 
 #include <ImuServiceBase.hpp>
+#include <etl/string.h>
 
 class ImuService : public ImuServiceBase {
  private:
@@ -21,6 +22,7 @@ class ImuService : public ImuServiceBase {
  private:
   bool imu_found = false;
   void tick() override;
+  etl::string<255> error_message{};
 
   int16_t data_raw_acceleration[3];
   int16_t data_raw_angular_rate[3];
