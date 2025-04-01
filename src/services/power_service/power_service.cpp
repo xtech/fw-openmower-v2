@@ -4,6 +4,8 @@
 
 #include "power_service.hpp"
 
+#include <ulog.h>
+
 #include <drivers/bq_2576/bq_2576.hpp>
 #include <robot.hpp>
 
@@ -27,22 +29,65 @@ void PowerService::tick() {
       success &= charger.setTsEnabled(false);
       charger_configured_ = success;
     }
+
+    if (charger_configured_) {
+      ULOG_ARG_INFO(&service_id_, "Successfully Configured Charger");
+    } else {
+      ULOG_ARG_ERROR(&service_id_, "Unable to Configure Charger");
+    }
   } else {
     // charger is configured, do monitoring
     bool success = true;
-    success &= charger.resetWatchdog();
-    success &= charger.readChargeCurrent(charge_current);
-    success &= charger.readBatteryVoltage(battery_volts);
-    success &= charger.readAdapterVoltage(adapter_volts);
+    {
+      bool s = charger.resetWatchdog();
+      if (!s) {
+        ULOG_ARG_WARNING(&service_id_, "Error Resetting Watchdog");
+      }
+      success &= s;
+    }
+    {
+      bool s = charger.readChargeCurrent(charge_current);
+      if (!s) {
+        ULOG_ARG_WARNING(&service_id_, "Error Reading Charge Current");
+      }
+      success &= s;
+    }
+    {
+      bool s = charger.readBatteryVoltage(battery_volts);
+      if (!s) {
+        ULOG_ARG_WARNING(&service_id_, "Error Reading Battery Voltage");
+      }
+      success &= s;
+    }
+    {
+      bool s = charger.readAdapterVoltage(adapter_volts);
+      if (!s) {
+        ULOG_ARG_WARNING(&service_id_, "Error Reading Adapter Voltage");
+      }
+      success &= s;
+    }
     faults = charger.readFaults();
-    success &= charger.getChargerFlags(flags1, flags2, flags3);
-    success &= charger.getChargerStatus(status1, status2, status3);
+
+    {
+      bool s = charger.getChargerFlags(flags1, flags2, flags3);
+      if (!s) {
+        ULOG_ARG_WARNING(&service_id_, "Error Reading Flags");
+      }
+      success &= s;
+    }
+    {
+      bool s = charger.getChargerStatus(status1, status2, status3);
+      if (!s) {
+        ULOG_ARG_WARNING(&service_id_, "Error Reading Status");
+      }
+      success &= s;
+    }
 
     if (!success || status1 & 0b1000) {
       // Error during comms or watchdog timer expired, reconfigure charger
       charger_configured_ = false;
+      ULOG_ARG_ERROR(&service_id_, "Error during charging comms - reconfiguring");
     } else {
-      // TODO: force CM4 off here
       if (battery_volts < Robot::Power::GetMinVoltage()) {
         critical_count++;
         if (critical_count > 10) {
