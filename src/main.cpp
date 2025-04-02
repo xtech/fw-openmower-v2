@@ -91,7 +91,6 @@ int main() {
   lwipInit(&lwipconf_opts);
 
   InitBootloaderServiceDiscovery();
-  chThdSleep(TIME_S2I(5));
 
   // Safe to do before checking the carrier board, needed for logging
   xbot::service::system::initSystem();
