@@ -73,6 +73,7 @@ int main() {
   InitStatusLed();
 
   SetStatusLedMode(LED_MODE_ON);
+  SetStatusLedColor(RED);
 
   /*
    * Setup LWIP stack using the MAC address provided by the EEPROM.
@@ -90,11 +91,36 @@ int main() {
   lwipInit(&lwipconf_opts);
 
   InitBootloaderServiceDiscovery();
+  chThdSleep(TIME_S2I(5));
+
+  // Safe to do before checking the carrier board, needed for logging
+  xbot::service::system::initSystem();
+  xbot::service::startRemoteLogging();
+
+  if (!Robot::General::IsHardwareSupported()) {
+    SetStatusLedMode(LED_MODE_BLINK_FAST);
+    SetStatusLedColor(RED);
+
+    etl::string<100> info{};
+    info += "Carrier board not supported for this firmware: ";
+    info += carrier_board_info.board_id;
+    info += " v";
+    etl::to_string(carrier_board_info.version_major, info, true);
+    info += ".";
+    etl::to_string(carrier_board_info.version_minor, info, true);
+    info += ".";
+    etl::to_string(carrier_board_info.version_patch, info, true);
+
+    while (true) {
+      ULOG_ERROR(info.c_str());
+      chThdSleep(TIME_S2I(1));
+    }
+  }
+
 
   Robot::General::InitPlatform();
 
-  xbot::service::system::initSystem();
-  xbot::service::startRemoteLogging();
+
   xbot::service::Io::start();
 
   emergency_service.start();
@@ -103,6 +129,8 @@ int main() {
   diff_drive.start();
   mower_service.start();
   gps_service.start();
+
+  SetStatusLedColor(GREEN);
 
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;

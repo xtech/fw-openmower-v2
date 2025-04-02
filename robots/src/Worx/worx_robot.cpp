@@ -2,6 +2,10 @@
 // Created by clemens on 27.01.25.
 //
 
+#include <ulog.h>
+
+#include <globals.hpp>
+
 #include "robot.hpp"
 
 namespace Robot {
@@ -10,6 +14,24 @@ namespace General {
 void InitPlatform() {
   // Not used, we could star the GUI driver task here for example
 }
+
+bool IsHardwareSupported() {
+  // First batch of universal boards have a non-working EEPROM
+  // so we assume that the firmware is compatible, if the xcore is the first batch and no carrier was found.
+  if (carrier_board_info.board_info_version == 0 &&
+      strncmp("N/A", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
+      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 &&
+      board_info.version_major == 1 &&
+      board_info.version_minor == 1 &&
+      board_info.version_patch == 7) {
+    return true;
+  }
+
+
+  // Else, we accept universal boards
+  return strncmp("hw-openmower-universal", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0;
+}
+
 }  // namespace General
 
 namespace GPS {
@@ -17,7 +39,7 @@ UARTDriver* GetUartPort() {
   // on this platform we require a user setting
   return nullptr;
 }
-}
+}  // namespace GPS
 
 namespace Power {
 

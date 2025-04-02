@@ -3,6 +3,7 @@
 //
 
 #include "robot.hpp"
+#include <globals.hpp>
 
 namespace Robot {
 
@@ -10,6 +11,13 @@ namespace General {
 void InitPlatform() {
   // Not used, we could star the GUI driver task here for example
 }
+
+bool IsHardwareSupported() {
+  // Accept YardForce 1.x.x boards
+  return strncmp("hw-openmower-yardforce", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
+      carrier_board_info.version_major == 1;
+}
+
 }  // namespace General
 
 namespace GPS {
