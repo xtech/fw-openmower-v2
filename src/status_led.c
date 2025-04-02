@@ -57,7 +57,7 @@ static void status_led_timer_cb(struct ch_virtual_timer *tp, void *arg) {
 void InitStatusLed() {
   chMtxObjectInit(&status_led_mutex);
   current_mode = LED_MODE_OFF;
-  current_mode = RED;
+  current_color = RED;
   chSysLock();
   chVTSetI(&status_led_timer, TIME_MS2I(100), status_led_timer_cb, NULL);
   chSysUnlock();
