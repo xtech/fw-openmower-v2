@@ -3,6 +3,7 @@
 
 namespace Robot {
 
+
 namespace General {
 void InitPlatform() {
   // Not used, we could star the GUI driver task here for example

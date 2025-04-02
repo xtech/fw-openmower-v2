@@ -61,7 +61,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/mower_service/mower_service.cpp
         src/services/gps_service/gps_service.cpp
         # BQ2567 driver
-        src/drivers/bq_2576/bq_2576.cpp
+        src/drivers/charger/bq_2576/bq_2576.cpp
         # VESC driver
         src/drivers/vesc/buffer.cpp
         src/drivers/vesc/crc.cpp

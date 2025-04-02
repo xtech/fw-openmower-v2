@@ -4,6 +4,8 @@
 
 #include "bq_2576.hpp"
 
+#include <ulog.h>
+
 #include "ch.h"
 #include "hal.h"
 
@@ -190,4 +192,28 @@ bool BQ2576::setTerminationCurrent(float current_amps) {
   if (current_amps < 0.250f) current_amps = 0.250f;
   uint16_t value = static_cast<uint16_t>(current_amps * 1000.0f / 50.0f) << 2;
   return writeRegister16(REG_Termination_Current_Limit, value);
+}
+CHARGER_STATUS BQ2576::getChargerStatus() {
+  uint8_t status1, status2, status3;
+  bool s = getChargerStatus(status1, status2, status3);
+
+  if (!s) {
+    return CHARGER_STATUS::COMMS_ERROR;
+  }
+
+  const auto faults = readFaults();
+
+  if (faults) {
+    return CHARGER_STATUS::FAULT;
+  }
+  switch (status1 & 0b111) {
+    case 0: return CHARGER_STATUS::NOT_CHARGING;
+    case 1: return CHARGER_STATUS::TRICKLE;
+    case 2: return CHARGER_STATUS::PRE_CHARGE;
+    case 3: return CHARGER_STATUS::CC;
+    case 4: return CHARGER_STATUS::CV;
+    case 6: return CHARGER_STATUS::TOP_OFF;
+    case 7: return CHARGER_STATUS::DONE;
+    default: return CHARGER_STATUS::COMMS_ERROR;
+  }
 }
