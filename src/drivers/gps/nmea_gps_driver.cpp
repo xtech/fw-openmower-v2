@@ -136,11 +136,24 @@ bool NmeaGpsDriver::ProcessLine(const char *line) {
         default: gps_state_.fix_type = GpsState::NO_FIX; break;
       }
 
-      // This is how NemaTode defines it.
-      gps_state_.position_h_accuracy = minmea_tofloat(&gsa.hdop) * 4.0;
-      gps_state_.position_v_accuracy = minmea_tofloat(&gsa.vdop) * 6.0;
-
       UpdateGpsStateValidity();
+      TriggerStateCallback();
+      return true;
+    }
+
+    case MINMEA_SENTENCE_GST: {
+      struct minmea_sentence_gst gst;
+      if (!minmea_parse_gst(&gst, line)) {
+        return false;
+      }
+
+      float lat_std = minmea_tofloat(&gst.latitude_error_deviation);
+      float lon_std = minmea_tofloat(&gst.longitude_error_deviation);
+      float alt_std = minmea_tofloat(&gst.altitude_error_deviation);
+
+      gps_state_.position_h_accuracy = sqrt(lat_std * lat_std + lon_std * lon_std);
+      gps_state_.position_v_accuracy = alt_std;
+
       TriggerStateCallback();
       return true;
     }
