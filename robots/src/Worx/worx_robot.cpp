@@ -50,7 +50,7 @@ I2CDriver* GetPowerI2CD() {
   return &I2CD1;
 }
 
-BQ2576* GetCharger() {
+Charger* GetCharger() {
   return &charger;
 }
 
