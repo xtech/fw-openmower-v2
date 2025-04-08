@@ -29,7 +29,7 @@ void MowerService::tick() {
   chMtxLock(&mtx);
 
   // Check, if we recently received duty. If not, set to zero for safety
-  if (xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 1'000'000) {
+  if (xbot::service::system::getTimeMicros() - last_duty_received_micros_ > 10'000'000) {
     // it's ok to set it here, because we know that duty_set_ is false (we're in a timeout after all)
     mower_duty_ = 0;
   }
@@ -61,6 +61,7 @@ void MowerService::tick() {
     SendMowerStatus(static_cast<uint8_t>(esc_state_.status));
     SendMowerMotorTemperature(esc_state_.temperature_motor);
     SendMowerRunning(std::fabs(esc_state_.rpm) > 0);
+    SendMowerMotorRPM(esc_state_.rpm);
   }
   CommitTransaction();
 
@@ -89,6 +90,7 @@ void MowerService::SetDuty() {
 
 void MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
   chMtxLock(&mtx);
+  last_duty_received_micros_ = xbot::service::system::getTimeMicros();
   if (new_value) {
     mower_duty_ = 1.0;
   } else {
