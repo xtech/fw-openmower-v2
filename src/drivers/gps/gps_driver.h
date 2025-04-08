@@ -88,8 +88,8 @@ class GpsDriver : public DebuggableDriver {
   };
 
   static constexpr size_t RECV_BUFFER_SIZE = 512;
-  // 10Hz timeout for reception
-  static constexpr uint32_t RECV_TIMEOUT_MILLIS = 100;
+  // 20Hz timeout for reception
+  static constexpr uint32_t RECV_TIMEOUT_MILLIS = 25;
   // Keep two buffers for streaming data while doing processing
   uint8_t recv_buffer1_[RECV_BUFFER_SIZE]{};
   uint8_t recv_buffer2_[RECV_BUFFER_SIZE]{};
