@@ -99,6 +99,14 @@ void ImuService::OnCreate() {
   ULOG_ARG_INFO(&service_id_, "IMU configured successfully");
 }
 
+bool ImuService::OnStart() {
+  // Type-sicheres Kopieren
+  memcpy(axis_remap_.data(), AxisRemap.value, AxisRemap.length * sizeof(uint8_t));
+  memcpy(axis_sign_.data(), AxisSign.value, AxisSign.length * sizeof(int8_t));
+
+  return true;
+}
+
 void ImuService::tick() {
   if (!imu_found) {
     static uint32_t last_log = 0;
@@ -116,18 +124,18 @@ void ImuService::tick() {
     /* Read magnetic field data */
     memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
     lsm6ds3tr_c_acceleration_raw_get(&dev_ctx, data_raw_acceleration);
-    axes[0] = lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[0]) / 1000.0;
-    axes[1] = -lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[1]) / 1000.0;
-    axes[2] = -lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[2]) / 1000.0;
+    axes[0] = axis_sign_[0] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_[0]]) / 1000.0;
+    axes[1] = axis_sign_[1] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_[1]]) / 1000.0;
+    axes[2] = axis_sign_[2] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_[2]]) / 1000.0;
   }
 
   if (reg.status_reg.gda) {
     /* Read magnetic field data */
     memset(data_raw_angular_rate, 0x00, 3 * sizeof(int16_t));
     lsm6ds3tr_c_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate);
-    axes[3] = M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[0]) / 180000.0;
-    axes[4] = -M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[1]) / 180000.0;
-    axes[5] = -M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[2]) / 180000.0;
+    axes[3] = axis_sign_[0] * M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[axis_remap_[0]]) / 180000.0;
+    axes[4] = axis_sign_[1] * M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[axis_remap_[1]]) / 180000.0;
+    axes[5] = axis_sign_[2] * M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[axis_remap_[2]]) / 180000.0;
   }
 
   /*if (reg.status_reg.tda) {
