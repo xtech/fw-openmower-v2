@@ -12,7 +12,7 @@
 
 class ImuService : public ImuServiceBase {
  private:
-  THD_WORKING_AREA(wa, 1024);
+  THD_WORKING_AREA(wa, 1000);
 
  public:
   explicit ImuService(const uint16_t service_id) : ImuServiceBase(service_id, 10'000, wa, sizeof(wa)) {
