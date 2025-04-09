@@ -34,7 +34,13 @@ bool BQ2579::init(I2CDriver* i2c_driver) {
   return true;
 }
 bool BQ2579::resetWatchdog() {
-  return true;
+  uint8_t register_value = 0;
+  if (!readRegister(REG_Charger_Control_1, register_value)) {
+    return false;
+  }
+
+  register_value |= 0b00001000;
+  return writeRegister8(REG_Charger_Control_1, register_value);
 }
 bool BQ2579::setTsEnabled(bool enabled) {
   uint8_t register_value = 0;
