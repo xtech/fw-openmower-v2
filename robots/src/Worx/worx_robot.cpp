@@ -7,8 +7,11 @@
 #include <globals.hpp>
 
 #include "robot.hpp"
+#include <drivers/charger/bq_2576/bq_2576.hpp>
 
 namespace Robot {
+
+static BQ2576 charger{};
 
 namespace General {
 void InitPlatform() {
@@ -45,6 +48,10 @@ namespace Power {
 
 I2CDriver* GetPowerI2CD() {
   return &I2CD1;
+}
+
+Charger* GetCharger() {
+  return &charger;
 }
 
 float GetMaxVoltage() {

@@ -5,8 +5,6 @@
 #include "power_service.hpp"
 
 #include <ulog.h>
-
-#include <drivers/bq_2576/bq_2576.hpp>
 #include <robot.hpp>
 
 #include "board.h"
@@ -17,16 +15,21 @@ bool PowerService::OnStart() {
 }
 
 void PowerService::tick() {
+  if (charger == nullptr) {
+    ULOG_ARG_ERROR(&service_id_, "Charger is null!");
+    return;
+  }
+
   if (!charger_configured_) {
     // charger not configured, configure it
-    if (charger.init(Robot::Power::GetPowerI2CD())) {
+    if (charger->init(Robot::Power::GetPowerI2CD())) {
       // Set the currents low
       bool success = true;
-      success &= charger.setPreChargeCurrent(0.250f);
-      success &= charger.setTerminationCurrent(0.250f);
-      success &= charger.setChargingCurrent(Robot::Power::GetChargeCurrent(), false);
+      success &= charger->setPreChargeCurrent(0.250f);
+      success &= charger->setTerminationCurrent(0.250f);
+      success &= charger->setChargingCurrent(Robot::Power::GetChargeCurrent(), false);
       // Disable temperature sense, the battery doesnt have it
-      success &= charger.setTsEnabled(false);
+      success &= charger->setTsEnabled(false);
       charger_configured_ = success;
     }
 
@@ -39,51 +42,36 @@ void PowerService::tick() {
     // charger is configured, do monitoring
     bool success = true;
     {
-      bool s = charger.resetWatchdog();
+      bool s = charger->resetWatchdog();
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Resetting Watchdog");
       }
       success &= s;
     }
     {
-      bool s = charger.readChargeCurrent(charge_current);
+      bool s = charger->readChargeCurrent(charge_current);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Charge Current");
       }
       success &= s;
     }
     {
-      bool s = charger.readBatteryVoltage(battery_volts);
+      bool s = charger->readBatteryVoltage(battery_volts);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Battery Voltage");
       }
       success &= s;
     }
     {
-      bool s = charger.readAdapterVoltage(adapter_volts);
+      bool s = charger->readAdapterVoltage(adapter_volts);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Adapter Voltage");
       }
       success &= s;
     }
-    faults = charger.readFaults();
+    charger_status = charger->getChargerStatus();
 
-    {
-      bool s = charger.getChargerFlags(flags1, flags2, flags3);
-      if (!s) {
-        ULOG_ARG_WARNING(&service_id_, "Error Reading Flags");
-      }
-      success &= s;
-    }
-    {
-      bool s = charger.getChargerStatus(status1, status2, status3);
-      if (!s) {
-        ULOG_ARG_WARNING(&service_id_, "Error Reading Status");
-      }
-      success &= s;
-    }
-
-    if (!success || status1 & 0b1000) {
+    if (!success || charger_status == CHARGER_STATUS::COMMS_ERROR) {
       // Error during comms or watchdog timer expired, reconfigure charger
       charger_configured_ = false;
       ULOG_ARG_ERROR(&service_id_, "Error during charging comms - reconfiguring");
@@ -102,22 +90,33 @@ void PowerService::tick() {
   // Send the sensor values
   StartTransaction();
   if (charger_configured_) {
-    if (faults) {
-      SendChargingStatus(CHARGE_STATUS_FAULT, strlen(CHARGE_STATUS_FAULT));
-    } else {
-      switch (status1 & 0b111) {
-        case 0: SendChargingStatus(CHARGE_STATUS_NOT_CHARGING, strlen(CHARGE_STATUS_NOT_CHARGING)); break;
-        case 1: SendChargingStatus(CHARGE_STATUS_TRICKLE, strlen(CHARGE_STATUS_TRICKLE)); break;
-        case 2: SendChargingStatus(CHARGE_STATUS_PRE_CHARGE, strlen(CHARGE_STATUS_PRE_CHARGE)); break;
-        case 3: SendChargingStatus(CHARGE_STATUS_CC, strlen(CHARGE_STATUS_CC)); break;
-        case 4: SendChargingStatus(CHARGE_STATUS_CV, strlen(CHARGE_STATUS_CV)); break;
-        case 6: SendChargingStatus(CHARGE_STATUS_TOP_OFF, strlen(CHARGE_STATUS_TOP_OFF)); break;
-        case 7: SendChargingStatus(CHARGE_STATUS_DONE, strlen(CHARGE_STATUS_DONE)); break;
-        default: SendChargingStatus(CHARGE_STATUS_ERROR, strlen(CHARGE_STATUS_ERROR)); break;
-      }
+    switch (charger_status) {
+      case CHARGER_STATUS::NOT_CHARGING:
+        SendChargingStatus(CHARGE_STATUS_NOT_CHARGING_STR, strlen(CHARGE_STATUS_NOT_CHARGING_STR));
+        break;
+      case CHARGER_STATUS::TRICKLE:
+        SendChargingStatus(CHARGE_STATUS_TRICKLE_STR, strlen(CHARGE_STATUS_TRICKLE_STR));
+        break;
+      case CHARGER_STATUS::PRE_CHARGE:
+        SendChargingStatus(CHARGE_STATUS_PRE_CHARGE_STR, strlen(CHARGE_STATUS_PRE_CHARGE_STR));
+        break;
+      case CHARGER_STATUS::CC: SendChargingStatus(CHARGE_STATUS_CC_STR, strlen(CHARGE_STATUS_CC_STR)); break;
+      case CHARGER_STATUS::CV: SendChargingStatus(CHARGE_STATUS_CV_STR, strlen(CHARGE_STATUS_CV_STR)); break;
+      case CHARGER_STATUS::TOP_OFF:
+        SendChargingStatus(CHARGE_STATUS_TOP_OFF_STR, strlen(CHARGE_STATUS_TOP_OFF_STR));
+        break;
+      case CHARGER_STATUS::DONE: SendChargingStatus(CHARGE_STATUS_DONE_STR, strlen(CHARGE_STATUS_DONE_STR)); break;
+      case CHARGER_STATUS::FAULT: SendChargingStatus(CHARGE_STATUS_FAULT_STR, strlen(CHARGE_STATUS_FAULT_STR)); break;
+      case CHARGER_STATUS::COMMS_ERROR:
+      case CHARGER_STATUS::UNKNOWN:
+        SendChargingStatus(CHARGE_STATUS_UNKNOWN_STR, strlen(CHARGE_STATUS_UNKNOWN_STR));
+        break;
+      default:
+        SendChargingStatus(CHARGE_STATUS_ERROR_STR, strlen(CHARGE_STATUS_ERROR_STR));
+        break;
     }
   } else {
-    SendChargingStatus(CHARGE_STATUS_CHARGER_NOT_FOUND, strlen(CHARGE_STATUS_CHARGER_NOT_FOUND));
+    SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
   }
   SendBatteryVoltage(battery_volts);
   SendChargeVoltage(adapter_volts);

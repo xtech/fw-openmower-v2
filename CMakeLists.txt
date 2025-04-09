@@ -18,12 +18,12 @@ include("cmake/gcc-arm-none-eabi.cmake")
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
-# Enable CMake support for ASM and C languages
-enable_language(C CXX ASM)
 
 # Core project settings
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
+# Enable CMake support for ASM and C languages
+enable_language(C CXX ASM)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
@@ -58,10 +58,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/power_service/power_service.cpp
         src/services/emergency_service/emergency_service.cpp
         src/services/diff_drive_service/diff_drive_service.cpp
+        src/services/pwm_diff_drive_service/pwm_diff_drive_service.cpp
         src/services/mower_service/mower_service.cpp
         src/services/gps_service/gps_service.cpp
         # BQ2567 driver
-        src/drivers/bq_2576/bq_2576.cpp
+        src/drivers/charger/bq_2576/bq_2576.cpp
+        # BQ25679 driver
+        src/drivers/charger/bq_2579/bq_2579.cpp
         # VESC driver
         src/drivers/vesc/buffer.cpp
         src/drivers/vesc/crc.cpp

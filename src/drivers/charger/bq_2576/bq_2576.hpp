@@ -8,8 +8,9 @@
 #include <cstdint>
 
 #include "hal.h"
+#include <drivers/charger/charger.hpp>
 
-class BQ2576 {
+class BQ2576 : public Charger {
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x6B;
   static constexpr uint8_t REG_PART_INFORMATION = 0x3D;
@@ -37,31 +38,32 @@ class BQ2576 {
   static constexpr uint8_t REG_Precharge_Current_Limit = 0x10;
   static constexpr uint8_t REG_Precharge_and_Termination_Control = 0x14;
 
-  I2CDriver *i2c_driver_ = nullptr;
 
   bool readRegister(uint8_t reg, uint8_t &result);
   bool readRegister(uint8_t reg, uint16_t &result);
   bool writeRegister8(uint8_t reg, uint8_t value);
   bool writeRegister16(uint8_t reg, uint16_t value);
 
- public:
-  bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit);
-  bool setPreChargeCurrent(float current_amps);
-  bool setTerminationCurrent(float current_amps);
-
   bool getChargerStatus(uint8_t &status1, uint8_t &status2, uint8_t &status3);
   bool getChargerFlags(uint8_t &flags1, uint8_t &flags2, uint8_t &flags3);
-
-  bool init(I2CDriver *i2c_driver);
-  bool resetWatchdog();
-
-  bool setTsEnabled(bool enabled);
+  bool readVFB(float &result);
 
   uint8_t readFaults();
-  bool readChargeCurrent(float &result);
-  bool readAdapterVoltage(float &result);
-  bool readBatteryVoltage(float &result);
-  bool readVFB(float &result);
+
+ public:
+  bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) override;
+  bool setPreChargeCurrent(float current_amps) override;
+  bool setTerminationCurrent(float current_amps) override;
+
+  CHARGER_STATUS getChargerStatus() override;
+  bool init(I2CDriver *i2c_driver) override;
+  bool resetWatchdog() override;
+
+  bool setTsEnabled(bool enabled) override;
+
+  bool readChargeCurrent(float &result) override;
+  bool readAdapterVoltage(float &result) override;
+  bool readBatteryVoltage(float &result) override;
 };
 
 #endif  // BQ_2576_HPP
