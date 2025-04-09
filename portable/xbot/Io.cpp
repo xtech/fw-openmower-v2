@@ -23,7 +23,7 @@ static XBOT_SOCKET_TYPEDEF udp_socket_{};
  * On data reception, the handlePacket method will be called for the service.
  */
 #ifdef XBOT_ENABLE_STATIC_STACK
-static THD_WORKING_AREA(waIoThread, 128000);
+static THD_WORKING_AREA(waIoThread, 2000);
 #endif
 XBOT_THREAD_TYPEDEF io_thread_{};
 
