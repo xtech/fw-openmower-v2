@@ -33,6 +33,7 @@ class BQ2579 : public Charger {
   static constexpr uint8_t REG_VBAT_ADC = 0x3B;
   static constexpr uint8_t REG_VSYS_ADC = 0x3D;
   static constexpr uint8_t REG_ADC_Control = 0x2E;
+  static constexpr uint8_t REG_NTC_Control_1 = 0x18;
 
   bool readRegister(uint8_t reg, uint8_t& result);
   bool readRegister(uint8_t reg, uint16_t& result);

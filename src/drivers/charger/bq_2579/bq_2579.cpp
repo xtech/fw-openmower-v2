@@ -37,9 +37,19 @@ bool BQ2579::resetWatchdog() {
   return true;
 }
 bool BQ2579::setTsEnabled(bool enabled) {
-  (void)enabled;
-  return true;
-  return false;
+  uint8_t register_value = 0;
+  if (!readRegister(REG_NTC_Control_1, register_value)) {
+    return false;
+  }
+
+  if (!enabled) {
+    // set IGNORE bit
+    register_value |= 0b1;
+  } else {
+    // clear IGNORE bit
+    register_value &= 0b11111110;
+  }
+  return writeRegister8(REG_NTC_Control_1, register_value);
 }
 bool BQ2579::readChargeCurrent(float& result) {
   uint16_t raw_result = 0;
@@ -82,7 +92,7 @@ bool BQ2579::readRegister(uint8_t reg, uint16_t& result) {
   uint8_t buf[2];
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), buf,
                               sizeof(buf)) == MSG_OK;
-  result = buf[1] << 8 | buf[0];
+  result = buf[0] << 8 | buf[1];
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
