@@ -18,6 +18,7 @@ enum class CHARGER_STATUS : uint8_t {
   DONE,
   FAULT,
   COMMS_ERROR,
+  UNKNOWN
 };
 
 class Charger {

@@ -31,6 +31,7 @@ class PowerService : public PowerServiceBase {
   static constexpr auto CHARGE_STATUS_CV_STR = "Taper Charge (CV)";
   static constexpr auto CHARGE_STATUS_TOP_OFF_STR = "Top Off";
   static constexpr auto CHARGE_STATUS_DONE_STR = "Done";
+  static constexpr auto CHARGE_STATUS_UNKNOWN_STR = "Unknown State";
 
   void tick() override;
 

@@ -88,11 +88,11 @@ float GetMaxVoltage() {
 }
 
 float GetChargeCurrent() {
-  return 0.5;
+  return 1.0;
 }
 
 float GetMinVoltage() {
-  // 3.3V min, 7s pack
+  // 3.3V min, 4s pack
   return 4.0f * 3.3;
 }
 

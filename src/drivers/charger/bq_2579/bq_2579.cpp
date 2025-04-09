@@ -6,26 +6,68 @@
 BQ2579::~BQ2579() = default;
 
 bool BQ2579::setChargingCurrent(float current_amps, bool overwrite_hardware_limit) {
-  (void)current_amps;
   (void)overwrite_hardware_limit;
-  return true;
-  return false;
+  if (current_amps > 5.0f) {
+    current_amps = 5.0f;
+  }
+  return writeRegister16(REG_Charge_Current_Limit, static_cast<uint16_t>(current_amps * 100.0f));
 }
 bool BQ2579::setPreChargeCurrent(float current_amps) {
   (void)current_amps;
   return true;
-  return false;
 }
 bool BQ2579::setTerminationCurrent(float current_amps) {
-  (void)current_amps;
-  return true;
-  return false;
+  if (current_amps > 1.0f) {
+    current_amps = 1.0f;
+  } else if (current_amps < 0.04f) {
+    current_amps = 0.04f;
+  }
+  uint8_t raw_value = static_cast<uint8_t>(current_amps / 0.04f);
+  return writeRegister8(REG_Termination_Control, raw_value);
 }
 CHARGER_STATUS BQ2579::getChargerStatus() {
-  return CHARGER_STATUS::NOT_CHARGING;
+
+  uint8_t fault0, fault1;
+  if (!readRegister(REG_FAULT_Status_0, fault0)) {
+    return CHARGER_STATUS::COMMS_ERROR;
+  }
+  if (!readRegister(REG_FAULT_Status_1, fault1)) {
+    return CHARGER_STATUS::COMMS_ERROR;
+  }
+
+  if (fault0 || fault1) {
+    return CHARGER_STATUS::FAULT;
+  }
+
+  uint8_t status;
+  if (!readRegister(REG_Charger_Status_1, status)) {
+    return CHARGER_STATUS::COMMS_ERROR;
+  }
+
+  switch (status >> 5) {
+    case 0x00:
+      return CHARGER_STATUS::NOT_CHARGING;
+    case 0x01:
+      return CHARGER_STATUS::TRICKLE;
+    case 0x02:
+      return CHARGER_STATUS::PRE_CHARGE;
+    case 0x03:
+      return CHARGER_STATUS::CC;
+    case 0x04:
+      return CHARGER_STATUS::CV;
+    case 0x07:
+      return CHARGER_STATUS::DONE;
+    default:
+      return CHARGER_STATUS::UNKNOWN;
+  }
 }
 bool BQ2579::init(I2CDriver* i2c_driver) {
   this->i2c_driver_ = i2c_driver;
+
+  // reset to default values
+  if (!writeRegister8(REG_Termination_Control, 0b01000101)) {
+    return false;
+  }
 
   if (!writeRegister8(REG_ADC_Control, 0b10000000)) {
     return false;
@@ -61,7 +103,7 @@ bool BQ2579::readChargeCurrent(float& result) {
   uint16_t raw_result = 0;
   if (!readRegister(REG_IBAT_ADC, raw_result))
     return false;
-  result = static_cast<float>(raw_result)/1000.0f;
+  result = static_cast<float>(static_cast<int16_t>(raw_result))/1000.0f;
   return true;
 }
 bool BQ2579::readAdapterVoltage(float& result) {
@@ -112,7 +154,7 @@ bool BQ2579::writeRegister8(uint8_t reg, uint8_t value) {
 
 bool BQ2579::writeRegister16(uint8_t reg, uint16_t value) {
   const auto ptr = reinterpret_cast<uint8_t*>(&value);
-  uint8_t payload[3] = {reg, ptr[0], ptr[1]};
+  uint8_t payload[3] = {reg, ptr[1], ptr[0]};
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload, sizeof(payload), nullptr, 0) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
