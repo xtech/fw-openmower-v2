@@ -4,6 +4,7 @@
 
 #include <ulog.h>
 
+#include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <globals.hpp>
 
 #include "robot.hpp"

@@ -2,8 +2,10 @@
 // Created by clemens on 27.01.25.
 //
 
-#include "robot.hpp"
+#include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <globals.hpp>
+
+#include "robot.hpp"
 
 namespace Robot {
 
