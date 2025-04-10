@@ -2,10 +2,15 @@
 // Created by clemens on 03.04.25.
 //
 
-#include "pwm_diff_drive_service.hpp"
-#include <hal.h>
 #include <robot.hpp>
+
+#ifdef PWM_DIFF_DRIVE
+
+#include <hal.h>
+
 #include <xbot-service/portable/system.hpp>
+
+#include "pwm_diff_drive_service.hpp"
 
 void PWMDiffDriveService::OnMowerStatusChanged(MowerStatus new_status) {
   if (!new_status.emergency_latch && !new_status.emergency_active) {
@@ -142,3 +147,5 @@ void PWMDiffDriveService::OnControlTwistChanged(const double* new_value, uint32_
     SetDuty();
   }
 }
+
+#endif
