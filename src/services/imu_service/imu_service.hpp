@@ -32,8 +32,10 @@ class ImuService : public ImuServiceBase {
   int16_t data_raw_temperature;
   double axes[9]{};
   float temperature_degC;
-  etl::array<uint8_t, 3> axis_remap_ = {0, 1, 2};  // Default (YardForce mainboard) mapping: X->0, Y->1, Z->2
-  etl::array<int8_t, 3> axis_sign_ = {1, -1, -1};  // Default (YardForce mainboard) signs
+
+  // Default (YardForce mainboard) mapping: +X-Y-Z
+  etl::array<uint8_t, 3> axis_remap_idx_{1, 2, 3};
+  etl::array<int8_t, 3> axis_remap_sign_{1, -1, -1};
 };
 
 #endif  // IMU_SERVICE_HPP
