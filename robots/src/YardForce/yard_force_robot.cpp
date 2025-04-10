@@ -7,6 +7,8 @@
 
 namespace Robot {
 
+static BQ2576 charger{};
+
 namespace General {
 void InitPlatform() {
   // Not used, we could star the GUI driver task here for example
@@ -33,6 +35,10 @@ namespace Power {
 
 I2CDriver* GetPowerI2CD() {
   return &I2CD1;
+}
+
+Charger* GetCharger() {
+  return &charger;
 }
 
 float GetMaxVoltage() {
