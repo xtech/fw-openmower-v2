@@ -5,8 +5,10 @@
 #ifndef IMU_SERVICE_HPP
 #define IMU_SERVICE_HPP
 
-#include <ImuServiceBase.hpp>
+#include <etl/array.h>
 #include <etl/string.h>
+
+#include <ImuServiceBase.hpp>
 
 class ImuService : public ImuServiceBase {
  private:
@@ -18,6 +20,7 @@ class ImuService : public ImuServiceBase {
 
  protected:
   void OnCreate() override;
+  bool OnStart() override;
 
  private:
   bool imu_found = false;
@@ -29,6 +32,10 @@ class ImuService : public ImuServiceBase {
   int16_t data_raw_temperature;
   double axes[9]{};
   float temperature_degC;
+
+  // Default (YardForce mainboard) mapping: +X-Y-Z
+  etl::array<uint8_t, 3> axis_remap_idx_{1, 2, 3};
+  etl::array<int8_t, 3> axis_remap_sign_{1, -1, -1};
 };
 
 #endif  // IMU_SERVICE_HPP
