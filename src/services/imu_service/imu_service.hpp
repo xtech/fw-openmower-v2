@@ -8,12 +8,14 @@
 #include <ImuServiceBase.hpp>
 #include <etl/string.h>
 
+using namespace xbot::service;
+
 class ImuService : public ImuServiceBase {
  private:
   THD_WORKING_AREA(wa, 1000);
 
  public:
-  explicit ImuService(const uint16_t service_id) : ImuServiceBase(service_id, 10'000, wa, sizeof(wa)) {
+  explicit ImuService(const uint16_t service_id) : ImuServiceBase(service_id, wa, sizeof(wa)) {
   }
 
  protected:
@@ -21,7 +23,6 @@ class ImuService : public ImuServiceBase {
 
  private:
   bool imu_found = false;
-  void tick() override;
   etl::string<255> error_message{};
 
   int16_t data_raw_acceleration[3];
@@ -29,6 +30,10 @@ class ImuService : public ImuServiceBase {
   int16_t data_raw_temperature;
   double axes[9]{};
   float temperature_degC;
+
+  void tick();
+  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 10'000,
+                                 XBOT_FUNCTION_FOR_METHOD(ImuService, &ImuService::tick, this)};
 };
 
 #endif  // IMU_SERVICE_HPP
