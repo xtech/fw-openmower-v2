@@ -6,14 +6,44 @@
 #include <globals.hpp>
 
 #include "robot.hpp"
+#include <drivers/emergency/gpio_emergency_driver.hpp>
 
 namespace Robot {
 
 static BQ2576 charger{};
+static GPIOEmergencyDriver emergencyDriver{};
 
 namespace General {
 void InitPlatform() {
-  // Not used, we could star the GUI driver task here for example
+  emergencyDriver.AddInput({
+      .gpio_line = LINE_EMERGENCY_1,
+      .invert = true,
+      .active_since = 0,
+      .timeout_duration = TIME_MS2I(10),
+      .active = false
+  });
+  emergencyDriver.AddInput({
+      .gpio_line = LINE_EMERGENCY_2,
+      .invert = true,
+      .active_since = 0,
+      .timeout_duration = TIME_MS2I(10),
+      .active = false
+  });
+  emergencyDriver.AddInput({
+      .gpio_line = LINE_EMERGENCY_3,
+      .invert = true,
+      .active_since = 0,
+      .timeout_duration = TIME_MS2I(500),
+      .active = false
+  });
+  emergencyDriver.AddInput({
+      .gpio_line = LINE_EMERGENCY_4,
+      .invert = true,
+      .active_since = 0,
+      .timeout_duration = TIME_MS2I(500),
+      .active = false
+  });
+  emergencyDriver.Start();
 }
 
 bool IsHardwareSupported() {
