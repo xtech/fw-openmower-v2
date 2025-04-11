@@ -11,11 +11,13 @@
 #include <MowerServiceBase.hpp>
 #include <debug/debug_tcp_interface.hpp>
 #include <globals.hpp>
+
 using namespace xbot::driver::esc;
+using namespace xbot::service;
 
 class MowerService : public MowerServiceBase {
  public:
-  explicit MowerService(const uint16_t service_id) : MowerServiceBase(service_id, 500'000, wa, sizeof(wa)) {
+  explicit MowerService(const uint16_t service_id) : MowerServiceBase(service_id, wa, sizeof(wa)) {
   }
 
   void OnMowerStatusChanged(MowerStatus new_status);
@@ -26,7 +28,10 @@ class MowerService : public MowerServiceBase {
   void OnStop() override;
 
  private:
-  void tick() override;
+  void tick();
+  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 500'000,
+                                 XBOT_FUNCTION_FOR_METHOD(MowerService, &MowerService::tick, this)};
+
   void SetDuty();
   MUTEX_DECL(mtx);
 

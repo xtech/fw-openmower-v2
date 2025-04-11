@@ -11,9 +11,11 @@
 #include <drivers/charger/charger.hpp>
 #include <robot.hpp>
 
+using namespace xbot::service;
+
 class PowerService : public PowerServiceBase {
  public:
-  explicit PowerService(uint16_t service_id) : PowerServiceBase(service_id, 1'000'000, wa, sizeof(wa)) {
+  explicit PowerService(uint16_t service_id) : PowerServiceBase(service_id, wa, sizeof(wa)) {
   }
 
  protected:
@@ -33,7 +35,9 @@ class PowerService : public PowerServiceBase {
   static constexpr auto CHARGE_STATUS_DONE_STR = "Done";
   static constexpr auto CHARGE_STATUS_UNKNOWN_STR = "Unknown State";
 
-  void tick() override;
+  void tick();
+  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 1'000'000,
+                                 XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::tick, this)};
 
   bool charger_configured_ = false;
   float charge_current = 0;

@@ -12,7 +12,9 @@
 #include <debug/debug_tcp_interface.hpp>
 #include <globals.hpp>
 #include <xbot-service/portable/socket.hpp>
+
 using namespace xbot::driver::esc;
+using namespace xbot::service;
 
 class PWMDiffDriveService : public DiffDriveServiceBase {
 private:
@@ -32,8 +34,8 @@ private:
   uint32_t last_ticks_micros_ = 0;
 
 public:
-  explicit PWMDiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, 40'000, wa, sizeof(wa)) {
-  }
+ explicit PWMDiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, wa, sizeof(wa)) {
+ }
 
   void OnMowerStatusChanged(MowerStatus new_status);
 
@@ -43,14 +45,15 @@ protected:
   void OnStop() override;
 
 private:
-  void tick() override;
+ void tick();
+ ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 40'000,
+                                XBOT_FUNCTION_FOR_METHOD(PWMDiffDriveService, &PWMDiffDriveService::tick, this)};
 
-  static void HandleEncoderTickLeft(void* instance);
-  static void HandleEncoderTickRight(void* instance);
+ static void HandleEncoderTickLeft(void* instance);
+ static void HandleEncoderTickRight(void* instance);
 
-
-  PWMConfig pwm_config_{};
-  void SetDuty();
+ PWMConfig pwm_config_{};
+ void SetDuty();
 
 protected:
   void OnControlTwistChanged(const double *new_value, uint32_t length) override;
