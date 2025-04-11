@@ -17,7 +17,7 @@ void GPIOEmergencyDriver::Start() {
   }
   thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO, ThreadHelper, this);
 #ifdef USE_SEGGER_SYSTEMVIEW
-  processing_thread_->name = "VESCDriver";
+  processing_thread_->name = "GPIOEmergencyDriver";
 #endif
 }
 void GPIOEmergencyDriver::ThreadHelper(void *instance) {
