@@ -89,6 +89,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/input/gpio_input_driver.cpp
         src/drivers/input/worx_input_driver.cpp
         $<$<CONFIG:Debug>:src/drivers/input/simulated_input_driver.cpp>
+        # YardForce Cover UI Driver
+        src/drivers/ui/YardForceCoverUI/yard_force_cover_ui_driver.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
@@ -121,6 +123,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         etl::etl
         LittleFS
         lwjson
+        FastCRC
 )
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
