@@ -13,7 +13,7 @@ file(GLOB_RECURSE PLATFORM_SOURCES "${CMAKE_CURRENT_LIST_DIR}/src/${ROBOT_PLATFO
 set(PLATFORM_HEADER_PATH "${CMAKE_CURRENT_LIST_DIR}/src/${ROBOT_PLATFORM}/robot_ex.hpp")
 if(EXISTS ${PLATFORM_HEADER_PATH})
     message("Additional Robot Platform header found")
-add_compile_definitions(-DROBOT_PLATFORM_HEADER="${PLATFORM_HEADER_PATH}")
+add_compile_definitions(ROBOT_PLATFORM_HEADER="${PLATFORM_HEADER_PATH}")
 else ()
     message("No Robot Platform header found")
 endif ()
