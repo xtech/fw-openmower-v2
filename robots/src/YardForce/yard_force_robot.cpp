@@ -48,8 +48,18 @@ void InitPlatform() {
 
 bool IsHardwareSupported() {
   // Accept YardForce 1.x.x boards
-  return strncmp("hw-openmower-yardforce", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
-      carrier_board_info.version_major == 1;
+  if (strncmp("hw-openmower-yardforce", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
+      carrier_board_info.version_major == 1) {
+    return true;
+  }
+
+  // Accept early testing boards
+  if (strncmp("hw-xbot-devkit", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0) {
+    return true;
+  }
+
+
+  return false;
 }
 
 }  // namespace General
