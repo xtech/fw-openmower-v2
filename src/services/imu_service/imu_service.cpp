@@ -132,9 +132,9 @@ void ImuService::tick() {
     /* Read magnetic field data */
     memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
     lsm6ds3tr_c_acceleration_raw_get(&dev_ctx, data_raw_acceleration);
-    axes[0] = axis_remap_sign_[0] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[0]]) / 1000.0;
-    axes[1] = axis_remap_sign_[1] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[1]]) / 1000.0;
-    axes[2] = axis_remap_sign_[2] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[2]]) / 1000.0;
+    axes[0] = axis_remap_sign_[0] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[0]]) * 0.00980665;
+    axes[1] = axis_remap_sign_[1] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[1]]) * 0.00980665;
+    axes[2] = axis_remap_sign_[2] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[2]]) * 0.00980665;
   }
 
   if (reg.status_reg.gda) {
