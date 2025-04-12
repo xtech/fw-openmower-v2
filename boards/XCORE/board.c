@@ -268,3 +268,11 @@ void boardInit(void) {
         initBoardPeriphs();
     
 }
+
+void HardFault_Handler() {
+#ifdef RELEASE_BUILD
+  NVIC_SystemReset();
+#else
+  chSysHalt("Hard Fault");
+#endif
+}
