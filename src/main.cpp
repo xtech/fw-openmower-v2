@@ -22,6 +22,8 @@
 #include "services.hpp"
 #include "status_led.h"
 
+static void DispatchEvents();
+
 /*
  * Application entry point.
  */
@@ -118,6 +120,10 @@ int main() {
 
   SetStatusLedColor(GREEN);
 
+  DispatchEvents();
+}
+
+static void DispatchEvents() {
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;
   const eventid_t MOWER_EVENTS_ID = 1;
