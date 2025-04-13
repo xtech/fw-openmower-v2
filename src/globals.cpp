@@ -4,8 +4,12 @@
 
 #include "globals.hpp"
 
-CC_SECTION(".ram4") struct board_info board_info {};
-CC_SECTION(".ram4") struct carrier_board_info carrier_board_info {};
+#include <xbot-service/Lock.hpp>
+
+using namespace xbot::service;
+
+CC_SECTION(".ram4") struct board_info board_info{};
+CC_SECTION(".ram4") struct carrier_board_info carrier_board_info{};
 
 EVENTSOURCE_DECL(mower_events);
 MUTEX_DECL(mower_status_mutex);
@@ -19,16 +23,12 @@ void InitGlobals() {
 }
 
 MowerStatus GetMowerStatus() {
-  chMtxLock(&mower_status_mutex);
-  MowerStatus status_copy = mower_status;
-  chMtxUnlock(&mower_status_mutex);
-  return status_copy;
+  Lock lock(&mower_status_mutex);
+  return mower_status;
 }
 
 MowerStatus UpdateMowerStatus(const etl::delegate<void(MowerStatus& mower_status)>& callback) {
-  chMtxLock(&mower_status_mutex);
+  Lock lock(&mower_status_mutex);
   callback(mower_status);
-  MowerStatus status_copy = mower_status;
-  chMtxUnlock(&mower_status_mutex);
-  return status_copy;
+  return mower_status;
 }
