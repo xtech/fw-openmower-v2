@@ -11,7 +11,9 @@
 #include <debug/debug_tcp_interface.hpp>
 #include <globals.hpp>
 #include <xbot-service/portable/socket.hpp>
+
 using namespace xbot::driver::esc;
+using namespace xbot::service;
 
 class DiffDriveService : public DiffDriveServiceBase {
  private:
@@ -40,7 +42,7 @@ class DiffDriveService : public DiffDriveServiceBase {
   bool duty_sent_ = false;
 
  public:
-  explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, 40'000, wa, sizeof(wa)) {
+  explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, wa, sizeof(wa)) {
   }
 
   void OnMowerStatusChanged(MowerStatus new_status);
@@ -51,7 +53,9 @@ class DiffDriveService : public DiffDriveServiceBase {
   void OnStop() override;
 
  private:
-  void tick() override;
+  void tick();
+  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 40'000,
+                                 XBOT_FUNCTION_FOR_METHOD(DiffDriveService, &DiffDriveService::tick, this)};
 
   void SetDuty();
 

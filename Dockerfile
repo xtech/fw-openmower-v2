@@ -15,6 +15,8 @@ WORKDIR /project
 RUN mkdir build
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=YardForce -BYardForce && cd YardForce && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Worx -BWorx && cd Worx && make -j$(nproc)
+RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Lyfco_E1600 -BLyfco_E1600 && cd Lyfco_E1600 && make -j$(nproc)
+RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Sabo -BSabo && cd Sabo && make -j$(nproc)
 
 
 FROM scratch
@@ -23,3 +25,9 @@ COPY --from=builder /project/build/YardForce/openmower.elf /openmower-yardforce.
 
 COPY --from=builder /project/build/Worx/openmower.bin /openmower-worx.bin
 COPY --from=builder /project/build/Worx/openmower.elf /openmower-worx.elf
+
+COPY --from=builder /project/build/Lyfco_E1600/openmower.bin /openmower-lyfco-e1600.bin
+COPY --from=builder /project/build/Lyfco_E1600/openmower.elf /openmower-lyfco-e1600.elf
+
+COPY --from=builder /project/build/Sabo/openmower.bin /openmower-sabo.bin
+COPY --from=builder /project/build/Sabo/openmower.elf /openmower-sabo.elf

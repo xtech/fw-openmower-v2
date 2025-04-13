@@ -4,10 +4,10 @@
 
 #include <ulog.h>
 
+#include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <globals.hpp>
 
 #include "robot.hpp"
-#include <drivers/charger/bq_2576/bq_2576.hpp>
 
 namespace Robot {
 
@@ -55,16 +55,16 @@ Charger* GetCharger() {
 }
 
 float GetMaxVoltage() {
-  return 5.0f * 4.2f;
+  return 7.0f * 4.2f;
 }
 
 float GetChargeCurrent() {
-  return 1.0;
+  return 2.5;
 }
 
 float GetMinVoltage() {
-  // 3.3V min, 5s pack
-  return 5.0f * 3.3;
+  // 3.3V min, 7s pack
+  return 7.0f * 3.3;
 }
 
 }  // namespace Power

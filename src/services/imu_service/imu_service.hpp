@@ -10,12 +10,14 @@
 
 #include <ImuServiceBase.hpp>
 
+using namespace xbot::service;
+
 class ImuService : public ImuServiceBase {
  private:
   THD_WORKING_AREA(wa, 1000);
 
  public:
-  explicit ImuService(const uint16_t service_id) : ImuServiceBase(service_id, 10'000, wa, sizeof(wa)) {
+  explicit ImuService(const uint16_t service_id) : ImuServiceBase(service_id, wa, sizeof(wa)) {
   }
 
  protected:
@@ -24,7 +26,6 @@ class ImuService : public ImuServiceBase {
 
  private:
   bool imu_found = false;
-  void tick() override;
   etl::string<255> error_message{};
 
   int16_t data_raw_acceleration[3];
@@ -36,6 +37,10 @@ class ImuService : public ImuServiceBase {
   // Default (YardForce mainboard) mapping: +X-Y-Z
   etl::array<uint8_t, 3> axis_remap_idx_{1, 2, 3};
   etl::array<int8_t, 3> axis_remap_sign_{1, -1, -1};
+
+  void tick();
+  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 10'000,
+                                 XBOT_FUNCTION_FOR_METHOD(ImuService, &ImuService::tick, this)};
 };
 
 #endif  // IMU_SERVICE_HPP

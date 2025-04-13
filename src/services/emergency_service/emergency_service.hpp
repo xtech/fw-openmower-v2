@@ -9,12 +9,14 @@
 
 #include <EmergencyServiceBase.hpp>
 
+using namespace xbot::service;
+
 class EmergencyService : public EmergencyServiceBase {
  private:
   THD_WORKING_AREA(wa, 1024){};
 
  public:
-  explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, 100'000, wa, sizeof(wa)) {
+  explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, wa, sizeof(wa)) {
   }
 
  protected:
@@ -22,7 +24,9 @@ class EmergencyService : public EmergencyServiceBase {
   void OnStop() override;
 
  private:
-  void tick() override;
+  void tick();
+  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 100'000,
+                                 XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::tick, this)};
 
   systime_t last_clear_emergency_message_ = 0;
   etl::string<100> emergency_reason{"Boot"};

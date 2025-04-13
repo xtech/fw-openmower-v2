@@ -22,6 +22,7 @@
 
 #include "../services/service_ids.h"
 #include "services/diff_drive_service/diff_drive_service.hpp"
+#include "services/pwm_diff_drive_service/pwm_diff_drive_service.hpp"
 #include "services/emergency_service/emergency_service.hpp"
 #include "services/gps_service/gps_service.hpp"
 #include "services/imu_service/imu_service.hpp"
@@ -29,7 +30,11 @@
 #include "services/power_service/power_service.hpp"
 
 EmergencyService emergency_service{xbot::service_ids::EMERGENCY};
+#ifdef PWM_DIFF_DRIVE
+PWMDiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
+#else
 DiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
+#endif
 MowerService mower_service{xbot::service_ids::MOWER};
 ImuService imu_service{xbot::service_ids::IMU};
 PowerService power_service{xbot::service_ids::POWER};
@@ -116,8 +121,8 @@ int main() {
     }
   }
 
-
   Robot::General::InitPlatform();
+
 
 
   xbot::service::Io::start();

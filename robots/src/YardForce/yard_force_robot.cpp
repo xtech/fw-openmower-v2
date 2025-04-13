@@ -2,20 +2,64 @@
 // Created by clemens on 27.01.25.
 //
 
-#include "robot.hpp"
+#include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <globals.hpp>
+
+#include "robot.hpp"
+#include <drivers/emergency/gpio_emergency_driver.hpp>
 
 namespace Robot {
 
+static BQ2576 charger{};
+static GPIOEmergencyDriver emergencyDriver{};
+
 namespace General {
 void InitPlatform() {
-  // Not used, we could star the GUI driver task here for example
+  emergencyDriver.AddInput({
+      .gpio_line = LINE_EMERGENCY_1,
+      .invert = true,
+      .active_since = 0,
+      .timeout_duration = TIME_MS2I(10),
+      .active = false
+  });
+  emergencyDriver.AddInput({
+      .gpio_line = LINE_EMERGENCY_2,
+      .invert = true,
+      .active_since = 0,
+      .timeout_duration = TIME_MS2I(10),
+      .active = false
+  });
+  emergencyDriver.AddInput({
+      .gpio_line = LINE_EMERGENCY_3,
+      .invert = true,
+      .active_since = 0,
+      .timeout_duration = TIME_MS2I(500),
+      .active = false
+  });
+  emergencyDriver.AddInput({
+      .gpio_line = LINE_EMERGENCY_4,
+      .invert = true,
+      .active_since = 0,
+      .timeout_duration = TIME_MS2I(500),
+      .active = false
+  });
+  emergencyDriver.Start();
 }
 
 bool IsHardwareSupported() {
   // Accept YardForce 1.x.x boards
-  return strncmp("hw-openmower-yardforce", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
-      carrier_board_info.version_major == 1;
+  if (strncmp("hw-openmower-yardforce", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
+      carrier_board_info.version_major == 1) {
+    return true;
+  }
+
+  // Accept early testing boards
+  if (strncmp("hw-xbot-devkit", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0) {
+    return true;
+  }
+
+
+  return false;
 }
 
 }  // namespace General
@@ -33,6 +77,10 @@ namespace Power {
 
 I2CDriver* GetPowerI2CD() {
   return &I2CD1;
+}
+
+Charger* GetCharger() {
+  return &charger;
 }
 
 float GetMaxVoltage() {
