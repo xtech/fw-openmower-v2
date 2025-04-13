@@ -20,7 +20,7 @@ class MowerService : public MowerServiceBase {
   explicit MowerService(const uint16_t service_id) : MowerServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  void OnMowerStatusChanged(MowerStatus new_status);
+  void OnEmergencyChangedEvent();
 
  protected:
   void OnCreate() override;

@@ -45,7 +45,7 @@ class DiffDriveService : public DiffDriveServiceBase {
   explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  void OnMowerStatusChanged(MowerStatus new_status);
+  void OnEmergencyChangedEvent();
 
  protected:
   bool OnStart() override;

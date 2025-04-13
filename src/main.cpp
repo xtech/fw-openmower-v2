@@ -128,11 +128,8 @@ int main() {
       // Get the flags provided by the event
       uint32_t flags = chEvtGetAndClearFlags(&event_listener);
       if (flags & MowerEvents::EMERGENCY_CHANGED) {
-        // Get the new emergency value
-        MowerStatus mower_status = GetMowerStatus();
-        // Notify services
-        diff_drive.OnMowerStatusChanged(mower_status);
-        mower_service.OnMowerStatusChanged(mower_status);
+        diff_drive.OnEmergencyChangedEvent();
+        mower_service.OnEmergencyChangedEvent();
       }
     }
   }

@@ -8,8 +8,9 @@
 
 #include <xbot-service/portable/system.hpp>
 
-void DiffDriveService::OnMowerStatusChanged(MowerStatus new_status) {
-  if (!new_status.emergency_latch && !new_status.emergency_active) {
+void DiffDriveService::OnEmergencyChangedEvent() {
+  MowerStatus mower_status = GetMowerStatus();
+  if (!mower_status.emergency_latch && !mower_status.emergency_active) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }
