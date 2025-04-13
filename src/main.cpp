@@ -118,6 +118,7 @@ int main() {
   mower_service.start();
 #endif
   gps_service.start();
+  input_service.start();
 
   SetStatusLedColor(GREEN);
 
