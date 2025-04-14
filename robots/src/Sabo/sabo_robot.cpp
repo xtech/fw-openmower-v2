@@ -2,14 +2,15 @@
 // Created by Apehaenger on 03/24/2025
 //
 
+#include <drivers/motor/vesc/VescDriver.h>
+
+#include <debug/debug_tcp_interface.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/emergency/gpio_emergency_driver.hpp>
 #include <globals.hpp>
+#include <services.hpp>
 
 #include "robot.hpp"
-#include <drivers/motor/vesc/VescDriver.h>
-#include <debug/debug_tcp_interface.hpp>
-#include <services.hpp>
 namespace Robot {
 
 static BQ2576 charger{};
@@ -21,8 +22,6 @@ static xbot::driver::motor::VescDriver mower_motor_driver{};
 static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
 static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
 static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
-
-
 
 namespace General {
 void InitPlatform() {
@@ -61,6 +60,8 @@ void InitPlatform() {
 
   diff_drive.SetDrivers(&left_motor_driver, &right_motor_driver);
   mower_service.SetDriver(&mower_motor_driver);
+  charger.setI2C(&I2CD1);
+  power_service.SetDriver(&charger);
 }
 bool IsHardwareSupported() {
   // FIXME: Fix EEPROM reading and check EEPROM
@@ -78,14 +79,6 @@ UARTDriver* GetUartPort() {
 }  // namespace GPS
 
 namespace Power {
-
-I2CDriver* GetPowerI2CD() {
-  return &I2CD1;
-}
-
-ChargerDriver* GetCharger() {
-  return &charger;
-}
 
 float GetMaxVoltage() {
   return 29.4f;  // As rated on battery pack, which is 7 * 4.2V

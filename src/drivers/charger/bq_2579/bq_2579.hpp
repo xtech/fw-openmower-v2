@@ -15,7 +15,7 @@ class BQ2579 : public ChargerDriver {
   bool setPreChargeCurrent(float current_amps) override;
   bool setTerminationCurrent(float current_amps) override;
   CHARGER_STATUS getChargerStatus() override;
-  bool init(I2CDriver *i2c_driver) override;
+  bool init() override;
   bool resetWatchdog() override;
   bool setTsEnabled(bool enabled) override;
   bool readChargeCurrent(float &result) override;
@@ -40,12 +40,10 @@ class BQ2579 : public ChargerDriver {
   static constexpr uint8_t REG_FAULT_Status_0 = 0x20;
   static constexpr uint8_t REG_FAULT_Status_1 = 0x21;
 
-  bool readRegister(uint8_t reg, uint8_t& result);
-  bool readRegister(uint8_t reg, uint16_t& result);
- bool writeRegister8(uint8_t reg, uint8_t value);
- bool writeRegister16(uint8_t reg, uint16_t value);
+  bool readRegister(uint8_t reg, uint8_t &result);
+  bool readRegister(uint8_t reg, uint16_t &result);
+  bool writeRegister8(uint8_t reg, uint8_t value);
+  bool writeRegister16(uint8_t reg, uint16_t value);
 };
 
-
-
-#endif //BQ_2579_HPP
+#endif  // BQ_2579_HPP

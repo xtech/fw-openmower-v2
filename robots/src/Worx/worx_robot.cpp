@@ -2,15 +2,15 @@
 // Created by clemens on 27.01.25.
 //
 
+#include <drivers/motor/vesc/VescDriver.h>
 #include <ulog.h>
 
+#include <debug/debug_tcp_interface.hpp>
+#include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <globals.hpp>
+#include <services.hpp>
 
 #include "robot.hpp"
-#include <drivers/charger/bq_2576/bq_2576.hpp>
-#include <drivers/motor/vesc/VescDriver.h>
-#include <debug/debug_tcp_interface.hpp>
-#include <services.hpp>
 
 namespace Robot {
 
@@ -23,9 +23,6 @@ static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
 static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
 static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
 
-
-
-
 namespace General {
 void InitPlatform() {
   left_motor_driver.SetUART(&UARTD1, 115200);
@@ -37,6 +34,8 @@ void InitPlatform() {
 
   diff_drive.SetDrivers(&left_motor_driver, &right_motor_driver);
   mower_service.SetDriver(&mower_motor_driver);
+  charger.setI2C(&I2CD1);
+  power_service.SetDriver(&charger);
 }
 
 bool IsHardwareSupported() {
@@ -44,13 +43,10 @@ bool IsHardwareSupported() {
   // so we assume that the firmware is compatible, if the xcore is the first batch and no carrier was found.
   if (carrier_board_info.board_info_version == 0 &&
       strncmp("N/A", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
-      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 &&
-      board_info.version_major == 1 &&
-      board_info.version_minor == 1 &&
-      board_info.version_patch == 7) {
+      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 && board_info.version_major == 1 &&
+      board_info.version_minor == 1 && board_info.version_patch == 7) {
     return true;
   }
-
 
   // Else, we accept universal boards
   return strncmp("hw-openmower-universal", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0;
@@ -66,14 +62,6 @@ UARTDriver* GetUartPort() {
 }  // namespace GPS
 
 namespace Power {
-
-I2CDriver* GetPowerI2CD() {
-  return &I2CD1;
-}
-
-ChargerDriver* GetCharger() {
-  return &charger;
-}
 
 float GetMaxVoltage() {
   return 5.0f * 4.2f;

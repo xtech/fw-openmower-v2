@@ -26,7 +26,6 @@ bool BQ2579::setTerminationCurrent(float current_amps) {
   return writeRegister8(REG_Termination_Control, raw_value);
 }
 CHARGER_STATUS BQ2579::getChargerStatus() {
-
   uint8_t fault0, fault1;
   if (!readRegister(REG_FAULT_Status_0, fault0)) {
     return CHARGER_STATUS::COMMS_ERROR;
@@ -45,25 +44,16 @@ CHARGER_STATUS BQ2579::getChargerStatus() {
   }
 
   switch (status >> 5) {
-    case 0x00:
-      return CHARGER_STATUS::NOT_CHARGING;
-    case 0x01:
-      return CHARGER_STATUS::TRICKLE;
-    case 0x02:
-      return CHARGER_STATUS::PRE_CHARGE;
-    case 0x03:
-      return CHARGER_STATUS::CC;
-    case 0x04:
-      return CHARGER_STATUS::CV;
-    case 0x07:
-      return CHARGER_STATUS::DONE;
-    default:
-      return CHARGER_STATUS::UNKNOWN;
+    case 0x00: return CHARGER_STATUS::NOT_CHARGING;
+    case 0x01: return CHARGER_STATUS::TRICKLE;
+    case 0x02: return CHARGER_STATUS::PRE_CHARGE;
+    case 0x03: return CHARGER_STATUS::CC;
+    case 0x04: return CHARGER_STATUS::CV;
+    case 0x07: return CHARGER_STATUS::DONE;
+    default: return CHARGER_STATUS::UNKNOWN;
   }
 }
-bool BQ2579::init(I2CDriver* i2c_driver) {
-  this->i2c_driver_ = i2c_driver;
-
+bool BQ2579::init() {
   // reset to default values
   if (!writeRegister8(REG_Termination_Control, 0b01000101)) {
     return false;
@@ -101,50 +91,54 @@ bool BQ2579::setTsEnabled(bool enabled) {
 }
 bool BQ2579::readChargeCurrent(float& result) {
   uint16_t raw_result = 0;
-  if (!readRegister(REG_IBAT_ADC, raw_result))
-    return false;
-  result = static_cast<float>(static_cast<int16_t>(raw_result))/1000.0f;
+  if (!readRegister(REG_IBAT_ADC, raw_result)) return false;
+  result = static_cast<float>(static_cast<int16_t>(raw_result)) / 1000.0f;
   return true;
 }
 bool BQ2579::readAdapterVoltage(float& result) {
   uint16_t raw_result = 0;
-  if (!readRegister(REG_VBUS_ADC, raw_result))
-    return false;
-  result = static_cast<float>(raw_result)/1000.0f;
+  if (!readRegister(REG_VBUS_ADC, raw_result)) return false;
+  result = static_cast<float>(raw_result) / 1000.0f;
   return true;
 }
 bool BQ2579::readBatteryVoltage(float& result) {
   uint16_t raw_result = 0;
-  if (!readRegister(REG_VBAT_ADC, raw_result))
-    return false;
-  result = static_cast<float>(raw_result)/1000.0f;
+  if (!readRegister(REG_VBAT_ADC, raw_result)) return false;
+  result = static_cast<float>(raw_result) / 1000.0f;
   return true;
 }
 
 bool BQ2579::readSystemVoltage(float& result) {
   uint16_t raw_result = 0;
-  if (!readRegister(REG_VSYS_ADC, raw_result))
-    return false;
-  result = static_cast<float>(raw_result)/1000.0f;
+  if (!readRegister(REG_VSYS_ADC, raw_result)) return false;
+  result = static_cast<float>(raw_result) / 1000.0f;
   return true;
 }
 
 bool BQ2579::readRegister(uint8_t reg, uint8_t& result) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), &result, sizeof(result)) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
 bool BQ2579::readRegister(uint8_t reg, uint16_t& result) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   i2cAcquireBus(i2c_driver_);
   uint8_t buf[2];
-  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), buf,
-                              sizeof(buf)) == MSG_OK;
+  bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), buf, sizeof(buf)) == MSG_OK;
   result = buf[0] << 8 | buf[1];
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
 bool BQ2579::writeRegister8(uint8_t reg, uint8_t value) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   uint8_t payload[2] = {reg, value};
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload, sizeof(payload), nullptr, 0) == MSG_OK;
@@ -153,6 +147,9 @@ bool BQ2579::writeRegister8(uint8_t reg, uint8_t value) {
 }
 
 bool BQ2579::writeRegister16(uint8_t reg, uint16_t value) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   const auto ptr = reinterpret_cast<uint8_t*>(&value);
   uint8_t payload[3] = {reg, ptr[1], ptr[0]};
   i2cAcquireBus(i2c_driver_);

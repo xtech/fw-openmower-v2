@@ -25,41 +25,28 @@ static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
 static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
 static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
 
-
-
-
-
-
 namespace General {
 void InitPlatform() {
-  emergencyDriver.AddInput({
-      .gpio_line = LINE_EMERGENCY_1,
-      .invert = true,
-      .active_since = 0,
-      .timeout_duration = TIME_MS2I(10),
-      .active = false
-  });
-  emergencyDriver.AddInput({
-      .gpio_line = LINE_EMERGENCY_2,
-      .invert = true,
-      .active_since = 0,
-      .timeout_duration = TIME_MS2I(10),
-      .active = false
-  });
-  emergencyDriver.AddInput({
-      .gpio_line = LINE_EMERGENCY_3,
-      .invert = true,
-      .active_since = 0,
-      .timeout_duration = TIME_MS2I(500),
-      .active = false
-  });
-  emergencyDriver.AddInput({
-      .gpio_line = LINE_EMERGENCY_4,
-      .invert = true,
-      .active_since = 0,
-      .timeout_duration = TIME_MS2I(500),
-      .active = false
-  });
+  emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_1,
+                            .invert = true,
+                            .active_since = 0,
+                            .timeout_duration = TIME_MS2I(10),
+                            .active = false});
+  emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_2,
+                            .invert = true,
+                            .active_since = 0,
+                            .timeout_duration = TIME_MS2I(10),
+                            .active = false});
+  emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_3,
+                            .invert = true,
+                            .active_since = 0,
+                            .timeout_duration = TIME_MS2I(500),
+                            .active = false});
+  emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_4,
+                            .invert = true,
+                            .active_since = 0,
+                            .timeout_duration = TIME_MS2I(500),
+                            .active = false});
   emergencyDriver.Start();
 
   left_motor_driver.SetUART(&UARTD1, 115200);
@@ -71,6 +58,9 @@ void InitPlatform() {
 
   diff_drive.SetDrivers(&left_motor_driver, &right_motor_driver);
   mower_service.SetDriver(&mower_motor_driver);
+
+  charger.setI2C(&I2CD1);
+  power_service.SetDriver(&charger);
 }
 
 bool IsHardwareSupported() {
@@ -85,7 +75,6 @@ bool IsHardwareSupported() {
     return true;
   }
 
-
   return false;
 }
 
@@ -98,18 +87,9 @@ UARTDriver* GetUartPort() {
 #endif
   return &UARTD6;
 }
-}
+}  // namespace GPS
 
 namespace Power {
-
-I2CDriver* GetPowerI2CD() {
-  return &I2CD1;
-}
-
-ChargerDriver* GetCharger() {
-  return &charger;
-}
-
 float GetMaxVoltage() {
   return 7.0f * 4.2f;
 }
