@@ -79,7 +79,7 @@ I2CDriver* GetPowerI2CD() {
   return &I2CD1;
 }
 
-Charger* GetCharger() {
+ChargerDriver* GetCharger() {
   return &charger;
 }
 

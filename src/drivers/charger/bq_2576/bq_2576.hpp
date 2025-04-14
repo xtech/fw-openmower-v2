@@ -10,7 +10,7 @@
 #include "hal.h"
 #include <drivers/charger/charger.hpp>
 
-class BQ2576 : public Charger {
+class BQ2576 : public ChargerDriver {
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x6B;
   static constexpr uint8_t REG_PART_INFORMATION = 0x3D;

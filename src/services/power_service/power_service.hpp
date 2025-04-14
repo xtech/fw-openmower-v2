@@ -45,7 +45,7 @@ class PowerService : public PowerServiceBase {
   float battery_volts = 0;
   int critical_count = 0;
   CHARGER_STATUS charger_status = CHARGER_STATUS::COMMS_ERROR;
-  Charger *charger = Robot::Power::GetCharger();
+  ChargerDriver *charger = Robot::Power::GetCharger();
   THD_WORKING_AREA(wa, 1500){};
 
  protected:

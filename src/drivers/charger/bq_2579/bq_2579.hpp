@@ -8,7 +8,7 @@
 #include <drivers/charger/charger.hpp>
 #include <robot.hpp>
 
-class BQ2579 : public Charger {
+class BQ2579 : public ChargerDriver {
  public:
   ~BQ2579() override;
   bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) override;
