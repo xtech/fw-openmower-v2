@@ -7,8 +7,8 @@
 #include <ulog.h>
 
 #include <drivers/motor/motor_driver.hpp>
-#include <xbot-service/portable/system.hpp>
 #include <services.hpp>
+#include <xbot-service/portable/system.hpp>
 
 using namespace xbot::driver::motor;
 

@@ -10,7 +10,7 @@ void EmergencyService::TriggerEmergency(const char* reason) {
   {
     xbot::service::Lock lk{&mtx_};
     // keep the reason for the initial emergency
-    if(emergency_latch) {
+    if (emergency_latch) {
       return;
     }
     emergency_reason = reason;

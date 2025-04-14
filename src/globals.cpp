@@ -4,8 +4,8 @@
 
 #include "globals.hpp"
 
-#include <xbot-service/Lock.hpp>
 #include <services.hpp>
+#include <xbot-service/Lock.hpp>
 
 using namespace xbot::service;
 
