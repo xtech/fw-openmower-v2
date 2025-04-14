@@ -9,36 +9,20 @@
 #endif
 #include <boot_service_discovery.h>
 #include <etl/to_string.h>
-#include <heartbeat.h>
-#include <id_eeprom.h>
 #include <lwipthread.h>
-#include <status_led.h>
 
-#include <globals.hpp>
 #include <robot.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
-#include "../services/service_ids.h"
-#include "services/diff_drive_service/diff_drive_service.hpp"
-#include "services/pwm_diff_drive_service/pwm_diff_drive_service.hpp"
-#include "services/emergency_service/emergency_service.hpp"
-#include "services/gps_service/gps_service.hpp"
-#include "services/imu_service/imu_service.hpp"
-#include "services/mower_service/mower_service.hpp"
-#include "services/power_service/power_service.hpp"
+#include "globals.hpp"
+#include "heartbeat.h"
+#include "id_eeprom.h"
+#include "services.hpp"
+#include "status_led.h"
 
-EmergencyService emergency_service{xbot::service_ids::EMERGENCY};
-#ifdef PWM_DIFF_DRIVE
-PWMDiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
-#else
-DiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
-#endif
-MowerService mower_service{xbot::service_ids::MOWER};
-ImuService imu_service{xbot::service_ids::IMU};
-PowerService power_service{xbot::service_ids::POWER};
-GpsService gps_service{xbot::service_ids::GPS};
+static void DispatchEvents();
 
 /*
  * Application entry point.
@@ -85,7 +69,8 @@ int main() {
    */
   uint8_t mac_address[6] = {0};
   if (!ID_EEPROM_GetMacAddress(mac_address, sizeof(mac_address))) {
-    while (1);
+    while (1)
+      ;
   }
   lwipthread_opts_t lwipconf_opts{};
   lwipconf_opts.addrMode = NET_ADDRESS_DHCP;
@@ -123,8 +108,6 @@ int main() {
 
   Robot::General::InitPlatform();
 
-
-
   xbot::service::Io::start();
 
   emergency_service.start();
@@ -136,6 +119,10 @@ int main() {
 
   SetStatusLedColor(GREEN);
 
+  DispatchEvents();
+}
+
+static void DispatchEvents() {
   // Subscribe to global events and dispatch to our services
   event_listener_t event_listener;
   const eventid_t MOWER_EVENTS_ID = 1;
@@ -146,11 +133,8 @@ int main() {
       // Get the flags provided by the event
       uint32_t flags = chEvtGetAndClearFlags(&event_listener);
       if (flags & MowerEvents::EMERGENCY_CHANGED) {
-        // Get the new emergency value
-        MowerStatus mower_status = GetMowerStatus();
-        // Notify services
-        diff_drive.OnMowerStatusChanged(mower_status);
-        mower_service.OnMowerStatusChanged(mower_status);
+        diff_drive.OnEmergencyChangedEvent();
+        mower_service.OnEmergencyChangedEvent();
       }
     }
   }

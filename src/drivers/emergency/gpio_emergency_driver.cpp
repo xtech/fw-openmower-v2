@@ -11,7 +11,7 @@
 static constexpr eventmask_t EVENT_GPIO_CHANGED = 1;
 
 void GPIOEmergencyDriver::Start() {
-  if(thread_ != nullptr) {
+  if (thread_ != nullptr) {
     ULOG_ERROR("Started GPIO Emergency Driver twice!");
     return;
   }
@@ -20,18 +20,18 @@ void GPIOEmergencyDriver::Start() {
   processing_thread_->name = "GPIOEmergencyDriver";
 #endif
 }
-void GPIOEmergencyDriver::ThreadHelper(void *instance) {
+void GPIOEmergencyDriver::ThreadHelper(void* instance) {
   auto* i = static_cast<GPIOEmergencyDriver*>(instance);
   i->ThreadFunc();
 }
 void GPIOEmergencyDriver::ThreadFunc() {
-  while(true) {
+  while (true) {
     bool emergency_detected = false;
     sysinterval_t wait_time = TIME_S2I(1);
     chMtxLock(&mtx_);
-    for(auto &input : inputs_) {
+    for (auto& input : inputs_) {
       bool active_now = (palReadLine(input.gpio_line) == PAL_HIGH) ^ input.invert;
-      if(active_now) {
+      if (active_now) {
         wait_time = TIME_MS2I(100);
         if (!input.active) {
           // track, the start
@@ -51,8 +51,8 @@ void GPIOEmergencyDriver::ThreadFunc() {
     chMtxUnlock(&mtx_);
 
     const auto status = GetMowerStatus();
-    if(emergency_detected) {
-      if(!status.emergency_active || !status.emergency_latch) {
+    if (emergency_detected) {
+      if (!status.emergency_active || !status.emergency_latch) {
         const auto cb = [](MowerStatus& mower_status) {
           mower_status.emergency_active = true;
           mower_status.emergency_latch = true;
@@ -61,10 +61,8 @@ void GPIOEmergencyDriver::ThreadFunc() {
         chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
       }
     } else {
-      if(status.emergency_active) {
-        const auto cb = [](MowerStatus& mower_status) {
-          mower_status.emergency_active = false;
-        };
+      if (status.emergency_active) {
+        const auto cb = [](MowerStatus& mower_status) { mower_status.emergency_active = false; };
         UpdateMowerStatus(cb);
         chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
       }
@@ -76,7 +74,7 @@ void GPIOEmergencyDriver::ThreadFunc() {
 void GPIOEmergencyDriver::AddInput(const GPIOEmergencyDriver::Input& input) {
   chMtxLock(&mtx_);
   chDbgAssert(!inputs_.full(), "Cannot add more inputs!");
-  if(!inputs_.full()) {
+  if (!inputs_.full()) {
     inputs_.push_back(input);
     palSetLineMode(input.gpio_line, PAL_MODE_INPUT);
     palSetLineCallback(input.gpio_line, GPIOEmergencyDriver::GPIOCallback, this);
@@ -86,7 +84,7 @@ void GPIOEmergencyDriver::AddInput(const GPIOEmergencyDriver::Input& input) {
 }
 void GPIOEmergencyDriver::GPIOCallback(void* instance) {
   auto* i = static_cast<GPIOEmergencyDriver*>(instance);
-  if(i->thread_) {
+  if (i->thread_) {
     chSysLockFromISR();
     chEvtSignalI(i->thread_, EVENT_GPIO_CHANGED);
     chSysUnlockFromISR();

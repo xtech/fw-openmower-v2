@@ -5,6 +5,7 @@
 #include "power_service.hpp"
 
 #include <ulog.h>
+
 #include <robot.hpp>
 
 #include "board.h"
@@ -111,9 +112,7 @@ void PowerService::tick() {
       case CHARGER_STATUS::UNKNOWN:
         SendChargingStatus(CHARGE_STATUS_UNKNOWN_STR, strlen(CHARGE_STATUS_UNKNOWN_STR));
         break;
-      default:
-        SendChargingStatus(CHARGE_STATUS_ERROR_STR, strlen(CHARGE_STATUS_ERROR_STR));
-        break;
+      default: SendChargingStatus(CHARGE_STATUS_ERROR_STR, strlen(CHARGE_STATUS_ERROR_STR)); break;
     }
   } else {
     SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));

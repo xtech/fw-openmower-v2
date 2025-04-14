@@ -1,6 +1,7 @@
-#include "robot.hpp"
-#include <globals.hpp>
 #include <drivers/charger/bq_2579/bq_2579.hpp>
+#include <globals.hpp>
+
+#include "robot.hpp"
 
 namespace Robot {
 
@@ -22,7 +23,6 @@ void InitPlatform() {
   palSetLineMode(LINE_MOTOR2_PWM1, LINE_MOTOR2_PWM1_MODE);
   palSetLineMode(LINE_MOTOR2_PWM2, LINE_MOTOR2_PWM2_MODE);
 
-
   pwm_config->channels[MOTOR1_PWM_CHANNEL_1].mode = PWM_OUTPUT_ACTIVE_LOW;
   pwm_config->channels[MOTOR1_PWM_CHANNEL_2].mode = PWM_OUTPUT_ACTIVE_LOW;
   pwm_config->period = 0xFFF * 4;
@@ -31,8 +31,6 @@ void InitPlatform() {
   pwm_config2->channels[MOTOR2_PWM_CHANNEL_2].mode = PWM_OUTPUT_ACTIVE_LOW;
   pwm_config2->period = 0xFFF * 4;
   pwm_config2->frequency = 275000000;
-
-
 
   pwmStart(&MOTOR1_PWM, pwm_config);
   if (&MOTOR1_PWM != &MOTOR2_PWM) {
@@ -44,8 +42,6 @@ void InitPlatform() {
   pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1, 0);
   pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_2, 0);
 
-
-
   palSetLineMode(LINE_POWER_1_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_POWER_2_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
 
@@ -55,14 +51,12 @@ void InitPlatform() {
   palSetLineMode(LINE_AUX_POWER_2_STATUS, PAL_MODE_INPUT);
   palSetLineMode(LINE_AUX_POWER_3_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_AUX_POWER_3_STATUS, PAL_MODE_INPUT);
-
-
 }
 
 bool IsHardwareSupported() {
   // Accept YardForce 1.x.x boards
   return strncmp("hw-xbot-mainboard", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
-      carrier_board_info.version_major == 0;
+         carrier_board_info.version_major == 0;
 }
 
 }  // namespace General
@@ -71,7 +65,7 @@ namespace GPS {
 UARTDriver* GetUartPort() {
   return nullptr;
 }
-}
+}  // namespace GPS
 
 namespace Power {
 

@@ -10,8 +10,7 @@
 void MowerService::OnCreate() {
   mower_driver_.StartDriver(&UARTD2, 115200);
   mower_driver_.SetStateCallback(
-      etl::delegate<void(const VescDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(
-          *this));
+      etl::delegate<void(const VescDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(*this));
 
   mower_esc_driver_interface_.Start();
 }
@@ -102,8 +101,9 @@ void MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
   chMtxUnlock(&mtx);
 }
 
-void MowerService::OnMowerStatusChanged(MowerStatus new_status) {
-  if (!new_status.emergency_latch && !new_status.emergency_active) {
+void MowerService::OnEmergencyChangedEvent() {
+  MowerStatus mower_status = GetMowerStatus();
+  if (!mower_status.emergency_latch && !mower_status.emergency_active) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }

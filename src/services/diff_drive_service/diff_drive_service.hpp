@@ -36,7 +36,7 @@ class DiffDriveService : public DiffDriveServiceBase {
   bool last_ticks_valid = false;
   uint32_t last_ticks_micros_ = 0;
 
- // MUTEX_DECL(mtx);
+  // MUTEX_DECL(mtx);
   float speed_l_ = 0;
   float speed_r_ = 0;
   bool duty_sent_ = false;
@@ -45,7 +45,7 @@ class DiffDriveService : public DiffDriveServiceBase {
   explicit DiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  void OnMowerStatusChanged(MowerStatus new_status);
+  void OnEmergencyChangedEvent();
 
  protected:
   bool OnStart() override;
