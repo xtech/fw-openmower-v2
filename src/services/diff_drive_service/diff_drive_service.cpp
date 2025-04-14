@@ -8,12 +8,13 @@
 
 #include <drivers/motor/motor_driver.hpp>
 #include <xbot-service/portable/system.hpp>
+#include <services.hpp>
 
 using namespace xbot::driver::motor;
 
 void DiffDriveService::OnEmergencyChangedEvent() {
-  MowerStatus mower_status = GetMowerStatus();
-  if (!mower_status.emergency_latch && !mower_status.emergency_active) {
+  bool emergency = emergency_service.GetEmergency();
+  if (!emergency) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }
@@ -101,8 +102,8 @@ void DiffDriveService::tick() {
 
 void DiffDriveService::SetDuty() {
   // Get the current emergency state
-  MowerStatus mower_status = GetMowerStatus();
-  if (mower_status.emergency_latch) {
+  bool emergency = emergency_service.GetEmergency();
+  if (emergency) {
     left_esc_driver_->SetDuty(0);
     right_esc_driver_->SetDuty(0);
   } else {
