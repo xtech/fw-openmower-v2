@@ -5,7 +5,6 @@
 #ifndef PWM_DIFF_DRIVE_SERVICE_HPP
 #define PWM_DIFF_DRIVE_SERVICE_HPP
 
-
 #include <drivers/vesc/VescDriver.h>
 
 #include <DiffDriveServiceBase.hpp>
@@ -17,7 +16,7 @@ using namespace xbot::driver::esc;
 using namespace xbot::service;
 
 class PWMDiffDriveService : public DiffDriveServiceBase {
-private:
+ private:
   THD_WORKING_AREA(wa, 1024);
   float speed_l_ = 0;
   float speed_r_ = 0;
@@ -33,31 +32,30 @@ private:
   bool last_ticks_valid = false;
   uint32_t last_ticks_micros_ = 0;
 
-public:
- explicit PWMDiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, wa, sizeof(wa)) {
- }
+ public:
+  explicit PWMDiffDriveService(uint16_t service_id) : DiffDriveServiceBase(service_id, wa, sizeof(wa)) {
+  }
 
   void OnMowerStatusChanged(MowerStatus new_status);
 
-protected:
+ protected:
   bool OnStart() override;
   void OnCreate() override;
   void OnStop() override;
 
-private:
- void tick();
- ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 40'000,
-                                XBOT_FUNCTION_FOR_METHOD(PWMDiffDriveService, &PWMDiffDriveService::tick, this)};
+ private:
+  void tick();
+  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 40'000,
+                                 XBOT_FUNCTION_FOR_METHOD(PWMDiffDriveService, &PWMDiffDriveService::tick, this)};
 
- static void HandleEncoderTickLeft(void* instance);
- static void HandleEncoderTickRight(void* instance);
+  static void HandleEncoderTickLeft(void* instance);
+  static void HandleEncoderTickRight(void* instance);
 
- PWMConfig pwm_config_{};
- void SetDuty();
+  PWMConfig pwm_config_{};
+  void SetDuty();
 
-protected:
-  void OnControlTwistChanged(const double *new_value, uint32_t length) override;
+ protected:
+  void OnControlTwistChanged(const double* new_value, uint32_t length) override;
 };
 
-
-#endif //PWM_DIFF_DRIVE_SERVICE_HPP
+#endif  // PWM_DIFF_DRIVE_SERVICE_HPP

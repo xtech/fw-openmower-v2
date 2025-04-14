@@ -14,7 +14,7 @@ class DebugTCPInterface {
 
   void Start();
 
-  void SetDriver(DebuggableDriver* driver);
+  void SetDriver(DebuggableDriver *driver);
 
  private:
   THD_WORKING_AREA(waThread, 1024);

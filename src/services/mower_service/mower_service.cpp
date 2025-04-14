@@ -10,8 +10,7 @@
 void MowerService::OnCreate() {
   mower_driver_.StartDriver(&UARTD2, 115200);
   mower_driver_.SetStateCallback(
-      etl::delegate<void(const VescDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(
-          *this));
+      etl::delegate<void(const VescDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(*this));
 
   mower_esc_driver_interface_.Start();
 }

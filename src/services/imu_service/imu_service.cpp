@@ -46,14 +46,13 @@ void ImuService::OnCreate() {
   spiAcquireBus(&SPID_IMU);
   spiStart(&SPID_IMU, &spi_config);
 
-  dev_ctx.write_reg =
-      write_reg_lambda;
+  dev_ctx.write_reg = write_reg_lambda;
   dev_ctx.read_reg = read_reg_lambda;
   for (int i = 0; i < 100; i++) {
     uint8_t whoamI = 0;
     lsm6ds3tr_c_device_id_get(&dev_ctx, &whoamI);
 
-   if (whoamI == 0x6a || whoamI == 0x6c) {
+    if (whoamI == 0x6a || whoamI == 0x6c) {
       imu_found = true;
       error_message = "None";
       break;
@@ -62,7 +61,7 @@ void ImuService::OnCreate() {
       error_message = "IMU Not Found. Whoami=0x";
       etl::format_spec hex_spec{};
       hex_spec.base(16);
-      etl::to_string(whoamI, error_message, hex_spec,true);
+      etl::to_string(whoamI, error_message, hex_spec, true);
       chThdSleep(TIME_MS2I(100));
     }
   }

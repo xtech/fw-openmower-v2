@@ -6,22 +6,22 @@
 #define ROBOT_HPP
 
 #include <hal.h>
+
 #include <drivers/charger/charger.hpp>
 
 #ifdef ROBOT_PLATFORM_HEADER
 #include ROBOT_PLATFORM_HEADER
 #endif
 
-
 namespace Robot {
 
 namespace General {
 [[maybe_unused]] void InitPlatform();
 bool IsHardwareSupported();
-}
+}  // namespace General
 
 namespace GPS {
-[[maybe_unused]] UARTDriver *GetUartPort();
+[[maybe_unused]] UARTDriver* GetUartPort();
 }
 
 namespace Power {

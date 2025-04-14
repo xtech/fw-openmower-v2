@@ -15,7 +15,7 @@ using namespace xbot::service;
 
 class EmergencyService : public EmergencyServiceBase {
  private:
-  THD_WORKING_AREA(wa, 1024) {};
+  THD_WORKING_AREA(wa, 1024){};
 
  public:
   explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, wa, sizeof(wa)) {

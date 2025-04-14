@@ -45,13 +45,11 @@ void PWMDiffDriveService::OnStop() {
   SetDuty();
 }
 void PWMDiffDriveService::tick() {
-
   if (!duty_sent_) {
     SetDuty();
   }
 
   uint32_t micros = xbot::service::system::getTimeMicros();
-
 
   StartTransaction();
   chSysLock();
@@ -86,38 +84,36 @@ void PWMDiffDriveService::tick() {
 }
 void PWMDiffDriveService::HandleEncoderTickLeft(void* i) {
   auto instance = static_cast<PWMDiffDriveService*>(i);
-    instance->tacho_left_abs++;
-    if (palReadLine(LINE_MOTOR1_ENCODER_B) == PAL_HIGH) {
-      instance->tacho_left++;
-    } else {
-      instance->tacho_left--;
-    }
-
+  instance->tacho_left_abs++;
+  if (palReadLine(LINE_MOTOR1_ENCODER_B) == PAL_HIGH) {
+    instance->tacho_left++;
+  } else {
+    instance->tacho_left--;
+  }
 }
 void PWMDiffDriveService::HandleEncoderTickRight(void* i) {
   auto instance = static_cast<PWMDiffDriveService*>(i);
-    instance->tacho_right_abs++;
-    if (palReadLine(LINE_MOTOR2_ENCODER_B) == PAL_HIGH) {
-      instance->tacho_right++;
-    } else {
-      instance->tacho_right--;
-    }
-
+  instance->tacho_right_abs++;
+  if (palReadLine(LINE_MOTOR2_ENCODER_B) == PAL_HIGH) {
+    instance->tacho_right++;
+  } else {
+    instance->tacho_right--;
+  }
 }
 void PWMDiffDriveService::SetDuty() {
   if (speed_l_ > 0) {
     pwmEnableChannel(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_1, (0xFFF * 4) * speed_l_);
     pwmEnableChannel(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_2, 0);
   } else {
-    pwmEnableChannel(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_2,  (0xFFF * 4) * -speed_l_);
-    pwmEnableChannel(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_1,  0);
+    pwmEnableChannel(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_2, (0xFFF * 4) * -speed_l_);
+    pwmEnableChannel(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_1, 0);
   }
   if (speed_l_ > 0) {
     pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1, (0xFFF * 4) * speed_r_);
     pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_2, 0);
   } else {
-    pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_2,  (0xFFF * 4) * -speed_r_);
-    pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1,  0);
+    pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_2, (0xFFF * 4) * -speed_r_);
+    pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1, 0);
   }
   duty_sent_ = true;
 }
