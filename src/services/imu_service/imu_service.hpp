@@ -12,7 +12,7 @@ using namespace xbot::service;
 
 class ImuService : public ImuServiceBase {
  private:
-  THD_WORKING_AREA(wa, 1000);
+  THD_WORKING_AREA(wa, 1000){};
 
  public:
   explicit ImuService(const uint16_t service_id) : ImuServiceBase(service_id, wa, sizeof(wa)) {

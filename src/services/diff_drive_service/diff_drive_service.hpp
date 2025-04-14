@@ -17,7 +17,7 @@ using namespace xbot::driver::motor;
 
 class DiffDriveService : public DiffDriveServiceBase {
  private:
-  THD_WORKING_AREA(wa, 1024);
+  THD_WORKING_AREA(wa, 1024){};
   MotorDriver *left_esc_driver_ = nullptr;
   MotorDriver *right_esc_driver_ = nullptr;
 
