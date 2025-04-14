@@ -105,7 +105,7 @@ bool ImuService::OnStart() {
 
     if (val < -3 || val == 0 || val > 3) {
       ULOG_ARG_ERROR(&service_id_, "Invalid axis remap value: %d", val);
-      return false;  // FIXME: Should we fail here? Or simply skip and go on with defaul (YardForce) mapping?
+      return false;
     }
     axis_remap_sign_[i] = (val > 0) ? 1 : -1;
     axis_remap_idx_[i] = abs(val) - 1;
