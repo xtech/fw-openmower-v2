@@ -1,14 +1,18 @@
 #include <drivers/charger/bq_2579/bq_2579.hpp>
+#include <drivers/motor/pwm/pwm_motor_driver.hpp>
 #include <globals.hpp>
+#include <services.hpp>
 
 #include "robot.hpp"
-
 namespace Robot {
 
 static BQ2579 charger{};
+static PwmMotorDriver left_pwm_motor_driver{};
+static PwmMotorDriver right_pwm_motor_driver{};
 
 namespace General {
 void InitPlatform() {
+  // Configure PWM and setup motor drivers
   auto* pwm_config = new PWMConfig();
   auto* pwm_config2 = new PWMConfig();
 
@@ -42,6 +46,12 @@ void InitPlatform() {
   pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1, 0);
   pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_2, 0);
 
+  left_pwm_motor_driver.SetPWM(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_1, MOTOR1_PWM_CHANNEL_2);
+  left_pwm_motor_driver.SetEncoder(LINE_MOTOR1_ENCODER_A, LINE_MOTOR1_ENCODER_B);
+  right_pwm_motor_driver.SetPWM(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1, MOTOR2_PWM_CHANNEL_2);
+  right_pwm_motor_driver.SetEncoder(LINE_MOTOR2_ENCODER_A, LINE_MOTOR2_ENCODER_B);
+  diff_drive.SetDrivers(&left_pwm_motor_driver, &right_pwm_motor_driver);
+
   palSetLineMode(LINE_POWER_1_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_POWER_2_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
 
@@ -51,6 +61,9 @@ void InitPlatform() {
   palSetLineMode(LINE_AUX_POWER_2_STATUS, PAL_MODE_INPUT);
   palSetLineMode(LINE_AUX_POWER_3_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_AUX_POWER_3_STATUS, PAL_MODE_INPUT);
+
+  charger.setI2C(&I2CD1);
+  power_service.SetDriver(&charger);
 }
 
 bool IsHardwareSupported() {
@@ -68,15 +81,6 @@ UARTDriver* GetUartPort() {
 }  // namespace GPS
 
 namespace Power {
-
-I2CDriver* GetPowerI2CD() {
-  return &I2CD1;
-}
-
-Charger* GetCharger() {
-  return &charger;
-}
-
 float GetMaxVoltage() {
   return 4.0f * 4.2f;
 }

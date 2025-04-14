@@ -17,6 +17,7 @@ RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=YardForce -BYardForce
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Worx -BWorx && cd Worx && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Lyfco_E1600 -BLyfco_E1600 && cd Lyfco_E1600 && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Sabo -BSabo && cd Sabo && make -j$(nproc)
+RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=xBot -BxBot && cd xBot && make -j$(nproc)
 
 
 FROM scratch
@@ -31,3 +32,6 @@ COPY --from=builder /project/build/Lyfco_E1600/openmower.elf /openmower-lyfco-e1
 
 COPY --from=builder /project/build/Sabo/openmower.bin /openmower-sabo.bin
 COPY --from=builder /project/build/Sabo/openmower.elf /openmower-sabo.elf
+
+COPY --from=builder /project/build/xBot/openmower.bin /openmower-xbot.bin
+COPY --from=builder /project/build/xBot/openmower.elf /openmower-xbot.elf

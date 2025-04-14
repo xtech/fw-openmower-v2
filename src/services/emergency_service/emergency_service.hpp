@@ -21,6 +21,9 @@ class EmergencyService : public EmergencyServiceBase {
   explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, wa, sizeof(wa)) {
   }
 
+  void TriggerEmergency(const char* reason);
+  bool GetEmergency();
+
  protected:
   bool OnStart() override;
   void OnStop() override;
@@ -32,8 +35,11 @@ class EmergencyService : public EmergencyServiceBase {
   ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 100'000,
                                  XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::tick, this)};
 
-  MowerStatus TriggerEmergency(const char* reason);
-  MowerStatus ClearEmergency();
+  MUTEX_DECL(mtx_);
+
+  void ClearEmergency();
+
+  bool emergency_latch = true;
 
   systime_t last_clear_emergency_message_ = 0;
   etl::string<100> emergency_reason{"Boot"};

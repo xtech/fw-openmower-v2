@@ -10,27 +10,30 @@
 
 #include "board.h"
 
+void PowerService::SetDriver(ChargerDriver* charger_driver) {
+  charger_ = charger_driver;
+}
 bool PowerService::OnStart() {
   charger_configured_ = false;
   return true;
 }
 
 void PowerService::tick() {
-  if (charger == nullptr) {
+  if (charger_ == nullptr) {
     ULOG_ARG_ERROR(&service_id_, "Charger is null!");
     return;
   }
 
   if (!charger_configured_) {
     // charger not configured, configure it
-    if (charger->init(Robot::Power::GetPowerI2CD())) {
+    if (charger_->init()) {
       // Set the currents low
       bool success = true;
-      success &= charger->setPreChargeCurrent(0.250f);
-      success &= charger->setTerminationCurrent(0.250f);
-      success &= charger->setChargingCurrent(Robot::Power::GetChargeCurrent(), false);
+      success &= charger_->setPreChargeCurrent(0.250f);
+      success &= charger_->setTerminationCurrent(0.250f);
+      success &= charger_->setChargingCurrent(Robot::Power::GetChargeCurrent(), false);
       // Disable temperature sense, the battery doesnt have it
-      success &= charger->setTsEnabled(false);
+      success &= charger_->setTsEnabled(false);
       charger_configured_ = success;
     }
 
@@ -43,34 +46,34 @@ void PowerService::tick() {
     // charger is configured, do monitoring
     bool success = true;
     {
-      bool s = charger->resetWatchdog();
+      bool s = charger_->resetWatchdog();
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Resetting Watchdog");
       }
       success &= s;
     }
     {
-      bool s = charger->readChargeCurrent(charge_current);
+      bool s = charger_->readChargeCurrent(charge_current);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Charge Current");
       }
       success &= s;
     }
     {
-      bool s = charger->readBatteryVoltage(battery_volts);
+      bool s = charger_->readBatteryVoltage(battery_volts);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Battery Voltage");
       }
       success &= s;
     }
     {
-      bool s = charger->readAdapterVoltage(adapter_volts);
+      bool s = charger_->readAdapterVoltage(adapter_volts);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Adapter Voltage");
       }
       success &= s;
     }
-    charger_status = charger->getChargerStatus();
+    charger_status = charger_->getChargerStatus();
 
     if (!success || charger_status == CHARGER_STATUS::COMMS_ERROR) {
       // Error during comms or watchdog timer expired, reconfigure charger

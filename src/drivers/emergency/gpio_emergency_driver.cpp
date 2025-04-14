@@ -6,6 +6,7 @@
 
 #include "globals.hpp"
 #include "hal.h"
+#include "services.hpp"
 #include "ulog.h"
 
 static constexpr eventmask_t EVENT_GPIO_CHANGED = 1;
@@ -50,21 +51,10 @@ void GPIOEmergencyDriver::ThreadFunc() {
     }
     chMtxUnlock(&mtx_);
 
-    const auto status = GetMowerStatus();
     if (emergency_detected) {
-      if (!status.emergency_active || !status.emergency_latch) {
-        const auto cb = [](MowerStatus& mower_status) {
-          mower_status.emergency_active = true;
-          mower_status.emergency_latch = true;
-        };
-        UpdateMowerStatus(cb);
-        chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
-      }
-    } else {
-      if (status.emergency_active) {
-        const auto cb = [](MowerStatus& mower_status) { mower_status.emergency_active = false; };
-        UpdateMowerStatus(cb);
-        chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
+      auto emergency_active = emergency_service.GetEmergency();
+      if (!emergency_active) {
+        emergency_service.TriggerEmergency("GPIO Emergency");
       }
     }
     // Wait for up to 1 sec, interrupt earlier on GPIO change

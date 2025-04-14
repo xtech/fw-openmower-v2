@@ -9,8 +9,7 @@
 #include "ch.h"
 #include "hal.h"
 
-bool BQ2576::init(I2CDriver* i2c_driver) {
-  this->i2c_driver_ = i2c_driver;
+bool BQ2576::init() {
   uint8_t result = 0;
 
   bool readOk = readRegister(REG_PART_INFORMATION, result);
@@ -67,6 +66,9 @@ uint8_t BQ2576::readFaults() {
 }
 
 bool BQ2576::readRegister(uint8_t reg, uint8_t& result) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), &result, sizeof(result)) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
@@ -83,6 +85,10 @@ bool BQ2576::readChargeCurrent(float& result) {
 }
 
 bool BQ2576::readRegister(uint8_t reg, uint16_t& result) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
+
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), reinterpret_cast<uint8_t*>(&result),
                               sizeof(result)) == MSG_OK;
@@ -91,6 +97,10 @@ bool BQ2576::readRegister(uint8_t reg, uint16_t& result) {
 }
 
 bool BQ2576::writeRegister8(uint8_t reg, uint8_t value) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
+
   uint8_t payload[2] = {reg, value};
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload, sizeof(payload), nullptr, 0) == MSG_OK;
@@ -99,6 +109,10 @@ bool BQ2576::writeRegister8(uint8_t reg, uint8_t value) {
 }
 
 bool BQ2576::writeRegister16(uint8_t reg, uint16_t value) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
+
   const auto ptr = reinterpret_cast<uint8_t*>(&value);
   uint8_t payload[3] = {reg, ptr[0], ptr[1]};
   i2cAcquireBus(i2c_driver_);

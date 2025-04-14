@@ -6,11 +6,15 @@
 
 #include <ulog.h>
 
+#include <drivers/motor/motor_driver.hpp>
+#include <services.hpp>
 #include <xbot-service/portable/system.hpp>
 
+using namespace xbot::driver::motor;
+
 void DiffDriveService::OnEmergencyChangedEvent() {
-  MowerStatus mower_status = GetMowerStatus();
-  if (!mower_status.emergency_latch && !mower_status.emergency_active) {
+  bool emergency = emergency_service.GetEmergency();
+  if (!emergency) {
     // only set speed to 0 if the emergency happens, not if it's cleared
     return;
   }
@@ -20,6 +24,10 @@ void DiffDriveService::OnEmergencyChangedEvent() {
   // Instantly send the 0 duty cycle
   SetDuty();
   chMtxUnlock(&state_mutex_);
+}
+void DiffDriveService::SetDrivers(MotorDriver* left_driver, MotorDriver* right_driver) {
+  left_esc_driver_ = left_driver;
+  right_esc_driver_ = right_driver;
 }
 
 bool DiffDriveService::OnStart() {
@@ -40,19 +48,19 @@ bool DiffDriveService::OnStart() {
 }
 
 void DiffDriveService::OnCreate() {
-  using namespace xbot::driver::esc;
-  // Register callbacks
-  left_esc_driver_.SetStateCallback(
-      etl::delegate<void(const VescDriver::ESCState&)>::create<DiffDriveService, &DiffDriveService::LeftESCCallback>(
-          *this));
-  right_esc_driver_.SetStateCallback(
-      etl::delegate<void(const VescDriver::ESCState&)>::create<DiffDriveService, &DiffDriveService::RightESCCallback>(
-          *this));
-  left_esc_driver_.StartDriver(&UARTD1, 115200);
-  right_esc_driver_.StartDriver(&UARTD4, 115200);
+  chDbgAssert(left_esc_driver_ != nullptr, "Left Motor Driver cannot be null!");
+  chDbgAssert(right_esc_driver_ != nullptr, "Right Motor Driver cannot be null!");
 
-  left_esc_driver_interface_.Start();
-  right_esc_driver_interface_.Start();
+  // Register callbacks
+  left_esc_driver_->SetStateCallback(
+      etl::delegate<void(const MotorDriver::ESCState&)>::create<DiffDriveService, &DiffDriveService::LeftESCCallback>(
+          *this));
+  right_esc_driver_->SetStateCallback(
+      etl::delegate<void(const MotorDriver::ESCState&)>::create<DiffDriveService, &DiffDriveService::RightESCCallback>(
+          *this));
+
+  left_esc_driver_->Start();
+  right_esc_driver_->Start();
 }
 
 void DiffDriveService::OnStop() {
@@ -73,17 +81,17 @@ void DiffDriveService::tick() {
     SetDuty();
   }
 
-  left_esc_driver_.RequestStatus();
-  right_esc_driver_.RequestStatus();
+  left_esc_driver_->RequestStatus();
+  right_esc_driver_->RequestStatus();
 
   // Check, if we have received ESC status updates recently. If not, send a disconnected message
   if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1'000'000) {
     StartTransaction();
     if (!left_esc_state_valid_) {
-      SendLeftESCStatus(static_cast<uint8_t>(VescDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
+      SendLeftESCStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
     }
     if (!right_esc_state_valid_) {
-      SendRightESCStatus(static_cast<uint8_t>(VescDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
+      SendRightESCStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
     }
     CommitTransaction();
   }
@@ -94,18 +102,18 @@ void DiffDriveService::tick() {
 
 void DiffDriveService::SetDuty() {
   // Get the current emergency state
-  MowerStatus mower_status = GetMowerStatus();
-  if (mower_status.emergency_latch) {
-    left_esc_driver_.SetDuty(0);
-    right_esc_driver_.SetDuty(0);
+  bool emergency = emergency_service.GetEmergency();
+  if (emergency) {
+    left_esc_driver_->SetDuty(0);
+    right_esc_driver_->SetDuty(0);
   } else {
-    left_esc_driver_.SetDuty(speed_l_);
-    right_esc_driver_.SetDuty(speed_r_);
+    left_esc_driver_->SetDuty(speed_l_);
+    right_esc_driver_->SetDuty(speed_r_);
   }
   duty_sent_ = true;
 }
 
-void DiffDriveService::LeftESCCallback(const VescDriver::ESCState& state) {
+void DiffDriveService::LeftESCCallback(const MotorDriver::ESCState& state) {
   chMtxLock(&state_mutex_);
   left_esc_state_ = state;
   left_esc_state_valid_ = true;
@@ -115,7 +123,7 @@ void DiffDriveService::LeftESCCallback(const VescDriver::ESCState& state) {
   chMtxUnlock(&state_mutex_);
 }
 
-void DiffDriveService::RightESCCallback(const VescDriver::ESCState& state) {
+void DiffDriveService::RightESCCallback(const MotorDriver::ESCState& state) {
   chMtxLock(&state_mutex_);
   right_esc_state_ = state;
   right_esc_state_valid_ = true;

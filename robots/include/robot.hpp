@@ -25,10 +25,6 @@ namespace GPS {
 }
 
 namespace Power {
-
-[[maybe_unused]] I2CDriver* GetPowerI2CD();
-[[maybe_unused]] Charger* GetCharger();
-
 /**
  * Return the maximum voltage for this robot.
  */

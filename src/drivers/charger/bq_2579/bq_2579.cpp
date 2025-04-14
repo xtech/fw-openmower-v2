@@ -53,9 +53,7 @@ CHARGER_STATUS BQ2579::getChargerStatus() {
     default: return CHARGER_STATUS::UNKNOWN;
   }
 }
-bool BQ2579::init(I2CDriver* i2c_driver) {
-  this->i2c_driver_ = i2c_driver;
-
+bool BQ2579::init() {
   // reset to default values
   if (!writeRegister8(REG_Termination_Control, 0b01000101)) {
     return false;
@@ -118,12 +116,18 @@ bool BQ2579::readSystemVoltage(float& result) {
 }
 
 bool BQ2579::readRegister(uint8_t reg, uint8_t& result) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), &result, sizeof(result)) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
   return ok;
 }
 bool BQ2579::readRegister(uint8_t reg, uint16_t& result) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   i2cAcquireBus(i2c_driver_);
   uint8_t buf[2];
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), buf, sizeof(buf)) == MSG_OK;
@@ -132,6 +136,9 @@ bool BQ2579::readRegister(uint8_t reg, uint16_t& result) {
   return ok;
 }
 bool BQ2579::writeRegister8(uint8_t reg, uint8_t value) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   uint8_t payload[2] = {reg, value};
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, payload, sizeof(payload), nullptr, 0) == MSG_OK;
@@ -140,6 +147,9 @@ bool BQ2579::writeRegister8(uint8_t reg, uint8_t value) {
 }
 
 bool BQ2579::writeRegister16(uint8_t reg, uint16_t value) {
+  if (i2c_driver_ == nullptr) {
+    return false;
+  }
   const auto ptr = reinterpret_cast<uint8_t*>(&value);
   uint8_t payload[3] = {reg, ptr[1], ptr[0]};
   i2cAcquireBus(i2c_driver_);

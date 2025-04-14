@@ -18,6 +18,8 @@ class PowerService : public PowerServiceBase {
   explicit PowerService(uint16_t service_id) : PowerServiceBase(service_id, wa, sizeof(wa)) {
   }
 
+  void SetDriver(ChargerDriver* charger_driver);
+
  protected:
   bool OnStart() override;
 
@@ -45,7 +47,7 @@ class PowerService : public PowerServiceBase {
   float battery_volts = 0;
   int critical_count = 0;
   CHARGER_STATUS charger_status = CHARGER_STATUS::COMMS_ERROR;
-  Charger* charger = Robot::Power::GetCharger();
+  ChargerDriver* charger_ = nullptr;
   THD_WORKING_AREA(wa, 1500){};
 
  protected:

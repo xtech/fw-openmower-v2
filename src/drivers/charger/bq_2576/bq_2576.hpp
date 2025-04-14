@@ -10,7 +10,7 @@
 
 #include "hal.h"
 
-class BQ2576 : public Charger {
+class BQ2576 : public ChargerDriver {
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x6B;
   static constexpr uint8_t REG_PART_INFORMATION = 0x3D;
@@ -55,7 +55,7 @@ class BQ2576 : public Charger {
   bool setTerminationCurrent(float current_amps) override;
 
   CHARGER_STATUS getChargerStatus() override;
-  bool init(I2CDriver *i2c_driver) override;
+  bool init() override;
   bool resetWatchdog() override;
 
   bool setTsEnabled(bool enabled) override;

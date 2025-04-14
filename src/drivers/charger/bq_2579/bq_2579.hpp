@@ -8,14 +8,14 @@
 #include <drivers/charger/charger.hpp>
 #include <robot.hpp>
 
-class BQ2579 : public Charger {
+class BQ2579 : public ChargerDriver {
  public:
   ~BQ2579() override;
   bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) override;
   bool setPreChargeCurrent(float current_amps) override;
   bool setTerminationCurrent(float current_amps) override;
   CHARGER_STATUS getChargerStatus() override;
-  bool init(I2CDriver *i2c_driver) override;
+  bool init() override;
   bool resetWatchdog() override;
   bool setTsEnabled(bool enabled) override;
   bool readChargeCurrent(float &result) override;
