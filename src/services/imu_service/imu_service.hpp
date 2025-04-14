@@ -5,8 +5,9 @@
 #ifndef IMU_SERVICE_HPP
 #define IMU_SERVICE_HPP
 
-#include <ImuServiceBase.hpp>
 #include <etl/string.h>
+
+#include <ImuServiceBase.hpp>
 
 using namespace xbot::service;
 

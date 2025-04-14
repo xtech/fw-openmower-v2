@@ -6,9 +6,9 @@
 #define BQ_2576_HPP
 
 #include <cstdint>
+#include <drivers/charger/charger.hpp>
 
 #include "hal.h"
-#include <drivers/charger/charger.hpp>
 
 class BQ2576 : public Charger {
  private:
@@ -37,7 +37,6 @@ class BQ2576 : public Charger {
   static constexpr uint8_t REG_Gate_Driver_Strength_Control = 0x3B;
   static constexpr uint8_t REG_Precharge_Current_Limit = 0x10;
   static constexpr uint8_t REG_Precharge_and_Termination_Control = 0x14;
-
 
   bool readRegister(uint8_t reg, uint8_t &result);
   bool readRegister(uint8_t reg, uint16_t &result);

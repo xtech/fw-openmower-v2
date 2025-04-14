@@ -35,7 +35,7 @@ class MowerService : public MowerServiceBase {
   void SetDuty();
   MUTEX_DECL(mtx);
 
-  void ESCCallback(const VescDriver::ESCState &state);
+  void ESCCallback(const VescDriver::ESCState& state);
 
  protected:
   void OnMowerEnabledChanged(const uint8_t& new_value) override;

@@ -48,8 +48,6 @@ static UARTDriver* GetUARTDriverByIndex(uint8_t index) {
 }
 
 bool GpsService::OnStart() {
-
-
   using namespace xbot::driver::gps;
 
   if (gps_driver_ == nullptr) {
