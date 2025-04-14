@@ -17,16 +17,18 @@ class GPIOEmergencyDriver {
     sysinterval_t timeout_duration;
     bool active;
   };
+
  private:
   THD_WORKING_AREA(wa_, 1024);
   thread_t* thread_ = nullptr;
 
-  static void ThreadHelper(void *instance);
+  static void ThreadHelper(void* instance);
   static void GPIOCallback(void* instance);
   void ThreadFunc();
 
   etl::vector<Input, 16> inputs_{};
   MUTEX_DECL(mtx_);
+
  public:
   void Start();
   void AddInput(const Input& input);

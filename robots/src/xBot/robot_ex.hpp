@@ -38,4 +38,4 @@
 
 #define NO_MOWER_SERVICE
 
-#endif //ROBOT_EX_HPP
+#endif  // ROBOT_EX_HPP

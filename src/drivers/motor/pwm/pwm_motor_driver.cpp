@@ -2,9 +2,9 @@
 // Created by clemens on 14.04.25.
 //
 
-#include <ch.h>
 #include "pwm_motor_driver.hpp"
 
+#include <ch.h>
 
 namespace xbot::driver::motor {
 
@@ -30,8 +30,8 @@ void PwmMotorDriver::SetDuty(float duty) {
     pwmEnableChannel(pwm_, channel_1_, (0xFFF * 4) * duty);
     pwmEnableChannel(pwm_, channel_2_, 0);
   } else {
-    pwmEnableChannel(pwm_, channel_2_,  (0xFFF * 4) * -duty);
-    pwmEnableChannel(pwm_, channel_1_,  0);
+    pwmEnableChannel(pwm_, channel_2_, (0xFFF * 4) * -duty);
+    pwmEnableChannel(pwm_, channel_1_, 0);
   }
 }
 bool PwmMotorDriver::Start() {
@@ -57,6 +57,5 @@ void PwmMotorDriver::HandleEncoderTick(void* i) {
   } else {
     instance->tacho--;
   }
-
 }
 }  // namespace xbot::driver::motor

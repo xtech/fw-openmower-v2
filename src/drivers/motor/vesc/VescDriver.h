@@ -9,16 +9,14 @@
 
 #include <cstdint>
 #include <debug/debuggable_driver.hpp>
+#include <drivers/motor/motor_driver.hpp>
 
 #include "ch.h"
 #include "hal.h"
-#include <drivers/motor/motor_driver.hpp>
 
 namespace xbot::driver::motor {
 class VescDriver : public DebuggableDriver, public MotorDriver {
-
-
-public:
+ public:
   VescDriver();
 
   ~VescDriver() override = default;
@@ -31,8 +29,7 @@ public:
 
   bool Start() override;
 
-private:
-
+ private:
 #pragma pack(push, 1)
   struct VescPayload {
     // prepend space will be used for packet size / CAN ID
@@ -86,6 +83,6 @@ private:
   void threadFunc();
   static void threadHelper(void *instance);
 };
-}  // namespace xbot::driver::esc
+}  // namespace xbot::driver::motor
 
 #endif  // VESCDRIVER_H

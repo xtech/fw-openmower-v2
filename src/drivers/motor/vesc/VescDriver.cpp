@@ -70,14 +70,15 @@ void VescDriver::ProcessPayload() {
       latest_state_.temperature_pcb =
           buffer_get_float16(message, 10.0, &index);  // 2 bytes - mc_interface_temp_fet_filtered()
       latest_state_.temperature_motor = buffer_get_float16(message, 10.0,
-                                                          &index);  // 2 bytes - mc_interface_temp_motor_filtered()
+                                                           &index);  // 2 bytes - mc_interface_temp_motor_filtered()
       index += 4;  // 4 bytes - mc_interface_read_reset_avg_motor_current()
-      latest_state_.current_input = buffer_get_float32(message, 100.0,
-                                                      &index);  // 4 bytes - mc_interface_read_reset_avg_input_current()
-      index += 4;                                               // Skip 4 bytes - mc_interface_read_reset_avg_id()
-      index += 4;                                               // Skip 4 bytes - mc_interface_read_reset_avg_iq()
+      latest_state_.current_input =
+          buffer_get_float32(message, 100.0,
+                             &index);  // 4 bytes - mc_interface_read_reset_avg_input_current()
+      index += 4;                      // Skip 4 bytes - mc_interface_read_reset_avg_id()
+      index += 4;                      // Skip 4 bytes - mc_interface_read_reset_avg_iq()
       latest_state_.duty_cycle = buffer_get_float16(message, 1000.0,
-                                                   &index);         // 2 bytes - mc_interface_get_duty_cycle_now()
+                                                    &index);         // 2 bytes - mc_interface_get_duty_cycle_now()
       latest_state_.rpm = buffer_get_float32(message, 1.0, &index);  // 4 bytes - mc_interface_get_rpm()
       latest_state_.voltage_input = buffer_get_float16(message, 10.0, &index);  // 2 bytes - GET_INPUT_VOLTAGE()
       index += 4;  // 4 bytes - mc_interface_get_amp_hours(false)
@@ -85,12 +86,13 @@ void VescDriver::ProcessPayload() {
       index += 4;  // 4 bytes - mc_interface_get_watt_hours(false)
       index += 4;  // 4 bytes - mc_interface_get_watt_hours_charged(false)
       latest_state_.tacho = buffer_get_int32(message,
-                                            &index);  // 4 bytes - mc_interface_get_tachometer_value(false)
-      latest_state_.tacho_absolute = buffer_get_int32(message,
-                                                     &index);  // 4 bytes - mc_interface_get_tachometer_abs_value(false)
+                                             &index);  // 4 bytes - mc_interface_get_tachometer_value(false)
+      latest_state_.tacho_absolute =
+          buffer_get_int32(message,
+                           &index);  // 4 bytes - mc_interface_get_tachometer_abs_value(false)
       latest_state_.status = static_cast<mc_fault_code>(message[index++]) != FAULT_CODE_NONE
-                                ? ESCState::ESCStatus::ESC_STATUS_ERROR
-                                : ESCState::ESCStatus::ESC_STATUS_OK;
+                                 ? ESCState::ESCStatus::ESC_STATUS_ERROR
+                                 : ESCState::ESCStatus::ESC_STATUS_OK;
       index += 4;  // 4 bytes - mc_interface_get_pid_pos_now()
       latest_state_.direction = latest_state_.rpm < 0;
       break;
@@ -351,4 +353,4 @@ void VescDriver::threadHelper(void* instance) {
   auto* i = static_cast<VescDriver*>(instance);
   i->threadFunc();
 }
-}  // namespace xbot::driver::esc
+}  // namespace xbot::driver::motor

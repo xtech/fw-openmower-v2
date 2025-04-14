@@ -5,15 +5,13 @@
 #ifndef MOTOR_DRIVER_HPP
 #define MOTOR_DRIVER_HPP
 
-#include <cstdint>
 #include <etl/delegate.h>
 
+#include <cstdint>
 
 namespace xbot::driver::motor {
 class MotorDriver {
-
-
-public:
+ public:
   struct ESCState {
     enum class ESCStatus : uint8_t {
       ESC_STATUS_DISCONNECTED = 99u,
@@ -57,8 +55,7 @@ public:
     state_callback_ = function;
   }
 
-protected:
-
+ protected:
   bool IsStarted() {
     return started_;
   }
@@ -71,12 +68,10 @@ protected:
   }
   ESCState latest_state_{};
 
-
-private:
+ private:
   bool started_ = false;
   StateCallback state_callback_{};
 };
-}
+}  // namespace xbot::driver::motor
 
-
-#endif //MOTOR_DRIVER_HPP
+#endif  // MOTOR_DRIVER_HPP

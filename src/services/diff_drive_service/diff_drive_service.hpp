@@ -21,7 +21,6 @@ class DiffDriveService : public DiffDriveServiceBase {
   MotorDriver *left_esc_driver_ = nullptr;
   MotorDriver *right_esc_driver_ = nullptr;
 
-
   MotorDriver::ESCState left_esc_state_{};
   MotorDriver::ESCState right_esc_state_{};
   bool left_esc_state_valid_ = false;
@@ -44,7 +43,7 @@ class DiffDriveService : public DiffDriveServiceBase {
 
   void OnEmergencyChangedEvent();
 
- void SetDrivers(MotorDriver* left_driver, MotorDriver* right_driver);
+  void SetDrivers(MotorDriver *left_driver, MotorDriver *right_driver);
 
  protected:
   bool OnStart() override;

@@ -69,7 +69,8 @@ int main() {
    */
   uint8_t mac_address[6] = {0};
   if (!ID_EEPROM_GetMacAddress(mac_address, sizeof(mac_address))) {
-    while (1);
+    while (1)
+      ;
   }
   lwipthread_opts_t lwipconf_opts{};
   lwipconf_opts.addrMode = NET_ADDRESS_DHCP;
@@ -106,8 +107,6 @@ int main() {
   }
 
   Robot::General::InitPlatform();
-
-
 
   xbot::service::Io::start();
 

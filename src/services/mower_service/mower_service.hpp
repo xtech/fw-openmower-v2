@@ -6,10 +6,10 @@
 #define MOWER_SERVICE_HPP
 
 #include <ch.h>
-#include <drivers/motor/motor_driver.hpp>
 
 #include <MowerServiceBase.hpp>
 #include <debug/debug_tcp_interface.hpp>
+#include <drivers/motor/motor_driver.hpp>
 #include <globals.hpp>
 
 using namespace xbot::driver::motor;
@@ -20,7 +20,7 @@ class MowerService : public MowerServiceBase {
   explicit MowerService(const uint16_t service_id) : MowerServiceBase(service_id, wa, sizeof(wa)) {
   }
 
- void SetDriver(MotorDriver* motor_driver);
+  void SetDriver(MotorDriver* motor_driver);
 
   void OnEmergencyChangedEvent();
 
@@ -37,7 +37,7 @@ class MowerService : public MowerServiceBase {
   void SetDuty();
   MUTEX_DECL(mtx);
 
-  void ESCCallback(const MotorDriver::ESCState &state);
+  void ESCCallback(const MotorDriver::ESCState& state);
 
  protected:
   void OnMowerEnabledChanged(const uint8_t& new_value) override;
@@ -51,7 +51,7 @@ class MowerService : public MowerServiceBase {
 
   float mower_duty_ = 0;
   bool duty_sent_ = false;
-  MotorDriver *mower_driver_ = nullptr;
+  MotorDriver* mower_driver_ = nullptr;
 };
 
 #endif  // MOWER_SERVICE_HPP

@@ -6,6 +6,7 @@
 #define PWM_DRIVER_HPP
 
 #include <hal.h>
+
 #include <drivers/motor/motor_driver.hpp>
 
 namespace xbot::driver::motor {
@@ -19,12 +20,12 @@ class PwmMotorDriver : public MotorDriver {
   void SetDuty(float duty) override;
   bool Start() override;
 
-private:
+ private:
   PWMDriver* pwm_ = nullptr;
- pwmchannel_t channel_1_ = 0, channel_2_ = 0;
- uint32_t line_encoder_a_ = 0,line_encoder_b_ = 0;
+  pwmchannel_t channel_1_ = 0, channel_2_ = 0;
+  uint32_t line_encoder_a_ = 0, line_encoder_b_ = 0;
 
- float duty_now_ = 0.0f;
+  float duty_now_ = 0.0f;
   bool duty_sent_ = false;
   volatile uint32_t tacho = 0;
   volatile uint32_t tacho_abs = 0;
@@ -34,7 +35,6 @@ private:
 
   static void HandleEncoderTick(void* instance);
 };
-}
+}  // namespace xbot::driver::motor
 
-
-#endif //PWM_DRIVER_HPP
+#endif  // PWM_DRIVER_HPP

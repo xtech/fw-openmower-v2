@@ -10,8 +10,7 @@
 void MowerService::OnCreate() {
   chDbgAssert(mower_driver_ != nullptr, "Mower Motor Driver cannot be null!");
   mower_driver_->SetStateCallback(
-      etl::delegate<void(const MotorDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(
-          *this));
+      etl::delegate<void(const MotorDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(*this));
   mower_driver_->Start();
 }
 

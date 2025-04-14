@@ -22,11 +22,11 @@ static void status_led_timer_cb(struct ch_virtual_timer *tp, void *arg) {
     case LED_MODE_OFF:
       palSetLine(LINE_STATUS_LED_RED);
       palSetLine(LINE_STATUS_LED_GREEN);
-    break;
+      break;
     case LED_MODE_ON:
       palWriteLine(LINE_STATUS_LED_RED, current_color == RED ? PAL_LOW : PAL_HIGH);
       palWriteLine(LINE_STATUS_LED_GREEN, current_color == GREEN ? PAL_LOW : PAL_HIGH);
-    break;
+      break;
     case LED_MODE_BLINK_FAST:
       if (current_color == RED) {
         palToggleLine(LINE_STATUS_LED_RED);
@@ -35,7 +35,7 @@ static void status_led_timer_cb(struct ch_virtual_timer *tp, void *arg) {
         palToggleLine(LINE_STATUS_LED_GREEN);
         palSetLine(LINE_STATUS_LED_RED);
       }
-    break;
+      break;
     case LED_MODE_BLINK_SLOW:
       if (blink_state++ % 10 == 0) {
         if (current_color == RED) {
