@@ -21,7 +21,7 @@ bool IsHardwareSupported();
 }  // namespace General
 
 namespace GPS {
-[[maybe_unused]] UARTDriver *GetUartPort();
+[[maybe_unused]] UARTDriver* GetUartPort();
 }
 
 namespace Power {
