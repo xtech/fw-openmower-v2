@@ -5,27 +5,25 @@
 #ifndef DIFF_DRIVE_SERVICE_HPP
 #define DIFF_DRIVE_SERVICE_HPP
 
-#include <drivers/vesc/VescDriver.h>
+#include <drivers/gps/nmea_gps_driver.h>
 
 #include <DiffDriveServiceBase.hpp>
-#include <debug/debug_tcp_interface.hpp>
+#include <drivers/motor/motor_driver.hpp>
 #include <globals.hpp>
 #include <xbot-service/portable/socket.hpp>
 
-using namespace xbot::driver::esc;
 using namespace xbot::service;
+using namespace xbot::driver::motor;
 
 class DiffDriveService : public DiffDriveServiceBase {
  private:
   THD_WORKING_AREA(wa, 1024);
-  VescDriver left_esc_driver_{};
-  VescDriver right_esc_driver_{};
+  MotorDriver *left_esc_driver_ = nullptr;
+  MotorDriver *right_esc_driver_ = nullptr;
 
-  DebugTCPInterface left_esc_driver_interface_{65102, &left_esc_driver_};
-  DebugTCPInterface right_esc_driver_interface_{65104, &right_esc_driver_};
 
-  VescDriver::ESCState left_esc_state_{};
-  VescDriver::ESCState right_esc_state_{};
+  MotorDriver::ESCState left_esc_state_{};
+  MotorDriver::ESCState right_esc_state_{};
   bool left_esc_state_valid_ = false;
   bool right_esc_state_valid_ = false;
   uint32_t last_valid_esc_state_micros_ = 0;
@@ -36,7 +34,6 @@ class DiffDriveService : public DiffDriveServiceBase {
   bool last_ticks_valid = false;
   uint32_t last_ticks_micros_ = 0;
 
- // MUTEX_DECL(mtx);
   float speed_l_ = 0;
   float speed_r_ = 0;
   bool duty_sent_ = false;
@@ -46,6 +43,8 @@ class DiffDriveService : public DiffDriveServiceBase {
   }
 
   void OnEmergencyChangedEvent();
+
+ void SetDrivers(MotorDriver* left_driver, MotorDriver* right_driver);
 
  protected:
   bool OnStart() override;
@@ -59,8 +58,8 @@ class DiffDriveService : public DiffDriveServiceBase {
 
   void SetDuty();
 
-  void LeftESCCallback(const VescDriver::ESCState &state);
-  void RightESCCallback(const VescDriver::ESCState &state);
+  void LeftESCCallback(const MotorDriver::ESCState &state);
+  void RightESCCallback(const MotorDriver::ESCState &state);
   void ProcessStatusUpdate();
 
  protected:

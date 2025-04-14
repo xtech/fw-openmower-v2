@@ -7,11 +7,22 @@
 #include <globals.hpp>
 
 #include "robot.hpp"
-
+#include <drivers/motor/vesc/VescDriver.h>
+#include <debug/debug_tcp_interface.hpp>
+#include <services.hpp>
 namespace Robot {
 
 static BQ2576 charger{};
 static GPIOEmergencyDriver emergencyDriver{};
+static xbot::driver::motor::VescDriver left_motor_driver{};
+static xbot::driver::motor::VescDriver right_motor_driver{};
+static xbot::driver::motor::VescDriver mower_motor_driver{};
+
+static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
+static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
+static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
+
+
 
 namespace General {
 void InitPlatform() {
@@ -40,6 +51,16 @@ void InitPlatform() {
                             .timeout_duration = TIME_MS2I(10),
                             .active = false});
   emergencyDriver.Start();
+
+  left_motor_driver.SetUART(&UARTD1, 115200);
+  right_motor_driver.SetUART(&UARTD4, 115200);
+  mower_motor_driver.SetUART(&UARTD2, 115200);
+  left_esc_driver_interface_.Start();
+  right_esc_driver_interface_.Start();
+  mower_esc_driver_interface_.Start();
+
+  diff_drive.SetDrivers(&left_motor_driver, &right_motor_driver);
+  mower_service.SetDriver(&mower_motor_driver);
 }
 bool IsHardwareSupported() {
   // FIXME: Fix EEPROM reading and check EEPROM
@@ -62,7 +83,7 @@ I2CDriver* GetPowerI2CD() {
   return &I2CD1;
 }
 
-Charger* GetCharger() {
+ChargerDriver* GetCharger() {
   return &charger;
 }
 

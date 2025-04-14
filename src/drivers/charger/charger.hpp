@@ -22,10 +22,10 @@ enum class CHARGER_STATUS : uint8_t {
 };
 
 class ChargerDriver {
- protected:
+protected:
   I2CDriver *i2c_driver_ = nullptr;
 
- public:
+public:
   virtual ~ChargerDriver() = default;
   virtual bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) = 0;
   virtual bool setPreChargeCurrent(float current_amps) = 0;

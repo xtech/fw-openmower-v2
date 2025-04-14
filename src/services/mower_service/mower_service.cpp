@@ -8,12 +8,11 @@
 #include <xbot-service/portable/system.hpp>
 
 void MowerService::OnCreate() {
-  mower_driver_.StartDriver(&UARTD2, 115200);
-  mower_driver_.SetStateCallback(
-      etl::delegate<void(const VescDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(
+  chDbgAssert(mower_driver_ != nullptr, "Mower Motor Driver cannot be null!");
+  mower_driver_->SetStateCallback(
+      etl::delegate<void(const MotorDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(
           *this));
-
-  mower_esc_driver_interface_.Start();
+  mower_driver_->Start();
 }
 
 bool MowerService::OnStart() {
@@ -40,7 +39,7 @@ void MowerService::tick() {
     SetDuty();
   }
 
-  mower_driver_.RequestStatus();
+  mower_driver_->RequestStatus();
 
   // TODO: actually detect some rain
   bool rain_detected = false;
@@ -52,7 +51,7 @@ void MowerService::tick() {
   if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1'000'000 || !esc_state_valid_) {
     // No recent update received (or none at all)
     mower_duty_ = 0;
-    SendMowerStatus(static_cast<uint8_t>(VescDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
+    SendMowerStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
   } else {
     // We got recent data, send it
     StartTransaction();
@@ -69,7 +68,7 @@ void MowerService::tick() {
   chMtxUnlock(&mtx);
 }
 
-void MowerService::ESCCallback(const VescDriver::ESCState& state) {
+void MowerService::ESCCallback(const MotorDriver::ESCState& state) {
   chMtxLock(&state_mutex_);
   esc_state_ = state;
   esc_state_valid_ = true;
@@ -81,9 +80,9 @@ void MowerService::SetDuty() {
   // Get the current emergency state
   MowerStatus mower_status = GetMowerStatus();
   if (mower_status.emergency_latch) {
-    mower_driver_.SetDuty(0);
+    mower_driver_->SetDuty(0);
   } else {
-    mower_driver_.SetDuty(mower_duty_);
+    mower_driver_->SetDuty(mower_duty_);
   }
   duty_sent_ = true;
 }
@@ -102,6 +101,9 @@ void MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
   chMtxUnlock(&mtx);
 }
 
+void MowerService::SetDriver(MotorDriver* motor_driver) {
+  mower_driver_ = motor_driver;
+}
 void MowerService::OnEmergencyChangedEvent() {
   MowerStatus mower_status = GetMowerStatus();
   if (!mower_status.emergency_latch && !mower_status.emergency_active) {

@@ -12,53 +12,27 @@
 
 #include "ch.h"
 #include "hal.h"
+#include <drivers/motor/motor_driver.hpp>
 
-namespace xbot::driver::esc {
-class VescDriver : public DebuggableDriver {
- public:
-  struct ESCState {
-    enum class ESCStatus : uint8_t {
-      ESC_STATUS_DISCONNECTED = 99u,
-      ESC_STATUS_ERROR = 100u,
-      ESC_STATUS_STALLED = 150u,
-      ESC_STATUS_OK = 200u,
-      ESC_STATUS_RUNNING = 201u,
-    };
+namespace xbot::driver::motor {
+class VescDriver : public DebuggableDriver, public MotorDriver {
 
-    uint8_t fw_major;
-    uint8_t fw_minor;
 
-    float voltage_input;
-    float temperature_pcb;
-    float temperature_motor;
-    float current_input;
-    float duty_cycle;
-    uint32_t tacho;
-    uint32_t tacho_absolute;
-    float direction;
-    float rpm;
-
-    ESCStatus status;
-  };
-
-  typedef etl::delegate<void(const ESCState &new_state)> StateCallback;
-
+public:
   VescDriver();
 
   ~VescDriver() override = default;
 
-  bool StartDriver(UARTDriver *uart, uint32_t baudrate);
-  void SetStatusUpdateInterval(uint32_t interval_millis);
-  void SetStateCallback(const StateCallback &function);
-  void RequestStatus();
-  void SetDuty(float duty);
+  bool SetUART(UARTDriver *uart, uint32_t baudrate);
+  void RequestStatus() override;
+  void SetDuty(float duty) override;
 
   void RawDataInput(uint8_t *data, size_t size) override;
 
- private:
-  StateCallback state_callback_{};
+  bool Start() override;
 
-  ESCState latest_state{};
+private:
+
 #pragma pack(push, 1)
   struct VescPayload {
     // prepend space will be used for packet size / CAN ID
@@ -105,7 +79,6 @@ class VescDriver : public DebuggableDriver {
   thread_t *processing_thread_ = nullptr;
   // This is reset by the receiving ISR and set by the thread to signal if it's safe to process more data.
   volatile bool processing_done_ = true;
-  bool stopped_ = true;
 
   void ProcessPayload();
   bool ProcessBytes(uint8_t *buffer, size_t len);

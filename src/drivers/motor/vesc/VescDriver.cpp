@@ -11,68 +11,22 @@
 static constexpr uint32_t EVT_ID_RECEIVED = 1;
 static constexpr uint32_t EVT_ID_EXPECT_PACKET = 2;
 
-namespace xbot::driver::esc {
+namespace xbot::driver::motor {
 VescDriver::VescDriver() {
-  latest_state.status = ESCState::ESCStatus::ESC_STATUS_DISCONNECTED;
+  latest_state_.status = ESCState::ESCStatus::ESC_STATUS_DISCONNECTED;
 };
 
-bool VescDriver::StartDriver(UARTDriver* uart, uint32_t baudrate) {
-  chDbgAssert(stopped_, "don't start the driver twice");
+bool VescDriver::SetUART(UARTDriver* uart, uint32_t baudrate) {
+  chDbgAssert(!IsStarted(), "Only set UART when the driver is stopped");
   chDbgAssert(uart != nullptr, "need to provide a driver");
-  if (!stopped_) {
+  if (IsStarted()) {
     return false;
   }
   this->uart_ = uart;
   uart_config_.speed = baudrate;
   uart_config_.context = this;
-  bool uartStarted = uartStart(uart, &uart_config_) == MSG_OK;
-  if (!uartStarted) {
-    return false;
-  }
 
-  uart_config_.rxend_cb = [](UARTDriver* uartp) {
-    chSysLockFromISR();
-    VescDriver* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
-    chDbgAssert(instance != nullptr, "instance cannot be null!");
-    if (!instance->processing_done_) {
-      // This is bad, processing is too slow to keep up with updates!
-      // We just read into the same buffer again
-      uint8_t* next_recv_buffer =
-          (instance->processing_buffer_ == instance->recv_buffer1_) ? instance->recv_buffer2_ : instance->recv_buffer1_;
-      uartStartReceiveI(uartp, RECV_BUFFER_SIZE, next_recv_buffer);
-    } else {
-      // Swap buffers and read into the next one
-      // Get the pointer to the receiving buffer (it's not the processing buffer)
-      uint8_t* next_recv_buffer = instance->processing_buffer_;
-      uartStartReceiveI(uartp, RECV_BUFFER_SIZE, next_recv_buffer);
-      instance->processing_buffer_ =
-          (instance->processing_buffer_ == instance->recv_buffer1_) ? instance->recv_buffer2_ : instance->recv_buffer1_;
-      instance->processing_buffer_len_ = RECV_BUFFER_SIZE;
-      instance->processing_done_ = false;
-      // Signal the processing thread
-      if (instance->processing_thread_) {
-        chEvtSignalI(instance->processing_thread_, 1);
-      }
-    }
-    chSysUnlockFromISR();
-  };
-
-  stopped_ = false;
-  processing_thread_ = chThdCreateStatic(&thd_wa_, sizeof(thd_wa_), NORMALPRIO, threadHelper, this);
-#ifdef USE_SEGGER_SYSTEMVIEW
-  processing_thread_->name = "VESCDriver";
-#endif
-
-  uartStartReceive(uart, RECV_BUFFER_SIZE, recv_buffer1_);
   return true;
-}
-
-void VescDriver::SetStatusUpdateInterval(uint32_t interval_millis) {
-  (void)interval_millis;
-}
-
-void VescDriver::SetStateCallback(const StateCallback& function) {
-  state_callback_ = function;
 }
 
 void VescDriver::ProcessPayload() {
@@ -107,45 +61,45 @@ void VescDriver::ProcessPayload() {
     case COMM_FW_VERSION:  // Structure defined here:
                            // https://github.com/vedderb/bldc/blob/43c3bbaf91f5052a35b75c2ff17b5fe99fad94d1/commands.c#L164
 
-      latest_state.fw_major = message[index++];
-      latest_state.fw_minor = message[index++];
+      latest_state_.fw_major = message[index++];
+      latest_state_.fw_minor = message[index++];
       break;
     case COMM_GET_VALUES:  // Structure defined here:
                            // https://github.com/vedderb/bldc/blob/43c3bbaf91f5052a35b75c2ff17b5fe99fad94d1/commands.c#L164
 
-      latest_state.temperature_pcb =
+      latest_state_.temperature_pcb =
           buffer_get_float16(message, 10.0, &index);  // 2 bytes - mc_interface_temp_fet_filtered()
-      latest_state.temperature_motor = buffer_get_float16(message, 10.0,
+      latest_state_.temperature_motor = buffer_get_float16(message, 10.0,
                                                           &index);  // 2 bytes - mc_interface_temp_motor_filtered()
       index += 4;  // 4 bytes - mc_interface_read_reset_avg_motor_current()
-      latest_state.current_input = buffer_get_float32(message, 100.0,
+      latest_state_.current_input = buffer_get_float32(message, 100.0,
                                                       &index);  // 4 bytes - mc_interface_read_reset_avg_input_current()
       index += 4;                                               // Skip 4 bytes - mc_interface_read_reset_avg_id()
       index += 4;                                               // Skip 4 bytes - mc_interface_read_reset_avg_iq()
-      latest_state.duty_cycle = buffer_get_float16(message, 1000.0,
+      latest_state_.duty_cycle = buffer_get_float16(message, 1000.0,
                                                    &index);         // 2 bytes - mc_interface_get_duty_cycle_now()
-      latest_state.rpm = buffer_get_float32(message, 1.0, &index);  // 4 bytes - mc_interface_get_rpm()
-      latest_state.voltage_input = buffer_get_float16(message, 10.0, &index);  // 2 bytes - GET_INPUT_VOLTAGE()
+      latest_state_.rpm = buffer_get_float32(message, 1.0, &index);  // 4 bytes - mc_interface_get_rpm()
+      latest_state_.voltage_input = buffer_get_float16(message, 10.0, &index);  // 2 bytes - GET_INPUT_VOLTAGE()
       index += 4;  // 4 bytes - mc_interface_get_amp_hours(false)
       index += 4;  // 4 bytes - mc_interface_get_amp_hours_charged(false)
       index += 4;  // 4 bytes - mc_interface_get_watt_hours(false)
       index += 4;  // 4 bytes - mc_interface_get_watt_hours_charged(false)
-      latest_state.tacho = buffer_get_int32(message,
+      latest_state_.tacho = buffer_get_int32(message,
                                             &index);  // 4 bytes - mc_interface_get_tachometer_value(false)
-      latest_state.tacho_absolute = buffer_get_int32(message,
+      latest_state_.tacho_absolute = buffer_get_int32(message,
                                                      &index);  // 4 bytes - mc_interface_get_tachometer_abs_value(false)
-      latest_state.status = static_cast<mc_fault_code>(message[index++]) != FAULT_CODE_NONE
+      latest_state_.status = static_cast<mc_fault_code>(message[index++]) != FAULT_CODE_NONE
                                 ? ESCState::ESCStatus::ESC_STATUS_ERROR
                                 : ESCState::ESCStatus::ESC_STATUS_OK;
       index += 4;  // 4 bytes - mc_interface_get_pid_pos_now()
-      latest_state.direction = latest_state.rpm < 0;
+      latest_state_.direction = latest_state_.rpm < 0;
       break;
     default:
       // ignore
       break;
   }
 
-  if (state_callback_) state_callback_(latest_state);
+  NotifyCallback();
 
   working_buffer_fill_ = 0;
 }
@@ -256,6 +210,9 @@ void VescDriver::RawDataInput(uint8_t* data, size_t size) {
   if (!IsRawMode()) {
     return;
   }
+  if (!IsStarted()) {
+    return;
+  }
   // Lock mutex so that during transmission we don't start a second one
   chMtxLock(&mutex_);
   uartSendFullTimeout(uart_, &size, data, TIME_INFINITE);
@@ -263,11 +220,56 @@ void VescDriver::RawDataInput(uint8_t* data, size_t size) {
   chEvtSignal(processing_thread_, EVT_ID_EXPECT_PACKET);
   chMtxUnlock(&mutex_);
 }
+bool VescDriver::Start() {
+  chDbgAssert(!IsStarted(), "don't start the driver twice");
+  if (IsStarted()) {
+    return false;
+  }
+  bool uartStarted = uartStart(uart_, &uart_config_) == MSG_OK;
+  if (!uartStarted) {
+    return false;
+  }
+
+  uart_config_.rxend_cb = [](UARTDriver* uartp) {
+    chSysLockFromISR();
+    VescDriver* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
+    chDbgAssert(instance != nullptr, "instance cannot be null!");
+    if (!instance->processing_done_) {
+      // This is bad, processing is too slow to keep up with updates!
+      // We just read into the same buffer again
+      uint8_t* next_recv_buffer =
+          (instance->processing_buffer_ == instance->recv_buffer1_) ? instance->recv_buffer2_ : instance->recv_buffer1_;
+      uartStartReceiveI(uartp, RECV_BUFFER_SIZE, next_recv_buffer);
+    } else {
+      // Swap buffers and read into the next one
+      // Get the pointer to the receiving buffer (it's not the processing buffer)
+      uint8_t* next_recv_buffer = instance->processing_buffer_;
+      uartStartReceiveI(uartp, RECV_BUFFER_SIZE, next_recv_buffer);
+      instance->processing_buffer_ =
+          (instance->processing_buffer_ == instance->recv_buffer1_) ? instance->recv_buffer2_ : instance->recv_buffer1_;
+      instance->processing_buffer_len_ = RECV_BUFFER_SIZE;
+      instance->processing_done_ = false;
+      // Signal the processing thread
+      if (instance->processing_thread_) {
+        chEvtSignalI(instance->processing_thread_, 1);
+      }
+    }
+    chSysUnlockFromISR();
+  };
+
+  processing_thread_ = chThdCreateStatic(&thd_wa_, sizeof(thd_wa_), NORMALPRIO, threadHelper, this);
+#ifdef USE_SEGGER_SYSTEMVIEW
+  processing_thread_->name = "VESCDriver";
+#endif
+
+  uartStartReceive(uart_, RECV_BUFFER_SIZE, recv_buffer1_);
+  return MotorDriver::Start();
+}
 
 void VescDriver::threadFunc() {
   bool expects_packet = false;
   uint32_t last_ndtr = 0;
-  while (!stopped_) {
+  while (IsStarted()) {
     uint32_t events;
     if (expects_packet) {
       // read with timeout, so that if the packet is too short to fill the whole buffer (and thereby interrupting this),

@@ -2,16 +2,33 @@
 // Created by clemens on 27.01.25.
 //
 
+#include <drivers/motor/vesc/VescDriver.h>
+
+#include <debug/debug_tcp_interface.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/emergency/gpio_emergency_driver.hpp>
 #include <globals.hpp>
+#include <services.hpp>
 
 #include "robot.hpp"
-#include <drivers/emergency/gpio_emergency_driver.hpp>
 
 namespace Robot {
 
 static BQ2576 charger{};
 static GPIOEmergencyDriver emergencyDriver{};
+
+static VescDriver left_motor_driver{};
+static VescDriver right_motor_driver{};
+static VescDriver mower_motor_driver{};
+
+static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
+static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
+static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
+
+
+
+
+
 
 namespace General {
 void InitPlatform() {
@@ -44,6 +61,16 @@ void InitPlatform() {
       .active = false
   });
   emergencyDriver.Start();
+
+  left_motor_driver.SetUART(&UARTD1, 115200);
+  right_motor_driver.SetUART(&UARTD4, 115200);
+  mower_motor_driver.SetUART(&UARTD2, 115200);
+  left_esc_driver_interface_.Start();
+  right_esc_driver_interface_.Start();
+  mower_esc_driver_interface_.Start();
+
+  diff_drive.SetDrivers(&left_motor_driver, &right_motor_driver);
+  mower_service.SetDriver(&mower_motor_driver);
 }
 
 bool IsHardwareSupported() {
@@ -79,7 +106,7 @@ I2CDriver* GetPowerI2CD() {
   return &I2CD1;
 }
 
-Charger* GetCharger() {
+ChargerDriver* GetCharger() {
   return &charger;
 }
 

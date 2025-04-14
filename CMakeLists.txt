@@ -59,7 +59,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/power_service/power_service.cpp
         src/services/emergency_service/emergency_service.cpp
         src/services/diff_drive_service/diff_drive_service.cpp
-        src/services/pwm_diff_drive_service/pwm_diff_drive_service.cpp
         src/services/mower_service/mower_service.cpp
         src/services/gps_service/gps_service.cpp
         # BQ2567 driver
@@ -67,9 +66,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # BQ25679 driver
         src/drivers/charger/bq_2579/bq_2579.cpp
         # VESC driver
-        src/drivers/vesc/buffer.cpp
-        src/drivers/vesc/crc.cpp
-        src/drivers/vesc/VescDriver.cpp
+        src/drivers/motor/vesc/buffer.cpp
+        src/drivers/motor/vesc/crc.cpp
+        src/drivers/motor/vesc/VescDriver.cpp
+        # PWM motor driver
+        src/drivers/motor/pwm/pwm_motor_driver.cpp
         # GPS driver
         src/drivers/gps/gps_driver.cpp
         src/drivers/gps/ublox_gps_driver.cpp
