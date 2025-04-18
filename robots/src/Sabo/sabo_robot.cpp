@@ -66,13 +66,15 @@ void InitPlatform() {
 bool IsHardwareSupported() {
   // Accept Sabo 0.1.x boards
   if (strncmp("hw-openmower-sabo", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
+      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 && board_info.version_major == 1 &&
       carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
     return true;
   }
 
   // FIXME: Fix EEPROM reading of Series-I prototype
   // First Sabo Series-I has a non-working EEPROM. Let's assume the FW is compatible for now
-  if (strncmp("N/A", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0) {
+  if (strncmp("N/A", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
+      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 && board_info.version_major == 1) {
     return true;
   }
 
