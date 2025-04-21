@@ -29,6 +29,8 @@ void SaboUIController::start() {
 
   // Now that driver is initialized and thread got started, we can enable output
   driver_->enableOutput();
+  chThdSleepMilliseconds(100);
+  playPowerOnAnimation();
 }
 
 void SaboUIController::ThreadHelper(void* instance) {
@@ -86,6 +88,23 @@ void SaboUIController::setLED(LEDID id, LEDMode mode) {
   }
 }
 
+void SaboUIController::playPowerOnAnimation() {
+  leds_.on_mask = 0x1F;  // All on
+  chThdSleepMilliseconds(400);
+  leds_.on_mask = 0x00;  // All off
+  chThdSleepMilliseconds(800);
+
+  // Knight Rider
+  for (int i = 0; i <= 5; i++) {
+    leds_.on_mask = (1 << i) - 1;
+    chThdSleepMilliseconds(100);
+  }
+  for (int i = 4; i >= 0; i--) {
+    leds_.on_mask = (1 << i) - 1;
+    chThdSleepMilliseconds(100);
+  }
+}
+
 void SaboUIController::ThreadFunc() {
   while (true) {
     tick();
@@ -93,7 +112,7 @@ void SaboUIController::ThreadFunc() {
     // FIXME: Sample code to wait for some other event
     eventmask_t event = chEvtWaitAnyTimeout(
         EVT_PACKET_RECEIVED,
-        TIME_MS2I(100));  // FIXME: Once buttons are implemented, this needs to become something around 1ms
+        TIME_MS2I(1));  // FIXME: Once buttons are implemented, this needs to become something around 1ms
     if (event & EVT_PACKET_RECEIVED) {
       /*chSysLock();
       // Forbid packet reception

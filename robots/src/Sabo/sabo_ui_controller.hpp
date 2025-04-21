@@ -23,6 +23,8 @@ class SaboUIController {
   bool isButtonPressed(ButtonID id);
   // void setButtonCallback(std::function<void(ButtonID)> callback);
 
+  void playPowerOnAnimation();
+
  private:
   THD_WORKING_AREA(wa_, 1024);
   thread_t* thread_ = nullptr;

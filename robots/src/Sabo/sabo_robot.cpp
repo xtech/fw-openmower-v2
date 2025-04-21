@@ -72,9 +72,7 @@ void InitPlatform() {
 
   // UI
   ui.start();
-  ui.setLED(SaboUIController::LEDID::AUTO, SaboUIController::LEDMode::ON);
-  ui.setLED(SaboUIController::LEDID::START_GN, SaboUIController::LEDMode::BLINK_SLOW);
-  ui.setLED(SaboUIController::LEDID::START_RD, SaboUIController::LEDMode::BLINK_FAST);
+  ui.setLED(SaboUIController::LEDID::START_RD, SaboUIController::LEDMode::BLINK_SLOW);
 }
 bool IsHardwareSupported() {
   // Accept Sabo 0.1.x boards
