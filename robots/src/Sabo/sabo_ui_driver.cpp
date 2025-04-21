@@ -1,0 +1,70 @@
+//
+// Created by Apehaenger on 4/19/25.
+//
+#include "sabo_ui_driver.hpp"
+
+#include <ulog.h>
+
+#include "globals.hpp"
+#include "robot_ex.hpp"
+
+bool SaboUIDriver::init() {
+  // Init SPI pins
+  palSetLineMode(LINE_UI_SCK, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+  palSetLineMode(LINE_UI_MISO, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+  palSetLineMode(LINE_UI_MOSI, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+
+  // Init GPIOs for chip control
+  palSetLineMode(LINE_UI_LATCH_LOAD, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+  palSetLineMode(LINE_UI_LED_OE, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+  palSetLineMode(LINE_UI_BTN_CE,
+                 PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 |
+                     PAL_STM32_PUPDR_PULLDOWN);  // FIXME: CoverUI doesn't has any pull-up/down resistors?
+
+  // Configure SPI
+  spi_ = &SPI_UI;
+  spi_cfg_ = {
+      .circular = false,
+      .slave = false,
+      .data_cb = nullptr,
+      .error_cb = nullptr,
+      .ssline = 0,                                                     // Master mode
+      .cfg1 = SPI_CFG1_MBR_0 | SPI_CFG1_MBR_1 |                        // Baudrate = FPCLK/16 (~10 MHz @ 160 MHz SPI-C)
+              SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)
+      .cfg2 = SPI_CFG2_MASTER                                          // Master mode
+  };
+
+  // Start SPI
+  if (spiStart(spi_, &spi_cfg_) != MSG_OK) {
+    ULOG_ERROR("Error starting UI-SPI");
+    return false;
+  }
+
+  return true;
+}
+
+void SaboUIDriver::latchLoad() {
+  uint8_t tx_data = current_leds_;
+  // TODO: Add alternating button-row
+
+  spiAcquireBus(spi_);
+  palWriteLine(LINE_UI_LATCH_LOAD, PAL_HIGH);  // Latch HEF4794BT (STR = HIGH)
+  spiStartSend(spi_, 1, &tx_data);             // Send data
+  palWriteLine(LINE_UI_LATCH_LOAD, PAL_LOW);   // Stop latching (STR = LOW)
+  spiReleaseBus(spi_);
+}
+
+void SaboUIDriver::enableOutput() {
+  // TODO: OE could also be used with a PWM signal to dim the LEDs
+
+  if (carrier_board_info.version_major <= 0 && carrier_board_info.version_minor <= 1) {
+    // Sabo v0.1 has an HEF4794BT OE driver which inverts the signal. Newer boards will not have this driver anymore.
+    palWriteLine(LINE_UI_LED_OE, PAL_LOW);
+  } else {
+    palWriteLine(LINE_UI_BTN_CE, PAL_HIGH);
+  }
+}
+
+void SaboUIDriver::setLEDs(uint8_t leds) {
+  current_leds_ = leds & 0x1F;  // LEDs are on the lower 5 bits
+}

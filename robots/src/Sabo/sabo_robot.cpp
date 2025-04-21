@@ -3,6 +3,7 @@
 //
 
 #include <drivers/motor/vesc/VescDriver.h>
+#include <ulog.h>
 
 #include <debug/debug_tcp_interface.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
@@ -11,6 +12,9 @@
 #include <services.hpp>
 
 #include "robot.hpp"
+#include "sabo_ui_controller.hpp"
+#include "sabo_ui_driver.hpp"
+
 namespace Robot {
 
 static BQ2576 charger{};
@@ -22,6 +26,9 @@ static xbot::driver::motor::VescDriver mower_motor_driver{};
 static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
 static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
 static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
+
+static SaboUIDriver ui_driver;
+static SaboUIController ui(&ui_driver);
 
 namespace General {
 void InitPlatform() {
@@ -62,6 +69,12 @@ void InitPlatform() {
   mower_service.SetDriver(&mower_motor_driver);
   charger.setI2C(&I2CD1);
   power_service.SetDriver(&charger);
+
+  // UI
+  ui.start();
+  ui.setLED(SaboUIController::LEDID::AUTO, SaboUIController::LEDMode::ON);
+  ui.setLED(SaboUIController::LEDID::START_GN, SaboUIController::LEDMode::BLINK_SLOW);
+  ui.setLED(SaboUIController::LEDID::START_RD, SaboUIController::LEDMode::BLINK_FAST);
 }
 bool IsHardwareSupported() {
   // Accept Sabo 0.1.x boards
