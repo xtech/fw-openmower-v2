@@ -14,6 +14,8 @@ class SaboUIDriver {
   SPIConfig spi_cfg_;
 
   uint8_t current_leds_ = 0;
+  uint8_t current_button_row_ = 0;  // Alternating button rows
+  uint16_t button_states_ = 0;      // Bits 0-7: Row0, Bits 8-15: Row1
 
  public:
   bool init();                 // Init SPI and GPIOs
