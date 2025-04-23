@@ -40,12 +40,12 @@ void InitPlatform() {
   emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_3,
                             .invert = true,
                             .active_since = 0,
-                            .timeout_duration = TIME_MS2I(500),
+                            .timeout_duration = TIME_MS2I(2000),
                             .active = false});
   emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_4,
                             .invert = true,
                             .active_since = 0,
-                            .timeout_duration = TIME_MS2I(500),
+                            .timeout_duration = TIME_MS2I(2000),
                             .active = false});
   emergencyDriver.Start();
 
