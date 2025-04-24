@@ -86,3 +86,7 @@ void SaboUIDriver::enableOutput() {
 void SaboUIDriver::setLEDs(uint8_t leds) {
   current_leds_ = leds & 0x1F;  // LEDs are on the lower 5 bits
 }
+
+uint16_t SaboUIDriver::getRawButtonStates() const {
+  return button_states_;
+}

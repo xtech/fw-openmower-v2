@@ -61,17 +61,33 @@ void SaboUIController::tick() {
   driver_->setLEDs(active_leds);
   driver_->latchLoad();
 
-  // TODO: Add button reading or handling
+  // Button debouncing (of all buttons)
+  const uint16_t raw = driver_->getRawButtonStates();
+  const uint16_t changed_bits = btn_last_raw_ ^ raw;  // XOR to find changed bits
+  if (changed_bits == 0) {
+    if (btn_debounce_counter_ < DEBOUNCE_TICKS) btn_debounce_counter_++;
+  } else {
+    btn_debounce_counter_ = 0;
+  }
+  btn_stable_states_ = (btn_debounce_counter_ >= DEBOUNCE_TICKS) ? raw : btn_stable_states_;
+  btn_last_raw_ = raw;
 
-  /* Debug stack size
-  size_t stack_size = sizeof(wa_);
+  // Debug buttons
+  /*static uint16_t last_reported_states_ = 0xFFFF;  // Last debug output
+  if (last_reported_states_ != btn_stable_states_) {
+    last_reported_states_ = btn_stable_states_;
+    ULOG_INFO("DEBUG: Buttons: 0x%04X (Raw: 0x%04X)", (~btn_stable_states_ & 0xFFFF), btn_stable_states_);
+  }*/
+
+  // Debug stack size
+  /*size_t stack_size = sizeof(wa_);
   size_t unused_stack = (uint8_t*)thread_->ctx.sp - (uint8_t*)&wa_[0];
   size_t used_stack = stack_size - unused_stack;
-  ULOG_INFO("Stack: %u/%u used", used_stack, stack_size);*/
+  ULOG_INFO("DEBUG: Stack: %u/%u used", used_stack, stack_size);*/
 }
 
 void SaboUIController::setLED(LEDID id, LEDMode mode) {
-  const uint8_t bit = 1 << static_cast<uint8_t>(id);
+  const uint8_t bit = 1 << uint8_t(id);
 
   // Clear existing state
   leds_.on_mask &= ~bit;
@@ -128,4 +144,8 @@ void SaboUIController::ThreadFunc() {
       chSysUnlock();*/
     }
   }
+}
+
+bool SaboUIController::isButtonPressed(ButtonID btn) {
+  return (btn_stable_states_ & (1 << uint8_t(btn))) == 0;
 }
