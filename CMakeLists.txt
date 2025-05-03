@@ -76,6 +76,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/gps/ublox_gps_driver.cpp
         src/drivers/gps/nmea_gps_driver.cpp
         ext/minmea/minmea.c
+        src/drivers/lidar/rplidar_a1/rplidar_a1_driver.cpp
         # Emergency Driver
         src/drivers/emergency/gpio_emergency_driver.cpp
         # Raw driver debug interface
@@ -128,3 +129,4 @@ add_custom_target(upload
         COMMAND docker run --rm --network=host -v ${CMAKE_BINARY_DIR}:/workdir ghcr.io/xtech/fw-xcore-boot:latest -i tap0 upload /workdir/${CMAKE_PROJECT_NAME}.bin
         DEPENDS ${CMAKE_PROJECT_NAME}
 )
+# Lidar Driver

@@ -1,3 +1,5 @@
+#include <drivers/lidar/rplidar_a1/rplidar_a1_driver.h>
+
 #include <drivers/charger/bq_2579/bq_2579.hpp>
 #include <drivers/motor/pwm/pwm_motor_driver.hpp>
 #include <globals.hpp>
@@ -9,6 +11,7 @@ namespace Robot {
 static BQ2579 charger{};
 static PwmMotorDriver left_pwm_motor_driver{};
 static PwmMotorDriver right_pwm_motor_driver{};
+static xbot::driver::lidar::RpLidarA1Driver lidar_driver{};
 
 namespace General {
 void InitPlatform() {
@@ -52,6 +55,8 @@ void InitPlatform() {
   right_pwm_motor_driver.SetEncoder(LINE_MOTOR2_ENCODER_A, LINE_MOTOR2_ENCODER_B);
   diff_drive.SetDrivers(&left_pwm_motor_driver, &right_pwm_motor_driver);
 
+  palSetLineMode(LINE_LIDAR_POWER_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
+  palSetLineMode(LINE_LIDAR_MOTOR_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_POWER_1_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_POWER_2_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
 
@@ -62,8 +67,16 @@ void InitPlatform() {
   palSetLineMode(LINE_AUX_POWER_3_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_AUX_POWER_3_STATUS, PAL_MODE_INPUT);
 
+  palClearLine(LINE_LIDAR_POWER_ENABLE);
+  palClearLine(LINE_LIDAR_MOTOR_ENABLE);
+  chThdSleep(TIME_MS2I(500));
+  palSetLine(LINE_LIDAR_POWER_ENABLE);
+  palSetLine(LINE_LIDAR_MOTOR_ENABLE);
+
   charger.setI2C(&I2CD1);
   power_service.SetDriver(&charger);
+
+  lidar_driver.StartDriver(&UARTD7, 115200);
 }
 
 bool IsHardwareSupported() {
