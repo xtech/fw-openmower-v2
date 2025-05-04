@@ -269,10 +269,17 @@ void boardInit(void) {
     
 }
 
-void HardFault_Handler() {
+static void Fault_Handler(const char *reason) {
 #ifdef RELEASE_BUILD
   NVIC_SystemReset();
 #else
-  chSysHalt("Hard Fault");
+  chSysHalt(reason);
 #endif
+}
+
+void HardFault_Handler() {
+  Fault_Handler("Hard Fault");
+}
+void MemManage_Handler() {
+  Fault_Handler("Memory Management");
 }
