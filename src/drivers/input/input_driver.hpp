@@ -3,6 +3,7 @@
 
 #include <etl/atomic.h>
 #include <etl/string.h>
+#include <lwjson/lwjson.h>
 
 namespace xbot::driver::input {
 struct Input {
@@ -32,6 +33,8 @@ class InputDriver {
  public:
   virtual Input& AddInput() = 0;
   virtual void ClearInputs() = 0;
+  virtual bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
+                                  Input& input) = 0;
   virtual bool OnStart() {
     return true;
   };

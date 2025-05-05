@@ -116,6 +116,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         LSM6DS3TR
         etl::etl
         LittleFS
+        lwjson
 )
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
