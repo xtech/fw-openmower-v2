@@ -62,17 +62,21 @@ UARTDriver* GetUartPort() {
 
 namespace Power {
 
-float GetMaxVoltage() {
+float GetDefaultBatteryFullVoltage() {
   return 7.0f * 4.2f;
 }
 
-float GetChargeCurrent() {
+float GetDefaultBatteryEmptyVoltage() {
+  return 7.0f * 3.3f;
+}
+
+float GetDefaultChargeCurrent() {
   return 2.5;
 }
 
-float GetMinVoltage() {
+float GetAbsoluteMinVoltage() {
   // 3.3V min, 7s pack
-  return 7.0f * 3.3;
+  return 7.0f * 3.0f;
 }
 
 }  // namespace Power
