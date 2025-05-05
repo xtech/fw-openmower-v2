@@ -80,20 +80,24 @@ UARTDriver* GetUartPort() {
 
 namespace Power {
 
-float GetMaxVoltage() {
+float GetDefaultBatteryFullVoltage() {
   return 29.4f;  // As rated on battery pack, which is 7 * 4.2V
 }
 
-float GetChargeCurrent() {
+float GetDefaultBatteryEmptyVoltage() {
+  return 7.0f * 3.3f;
+}
+
+float GetDefaultChargeCurrent() {
   // Battery pack is 7S3P, so max. would be 1.3Ah * 3 = 3.9A
   // 3.9A would be also the max. charge current for the stock PSU!
   return 1.95f;  // Lets stay save and conservative for now
 }
 
-float GetMinVoltage() {
+float GetAbsoluteMinVoltage() {
   // Stock Sabo battery pack has INR18650-13L (Samsung) which are specified as:
-  // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save and use 3.3V
-  return 7.0f * 3.3;
+  // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save and use 3.0V
+  return 7.0f * 3.0;
 }
 
 }  // namespace Power

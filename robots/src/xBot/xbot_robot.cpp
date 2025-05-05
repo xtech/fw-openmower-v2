@@ -81,17 +81,21 @@ UARTDriver* GetUartPort() {
 }  // namespace GPS
 
 namespace Power {
-float GetMaxVoltage() {
+float GetDefaultBatteryFullVoltage() {
   return 4.0f * 4.2f;
 }
 
-float GetChargeCurrent() {
+float GetDefaultBatteryEmptyVoltage() {
+  return 4.0f * 3.3f;
+}
+
+float GetDefaultChargeCurrent() {
   return 1.0;
 }
 
-float GetMinVoltage() {
-  // 3.3V min, 4s pack
-  return 4.0f * 3.3;
+float GetAbsoluteMinVoltage() {
+  // 3.0V min, 4s pack
+  return 4.0f * 3.0;
 }
 
 }  // namespace Power

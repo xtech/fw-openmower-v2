@@ -38,8 +38,11 @@ class PowerService : public PowerServiceBase {
   static constexpr auto CHARGE_STATUS_UNKNOWN_STR = "Unknown State";
 
   void tick();
+  void charger_tick();
   ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 1'000'000,
                                  XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::tick, this)};
+  Schedule charger_managed_schedule_{scheduler_, true, 1'000'000,
+                                     XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::charger_tick, this)};
 
   bool charger_configured_ = false;
   float charge_current = 0;
