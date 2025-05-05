@@ -3,6 +3,7 @@
 
 #include <etl/flat_map.h>
 #include <etl/string.h>
+#include <lwjson/lwjson.h>
 
 #include <InputServiceBase.hpp>
 
@@ -12,9 +13,12 @@
 using namespace xbot::driver::input;
 using namespace xbot::service;
 
+struct input_config_json_data_t;
+
 class InputService : public InputServiceBase {
  public:
   explicit InputService(uint16_t service_id) : InputServiceBase(service_id, wa, sizeof(wa)) {
+    mutex::initialize(&mutex_);
   }
 
  private:
@@ -26,6 +30,12 @@ class InputService : public InputServiceBase {
       {"worx", &worx_driver_},
   };
 
+  mutex_t mutex_;
+  etl::vector<Input*, 30> all_inputs_;
+
+  bool OnRegisterInputConfigsChanged(const void* data, size_t length) override;
+  static void InputConfigsJsonCallbackHelper(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type);
+  void InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, input_config_json_data_t* data);
   bool OnStart() override;
   void tick();
   ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 20'000,
