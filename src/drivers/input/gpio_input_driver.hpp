@@ -15,6 +15,8 @@ class GpioInputDriver : public InputDriver {
   void ClearInputs() override {
     inputs_.clear();
   };
+  bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
+                          Input& input) override;
   bool OnStart() override;
   void tick() override;
 

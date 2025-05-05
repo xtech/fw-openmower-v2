@@ -23,6 +23,31 @@ static const etl::flat_map<etl::string<13>, uint8_t, 8> INPUT_BITS = {
     {"stop2", 15},
 };
 
+#define lw_json_expect_type(expected)          \
+  if (type != LWJSON_STREAM_TYPE_##expected) { \
+    return false;                              \
+  }
+
+bool WorxInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
+                                         Input& input) {
+  auto& worx_input = static_cast<WorxInput&>(input);
+  if (strcmp(key, "id") == 0) {
+    lw_json_expect_type(STRING);
+    decltype(INPUT_BITS)::key_type input_id{jsp->data.str.buff};
+    auto bit_it = INPUT_BITS.find(input_id);
+    if (bit_it != INPUT_BITS.end()) {
+      worx_input.bit = bit_it->second;
+      return true;
+    } else {
+      ULOG_ERROR("Unknown Worx input ID \"%s\"", input_id.c_str());
+      return false;
+    }
+  } else {
+    ULOG_ERROR("Unknown attribute \"%s\"", key);
+    return false;
+  }
+}
+
 bool WorxInputDriver::OnStart() {
   // TODO: Does this need to be configurable?
   i2c_driver_ = &I2CD2;
