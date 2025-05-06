@@ -141,6 +141,9 @@ static void DispatchEvents() {
         mower_service.OnEmergencyChangedEvent();
 #endif
       }
+      if (flags & MowerEvents::INPUTS_CHANGED) {
+        emergency_service.OnInputsChangedEvent();
+      }
     }
   }
 }

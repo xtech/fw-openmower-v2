@@ -4,7 +4,12 @@
 
 #include "emergency_service.hpp"
 
-#include "xbot-service/Lock.hpp"
+#include <xbot-service/Lock.hpp>
+
+#include "services.hpp"
+
+using xbot::driver::input::Input;
+using xbot::service::Lock;
 
 void EmergencyService::TriggerEmergency(const char* reason) {
   {
@@ -51,6 +56,46 @@ void EmergencyService::tick() {
   SendEmergencyLatch(emergency_latch);
   SendEmergencyReason(emergency_reason.c_str(), emergency_reason.length());
   CommitTransaction();
+}
+
+static bool CheckDelayed(bool condition, systimestamp_t& triggered_since, systimestamp_t delay, sysinterval_t now) {
+  if (condition) {
+    if (triggered_since == 0) {
+      triggered_since = now;
+      return false;
+    } else {
+      return chTimeStampDiffX(triggered_since, now) > delay;
+    }
+  } else {
+    triggered_since = 0;
+    return false;
+  }
+}
+
+void EmergencyService::OnInputsChangedEvent() {
+  static const sysinterval_t STOP_DELAY = TIME_MS2I(20);
+  static systimestamp_t stop_started = 0;
+
+  size_t num_stop = 0, num_lift_tilt = 0;
+  {
+    // Although the input states are atomic, the vector of inputs is not.
+    Lock lk(&input_service.mutex_);
+    for (auto& input : input_service.GetAllInputs()) {
+      if (input->IsActive()) {
+        switch (input->emergency_mode) {
+          case Input::EmergencyMode::EMERGENCY: num_stop++; break;
+          case Input::EmergencyMode::TRAPPED: num_lift_tilt++; break;
+          default: break;
+        }
+      }
+    }
+  }
+
+  const systimestamp_t now = chVTGetTimeStamp();
+
+  if (CheckDelayed(num_stop > 0, stop_started, STOP_DELAY, now)) {
+    TriggerEmergency("Stop");
+  }
 }
 
 void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
