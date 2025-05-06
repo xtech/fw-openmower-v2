@@ -21,6 +21,12 @@ class InputService : public InputServiceBase {
     mutex::initialize(&mutex_);
   }
 
+  mutex_t mutex_;
+
+  const etl::ivector<Input*>& GetAllInputs() const {
+    return all_inputs_;
+  }
+
  private:
   GpioInputDriver gpio_driver_;
   WorxInputDriver worx_driver_;
@@ -30,7 +36,6 @@ class InputService : public InputServiceBase {
       {"worx", &worx_driver_},
   };
 
-  mutex_t mutex_;
   etl::vector<Input*, 30> all_inputs_;
 
   bool OnRegisterInputConfigsChanged(const void* data, size_t length) override;
