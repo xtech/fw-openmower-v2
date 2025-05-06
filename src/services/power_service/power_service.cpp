@@ -13,12 +13,58 @@
 void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
 }
+
 bool PowerService::OnStart() {
   charger_configured_ = false;
   return true;
 }
 
 void PowerService::tick() {
+  // Send the sensor values
+  StartTransaction();
+  if (charger_configured_) {
+    switch (charger_status) {
+      case CHARGER_STATUS::NOT_CHARGING:
+        SendChargingStatus(CHARGE_STATUS_NOT_CHARGING_STR, strlen(CHARGE_STATUS_NOT_CHARGING_STR));
+        break;
+      case CHARGER_STATUS::TRICKLE:
+        SendChargingStatus(CHARGE_STATUS_TRICKLE_STR, strlen(CHARGE_STATUS_TRICKLE_STR));
+        break;
+      case CHARGER_STATUS::PRE_CHARGE:
+        SendChargingStatus(CHARGE_STATUS_PRE_CHARGE_STR, strlen(CHARGE_STATUS_PRE_CHARGE_STR));
+        break;
+      case CHARGER_STATUS::CC: SendChargingStatus(CHARGE_STATUS_CC_STR, strlen(CHARGE_STATUS_CC_STR)); break;
+      case CHARGER_STATUS::CV: SendChargingStatus(CHARGE_STATUS_CV_STR, strlen(CHARGE_STATUS_CV_STR)); break;
+      case CHARGER_STATUS::TOP_OFF:
+        SendChargingStatus(CHARGE_STATUS_TOP_OFF_STR, strlen(CHARGE_STATUS_TOP_OFF_STR));
+        break;
+      case CHARGER_STATUS::DONE: SendChargingStatus(CHARGE_STATUS_DONE_STR, strlen(CHARGE_STATUS_DONE_STR)); break;
+      case CHARGER_STATUS::FAULT: SendChargingStatus(CHARGE_STATUS_FAULT_STR, strlen(CHARGE_STATUS_FAULT_STR)); break;
+      case CHARGER_STATUS::COMMS_ERROR:
+      case CHARGER_STATUS::UNKNOWN:
+        SendChargingStatus(CHARGE_STATUS_UNKNOWN_STR, strlen(CHARGE_STATUS_UNKNOWN_STR));
+        break;
+      default: SendChargingStatus(CHARGE_STATUS_ERROR_STR, strlen(CHARGE_STATUS_ERROR_STR)); break;
+    }
+  } else {
+    SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
+  }
+  SendBatteryVoltage(battery_volts);
+  SendChargeVoltage(adapter_volts);
+  SendChargeCurrent(charge_current);
+  SendChargerEnabled(true);
+  float battery_percent;
+  if (BatteryFullVoltage.valid && BatteryEmptyVoltage.valid) {
+    battery_percent =
+        (battery_volts - BatteryEmptyVoltage.value) / (BatteryFullVoltage.value - BatteryEmptyVoltage.value);
+  } else {
+    battery_percent = (battery_volts - Robot::Power::GetDefaultBatteryEmptyVoltage()) /
+                      (Robot::Power::GetDefaultBatteryFullVoltage() - Robot::Power::GetDefaultBatteryEmptyVoltage());
+  }
+  SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
+  CommitTransaction();
+}
+void PowerService::charger_tick() {
   if (charger_ == nullptr) {
     ULOG_ARG_ERROR(&service_id_, "Charger is null!");
     return;
@@ -31,7 +77,11 @@ void PowerService::tick() {
       bool success = true;
       success &= charger_->setPreChargeCurrent(0.250f);
       success &= charger_->setTerminationCurrent(0.250f);
-      success &= charger_->setChargingCurrent(Robot::Power::GetChargeCurrent(), false);
+      if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
+        success &= charger_->setChargingCurrent(ChargeCurrent.value, false);
+      } else {
+        success &= charger_->setChargingCurrent(Robot::Power::GetDefaultChargeCurrent(), false);
+      }
       // Disable temperature sense, the battery doesnt have it
       success &= charger_->setTsEnabled(false);
       charger_configured_ = success;
@@ -80,7 +130,7 @@ void PowerService::tick() {
       charger_configured_ = false;
       ULOG_ARG_ERROR(&service_id_, "Error during charging comms - reconfiguring");
     } else {
-      if (battery_volts < Robot::Power::GetMinVoltage()) {
+      if (battery_volts < Robot::Power::GetAbsoluteMinVoltage()) {
         critical_count++;
         if (critical_count > 10) {
           palClearLine(LINE_HIGH_LEVEL_GLOBAL_EN);
@@ -91,40 +141,6 @@ void PowerService::tick() {
       }
     }
   }
-  // Send the sensor values
-  StartTransaction();
-  if (charger_configured_) {
-    switch (charger_status) {
-      case CHARGER_STATUS::NOT_CHARGING:
-        SendChargingStatus(CHARGE_STATUS_NOT_CHARGING_STR, strlen(CHARGE_STATUS_NOT_CHARGING_STR));
-        break;
-      case CHARGER_STATUS::TRICKLE:
-        SendChargingStatus(CHARGE_STATUS_TRICKLE_STR, strlen(CHARGE_STATUS_TRICKLE_STR));
-        break;
-      case CHARGER_STATUS::PRE_CHARGE:
-        SendChargingStatus(CHARGE_STATUS_PRE_CHARGE_STR, strlen(CHARGE_STATUS_PRE_CHARGE_STR));
-        break;
-      case CHARGER_STATUS::CC: SendChargingStatus(CHARGE_STATUS_CC_STR, strlen(CHARGE_STATUS_CC_STR)); break;
-      case CHARGER_STATUS::CV: SendChargingStatus(CHARGE_STATUS_CV_STR, strlen(CHARGE_STATUS_CV_STR)); break;
-      case CHARGER_STATUS::TOP_OFF:
-        SendChargingStatus(CHARGE_STATUS_TOP_OFF_STR, strlen(CHARGE_STATUS_TOP_OFF_STR));
-        break;
-      case CHARGER_STATUS::DONE: SendChargingStatus(CHARGE_STATUS_DONE_STR, strlen(CHARGE_STATUS_DONE_STR)); break;
-      case CHARGER_STATUS::FAULT: SendChargingStatus(CHARGE_STATUS_FAULT_STR, strlen(CHARGE_STATUS_FAULT_STR)); break;
-      case CHARGER_STATUS::COMMS_ERROR:
-      case CHARGER_STATUS::UNKNOWN:
-        SendChargingStatus(CHARGE_STATUS_UNKNOWN_STR, strlen(CHARGE_STATUS_UNKNOWN_STR));
-        break;
-      default: SendChargingStatus(CHARGE_STATUS_ERROR_STR, strlen(CHARGE_STATUS_ERROR_STR)); break;
-    }
-  } else {
-    SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
-  }
-  SendBatteryVoltage(battery_volts);
-  SendChargeVoltage(adapter_volts);
-  SendChargeCurrent(charge_current);
-  SendChargerEnabled(true);
-  CommitTransaction();
 }
 
 void PowerService::OnChargingAllowedChanged(const uint8_t& new_value) {

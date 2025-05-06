@@ -26,17 +26,23 @@ namespace GPS {
 
 namespace Power {
 /**
- * Return the maximum voltage for this robot.
+ * Return the default battery full voltage (i.e. this is considered 100% battery)
  */
-[[maybe_unused]] float GetMaxVoltage();
+[[maybe_unused]] float GetDefaultBatteryFullVoltage();
+
+/**
+ * Return the default battery empty voltage (i.e. this is considered 0% battery)
+ */
+[[maybe_unused]] float GetDefaultBatteryEmptyVoltage();
+
 /**
  * Return the charing current for this robot
  */
-[[maybe_unused]] float GetChargeCurrent();
+[[maybe_unused]] float GetDefaultChargeCurrent();
 /**
  * Return the minimum voltage before shutting down as much as possible
  */
-[[maybe_unused]] float GetMinVoltage();
+[[maybe_unused]] float GetAbsoluteMinVoltage();
 }  // namespace Power
 };  // namespace Robot
 

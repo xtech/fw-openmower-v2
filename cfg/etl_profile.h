@@ -2,4 +2,11 @@
 #define ETL_PROFILE_H
 
 #define ETL_NO_STL
+
+#ifdef DEBUG_BUILD
+#define ETL_DEBUG
+#define ETL_CHECK_PUSH_POP
+#define ETL_ENABLE_ERROR_ON_STRING_TRUNCATION
 #endif
+
+#endif  // ETL_PROFILE_H
