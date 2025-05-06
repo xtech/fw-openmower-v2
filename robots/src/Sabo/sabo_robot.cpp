@@ -36,13 +36,13 @@ void InitPlatform() {
   emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_1,
                             .invert = false,
                             .active_since = 0,
-                            .timeout_duration = TIME_MS2I(1000),
+                            .timeout_duration = TIME_MS2I(2000),
                             .active = false});
   // Front right wheel lift (Hall)
   emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_2,
                             .invert = false,
                             .active_since = 0,
-                            .timeout_duration = TIME_MS2I(1000),
+                            .timeout_duration = TIME_MS2I(2000),
                             .active = false});
   // Top stop button (Hall)
   emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_3,
