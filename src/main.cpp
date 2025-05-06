@@ -118,6 +118,7 @@ int main() {
   mower_service.start();
 #endif
   gps_service.start();
+  input_service.start();
 
   SetStatusLedColor(GREEN);
 
@@ -139,6 +140,9 @@ static void DispatchEvents() {
 #ifndef NO_MOWER_SERVICE
         mower_service.OnEmergencyChangedEvent();
 #endif
+      }
+      if (flags & MowerEvents::INPUTS_CHANGED) {
+        emergency_service.OnInputsChangedEvent();
       }
     }
   }
