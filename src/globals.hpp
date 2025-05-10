@@ -7,11 +7,26 @@
 
 #include <ch.h>
 #include <etl/delegate.h>
+#include <etl/initializer_list.h>
 #include <id_eeprom.h>
 
 #include <robot.hpp>
 
 extern Robot* robot;
+
+namespace Events {
+enum eventid_t {
+  GLOBAL,
+};
+
+constexpr int ids_to_mask(std::initializer_list<eventid_t> ids) {
+  int result = 0;
+  for (eventid_t id : ids) {
+    result |= EVENT_MASK(id);
+  }
+  return result;
+}
+}  // namespace Events
 
 namespace MowerEvents {
 enum : eventflags_t {
