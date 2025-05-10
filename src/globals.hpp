@@ -14,6 +14,9 @@
 namespace Events {
 enum eventid_t {
   GLOBAL,
+
+  // InputService
+  GPIO_TRIGGERED,
 };
 
 constexpr int ids_to_mask(std::initializer_list<eventid_t> ids) {
