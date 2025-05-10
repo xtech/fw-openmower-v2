@@ -4,6 +4,8 @@
 
 #include <xbot-service/Lock.hpp>
 
+#include "../../globals.hpp"
+
 using xbot::service::Lock;
 
 const char* JSON_WHITESPACE_CHARS = " \t\r\n";
@@ -178,6 +180,13 @@ void InputService::OnStop() {
   // Stop drivers.
   for (auto& driver : drivers_) {
     driver.second->OnStop();
+  }
+}
+
+void InputService::OnLoop(uint32_t, uint32_t) {
+  uint32_t events = chEvtGetAndClearEvents(Events::ids_to_mask({Events::GPIO_TRIGGERED}));
+  if (events & Events::GPIO_TRIGGERED) {
+    gpio_driver_.tick();
   }
 }
 
