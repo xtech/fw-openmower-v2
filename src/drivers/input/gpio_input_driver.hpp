@@ -18,6 +18,8 @@ class GpioInputDriver : public InputDriver {
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
   bool OnStart() override;
+  void OnStop() override;
+  static void LineCallback(void* arg);
   void tick() override;
 
  private:
