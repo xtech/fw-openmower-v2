@@ -174,6 +174,13 @@ bool InputService::OnStart() {
   return true;
 }
 
+void InputService::OnStop() {
+  // Stop drivers.
+  for (auto& driver : drivers_) {
+    driver.second->OnStop();
+  }
+}
+
 void InputService::tick() {
   // TODO: Check if these can run at the same frequency.
   for (auto& driver : drivers_) {

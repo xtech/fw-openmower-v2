@@ -38,6 +38,7 @@ class InputDriver {
   virtual bool OnStart() {
     return true;
   };
+  virtual void OnStop() {};
   virtual void tick() = 0;
 };
 }  // namespace xbot::driver::input
