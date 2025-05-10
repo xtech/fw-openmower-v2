@@ -42,6 +42,7 @@ class InputService : public InputServiceBase {
   static void InputConfigsJsonCallbackHelper(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type);
   void InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, input_config_json_data_t* data);
   bool OnStart() override;
+  void OnStop() override;
   void tick();
   ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 20'000,
                                  XBOT_FUNCTION_FOR_METHOD(InputService, &InputService::tick, this)};
