@@ -11,9 +11,9 @@ class ServiceExt : public Service {
   explicit ServiceExt(uint16_t service_id, void* stack, size_t stack_size) : Service(service_id, stack, stack_size) {
   }
 
-  void SendEvent(Events::eventid_t id) {
+  void SendEvent(Events::Events id) {
     syssts_t sts = chSysGetStatusAndLockX();
-    chEvtSignalI(process_thread_, id);
+    chEvtSignalI(process_thread_, EVENT_MASK(id));
     chMBPostI(&packet_queue_, reinterpret_cast<msg_t>(nullptr));
     chSysRestoreStatusX(sts);
   }
