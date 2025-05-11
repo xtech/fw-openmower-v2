@@ -19,7 +19,6 @@ class GpioInputDriver : public InputDriver {
                           Input& input) override;
   bool OnStart() override;
   void OnStop() override;
-  static void LineCallback(void* arg);
   void tick() override;
 
  private:
