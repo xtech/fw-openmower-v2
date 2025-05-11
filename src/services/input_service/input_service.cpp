@@ -184,8 +184,8 @@ void InputService::OnStop() {
 }
 
 void InputService::OnLoop(uint32_t, uint32_t) {
-  uint32_t events = chEvtGetAndClearEvents(Events::ids_to_mask({Events::GPIO_TRIGGERED}));
-  if (events & Events::GPIO_TRIGGERED) {
+  eventmask_t events = chEvtGetAndClearEvents(Events::ids_to_mask({Events::GPIO_TRIGGERED}));
+  if (events & EVENT_MASK(Events::GPIO_TRIGGERED)) {
     gpio_driver_.tick();
   }
 }

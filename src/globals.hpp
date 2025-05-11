@@ -12,7 +12,7 @@
 #include "ch.h"
 
 namespace Events {
-enum eventid_t {
+enum Events : eventid_t {
   GLOBAL,
 
   // InputService
