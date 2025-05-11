@@ -15,7 +15,7 @@
 extern Robot* robot;
 
 namespace Events {
-enum eventid_t {
+enum Events : eventid_t {
   GLOBAL,
 
   // InputService

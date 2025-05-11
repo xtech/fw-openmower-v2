@@ -132,10 +132,10 @@ static void DispatchEvents() {
   event_listener_t event_listener;
   chEvtRegister(&mower_events, &event_listener, Events::GLOBAL);
   while (1) {
-    uint32_t event = chEvtWaitAnyTimeout(ALL_EVENTS, TIME_INFINITE);
-    if (event == Events::GLOBAL) {
+    eventmask_t events = chEvtWaitAnyTimeout(Events::ids_to_mask({Events::GLOBAL}), TIME_INFINITE);
+    if (events & EVENT_MASK(Events::GLOBAL)) {
       // Get the flags provided by the event
-      uint32_t flags = chEvtGetAndClearFlags(&event_listener);
+      eventflags_t flags = chEvtGetAndClearFlags(&event_listener);
       if (flags & MowerEvents::EMERGENCY_CHANGED) {
         diff_drive.OnEmergencyChangedEvent();
         if (robot->NeedsService(xbot::service_ids::MOWER)) {
