@@ -47,7 +47,7 @@ void GpioInputDriver::OnStop() {
 
 void GpioInputDriver::tick() {
   for (auto& input : inputs_) {
-    input.Update(palReadLine(input.line) ^ input.invert);
+    input.Update((palReadLine(input.line) == PAL_HIGH) ^ input.invert);
   }
 }
 
