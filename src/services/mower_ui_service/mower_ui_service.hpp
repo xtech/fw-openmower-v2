@@ -52,6 +52,11 @@ class MowerUiService : public MowerUiServiceBase {
 
   void SendAction(HighLevelAction action);
 
+  void SetCallback(const etl::delegate<void()> &callback) {
+    xbot::service::Lock lk{&mtx_};
+    state_changed_callback_ = callback;
+  }
+
  private:
   MUTEX_DECL(mtx_);
   
@@ -63,6 +68,8 @@ class MowerUiService : public MowerUiServiceBase {
   int16_t current_path_ = 0;
   int16_t current_path_index_ = 0;
 
+  etl::delegate<void()> state_changed_callback_{};
+
   void OnStateIDChanged(const HighLevelStatus& new_value) override;
   void OnStateNameChanged(const char* new_value, uint32_t length) override;
   void OnSubStateNameChanged(const char* new_value, uint32_t length) override;
@@ -70,6 +77,7 @@ class MowerUiService : public MowerUiServiceBase {
   void OnCurrentAreaChanged(const int16_t& new_value) override;
   void OnCurrentPathChanged(const int16_t& new_value) override;
   void OnCurrentPathIndexChanged(const int16_t& new_value) override;
+  void OnTransactionEnd() override;
 };
 
 #endif  // OPENMOWER_MOWER_UI_SERVICE_HPP
