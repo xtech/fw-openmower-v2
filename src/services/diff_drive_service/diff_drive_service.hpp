@@ -52,7 +52,7 @@ class DiffDriveService : public DiffDriveServiceBase {
 
  private:
   void tick();
-  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 40'000,
+  ServiceSchedule tick_schedule_{*this, 40'000,
                                  XBOT_FUNCTION_FOR_METHOD(DiffDriveService, &DiffDriveService::tick, this)};
 
   void SetDuty();
