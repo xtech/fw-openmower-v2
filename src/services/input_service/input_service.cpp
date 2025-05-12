@@ -189,10 +189,3 @@ void InputService::OnLoop(uint32_t, uint32_t) {
     gpio_driver_.tick();
   }
 }
-
-void InputService::tick() {
-  // TODO: Check if these can run at the same frequency.
-  for (auto& driver : drivers_) {
-    driver.second->tick();
-  }
-}
