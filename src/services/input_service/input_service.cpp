@@ -121,11 +121,15 @@ void InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
     // Driver key
     case 1: {
       const char* driver = jsp->data.str.buff;
-      auto it = drivers_.find(driver);
-      if (it == drivers_.end()) {
+      if (strlen(driver) <= decltype(drivers_)::key_type::MAX_SIZE) {
+        auto it = drivers_.find(driver);
+        if (it == drivers_.end()) {
+          JSON_ERROR("Unknown input driver \"%s\"", driver);
+        }
+        data->driver = it->second;
+      } else {
         JSON_ERROR("Unknown input driver \"%s\"", driver);
       }
-      data->driver = it->second;
       break;
     }
 
