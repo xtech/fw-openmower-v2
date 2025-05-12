@@ -28,8 +28,8 @@ class InputService : public InputServiceBase {
   }
 
  private:
-  GpioInputDriver gpio_driver_;
-  WorxInputDriver worx_driver_;
+  GpioInputDriver gpio_driver_{*this};
+  WorxInputDriver worx_driver_{*this};
 
   const etl::flat_map<etl::string<4>, InputDriver*, 2> drivers_ = {
       {"gpio", &gpio_driver_},
@@ -44,9 +44,6 @@ class InputService : public InputServiceBase {
   bool OnStart() override;
   void OnStop() override;
   void OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
-  void tick();
-  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 20'000,
-                                 XBOT_FUNCTION_FOR_METHOD(InputService, &InputService::tick, this)};
 
   THD_WORKING_AREA(wa, 1500) {};
 };
