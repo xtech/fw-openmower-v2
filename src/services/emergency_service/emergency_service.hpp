@@ -33,7 +33,7 @@ class EmergencyService : public EmergencyServiceBase {
 
  private:
   void tick();
-  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 100'000,
+  ServiceSchedule tick_schedule_{*this, 100'000,
                                  XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::tick, this)};
 
   MUTEX_DECL(mtx_);
