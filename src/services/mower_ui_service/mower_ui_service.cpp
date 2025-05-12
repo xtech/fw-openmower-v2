@@ -42,4 +42,9 @@ void MowerUiService::OnCurrentPathIndexChanged(const int16_t &new_value) {
   xbot::service::Lock lk{&mtx_};
   current_path_index_ = new_value;
 }
+void MowerUiService::OnTransactionEnd() {
+  if (state_changed_callback_) {
+    state_changed_callback_();
+  }
+}
 
