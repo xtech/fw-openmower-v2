@@ -9,26 +9,41 @@
 
 #include <EmergencyServiceBase.hpp>
 
+#include "globals.hpp"
+
+using namespace xbot::service;
+
 class EmergencyService : public EmergencyServiceBase {
  private:
-  THD_WORKING_AREA(wa, 1024){};
+  THD_WORKING_AREA(wa, 1024) {};
 
  public:
-  explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, 100'000, wa, sizeof(wa)) {
+  explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, wa, sizeof(wa)) {
   }
+
+  void TriggerEmergency(const char* reason);
+  bool GetEmergency();
+  void OnInputsChangedEvent();
 
  protected:
   bool OnStart() override;
   void OnStop() override;
 
+  void OnSetEmergencyChanged(const uint8_t& new_value) override;
+
  private:
-  void tick() override;
+  void tick();
+  ServiceSchedule tick_schedule_{*this, 100'000,
+                                 XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::tick, this)};
+
+  MUTEX_DECL(mtx_);
+
+  void ClearEmergency();
+
+  bool emergency_latch = true;
 
   systime_t last_clear_emergency_message_ = 0;
   etl::string<100> emergency_reason{"Boot"};
-
- protected:
-  void OnSetEmergencyChanged(const uint8_t& new_value) override;
 };
 
 #endif  // EMERGENCY_SERVICE_HPP

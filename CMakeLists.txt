@@ -4,9 +4,10 @@ include(robots/CMakeLists.txt)
 
 set(CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cfg)
 set(BOARD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boards/XCORE)
-# Set custom port path
-set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
 
+# Set custom port path and extended service classes
+set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
+set(XBOT_SERVICE_EXT "services/service_ext.hpp")
 
 # Set the project name
 set(CMAKE_PROJECT_NAME openmower)
@@ -53,22 +54,25 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/heartbeat.c
         src/id_eeprom.c
         src/boot_service_discovery.c
+        src/services.cpp
         src/status_led.c
         src/services/imu_service/imu_service.cpp
         src/services/power_service/power_service.cpp
         src/services/emergency_service/emergency_service.cpp
         src/services/diff_drive_service/diff_drive_service.cpp
-        src/services/pwm_diff_drive_service/pwm_diff_drive_service.cpp
         src/services/mower_service/mower_service.cpp
         src/services/gps_service/gps_service.cpp
+        src/services/input_service/input_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
         # BQ25679 driver
         src/drivers/charger/bq_2579/bq_2579.cpp
         # VESC driver
-        src/drivers/vesc/buffer.cpp
-        src/drivers/vesc/crc.cpp
-        src/drivers/vesc/VescDriver.cpp
+        src/drivers/motor/vesc/buffer.cpp
+        src/drivers/motor/vesc/crc.cpp
+        src/drivers/motor/vesc/VescDriver.cpp
+        # PWM motor driver
+        src/drivers/motor/pwm/pwm_motor_driver.cpp
         # GPS driver
         src/drivers/gps/gps_driver.cpp
         src/drivers/gps/ublox_gps_driver.cpp
@@ -76,6 +80,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ext/minmea/minmea.c
         # Emergency Driver
         src/drivers/emergency/gpio_emergency_driver.cpp
+        # Input driver
+        src/drivers/input/input_driver.cpp
+        src/drivers/input/gpio_input_driver.cpp
+        src/drivers/input/worx_input_driver.cpp
         # YardForce Cover UI Driver
         src/drivers/ui/YardForceCoverUI/yard_force_cover_ui_driver.cpp
         # Raw driver debug interface
@@ -105,7 +113,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         ChibiOS
         LSM6DS3TR
         etl::etl
-        FastCRC
+        lwjson
 )
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
@@ -114,6 +122,7 @@ target_add_service(${CMAKE_PROJECT_NAME} EmergencyService ${CMAKE_CURRENT_SOURCE
 target_add_service(${CMAKE_PROJECT_NAME} DiffDriveService ${CMAKE_CURRENT_SOURCE_DIR}/services/diff_drive_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/services/gps_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} InputService ${CMAKE_CURRENT_SOURCE_DIR}/services/input_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")

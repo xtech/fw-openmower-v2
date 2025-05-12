@@ -6,23 +6,34 @@
 #define GLOBALS_H
 
 #include <etl/delegate.h>
+#include <etl/initializer_list.h>
 #include <id_eeprom.h>
 
 #include "ch.h"
 
+namespace Events {
+enum Events : eventid_t {
+  GLOBAL,
+
+  // InputService
+  GPIO_TRIGGERED,
+};
+
+constexpr int ids_to_mask(std::initializer_list<eventid_t> ids) {
+  int result = 0;
+  for (eventid_t id : ids) {
+    result |= EVENT_MASK(id);
+  }
+  return result;
+}
+}  // namespace Events
+
 namespace MowerEvents {
 enum : eventflags_t {
-  // Emergency flags have changed
   EMERGENCY_CHANGED = 1 << 0,
+  INPUTS_CHANGED = 1 << 1,
 };
 }
-
-struct MowerStatus {
-  // Was there an emergency which has not been reset?
-  bool emergency_latch : 1;
-  // Is there currently an emergency (this is updated by the high-prio emergency task)?
-  bool emergency_active : 1;
-};
 
 CC_SECTION(".ram4") extern struct board_info board_info;
 CC_SECTION(".ram4") extern struct carrier_board_info carrier_board_info;
@@ -31,6 +42,4 @@ CC_SECTION(".ram4") extern struct carrier_board_info carrier_board_info;
 extern event_source_t mower_events;
 
 void InitGlobals();
-MowerStatus GetMowerStatus();
-MowerStatus UpdateMowerStatus(const etl::delegate<void(MowerStatus& mower_status)>& callback);
 #endif  // GLOBALS_H

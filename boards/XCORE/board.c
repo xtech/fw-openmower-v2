@@ -268,3 +268,18 @@ void boardInit(void) {
         initBoardPeriphs();
     
 }
+
+static void Fault_Handler(const char *reason) {
+#ifdef RELEASE_BUILD
+  NVIC_SystemReset();
+#else
+  chSysHalt(reason);
+#endif
+}
+
+void HardFault_Handler() {
+  Fault_Handler("Hard Fault");
+}
+void MemManage_Handler() {
+  Fault_Handler("Memory Management");
+}

@@ -36,7 +36,6 @@
 
 #define LINE_CHARGER_ENABLE LINE_GPIO6
 
+#define NO_MOWER_SERVICE
 
-#define PWM_DIFF_DRIVE
-
-#endif //ROBOT_EX_HPP
+#endif  // ROBOT_EX_HPP

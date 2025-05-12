@@ -46,14 +46,13 @@ void ImuService::OnCreate() {
   spiAcquireBus(&SPID_IMU);
   spiStart(&SPID_IMU, &spi_config);
 
-  dev_ctx.write_reg =
-      write_reg_lambda;
+  dev_ctx.write_reg = write_reg_lambda;
   dev_ctx.read_reg = read_reg_lambda;
   for (int i = 0; i < 100; i++) {
     uint8_t whoamI = 0;
     lsm6ds3tr_c_device_id_get(&dev_ctx, &whoamI);
 
-   if (whoamI == 0x6a || whoamI == 0x6c) {
+    if (whoamI == 0x6a || whoamI == 0x6c) {
       imu_found = true;
       error_message = "None";
       break;
@@ -62,7 +61,7 @@ void ImuService::OnCreate() {
       error_message = "IMU Not Found. Whoami=0x";
       etl::format_spec hex_spec{};
       hex_spec.base(16);
-      etl::to_string(whoamI, error_message, hex_spec,true);
+      etl::to_string(whoamI, error_message, hex_spec, true);
       chThdSleep(TIME_MS2I(100));
     }
   }
@@ -99,6 +98,22 @@ void ImuService::OnCreate() {
   ULOG_ARG_INFO(&service_id_, "IMU configured successfully");
 }
 
+bool ImuService::OnStart() {
+  // Validate and parse axis remapping
+  for (int i = 0; i < 3; ++i) {
+    int8_t val = AxisRemap.value[i];
+
+    if (val < -3 || val == 0 || val > 3) {
+      ULOG_ARG_ERROR(&service_id_, "Invalid axis remap value: %d", val);
+      return false;
+    }
+    axis_remap_sign_[i] = (val > 0) ? 1 : -1;
+    axis_remap_idx_[i] = abs(val) - 1;
+  }
+
+  return true;
+}
+
 void ImuService::tick() {
   if (!imu_found) {
     static uint32_t last_log = 0;
@@ -116,18 +131,21 @@ void ImuService::tick() {
     /* Read magnetic field data */
     memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
     lsm6ds3tr_c_acceleration_raw_get(&dev_ctx, data_raw_acceleration);
-    axes[0] = lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[0]) / 1000.0;
-    axes[1] = -lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[1]) / 1000.0;
-    axes[2] = -lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[2]) / 1000.0;
+    axes[0] = axis_remap_sign_[0] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[0]]) * 0.00980665;
+    axes[1] = axis_remap_sign_[1] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[1]]) * 0.00980665;
+    axes[2] = axis_remap_sign_[2] * lsm6ds3tr_c_from_fs2g_to_mg(data_raw_acceleration[axis_remap_idx_[2]]) * 0.00980665;
   }
 
   if (reg.status_reg.gda) {
     /* Read magnetic field data */
     memset(data_raw_angular_rate, 0x00, 3 * sizeof(int16_t));
     lsm6ds3tr_c_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate);
-    axes[3] = M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[0]) / 180000.0;
-    axes[4] = -M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[1]) / 180000.0;
-    axes[5] = -M_PI * lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[2]) / 180000.0;
+    axes[3] = axis_remap_sign_[0] * M_PI *
+              lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[axis_remap_idx_[0]]) / 180000.0;
+    axes[4] = axis_remap_sign_[1] * M_PI *
+              lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[axis_remap_idx_[1]]) / 180000.0;
+    axes[5] = axis_remap_sign_[2] * M_PI *
+              lsm6ds3tr_c_from_fs2000dps_to_mdps(data_raw_angular_rate[axis_remap_idx_[2]]) / 180000.0;
   }
 
   /*if (reg.status_reg.tda) {
