@@ -8,6 +8,8 @@
 
 namespace xbot::driver::input {
 class GpioInputDriver : public InputDriver {
+  using InputDriver::InputDriver;
+
  public:
   Input& AddInput() override {
     return inputs_.emplace_back();
@@ -19,7 +21,7 @@ class GpioInputDriver : public InputDriver {
                           Input& input) override;
   bool OnStart() override;
   void OnStop() override;
-  void tick() override;
+  void tick();
 
  private:
   struct GpioInput : public Input {
@@ -27,6 +29,9 @@ class GpioInputDriver : public InputDriver {
   };
 
   etl::vector<GpioInput, 4> inputs_;
+
+  ServiceSchedule tick_schedule_{service_, 1'000'000,
+                                 XBOT_FUNCTION_FOR_METHOD(GpioInputDriver, &GpioInputDriver::tick, this)};
 };
 }  // namespace xbot::driver::input
 

@@ -8,6 +8,8 @@
 
 namespace xbot::driver::input {
 class WorxInputDriver : public InputDriver {
+  using InputDriver::InputDriver;
+
  public:
   Input& AddInput() override {
     return inputs_.emplace_back();
@@ -18,7 +20,6 @@ class WorxInputDriver : public InputDriver {
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
   bool OnStart() override;
-  void tick() override;
 
  private:
 #pragma pack(push, 1)
@@ -39,6 +40,10 @@ class WorxInputDriver : public InputDriver {
   etl::vector<WorxInput, 16> inputs_;
 
   bool ReadKeypad(KeypadResponse& response);
+
+  void tick();
+  ServiceSchedule tick_schedule_{service_, 20'000,
+                                 XBOT_FUNCTION_FOR_METHOD(WorxInputDriver, &WorxInputDriver::tick, this)};
 };
 }  // namespace xbot::driver::input
 
