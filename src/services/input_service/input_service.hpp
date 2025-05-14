@@ -39,13 +39,12 @@ class InputService : public InputServiceBase {
   etl::vector<Input*, 30> all_inputs_;
 
   bool OnRegisterInputConfigsChanged(const void* data, size_t length) override;
-  static void InputConfigsJsonCallbackHelper(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type);
-  void InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, input_config_json_data_t* data);
+  bool InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data);
   bool OnStart() override;
   void OnStop() override;
   void OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
 
-  THD_WORKING_AREA(wa, 1500) {};
+  THD_WORKING_AREA(wa, 2000) {};
 };
 
 #endif  // INPUT_SERVICE_HPP
