@@ -54,6 +54,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/heartbeat.c
         src/id_eeprom.c
         src/boot_service_discovery.cpp
+        src/json_stream.cpp
         src/services.cpp
         src/status_led.c
         # LittleFS helpers
