@@ -4,20 +4,16 @@
 #include <ulog.h>
 
 #include "../../globals.hpp"
+#include "../../json_stream.hpp"
 #include "../../services.hpp"
 
 namespace xbot::driver::input {
-
-#define lw_json_expect_type(expected)          \
-  if (type != LWJSON_STREAM_TYPE_##expected) { \
-    return false;                              \
-  }
 
 bool GpioInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {
   auto& gpio_input = static_cast<GpioInput&>(input);
   if (strcmp(key, "line") == 0) {
-    lw_json_expect_type(NUMBER);
+    JsonExpectType(NUMBER);
     gpio_input.line = etl::to_arithmetic<ioline_t>(jsp->data.prim.buff, strlen(jsp->data.prim.buff));
     return true;
   } else {
