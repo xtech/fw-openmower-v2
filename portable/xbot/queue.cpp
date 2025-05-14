@@ -15,7 +15,7 @@ bool xbot::service::queue::queuePopItem(QueuePtr queue, void** result, uint32_t 
     timeout = TIME_US2I(timeout_micros);
   }
   static_assert(sizeof(msg_t) == sizeof(void*));
-  return chMBFetchTimeout(queue, reinterpret_cast<msg_t*>(result), timeout) == MSG_OK;
+  return chMBFetchTimeout(queue, reinterpret_cast<msg_t*>(result), timeout) == MSG_OK && *result;
 }
 
 bool xbot::service::queue::queuePushItem(QueuePtr queue, void* item) {
