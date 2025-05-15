@@ -14,7 +14,7 @@
 #include "hal.h"
 #include "ui_board.h"
 
-class YardForceCoverUIDriver : public xbot::driver::input::InputDriver {
+class YardForceCoverUIDriver {
  private:
   // Extend the config struct by a pointer to this instance, so that we can access it in callbacks.
   struct UARTConfigEx : UARTConfig {

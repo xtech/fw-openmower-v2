@@ -61,6 +61,14 @@ void YardForceCoverUIDriver::ThreadFunc() {
     bool timeout = chEvtWaitAnyTimeout(EVT_PACKET_RECEIVED, TIME_S2I(1)) == 0;
     if (timeout) {
       RequestFWVersion();
+
+      msg_set_leds msg{};
+      msg.type = Set_LEDs;
+      static double value = 0.0f;
+      setBars7(msg, value);
+      value += 0.1f;
+      sendUIMessage(&msg, sizeof(msg));
+
       continue;
     }
     chSysLock();
@@ -97,7 +105,7 @@ void YardForceCoverUIDriver::ProcessPacket() {
 
   if (crc != readcrc) return;
 
-  if (buffer[0] == Get_Version && size == sizeof(struct msg_get_version)) {
+  /*if (buffer[0] == Get_Version && size == sizeof(struct msg_get_version)) {
     struct msg_get_version *msg = (struct msg_get_version *)buffer;
     board_found = true;
   } else if (buffer[0] == Get_Button && size == sizeof(struct msg_event_button)) {
@@ -113,7 +121,7 @@ void YardForceCoverUIDriver::ProcessPacket() {
     struct msg_event_subscribe *msg = (struct msg_event_subscribe *)buffer;
     ui_topic_bitmask = msg->topic_bitmask;
     ui_interval = msg->interval;
-  }
+  }*/
 }
 void YardForceCoverUIDriver::sendUIMessage(void *msg, size_t size) {
   // packages need to be at least 1 byte of type, 1 byte of data and 2 bytes of CRC
