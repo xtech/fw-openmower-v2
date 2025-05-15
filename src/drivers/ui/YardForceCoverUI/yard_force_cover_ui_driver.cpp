@@ -3,17 +3,21 @@
 //
 
 #include "yard_force_cover_ui_driver.hpp"
+
+#include <sys/unistd.h>
 #include <ulog.h>
+
+#include "COBS.h"
 #include "ui_board.h"
 
 static constexpr uint8_t EVT_PACKET_RECEIVED = 1;
 
 void YardForceCoverUIDriver::Start(UARTDriver *uart) {
-  if(uart == nullptr) {
+  if (uart == nullptr) {
     chDbgAssert(uart != nullptr, "UART cannot be null");
     return;
   }
-  if(thread_ != nullptr) {
+  if (thread_ != nullptr) {
     ULOG_ERROR("Started YardForce CoverUI Driver twice!");
     return;
   }
@@ -23,7 +27,7 @@ void YardForceCoverUIDriver::Start(UARTDriver *uart) {
   uart_config_.speed = 115200;
   uart_config_.context = this;
   uart_config_.rxchar_cb = YardForceCoverUIDriver::UartRxChar;
-  if(uartStart(uart, &uart_config_) != MSG_OK) {
+  if (uartStart(uart, &uart_config_) != MSG_OK) {
     ULOG_ERROR("Error starting UART");
     return;
   }
@@ -35,32 +39,36 @@ void YardForceCoverUIDriver::Start(UARTDriver *uart) {
 }
 
 void YardForceCoverUIDriver::ThreadHelper(void *instance) {
-  auto* i = static_cast<YardForceCoverUIDriver*>(instance);
+  auto *i = static_cast<YardForceCoverUIDriver *>(instance);
   i->ThreadFunc();
 }
 void YardForceCoverUIDriver::UartRxChar(UARTDriver *driver, uint16_t data) {
   YardForceCoverUIDriver *instance = reinterpret_cast<const UARTConfigEx *>(driver->config)->context;
   chDbgAssert(instance != nullptr, "instance cannot be null!");
   chSysLockFromISR();
-  if(instance->processing) {
+  if (instance->processing) {
     chSysUnlockFromISR();
     return;
   }
   instance->buffer[instance->buffer_fill++] = data;
-  if(data == 0) {
+  if (data == 0) {
     chEvtSignalI(instance->thread_, EVT_PACKET_RECEIVED);
   }
   chSysUnlockFromISR();
 }
 void YardForceCoverUIDriver::ThreadFunc() {
-  while(true) {
-    chEvtWaitAny(EVT_PACKET_RECEIVED);
+  while (true) {
+    bool timeout = chEvtWaitAnyTimeout(EVT_PACKET_RECEIVED, TIME_S2I(1)) == 0;
+    if (timeout) {
+      RequestFWVersion();
+      continue;
+    }
     chSysLock();
     // Forbid packet reception
     processing = true;
     chSysUnlock();
-    if(buffer_fill > 0) {
-     ProcessPacket();
+    if (buffer_fill > 0) {
+      ProcessPacket();
     }
     buffer_fill = 0;
     chSysLock();
@@ -70,8 +78,10 @@ void YardForceCoverUIDriver::ThreadFunc() {
   }
 }
 void YardForceCoverUIDriver::ProcessPacket() {
-  uint16_t size = buffer_fill;
-  u_int16_t *crc_pointer = (uint16_t *) (buffer + (size - 2));
+  if (buffer_fill == 0) return;
+  uint16_t size = cobs_.decode((uint8_t *)buffer, buffer_fill - 1, encode_decode_buf_);
+
+  u_int16_t *crc_pointer = (uint16_t *)(encode_decode_buf_ + (size - 2));
   u_int16_t readcrc = *crc_pointer;
 
   // check structure size
@@ -80,24 +90,19 @@ void YardForceCoverUIDriver::ProcessPacket() {
   }
 
   // check the CRC
-  uint16_t crc = CRC16.ccitt(const_cast<const uint8_t *>(buffer), size - 2);
+  CRC16.reset();
+  etl::begin(encode_decode_buf_);
+  CRC16.add(encode_decode_buf_, encode_decode_buf_ + size - 2);
+  uint16_t crc = CRC16.value();
 
-  if (buffer[size - 1] != ((crc >> 8) & 0xFF) ||
-      buffer[size - 2] != (crc & 0xFF))
-    return;
+  if (crc != readcrc) return;
 
-  if (buffer[0] == Get_Version && size == sizeof(struct msg_get_version))
-  {
+  if (buffer[0] == Get_Version && size == sizeof(struct msg_get_version)) {
     struct msg_get_version *msg = (struct msg_get_version *)buffer;
-  }
-  else if (buffer[0] == Get_Button && size == sizeof(struct msg_event_button))
-  {
+    board_found = true;
+  } else if (buffer[0] == Get_Button && size == sizeof(struct msg_event_button)) {
     struct msg_event_button *msg = (struct msg_event_button *)buffer;
-    struct ll_ui_event ui_event;
-    ui_event.type = PACKET_ID_LL_UI_EVENT;
-    ui_event.button_id = msg->button_id;
-    ui_event.press_duration = msg->press_duration;
-    sendMessage(&ui_event, sizeof(ui_event));
+
   } else if (buffer[0] == Get_Emergency && size == sizeof(struct msg_event_emergency)) {
     struct msg_event_emergency *msg = (struct msg_event_emergency *)buffer;
     stock_ui_emergency_state = msg->state;
@@ -109,4 +114,33 @@ void YardForceCoverUIDriver::ProcessPacket() {
     ui_topic_bitmask = msg->topic_bitmask;
     ui_interval = msg->interval;
   }
+}
+void YardForceCoverUIDriver::sendUIMessage(void *msg, size_t size) {
+  // packages need to be at least 1 byte of type, 1 byte of data and 2 bytes of CRC
+  if (size < 4) {
+    return;
+  }
+  auto *data_pointer = static_cast<uint8_t *>(msg);
+
+  // calculate the CRC
+  CRC16.reset();
+  CRC16.add(data_pointer, data_pointer + size - 2);
+  uint16_t crc = CRC16.value();
+  data_pointer[size - 1] = (crc >> 8) & 0xFF;
+  data_pointer[size - 2] = crc & 0xFF;
+
+  if (cobs_.getEncodedBufferSize(size) >= sizeof(encode_decode_buf_)) {
+    ULOG_ERROR("out_but_ size too small!");
+    return;
+  }
+
+  size_t encoded_size = cobs_.encode(data_pointer, size, encode_decode_buf_);
+  encode_decode_buf_[encoded_size] = 0;
+  encoded_size++;
+  uartSendFullTimeout(uart_, &encoded_size, encode_decode_buf_, TIME_INFINITE);
+}
+void YardForceCoverUIDriver::RequestFWVersion() {
+  msg_get_version msg{};
+  msg.type = Get_Version;
+  sendUIMessage(&msg, sizeof(msg));
 }
