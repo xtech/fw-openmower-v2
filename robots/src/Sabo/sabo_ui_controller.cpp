@@ -38,7 +38,7 @@ void SaboUIController::ThreadHelper(void* instance) {
   i->ThreadFunc();
 }
 
-void SaboUIController::tick() {
+void SaboUIController::updateLEDs() {
   const systime_t now = chVTGetSystemTime();
 
   // Slow blink handling
@@ -60,8 +60,10 @@ void SaboUIController::tick() {
 
   driver_->setLEDs(active_leds);
   driver_->latchLoad();
+}
 
-  // Button debouncing (of all buttons)
+void SaboUIController::updateButtons() {
+  // Debounce all button (at once)
   const uint16_t raw = driver_->getRawButtonStates();
   const uint16_t changed_bits = btn_last_raw_ ^ raw;  // XOR to find changed bits
   if (changed_bits == 0) {
@@ -71,6 +73,11 @@ void SaboUIController::tick() {
   }
   btn_stable_states_ = (btn_debounce_counter_ >= DEBOUNCE_TICKS) ? raw : btn_stable_states_;
   btn_last_raw_ = raw;
+}
+
+void SaboUIController::tick() {
+  updateLEDs();
+  updateButtons();
 
   // Debug buttons
   /*static uint16_t last_reported_states_ = 0xFFFF;  // Last debug output
@@ -113,11 +120,11 @@ void SaboUIController::playPowerOnAnimation() {
   // Knight Rider
   for (int i = 0; i <= 5; i++) {
     leds_.on_mask = (1 << i) - 1;
-    chThdSleepMilliseconds(100);
+    chThdSleepMilliseconds(80);
   }
   for (int i = 4; i >= 0; i--) {
     leds_.on_mask = (1 << i) - 1;
-    chThdSleepMilliseconds(100);
+    chThdSleepMilliseconds(80);
   }
 }
 
@@ -125,10 +132,8 @@ void SaboUIController::ThreadFunc() {
   while (true) {
     tick();
 
-    // FIXME: Sample code to wait for some other event
-    eventmask_t event = chEvtWaitAnyTimeout(
-        EVT_PACKET_RECEIVED,
-        TIME_MS2I(1));  // FIXME: Once buttons are implemented, this needs to become something around 1ms
+    // Wait for event but max. 1ms for reliable button debouncing
+    eventmask_t event = chEvtWaitAnyTimeout(EVT_PACKET_RECEIVED, TIME_MS2I(1));
     if (event & EVT_PACKET_RECEIVED) {
       /*chSysLock();
       // Forbid packet reception

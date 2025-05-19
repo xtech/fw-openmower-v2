@@ -49,6 +49,9 @@ class SaboUIController {
   uint16_t btn_stable_states_ = 0xFFFF;  // Stable (debounced) button state
   uint8_t btn_debounce_counter_ = 0;     // If this counter is >= DEBOUNCE_TICKS, the button state is stable/debounced
 
+  void updateLEDs();
+  void updateButtons();
+
   static void ThreadHelper(void* instance);
   void ThreadFunc();
 
