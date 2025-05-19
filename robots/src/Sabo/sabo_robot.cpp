@@ -72,8 +72,8 @@ void InitPlatform() {
 
   // UI
   ui.start();
-  ui.setLED(SaboUIController::LEDID::START_RD, SaboUIController::LEDMode::BLINK_SLOW);
 }
+
 bool IsHardwareSupported() {
   // Accept Sabo 0.1.x boards
   if (strncmp("hw-openmower-sabo", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&

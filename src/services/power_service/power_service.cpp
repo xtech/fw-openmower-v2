@@ -14,6 +14,16 @@ void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
 }
 
+float PowerService::getChargeCurrent() {
+  return charge_current;
+}
+float PowerService::getAdapterVoltage() {
+  return adapter_volts;
+}
+float PowerService::getBatteryVoltage() {
+  return battery_volts;
+}
+
 bool PowerService::OnStart() {
   charger_configured_ = false;
   return true;

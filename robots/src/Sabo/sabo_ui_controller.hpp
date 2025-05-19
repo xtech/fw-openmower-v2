@@ -51,6 +51,7 @@ class SaboUIController {
 
   void updateLEDs();
   void updateButtons();
+  void updateUIFromSystemState();
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();

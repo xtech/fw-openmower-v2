@@ -5,6 +5,8 @@
 
 #include <ulog.h>
 
+#include <services.hpp>
+
 static constexpr uint8_t EVT_PACKET_RECEIVED = 1;
 
 void SaboUIController::start() {
@@ -75,9 +77,34 @@ void SaboUIController::updateButtons() {
   btn_last_raw_ = raw;
 }
 
+void SaboUIController::updateUIFromSystemState() {
+  // Emergency signalling has higher priority for LED-Play
+  if (emergency_service.GetEmergency()) {
+    setLED(LEDID::START_RD, LEDMode::BLINK_FAST);
+    setLED(LEDID::START_GN, LEDMode::OFF);
+  } else {
+    if (power_service.getAdapterVoltage() > 26.0f) {  // Docked
+      if (power_service.getChargeCurrent() > 0.2f) {  // Charging
+        setLED(LEDID::START_RD, LEDMode::BLINK_SLOW);
+        setLED(LEDID::START_GN, LEDMode::OFF);
+      } else if (power_service.getBatteryVoltage() < 1.0f) {  // No (or dead) battery
+        setLED(LEDID::START_GN, LEDMode::BLINK_FAST);
+        setLED(LEDID::START_RD, LEDMode::OFF);
+      } else {  // Battery charged
+        setLED(LEDID::START_GN, LEDMode::BLINK_SLOW);
+        setLED(LEDID::START_RD, LEDMode::OFF);
+      }
+    } else {
+      setLED(LEDID::START_GN, LEDMode::OFF);
+      setLED(LEDID::START_RD, LEDMode::OFF);
+    }
+  }
+}
+
 void SaboUIController::tick() {
   updateLEDs();
   updateButtons();
+  updateUIFromSystemState();
 
   // Debug buttons
   /*static uint16_t last_reported_states_ = 0xFFFF;  // Last debug output
