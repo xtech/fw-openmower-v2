@@ -20,6 +20,10 @@ class PowerService : public PowerServiceBase {
 
   void SetDriver(ChargerDriver* charger_driver);
 
+  float GetChargeCurrent();
+  float GetAdapterVoltage();
+  float GetBatteryVoltage();
+
  protected:
   bool OnStart() override;
 

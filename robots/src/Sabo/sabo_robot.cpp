@@ -3,6 +3,7 @@
 //
 
 #include <drivers/motor/vesc/VescDriver.h>
+#include <ulog.h>
 
 #include <debug/debug_tcp_interface.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
@@ -11,6 +12,9 @@
 #include <services.hpp>
 
 #include "robot.hpp"
+#include "sabo_ui_controller.hpp"
+#include "sabo_ui_driver.hpp"
+
 namespace Robot {
 
 static BQ2576 charger{};
@@ -23,19 +27,22 @@ static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
 static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
 static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
 
+static SaboUIDriver ui_driver;
+static SaboUIController ui(&ui_driver);
+
 namespace General {
 void InitPlatform() {
   // Front left wheel lift (Hall)
   emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_1,
                             .invert = false,
                             .active_since = 0,
-                            .timeout_duration = TIME_MS2I(1000),
+                            .timeout_duration = TIME_MS2I(2000),
                             .active = false});
   // Front right wheel lift (Hall)
   emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_2,
                             .invert = false,
                             .active_since = 0,
-                            .timeout_duration = TIME_MS2I(1000),
+                            .timeout_duration = TIME_MS2I(2000),
                             .active = false});
   // Top stop button (Hall)
   emergencyDriver.AddInput({.gpio_line = LINE_EMERGENCY_3,
@@ -62,10 +69,20 @@ void InitPlatform() {
   mower_service.SetDriver(&mower_motor_driver);
   charger.setI2C(&I2CD1);
   power_service.SetDriver(&charger);
+
+  // UI
+  ui.Start();
 }
+
 bool IsHardwareSupported() {
-  // FIXME: Fix EEPROM reading and check EEPROM
-  return true;
+  // Accept Sabo 0.1.x boards
+  if (strncmp("hw-openmower-sabo", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
+      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 && board_info.version_major == 1 &&
+      carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
+    return true;
+  }
+
+  return false;
 }
 }  // namespace General
 
