@@ -19,13 +19,13 @@ class SaboUIController {
   enum class LEDMode { OFF, ON, BLINK_SLOW, BLINK_FAST };
   enum class ButtonID : uint8_t { UP = 0, DOWN, LEFT, RIGHT, OK, START, MENU = 8, BACK, AUTO, MOW, HOME };
 
-  void start();                         // Initializes the UI driver and starts the controller thread
-  void setLED(LEDID id, LEDMode mode);  // Set LED state
+  void Start();                         // Initializes the UI driver and starts the controller thread
+  void SetLED(LEDID id, LEDMode mode);  // Set LED state
 
-  bool isButtonPressed(ButtonID btn);  // Debounced safe check if a button is pressed
+  bool IsButtonPressed(ButtonID btn);  // Debounced safe check if a button is pressed
   // void setButtonCallback(std::function<void(ButtonID)> callback);
 
-  void playPowerOnAnimation();
+  void PlayPowerOnAnimation();
 
  private:
   THD_WORKING_AREA(wa_, 1024);
@@ -49,9 +49,11 @@ class SaboUIController {
   uint16_t btn_stable_states_ = 0xFFFF;  // Stable (debounced) button state
   uint8_t btn_debounce_counter_ = 0;     // If this counter is >= DEBOUNCE_TICKS, the button state is stable/debounced
 
-  void updateLEDs();
-  void updateButtons();
-  void updateUIFromSystemState();
+  bool started_ = false;  // True if the Start() finished
+
+  void HandleLEDModes();   // Handle the different LED modes (on, blink, ...) and apply them to the driver
+  void DebounceButtons();  // Debounce all buttons
+  void UpdateStates();     // Update UI state based on system state
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();

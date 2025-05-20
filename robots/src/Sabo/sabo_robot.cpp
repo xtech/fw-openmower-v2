@@ -71,7 +71,7 @@ void InitPlatform() {
   power_service.SetDriver(&charger);
 
   // UI
-  ui.start();
+  ui.Start();
 }
 
 bool IsHardwareSupported() {

@@ -9,7 +9,7 @@
 
 static constexpr uint8_t EVT_PACKET_RECEIVED = 1;
 
-void SaboUIController::start() {
+void SaboUIController::Start() {
   if (thread_ != nullptr) {
     ULOG_ERROR("Started Sabo UI Controller twice!");
     return;
@@ -32,7 +32,9 @@ void SaboUIController::start() {
   // Now that driver is initialized and thread got started, we can enable output
   driver_->enableOutput();
   chThdSleepMilliseconds(100);
-  playPowerOnAnimation();
+  PlayPowerOnAnimation();
+  chThdSleepMilliseconds(500);
+  started_ = true;
 }
 
 void SaboUIController::ThreadHelper(void* instance) {
@@ -40,7 +42,7 @@ void SaboUIController::ThreadHelper(void* instance) {
   i->ThreadFunc();
 }
 
-void SaboUIController::updateLEDs() {
+void SaboUIController::HandleLEDModes() {
   const systime_t now = chVTGetSystemTime();
 
   // Slow blink handling
@@ -64,7 +66,7 @@ void SaboUIController::updateLEDs() {
   driver_->latchLoad();
 }
 
-void SaboUIController::updateButtons() {
+void SaboUIController::DebounceButtons() {
   // Debounce all button (at once)
   const uint16_t raw = driver_->getRawButtonStates();
   const uint16_t changed_bits = btn_last_raw_ ^ raw;  // XOR to find changed bits
@@ -77,34 +79,35 @@ void SaboUIController::updateButtons() {
   btn_last_raw_ = raw;
 }
 
-void SaboUIController::updateUIFromSystemState() {
-  // Emergency signalling has higher priority for LED-Play
+void SaboUIController::UpdateStates() {
+  if (!started_) return;
+
+  // For identification purposes, Red-Start-LED get handled with high priority
   if (emergency_service.GetEmergency()) {
-    setLED(LEDID::START_RD, LEDMode::BLINK_FAST);
-    setLED(LEDID::START_GN, LEDMode::OFF);
+    SetLED(LEDID::START_RD, LEDMode::BLINK_FAST);  // Emergency
+  } else if (power_service.GetAdapterVoltage() > 26.0f && power_service.GetChargeCurrent() > 0.2f) {
+    SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);  // Docked and charging
   } else {
-    if (power_service.getAdapterVoltage() > 26.0f) {  // Docked
-      if (power_service.getChargeCurrent() > 0.2f) {  // Charging
-        setLED(LEDID::START_RD, LEDMode::BLINK_SLOW);
-        setLED(LEDID::START_GN, LEDMode::OFF);
-      } else if (power_service.getBatteryVoltage() < 1.0f) {  // No (or dead) battery
-        setLED(LEDID::START_GN, LEDMode::BLINK_FAST);
-        setLED(LEDID::START_RD, LEDMode::OFF);
+    SetLED(LEDID::START_RD, LEDMode::OFF);
+
+    // Green-Start-LED
+    if (power_service.GetAdapterVoltage() > 26.0f) {    // Docked
+      if (power_service.GetBatteryVoltage() < 20.0f) {  // No (or dead) battery
+        SetLED(LEDID::START_GN, LEDMode::BLINK_FAST);
       } else {  // Battery charged
-        setLED(LEDID::START_GN, LEDMode::BLINK_SLOW);
-        setLED(LEDID::START_RD, LEDMode::OFF);
+        SetLED(LEDID::START_GN, LEDMode::BLINK_SLOW);
       }
     } else {
-      setLED(LEDID::START_GN, LEDMode::OFF);
-      setLED(LEDID::START_RD, LEDMode::OFF);
+      // TODO: Handle high level states like "Mowing" or "Area Recording"
+      SetLED(LEDID::START_GN, LEDMode::OFF);
     }
   }
 }
 
 void SaboUIController::tick() {
-  updateLEDs();
-  updateButtons();
-  updateUIFromSystemState();
+  HandleLEDModes();
+  DebounceButtons();
+  UpdateStates();
 
   // Debug buttons
   /*static uint16_t last_reported_states_ = 0xFFFF;  // Last debug output
@@ -120,7 +123,7 @@ void SaboUIController::tick() {
   ULOG_INFO("DEBUG: Stack: %u/%u used", used_stack, stack_size);*/
 }
 
-void SaboUIController::setLED(LEDID id, LEDMode mode) {
+void SaboUIController::SetLED(LEDID id, LEDMode mode) {
   const uint8_t bit = 1 << uint8_t(id);
 
   // Clear existing state
@@ -138,7 +141,7 @@ void SaboUIController::setLED(LEDID id, LEDMode mode) {
   }
 }
 
-void SaboUIController::playPowerOnAnimation() {
+void SaboUIController::PlayPowerOnAnimation() {
   leds_.on_mask = 0x1F;  // All on
   chThdSleepMilliseconds(400);
   leds_.on_mask = 0x00;  // All off
@@ -178,6 +181,6 @@ void SaboUIController::ThreadFunc() {
   }
 }
 
-bool SaboUIController::isButtonPressed(ButtonID btn) {
+bool SaboUIController::IsButtonPressed(ButtonID btn) {
   return (btn_stable_states_ & (1 << uint8_t(btn))) == 0;
 }
