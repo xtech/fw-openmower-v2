@@ -11,3 +11,4 @@ ImuService imu_service{xbot::service_ids::IMU};
 PowerService power_service{xbot::service_ids::POWER};
 GpsService gps_service{xbot::service_ids::GPS};
 InputService input_service{xbot::service_ids::INPUT};
+MowerUiService mower_ui_service{xbot::service_ids::MOWER_UI};
