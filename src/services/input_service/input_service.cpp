@@ -15,6 +15,7 @@ struct input_config_json_data_t : public json_data_t {
 };
 
 bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length) {
+  HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
   Lock lk(&mutex_);
 
   all_inputs_.clear();
@@ -24,7 +25,7 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
 
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
-  return ProcessJson(static_cast<const char*>(data), length, json_data);
+  return ProcessJson(source, json_data);
 }
 
 bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type,
