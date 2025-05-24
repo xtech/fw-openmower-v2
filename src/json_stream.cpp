@@ -2,9 +2,9 @@
 
 #include <ulog.h>
 
-static bool IsOnlyWhitespace(const char* json, size_t length, size_t start_pos) {
-  for (size_t i = start_pos; i < length; i++) {
-    if (strchr(" \t\r\n", json[i]) == nullptr) {
+static bool OnlyWhitespaceRemaining(DataSource& json) {
+  while (json.HasNext()) {
+    if (strchr(" \t\r\n", json.Next()) == nullptr) {
       return false;
     }
   }
@@ -21,17 +21,39 @@ static bool IsError(lwjsonr_t res) {
   }
 }
 
-static void LogErrorPosition(const char* json, size_t length, size_t error_pos) {
-  size_t line_start = 0;
-  for (size_t i = 0; i < length; i++) {
-    char c = json[i];
-    if (c == '\n' || i == length - 1) {
-      if (line_start <= error_pos && error_pos <= i) {
-        ULOG_ERROR("%.*s<ERROR>%.*s", error_pos - line_start, &json[line_start], i - error_pos, &json[error_pos]);
-      } else {
-        ULOG_ERROR("%.*s", i - line_start, &json[line_start]);
-      }
-      line_start = i + 1;
+static void LogErrorPosition(DataSource& json) {
+  const size_t error_pos = json.Position();
+  json.Rewind();
+  // TODO: Can we directly allocate a packet here, so we don't need another temporary buffer?
+  char line_buf[128];
+  size_t line_pos = 0;
+  while (json.HasNext()) {
+    char c = json.Next();
+    if (c != '\n') {
+      line_buf[line_pos++] = c;
+    }
+    if (json.Position() == error_pos) {
+      line_buf[line_pos++] = '<';
+      line_buf[line_pos++] = 'E';
+      line_buf[line_pos++] = 'R';
+      line_buf[line_pos++] = 'R';
+      line_buf[line_pos++] = 'O';
+      line_buf[line_pos++] = 'R';
+      line_buf[line_pos++] = '>';
+    }
+    bool split_line = line_pos >= sizeof(line_buf) - 7;
+    if (split_line) {
+      line_buf[line_pos++] = '<';
+      line_buf[line_pos++] = 'S';
+      line_buf[line_pos++] = 'P';
+      line_buf[line_pos++] = 'L';
+      line_buf[line_pos++] = 'I';
+      line_buf[line_pos++] = 'T';
+      line_buf[line_pos++] = '>';
+    }
+    if (c == '\n' || !json.HasNext() || split_line) {
+      ULOG_ERROR("%.*s", line_pos, line_buf);
+      line_pos = 0;
     }
   }
 }
@@ -43,31 +65,32 @@ static void Callback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type) {
   }
 }
 
-bool ProcessJson(const char* json, size_t length, json_data_t& data) {
+bool ProcessJson(DataSource& json, json_data_t& data) {
   lwjson_stream_parser_t stream_parser;
   lwjson_stream_init(&stream_parser, Callback);
   lwjson_stream_set_user_data(&stream_parser, &data);
 
-  for (size_t i = 0; i < length; i++) {
-    lwjsonr_t res = lwjson_stream_parse(&stream_parser, json[i]);
+  json.Rewind();
+  while (json.HasNext()) {
+    lwjsonr_t res = lwjson_stream_parse(&stream_parser, json.Next());
     if (res == lwjsonSTREAMDONE) {
-      if (IsOnlyWhitespace(json, length, i + 1)) {
+      if (OnlyWhitespaceRemaining(json)) {
         return true;
       } else {
         ULOG_ERROR("Input config JSON parsing failed: extra characters after end");
-        LogErrorPosition(json, length, i + 1);
+        LogErrorPosition(json);
         return false;
       }
     } else if (data.failed) {
-      LogErrorPosition(json, length, i + 1);
+      LogErrorPosition(json);
       return false;
     } else if (IsError(res)) {
       ULOG_ERROR("Input config JSON parsing failed");
-      LogErrorPosition(json, length, i + 1);
+      LogErrorPosition(json);
       return false;
     }
   }
   ULOG_ERROR("Input config JSON parsing failed: end not found");
-  LogErrorPosition(json, length, length);
+  LogErrorPosition(json);
   return true;
 }
