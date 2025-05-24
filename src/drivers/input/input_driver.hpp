@@ -35,7 +35,7 @@ struct Input {
 
 class InputDriver {
  public:
-  explicit InputDriver(Service& service) : service_(service) {};
+  explicit InputDriver(Service& service) : service_(service){};
   virtual Input& AddInput() = 0;
   virtual void ClearInputs() = 0;
   virtual bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
@@ -43,7 +43,7 @@ class InputDriver {
   virtual bool OnStart() {
     return true;
   };
-  virtual void OnStop() {};
+  virtual void OnStop(){};
 
  protected:
   Service& service_;

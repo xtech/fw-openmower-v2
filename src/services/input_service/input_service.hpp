@@ -44,7 +44,7 @@ class InputService : public InputServiceBase {
   void OnStop() override;
   void OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
 
-  THD_WORKING_AREA(wa, 2500) {};
+  THD_WORKING_AREA(wa, 2500){};
 };
 
 #endif  // INPUT_SERVICE_HPP
