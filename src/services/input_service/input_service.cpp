@@ -120,3 +120,16 @@ void InputService::OnLoop(uint32_t, uint32_t) {
     gpio_driver_.tick();
   }
 }
+
+void InputService::SendStatus() {
+  uint32_t active_inputs_mask = 0;
+  for (auto& input : all_inputs_) {
+    if (input->IsActive()) {
+      active_inputs_mask |= 1 << input->idx;
+    }
+  }
+
+  StartTransaction();
+  SendActiveInputs(active_inputs_mask);
+  CommitTransaction();
+}

@@ -27,6 +27,10 @@ class InputService : public InputServiceBase {
     return all_inputs_;
   }
 
+  void OnInputsChangedEvent() {
+    SendStatus();
+  }
+
  private:
   GpioInputDriver gpio_driver_{*this};
   WorxInputDriver worx_driver_{*this};
@@ -43,6 +47,10 @@ class InputService : public InputServiceBase {
   bool OnStart() override;
   void OnStop() override;
   void OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
+
+  void SendStatus();
+  ServiceSchedule tick_schedule_{*this, 200'000,
+                                 XBOT_FUNCTION_FOR_METHOD(InputService, &InputService::SendStatus, this)};
 
   THD_WORKING_AREA(wa, 2500){};
 };
