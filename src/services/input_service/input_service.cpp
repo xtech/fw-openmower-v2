@@ -12,6 +12,7 @@ using xbot::service::Lock;
 struct input_config_json_data_t : public json_data_t {
   InputDriver* driver = nullptr;
   Input* current_input = nullptr;
+  size_t next_idx = 0;
 };
 
 bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length) {
@@ -61,6 +62,7 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
     case 3: {
       if (type == LWJSON_STREAM_TYPE_OBJECT) {
         data->current_input = &data->driver->AddInput();
+        data->current_input->idx = data->next_idx++;
       } else {
         // TODO: Give driver a chance to check completeness of the input?
         all_inputs_.push_back(data->current_input);
