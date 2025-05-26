@@ -78,6 +78,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ext/minmea/minmea.c
         # Emergency Driver
         src/drivers/emergency/gpio_emergency_driver.cpp
+        # Sabo CoverUI
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_driver.cpp
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp

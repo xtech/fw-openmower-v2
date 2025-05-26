@@ -1,14 +1,14 @@
 //
 // Created by Apehaenger on 4/19/25.
 //
-#include "sabo_ui_driver.hpp"
+#include "sabo_cover_ui_driver.hpp"
 
 #include <ulog.h>
 
+#include "../robots/src/Sabo/robot_ex.hpp"
 #include "globals.hpp"
-#include "robot_ex.hpp"
 
-bool SaboUIDriver::init() {
+bool SaboCoverUIDriver::Init() {
   // Init SPI pins
   palSetLineMode(LINE_UI_SCK, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
   palSetLineMode(LINE_UI_MISO, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
@@ -43,7 +43,7 @@ bool SaboUIDriver::init() {
   return true;
 }
 
-void SaboUIDriver::latchLoad() {
+void SaboCoverUIDriver::LatchLoad() {
   uint8_t button_data = 0;
   uint8_t tx_data = current_leds_ | ((current_button_row_ + 1) << 5);  // Bit5/6 for row0/1
 
@@ -72,7 +72,7 @@ void SaboUIDriver::latchLoad() {
   current_button_row_ ^= 1;
 }
 
-void SaboUIDriver::enableOutput() {
+void SaboCoverUIDriver::EnableOutput() {
   // TODO: OE could also be used with a PWM signal to dim the LEDs
 
   if (carrier_board_info.version_major <= 0 && carrier_board_info.version_minor <= 1) {
@@ -83,10 +83,10 @@ void SaboUIDriver::enableOutput() {
   }
 }
 
-void SaboUIDriver::setLEDs(uint8_t leds) {
+void SaboCoverUIDriver::SetLEDs(uint8_t leds) {
   current_leds_ = leds & 0x1F;  // LEDs are on the lower 5 bits
 }
 
-uint16_t SaboUIDriver::getRawButtonStates() const {
+uint16_t SaboCoverUIDriver::GetRawButtonStates() const {
   return button_states_;
 }

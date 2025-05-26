@@ -11,9 +11,9 @@
 #include <globals.hpp>
 #include <services.hpp>
 
+#include "drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp"
+#include "drivers/ui/SaboCoverUI/sabo_cover_ui_driver.hpp"
 #include "robot.hpp"
-#include "sabo_ui_controller.hpp"
-#include "sabo_ui_driver.hpp"
 
 namespace Robot {
 
@@ -27,8 +27,8 @@ static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
 static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
 static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
 
-static SaboUIDriver ui_driver;
-static SaboUIController ui(&ui_driver);
+static SaboCoverUIDriver cover_ui_driver;
+static SaboCoverUIController cover_ui(&cover_ui_driver);
 
 namespace General {
 void InitPlatform() {
@@ -70,8 +70,7 @@ void InitPlatform() {
   charger.setI2C(&I2CD1);
   power_service.SetDriver(&charger);
 
-  // UI
-  ui.Start();
+  cover_ui.Start();
 }
 
 bool IsHardwareSupported() {

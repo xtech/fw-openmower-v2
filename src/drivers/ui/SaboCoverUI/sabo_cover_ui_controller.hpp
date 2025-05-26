@@ -2,15 +2,15 @@
 // Created by Apehaenger on 4/20/25.
 //
 
-#ifndef OPENMOWER_SABO_UI_CONTROLLER_HPP
-#define OPENMOWER_SABO_UI_CONTROLLER_HPP
+#ifndef OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
+#define OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
 
 #include "ch.h"
-#include "sabo_ui_driver.hpp"
+#include "sabo_cover_ui_driver.hpp"
 
-class SaboUIController {
+class SaboCoverUIController {
  public:
-  explicit SaboUIController(SaboUIDriver* driver) : driver_(driver) {
+  explicit SaboCoverUIController(SaboCoverUIDriver* driver) : driver_(driver) {
   }
 
   static constexpr uint8_t DEBOUNCE_TICKS = 20;  // 20 * 2ms(tick) = 40ms debounce time
@@ -31,7 +31,7 @@ class SaboUIController {
   THD_WORKING_AREA(wa_, 1024);
   thread_t* thread_ = nullptr;
 
-  SaboUIDriver* driver_;
+  SaboCoverUIDriver* driver_;
   // std::function<void(ButtonID)> button_callback_;
 
   struct LEDState {
@@ -61,4 +61,4 @@ class SaboUIController {
   void tick();
 };
 
-#endif  // OPENMOWER_SABO_UI_CONTROLLER_HPP
+#endif  // OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP

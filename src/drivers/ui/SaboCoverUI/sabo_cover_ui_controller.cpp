@@ -1,7 +1,7 @@
 //
 // Created by Apehaenger on 4/20/25.
 //
-#include "sabo_ui_controller.hpp"
+#include "sabo_cover_ui_controller.hpp"
 
 #include <ulog.h>
 
@@ -9,40 +9,40 @@
 
 static constexpr uint8_t EVT_PACKET_RECEIVED = 1;
 
-void SaboUIController::Start() {
+void SaboCoverUIController::Start() {
   if (thread_ != nullptr) {
-    ULOG_ERROR("Started Sabo UI Controller twice!");
+    ULOG_ERROR("Started Sabo CoverUI Controller twice!");
     return;
   }
 
   if (driver_ == nullptr) {
-    ULOG_ERROR("Sabo UI Driver not set!");
+    ULOG_ERROR("Sabo CoverUI Driver not set!");
     return;
   }
-  if (!driver_->init()) {
-    ULOG_ERROR("Failed to initialize Sabo UI Driver!");
+  if (!driver_->Init()) {
+    ULOG_ERROR("Failed to initialize Sabo CoverUI Driver!");
     return;
   }
 
   thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO, ThreadHelper, this);
 #ifdef USE_SEGGER_SYSTEMVIEW
-  processing_thread_->name = "SaboUIController";
+  processing_thread_->name = "SaboCoverUIController";
 #endif
 
   // Now that driver is initialized and thread got started, we can enable output
-  driver_->enableOutput();
+  driver_->EnableOutput();
   chThdSleepMilliseconds(100);
   PlayPowerOnAnimation();
   chThdSleepMilliseconds(500);
   started_ = true;
 }
 
-void SaboUIController::ThreadHelper(void* instance) {
-  auto* i = static_cast<SaboUIController*>(instance);
+void SaboCoverUIController::ThreadHelper(void* instance) {
+  auto* i = static_cast<SaboCoverUIController*>(instance);
   i->ThreadFunc();
 }
 
-void SaboUIController::HandleLEDModes() {
+void SaboCoverUIController::HandleLEDModes() {
   const systime_t now = chVTGetSystemTime();
 
   // Slow blink handling
@@ -62,13 +62,13 @@ void SaboUIController::HandleLEDModes() {
   active_leds |= leds_.slow_blink_state ? leds_.slow_blink_mask : 0;
   active_leds |= leds_.fast_blink_state ? leds_.fast_blink_mask : 0;
 
-  driver_->setLEDs(active_leds);
-  driver_->latchLoad();
+  driver_->SetLEDs(active_leds);
+  driver_->LatchLoad();
 }
 
-void SaboUIController::DebounceButtons() {
+void SaboCoverUIController::DebounceButtons() {
   // Debounce all button (at once)
-  const uint16_t raw = driver_->getRawButtonStates();
+  const uint16_t raw = driver_->GetRawButtonStates();
   const uint16_t changed_bits = btn_last_raw_ ^ raw;  // XOR to find changed bits
   if (changed_bits == 0) {
     if (btn_debounce_counter_ < DEBOUNCE_TICKS) btn_debounce_counter_++;
@@ -79,7 +79,7 @@ void SaboUIController::DebounceButtons() {
   btn_last_raw_ = raw;
 }
 
-void SaboUIController::UpdateStates() {
+void SaboCoverUIController::UpdateStates() {
   if (!started_) return;
 
   // For identification purposes, Red-Start-LED get handled with high priority
@@ -104,7 +104,7 @@ void SaboUIController::UpdateStates() {
   }
 }
 
-void SaboUIController::tick() {
+void SaboCoverUIController::tick() {
   HandleLEDModes();
   DebounceButtons();
   UpdateStates();
@@ -123,7 +123,7 @@ void SaboUIController::tick() {
   ULOG_INFO("DEBUG: Stack: %u/%u used", used_stack, stack_size);*/
 }
 
-void SaboUIController::SetLED(LEDID id, LEDMode mode) {
+void SaboCoverUIController::SetLED(LEDID id, LEDMode mode) {
   const uint8_t bit = 1 << uint8_t(id);
 
   // Clear existing state
@@ -141,7 +141,7 @@ void SaboUIController::SetLED(LEDID id, LEDMode mode) {
   }
 }
 
-void SaboUIController::PlayPowerOnAnimation() {
+void SaboCoverUIController::PlayPowerOnAnimation() {
   leds_.on_mask = 0x1F;  // All on
   chThdSleepMilliseconds(400);
   leds_.on_mask = 0x00;  // All off
@@ -158,7 +158,7 @@ void SaboUIController::PlayPowerOnAnimation() {
   }
 }
 
-void SaboUIController::ThreadFunc() {
+void SaboCoverUIController::ThreadFunc() {
   while (true) {
     tick();
 
@@ -181,6 +181,6 @@ void SaboUIController::ThreadFunc() {
   }
 }
 
-bool SaboUIController::IsButtonPressed(ButtonID btn) {
+bool SaboCoverUIController::IsButtonPressed(ButtonID btn) {
   return (btn_stable_states_ & (1 << uint8_t(btn))) == 0;
 }
