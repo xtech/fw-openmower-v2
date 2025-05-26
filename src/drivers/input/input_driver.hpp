@@ -6,6 +6,7 @@
 #include <lwjson/lwjson.h>
 
 #include <xbot-service/Service.hpp>
+#include <xbot-service/portable/system.hpp>
 
 using namespace xbot::service;
 
@@ -30,8 +31,13 @@ struct Input {
 
   bool Update(bool new_active);
 
+  uint32_t ActiveDuration() {
+    return system::getTimeMicros() - active_since;
+  }
+
  private:
   etl::atomic<bool> active = false;
+  uint32_t active_since;
 };
 
 class InputDriver {
