@@ -9,7 +9,6 @@
 
 #include <drivers/input/input_driver.hpp>
 
-#include "COBS.h"
 #include "ch.h"
 #include "hal.h"
 #include "ui_board.h"
@@ -27,18 +26,19 @@ class YardForceCoverUIDriver {
   UARTConfigEx uart_config_{};
   etl::crc16_ccitt CRC16{};
 
-  volatile uint8_t buffer[255];
-  volatile uint8_t buffer_fill = 0;
-  volatile bool processing = false;
+  volatile uint8_t buffer_[255];
+  volatile uint8_t buffer_fill_ = 0;
+  volatile bool processing_ = false;
 
-  bool board_found = false;
+  bool board_found_ = false;
   uint8_t encode_decode_buf_[100]{};
-  COBS cobs_{};
 
   static void ThreadHelper(void *instance);
   static void UartRxChar(UARTDriver *driver, uint16_t data);
 
   void ThreadFunc();
+
+  void UpdateUILeds();
 
   void ProcessPacket();
 
