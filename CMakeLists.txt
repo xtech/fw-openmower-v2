@@ -60,6 +60,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/emergency_service/emergency_service.cpp
         src/services/diff_drive_service/diff_drive_service.cpp
         src/services/mower_service/mower_service.cpp
+        src/services/mower_ui_service/mower_ui_service.cpp
         src/services/gps_service/gps_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
@@ -116,6 +117,7 @@ target_add_service(${CMAKE_PROJECT_NAME} EmergencyService ${CMAKE_CURRENT_SOURCE
 target_add_service(${CMAKE_PROJECT_NAME} DiffDriveService ${CMAKE_CURRENT_SOURCE_DIR}/services/diff_drive_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/services/gps_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} MowerUiService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_ui_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")
