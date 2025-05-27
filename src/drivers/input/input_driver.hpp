@@ -19,7 +19,7 @@ struct Input {
   };
 
   // Configuration
-  size_t idx;
+  uint8_t idx;
   etl::string<20> name;
   bool invert = false;
   EmergencyMode emergency_mode;

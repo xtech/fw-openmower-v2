@@ -12,7 +12,7 @@ using xbot::service::Lock;
 struct input_config_json_data_t : public json_data_t {
   InputDriver* driver = nullptr;
   Input* current_input = nullptr;
-  size_t next_idx = 0;
+  uint8_t next_idx = 0;
 };
 
 bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length) {
@@ -61,6 +61,10 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
     // Start/end of one InputConfig
     case 3: {
       if (type == LWJSON_STREAM_TYPE_OBJECT) {
+        if (all_inputs_.full()) {
+          ULOG_ERROR("Too many inputs (max. %d)", all_inputs_.max_size());
+          return false;
+        }
         data->current_input = &data->driver->AddInput();
         data->current_input->idx = data->next_idx++;
       } else {
@@ -122,7 +126,7 @@ void InputService::OnLoop(uint32_t, uint32_t) {
 }
 
 void InputService::SendStatus() {
-  uint32_t active_inputs_mask = 0;
+  uint64_t active_inputs_mask = 0;
   for (auto& input : all_inputs_) {
     if (input->IsActive()) {
       active_inputs_mask |= 1 << input->idx;
