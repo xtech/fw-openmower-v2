@@ -31,6 +31,8 @@ class InputService : public InputServiceBase {
     SendStatus();
   }
 
+  void OnInputChanged(Input& input);
+
  private:
   GpioInputDriver gpio_driver_{*this};
   WorxInputDriver worx_driver_{*this};
@@ -49,6 +51,7 @@ class InputService : public InputServiceBase {
   void OnStop() override;
   void OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
 
+  bool SendInputEventHelper(Input& input, InputEventType type);
   void SendStatus();
   ServiceSchedule tick_schedule_{*this, 200'000,
                                  XBOT_FUNCTION_FOR_METHOD(InputService, &InputService::SendStatus, this)};

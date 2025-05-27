@@ -137,3 +137,22 @@ void InputService::SendStatus() {
   SendActiveInputs(active_inputs_mask);
   CommitTransaction();
 }
+
+bool InputService::SendInputEventHelper(Input& input, InputEventType type) {
+  uint8_t payload[2] = {input.idx, static_cast<uint8_t>(type)};
+  return SendInputEvent(payload, 2);
+}
+
+void InputService::OnInputChanged(Input& input) {
+  // TODO: This will be called in the middle of the driver's update loop.
+  //       We might want to queue the raw changes and send them at a safe time.
+  StartTransaction();
+  if (input.IsActive()) {
+    SendInputEventHelper(input, InputEventType::ACTIVE);
+  } else {
+    SendInputEventHelper(input, InputEventType::INACTIVE);
+    // TODO: This obviously needs debouncing, more variants and configuration.
+    SendInputEventHelper(input, input.ActiveDuration() >= 500'000 ? InputEventType::LONG : InputEventType::SHORT);
+  }
+  CommitTransaction();
+}
