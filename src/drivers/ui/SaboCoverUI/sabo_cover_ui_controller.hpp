@@ -6,24 +6,25 @@
 #define OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
 
 #include "ch.h"
-#include "sabo_cover_ui_driver.hpp"
+#include "sabo_cover_ui_driver_s2_hw01.hpp"
+
+namespace xbot::driver::ui {
 
 class SaboCoverUIController {
  public:
-  explicit SaboCoverUIController(SaboCoverUIDriver* driver) : driver_(driver) {
-  }
+  SaboCoverUIController() = default;
 
   static constexpr uint8_t DEBOUNCE_TICKS = 20;  // 20 * 2ms(tick) = 40ms debounce time
 
-  enum class LEDID : uint8_t { AUTO, MOWING, HOME, START_GN, START_RD };  // Same bits as connected to HEF4794BT
+  enum class LEDID : uint8_t { AUTO, MOWING, HOME, START_GN, START_RD };  // FIXME: Same bits as connected to HEF4794BT
   enum class LEDMode { OFF, ON, BLINK_SLOW, BLINK_FAST };
   enum class ButtonID : uint8_t { UP = 0, DOWN, LEFT, RIGHT, OK, START, MENU = 8, BACK, AUTO, MOW, HOME };
 
-  void Start();                         // Initializes the UI driver and starts the controller thread
-  void SetLED(LEDID id, LEDMode mode);  // Set LED state
+  void Configure(const SaboDriverConfig& config);  // Configure the controller, select and initialize the driver
+  void Start();                                    // Starts the controller thread
+  void SetLED(LEDID id, LEDMode mode);             // Set LED state
 
   bool IsButtonPressed(ButtonID btn);  // Debounced safe check if a button is pressed
-  // void setButtonCallback(std::function<void(ButtonID)> callback);
 
   void PlayPowerOnAnimation();
 
@@ -31,8 +32,8 @@ class SaboCoverUIController {
   THD_WORKING_AREA(wa_, 1024);
   thread_t* thread_ = nullptr;
 
-  SaboCoverUIDriver* driver_;
-  // std::function<void(ButtonID)> button_callback_;
+  SaboDriverConfig config_;                  // Configuration for the CoverUI driver
+  SaboCoverUIDriverBase* driver_ = nullptr;  // Pointer to the UI driver
 
   struct LEDState {
     uint8_t on_mask = 0;
@@ -49,6 +50,7 @@ class SaboCoverUIController {
   uint16_t btn_stable_states_ = 0xFFFF;  // Stable (debounced) button state
   uint8_t btn_debounce_counter_ = 0;     // If this counter is >= DEBOUNCE_TICKS, the button state is stable/debounced
 
+  bool configured_ = false;
   bool started_ = false;  // True if the Start() finished
 
   void HandleLEDModes();   // Handle the different LED modes (on, blink, ...) and apply them to the driver
@@ -61,4 +63,5 @@ class SaboCoverUIController {
   void tick();
 };
 
+}  // namespace xbot::driver::ui
 #endif  // OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP

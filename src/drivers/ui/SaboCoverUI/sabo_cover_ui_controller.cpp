@@ -7,11 +7,32 @@
 
 #include <services.hpp>
 
+namespace xbot::driver::ui {
+
 static constexpr uint8_t EVT_PACKET_RECEIVED = 1;
+
+void SaboCoverUIController::Configure(const SaboDriverConfig& config) {
+  config_ = config;
+  configured_ = true;
+
+  // Select the CoverUI driver based on the carrier board version and/or CoverUI Series
+  if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
+    // HW v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
+    static SaboCoverUIDriverS2HW01 driver_s2hw01(config);
+    driver_ = &driver_s2hw01;
+  } else {
+    // TODO: Check which Series the connected CoverUI is
+  }
+}
 
 void SaboCoverUIController::Start() {
   if (thread_ != nullptr) {
     ULOG_ERROR("Started Sabo CoverUI Controller twice!");
+    return;
+  }
+
+  if (!configured_) {
+    ULOG_ERROR("Sabo CoverUI Controller not configured!");
     return;
   }
 
@@ -184,3 +205,5 @@ void SaboCoverUIController::ThreadFunc() {
 bool SaboCoverUIController::IsButtonPressed(ButtonID btn) {
   return (btn_stable_states_ & (1 << uint8_t(btn))) == 0;
 }
+
+}  // namespace xbot::driver::ui
