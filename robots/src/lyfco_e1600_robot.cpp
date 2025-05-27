@@ -1,9 +1,8 @@
-#include "worx_robot.hpp"
+#include "../include/lyfco_e1600_robot.hpp"
 
-#include <globals.hpp>
 #include <services.hpp>
 
-void WorxRobot::InitPlatform() {
+void Lyfco_E1600Robot::InitPlatform() {
   left_motor_driver_.SetUART(&UARTD1, 115200);
   right_motor_driver_.SetUART(&UARTD4, 115200);
   mower_motor_driver_.SetUART(&UARTD2, 115200);
@@ -17,7 +16,7 @@ void WorxRobot::InitPlatform() {
   power_service.SetDriver(&charger_);
 }
 
-bool WorxRobot::IsHardwareSupported() {
+bool Lyfco_E1600Robot::IsHardwareSupported() {
   // First batch of universal boards have a non-working EEPROM
   // so we assume that the firmware is compatible, if the xcore is the first batch and no carrier was found.
   if (carrier_board_info.board_info_version == 0 &&
