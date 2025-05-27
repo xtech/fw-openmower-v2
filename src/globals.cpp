@@ -9,6 +9,8 @@
 
 using namespace xbot::service;
 
+Robot* robot = nullptr;
+
 CC_SECTION(".ram4") struct board_info board_info {};
 CC_SECTION(".ram4") struct carrier_board_info carrier_board_info {};
 

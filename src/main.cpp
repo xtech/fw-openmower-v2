@@ -11,7 +11,6 @@
 #include <etl/to_string.h>
 #include <lwipthread.h>
 
-#include <robot.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
@@ -86,7 +85,8 @@ int main() {
   xbot::service::system::initSystem();
   xbot::service::startRemoteLogging();
 
-  if (!Robot::General::IsHardwareSupported()) {
+  robot = GetRobot();
+  if (!robot->IsHardwareSupported()) {
     SetStatusLedMode(LED_MODE_BLINK_FAST);
     SetStatusLedColor(RED);
 
@@ -106,7 +106,7 @@ int main() {
     }
   }
 
-  Robot::General::InitPlatform();
+  robot->InitPlatform();
 
   xbot::service::Io::start();
 

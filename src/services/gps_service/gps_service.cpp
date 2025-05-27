@@ -6,16 +6,16 @@
 #include <ulog.h>
 
 #include <cstdio>
+#include <globals.hpp>
 
 #include "debug/debug_udp_interface.hpp"
-#include "robot.hpp"
 
 bool GpsService::OnStart() {
   using namespace xbot::driver::gps;
 
   if (gps_driver_ == nullptr) {
     // Get the requested UART port (if 0 is specified, ask the robot.cpp for the default port)
-    UARTDriver* uart_driver = Uart.value == 0 ? Robot::GPS::GetUartPort() : GetUARTDriverByIndex(Uart.value);
+    UARTDriver* uart_driver = Uart.value == 0 ? robot->GPS_GetUartPort() : GetUARTDriverByIndex(Uart.value);
     if (uart_driver == nullptr) {
       char msg[100]{};
       snprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", Uart.value);

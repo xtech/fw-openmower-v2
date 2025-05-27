@@ -82,6 +82,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
         src/debug/debuggable_driver.cpp
+        robots/src/robot.cpp
         ${PLATFORM_SOURCES}
 )
 
@@ -97,6 +98,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user defined symbols
         timegm=mktime
+        ROBOT_PLATFORM=${ROBOT_PLATFORM}
 )
 
 # Add linked libraries

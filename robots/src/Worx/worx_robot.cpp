@@ -1,18 +1,11 @@
-//
-// Created by clemens on 27.01.25.
-//
+#include "worx_robot.hpp"
 
 #include <drivers/motor/vesc/VescDriver.h>
-#include <ulog.h>
 
 #include <debug/debug_tcp_interface.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <globals.hpp>
 #include <services.hpp>
-
-#include "robot.hpp"
-
-namespace Robot {
 
 static BQ2576 charger{};
 static xbot::driver::motor::VescDriver left_motor_driver{};
@@ -23,8 +16,7 @@ static DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver};
 static DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver};
 static DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver};
 
-namespace General {
-void InitPlatform() {
+void WorxRobot::InitPlatform() {
   left_motor_driver.SetUART(&UARTD1, 115200);
   right_motor_driver.SetUART(&UARTD4, 115200);
   mower_motor_driver.SetUART(&UARTD2, 115200);
@@ -38,7 +30,7 @@ void InitPlatform() {
   power_service.SetDriver(&charger);
 }
 
-bool IsHardwareSupported() {
+bool WorxRobot::IsHardwareSupported() {
   // First batch of universal boards have a non-working EEPROM
   // so we assume that the firmware is compatible, if the xcore is the first batch and no carrier was found.
   if (carrier_board_info.board_info_version == 0 &&
@@ -51,34 +43,3 @@ bool IsHardwareSupported() {
   // Else, we accept universal boards
   return strncmp("hw-openmower-universal", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0;
 }
-
-}  // namespace General
-
-namespace GPS {
-UARTDriver* GetUartPort() {
-  // on this platform we require a user setting
-  return nullptr;
-}
-}  // namespace GPS
-
-namespace Power {
-
-float GetDefaultBatteryFullVoltage() {
-  return 5.0f * 4.2f;
-}
-
-float GetDefaultBatteryEmptyVoltage() {
-  return 5.0f * 3.3f;
-}
-
-float GetDefaultChargeCurrent() {
-  return 1.0;
-}
-
-float GetAbsoluteMinVoltage() {
-  // 3.3V min, 5s pack
-  return 5.0f * 3.0;
-}
-
-}  // namespace Power
-}  // namespace Robot
