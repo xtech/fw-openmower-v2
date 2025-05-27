@@ -4,6 +4,7 @@
 
 #include <xbot-service/Lock.hpp>
 
+#include "../../drivers/input/gpio_input_driver.hpp"
 #include "../../globals.hpp"
 #include "../../json_stream.hpp"
 
@@ -121,7 +122,8 @@ void InputService::OnStop() {
 void InputService::OnLoop(uint32_t, uint32_t) {
   eventmask_t events = chEvtGetAndClearEvents(Events::ids_to_mask({Events::GPIO_TRIGGERED}));
   if (events & EVENT_MASK(Events::GPIO_TRIGGERED)) {
-    gpio_driver_.tick();
+    auto* gpio_driver = static_cast<GpioInputDriver*>(drivers_.find("gpio")->second);
+    gpio_driver->tick();
   }
 }
 

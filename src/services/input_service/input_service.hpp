@@ -7,8 +7,7 @@
 
 #include <InputServiceBase.hpp>
 
-#include "drivers/input/gpio_input_driver.hpp"
-#include "drivers/input/worx_input_driver.hpp"
+#include "../../drivers/input/input_driver.hpp"
 
 using namespace xbot::driver::input;
 using namespace xbot::service;
@@ -23,6 +22,10 @@ class InputService : public InputServiceBase {
 
   mutex_t mutex_;
 
+  void RegisterInputDriver(const char* id, InputDriver* driver) {
+    drivers_.emplace(id, driver);
+  }
+
   const etl::ivector<Input*>& GetAllInputs() const {
     return all_inputs_;
   }
@@ -34,13 +37,7 @@ class InputService : public InputServiceBase {
   void OnInputChanged(Input& input);
 
  private:
-  GpioInputDriver gpio_driver_{*this};
-  WorxInputDriver worx_driver_{*this};
-
-  const etl::flat_map<etl::string<4>, InputDriver*, 2> drivers_ = {
-      {"gpio", &gpio_driver_},
-      {"worx", &worx_driver_},
-  };
+  etl::flat_map<etl::string<4>, InputDriver*, 2> drivers_;
 
   // Must not have more than 64 inputs due to the size of various bitmasks.
   etl::vector<Input*, 30> all_inputs_;
