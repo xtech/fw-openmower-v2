@@ -40,6 +40,7 @@ class InputService : public InputServiceBase {
       {"worx", &worx_driver_},
   };
 
+  // Must not have more than 64 inputs due to the size of various bitmasks.
   etl::vector<Input*, 30> all_inputs_;
 
   bool OnRegisterInputConfigsChanged(const void* data, size_t length) override;
