@@ -1,0 +1,56 @@
+#ifndef SABO_ROBOT_HPP
+#define SABO_ROBOT_HPP
+
+#include <drivers/motor/vesc/VescDriver.h>
+
+#include <debug/debug_tcp_interface.hpp>
+#include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/emergency/gpio_emergency_driver.hpp>
+
+#include "robot.hpp"
+
+class SaboRobot : public Robot {
+ public:
+  void InitPlatform() override;
+  bool IsHardwareSupported() override;
+
+  UARTDriver* GPS_GetUartPort() override {
+#ifndef STM32_UART_USE_USART6
+#error STM32_SERIAL_USE_UART6 must be enabled for the Sabo build to work
+#endif
+    return &UARTD6;
+  }
+
+  float Power_GetDefaultBatteryFullVoltage() override {
+    return 29.4f;  // As rated on battery pack, which is 7 * 4.2V
+  }
+
+  float Power_GetDefaultBatteryEmptyVoltage() override {
+    return 7.0f * 3.3f;
+  }
+
+  float Power_GetDefaultChargeCurrent() override {
+    // Battery pack is 7S3P, so max. would be 1.3Ah * 3 = 3.9A
+    // 3.9A would be also the max. charge current for the stock PSU!
+    return 1.95f;  // Lets stay save and conservative for now
+  }
+
+  float Power_GetAbsoluteMinVoltage() override {
+    // Stock Sabo battery pack has INR18650-13L (Samsung) which are specified as:
+    // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save and use 3.0V
+    return 7.0f * 3.0;
+  }
+
+ private:
+  BQ2576 charger_{};
+  GPIOEmergencyDriver emergency_driver_{};
+  xbot::driver::motor::VescDriver left_motor_driver_{};
+  xbot::driver::motor::VescDriver right_motor_driver_{};
+  xbot::driver::motor::VescDriver mower_motor_driver_{};
+
+  DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver_};
+  DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver_};
+  DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver_};
+};
+
+#endif  // SABO_ROBOT_HPP
