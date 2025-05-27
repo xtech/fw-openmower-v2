@@ -6,7 +6,7 @@
 
 #include <ulog.h>
 
-#include <robot.hpp>
+#include <globals.hpp>
 
 #include "board.h"
 
@@ -58,8 +58,8 @@ void PowerService::tick() {
     battery_percent =
         (battery_volts - BatteryEmptyVoltage.value) / (BatteryFullVoltage.value - BatteryEmptyVoltage.value);
   } else {
-    battery_percent = (battery_volts - Robot::Power::GetDefaultBatteryEmptyVoltage()) /
-                      (Robot::Power::GetDefaultBatteryFullVoltage() - Robot::Power::GetDefaultBatteryEmptyVoltage());
+    battery_percent = (battery_volts - robot->Power_GetDefaultBatteryEmptyVoltage()) /
+                      (robot->Power_GetDefaultBatteryFullVoltage() - robot->Power_GetDefaultBatteryEmptyVoltage());
   }
   SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
   CommitTransaction();
@@ -80,7 +80,7 @@ void PowerService::charger_tick() {
       if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
         success &= charger_->setChargingCurrent(ChargeCurrent.value, false);
       } else {
-        success &= charger_->setChargingCurrent(Robot::Power::GetDefaultChargeCurrent(), false);
+        success &= charger_->setChargingCurrent(robot->Power_GetDefaultChargeCurrent(), false);
       }
       // Disable temperature sense, the battery doesnt have it
       success &= charger_->setTsEnabled(false);
@@ -130,7 +130,7 @@ void PowerService::charger_tick() {
       charger_configured_ = false;
       ULOG_ARG_ERROR(&service_id_, "Error during charging comms - reconfiguring");
     } else {
-      if (battery_volts < Robot::Power::GetAbsoluteMinVoltage()) {
+      if (battery_volts < robot->Power_GetAbsoluteMinVoltage()) {
         critical_count++;
         if (critical_count > 10) {
           palClearLine(LINE_HIGH_LEVEL_GLOBAL_EN);

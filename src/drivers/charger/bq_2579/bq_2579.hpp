@@ -6,7 +6,6 @@
 #define BQ_2579_HPP
 
 #include <drivers/charger/charger.hpp>
-#include <robot.hpp>
 
 class BQ2579 : public ChargerDriver {
  public:
