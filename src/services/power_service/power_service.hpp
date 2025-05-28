@@ -9,7 +9,6 @@
 
 #include <PowerServiceBase.hpp>
 #include <drivers/charger/charger.hpp>
-#include <robot.hpp>
 
 using namespace xbot::service;
 

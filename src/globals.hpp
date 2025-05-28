@@ -5,10 +5,13 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#include <ch.h>
 #include <etl/delegate.h>
 #include <id_eeprom.h>
 
-#include "ch.h"
+#include <robot.hpp>
+
+extern Robot* robot;
 
 namespace MowerEvents {
 enum : eventflags_t {

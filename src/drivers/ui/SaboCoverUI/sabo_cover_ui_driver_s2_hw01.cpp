@@ -5,7 +5,6 @@
 
 #include <ulog.h>
 
-#include "../robots/src/Sabo/robot_ex.hpp"
 #include "globals.hpp"
 
 namespace xbot::driver::ui {

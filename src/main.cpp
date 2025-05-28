@@ -11,11 +11,11 @@
 #include <etl/to_string.h>
 #include <lwipthread.h>
 
-#include <robot.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
+#include "../services/service_ids.h"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
@@ -86,7 +86,8 @@ int main() {
   xbot::service::system::initSystem();
   xbot::service::startRemoteLogging();
 
-  if (!Robot::General::IsHardwareSupported()) {
+  robot = GetRobot();
+  if (!robot->IsHardwareSupported()) {
     SetStatusLedMode(LED_MODE_BLINK_FAST);
     SetStatusLedColor(RED);
 
@@ -106,21 +107,10 @@ int main() {
     }
   }
 
-  Robot::General::InitPlatform();
-
+  robot->InitPlatform();
   xbot::service::Io::start();
-
-  emergency_service.start();
-  imu_service.start();
-  power_service.start();
-  diff_drive.start();
-#ifndef NO_MOWER_SERVICE
-  mower_service.start();
-#endif
-  gps_service.start();
-
+  StartServices();
   SetStatusLedColor(GREEN);
-
   DispatchEvents();
 }
 
@@ -136,9 +126,9 @@ static void DispatchEvents() {
       uint32_t flags = chEvtGetAndClearFlags(&event_listener);
       if (flags & MowerEvents::EMERGENCY_CHANGED) {
         diff_drive.OnEmergencyChangedEvent();
-#ifndef NO_MOWER_SERVICE
-        mower_service.OnEmergencyChangedEvent();
-#endif
+        if (robot->NeedsService(xbot::service_ids::MOWER)) {
+          mower_service.OnEmergencyChangedEvent();
+        }
       }
     }
   }

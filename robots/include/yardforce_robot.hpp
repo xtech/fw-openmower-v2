@@ -1,0 +1,43 @@
+#ifndef YARDFORCE_ROBOT_HPP
+#define YARDFORCE_ROBOT_HPP
+
+#include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/emergency/gpio_emergency_driver.hpp>
+
+#include "robot.hpp"
+
+class YardForceRobot : public MowerRobot {
+ public:
+  void InitPlatform() override;
+  bool IsHardwareSupported() override;
+
+  UARTDriver* GPS_GetUartPort() override {
+#ifndef STM32_UART_USE_USART6
+#error STM32_SERIAL_USE_UART6 must be enabled for the YardForce build to work
+#endif
+    return &UARTD6;
+  }
+
+  float Power_GetDefaultBatteryFullVoltage() override {
+    return 7.0f * 4.2f;
+  }
+
+  float Power_GetDefaultBatteryEmptyVoltage() override {
+    return 7.0f * 3.3f;
+  }
+
+  float Power_GetDefaultChargeCurrent() override {
+    return 0.5;
+  }
+
+  float Power_GetAbsoluteMinVoltage() override {
+    // 3.3V min, 7s pack
+    return 7.0f * 3.0;
+  }
+
+ private:
+  BQ2576 charger_{};
+  GPIOEmergencyDriver emergency_driver_{};
+};
+
+#endif  // YARDFORCE_ROBOT_HPP

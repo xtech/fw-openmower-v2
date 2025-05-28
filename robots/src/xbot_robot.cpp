@@ -1,17 +1,39 @@
-#include <drivers/charger/bq_2579/bq_2579.hpp>
-#include <drivers/motor/pwm/pwm_motor_driver.hpp>
-#include <globals.hpp>
+#include "../include/xbot_robot.hpp"
+
 #include <services.hpp>
 
-#include "robot.hpp"
-namespace Robot {
+#define LINE_MOTOR1_PWM1 LINE_UART1_RX
+#define LINE_MOTOR1_PWM1_MODE PAL_MODE_ALTERNATE(1)
+#define LINE_MOTOR1_PWM2 LINE_UART1_TX
+#define LINE_MOTOR1_PWM2_MODE PAL_MODE_ALTERNATE(1)
+#define LINE_MOTOR1_ENCODER_A LINE_GPIO16
+#define LINE_MOTOR1_ENCODER_B LINE_GPIO17
+#define MOTOR1_PWM PWMD1
+#define MOTOR1_PWM_CHANNEL_1 1
+#define MOTOR1_PWM_CHANNEL_2 2
 
-static BQ2579 charger{};
-static PwmMotorDriver left_pwm_motor_driver{};
-static PwmMotorDriver right_pwm_motor_driver{};
+#define LINE_MOTOR2_PWM1 LINE_UART6_RX
+#define LINE_MOTOR2_PWM1_MODE PAL_MODE_ALTERNATE(2)
+#define LINE_MOTOR2_PWM2 LINE_UART6_TX
+#define LINE_MOTOR2_PWM2_MODE PAL_MODE_ALTERNATE(2)
+#define LINE_MOTOR2_ENCODER_A LINE_GPIO18
+#define LINE_MOTOR2_ENCODER_B LINE_GPIO19
+#define MOTOR2_PWM PWMD3
+#define MOTOR2_PWM_CHANNEL_1 0
+#define MOTOR2_PWM_CHANNEL_2 1
 
-namespace General {
-void InitPlatform() {
+#define LINE_AUX_POWER_1_ENABLE LINE_GPIO10
+#define LINE_AUX_POWER_1_STATUS LINE_GPIO11
+#define LINE_AUX_POWER_2_ENABLE LINE_GPIO12
+#define LINE_AUX_POWER_2_STATUS LINE_GPIO13
+#define LINE_AUX_POWER_3_ENABLE LINE_GPIO14
+#define LINE_AUX_POWER_3_STATUS LINE_GPIO15
+#define LINE_POWER_1_ENABLE LINE_GPIO8
+#define LINE_POWER_2_ENABLE LINE_GPIO9
+
+#define LINE_CHARGER_ENABLE LINE_GPIO6
+
+void xBotRobot::InitPlatform() {
   // Configure PWM and setup motor drivers
   auto* pwm_config = new PWMConfig();
   auto* pwm_config2 = new PWMConfig();
@@ -46,11 +68,11 @@ void InitPlatform() {
   pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1, 0);
   pwmEnableChannel(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_2, 0);
 
-  left_pwm_motor_driver.SetPWM(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_1, MOTOR1_PWM_CHANNEL_2);
-  left_pwm_motor_driver.SetEncoder(LINE_MOTOR1_ENCODER_A, LINE_MOTOR1_ENCODER_B);
-  right_pwm_motor_driver.SetPWM(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1, MOTOR2_PWM_CHANNEL_2);
-  right_pwm_motor_driver.SetEncoder(LINE_MOTOR2_ENCODER_A, LINE_MOTOR2_ENCODER_B);
-  diff_drive.SetDrivers(&left_pwm_motor_driver, &right_pwm_motor_driver);
+  left_pwm_motor_driver_.SetPWM(&MOTOR1_PWM, MOTOR1_PWM_CHANNEL_1, MOTOR1_PWM_CHANNEL_2);
+  left_pwm_motor_driver_.SetEncoder(LINE_MOTOR1_ENCODER_A, LINE_MOTOR1_ENCODER_B);
+  right_pwm_motor_driver_.SetPWM(&MOTOR2_PWM, MOTOR2_PWM_CHANNEL_1, MOTOR2_PWM_CHANNEL_2);
+  right_pwm_motor_driver_.SetEncoder(LINE_MOTOR2_ENCODER_A, LINE_MOTOR2_ENCODER_B);
+  diff_drive.SetDrivers(&left_pwm_motor_driver_, &right_pwm_motor_driver_);
 
   palSetLineMode(LINE_POWER_1_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_POWER_2_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
@@ -62,41 +84,12 @@ void InitPlatform() {
   palSetLineMode(LINE_AUX_POWER_3_ENABLE, PAL_MODE_OUTPUT_PUSHPULL);
   palSetLineMode(LINE_AUX_POWER_3_STATUS, PAL_MODE_INPUT);
 
-  charger.setI2C(&I2CD1);
-  power_service.SetDriver(&charger);
+  charger_.setI2C(&I2CD1);
+  power_service.SetDriver(&charger_);
 }
 
-bool IsHardwareSupported() {
+bool xBotRobot::IsHardwareSupported() {
   // Accept YardForce 1.x.x boards
   return strncmp("hw-xbot-mainboard", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
          carrier_board_info.version_major == 0;
 }
-
-}  // namespace General
-
-namespace GPS {
-UARTDriver* GetUartPort() {
-  return nullptr;
-}
-}  // namespace GPS
-
-namespace Power {
-float GetDefaultBatteryFullVoltage() {
-  return 4.0f * 4.2f;
-}
-
-float GetDefaultBatteryEmptyVoltage() {
-  return 4.0f * 3.3f;
-}
-
-float GetDefaultChargeCurrent() {
-  return 1.0;
-}
-
-float GetAbsoluteMinVoltage() {
-  // 3.0V min, 4s pack
-  return 4.0f * 3.0;
-}
-
-}  // namespace Power
-}  // namespace Robot

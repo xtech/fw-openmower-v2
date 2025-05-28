@@ -1,49 +1,60 @@
-//
-// Created by clemens on 27.01.25.
-//
-
 #ifndef ROBOT_HPP
 #define ROBOT_HPP
 
+#include <drivers/motor/vesc/VescDriver.h>
 #include <hal.h>
 
-#include <drivers/charger/charger.hpp>
+#include <debug/debug_tcp_interface.hpp>
 
-#ifdef ROBOT_PLATFORM_HEADER
-#include ROBOT_PLATFORM_HEADER
-#endif
+class Robot {
+ public:
+  virtual void InitPlatform() = 0;
+  virtual bool IsHardwareSupported() = 0;
 
-namespace Robot {
+  virtual bool NeedsService(uint16_t id) {
+    (void)id;
+    return true;
+  }
 
-namespace General {
-[[maybe_unused]] void InitPlatform();
-bool IsHardwareSupported();
-}  // namespace General
+  virtual UARTDriver* GPS_GetUartPort() {
+    // If nothing defined, we require a user setting.
+    return nullptr;
+  }
 
-namespace GPS {
-[[maybe_unused]] UARTDriver* GetUartPort();
-}
+  /**
+   * Return the default battery full voltage (i.e. this is considered 100% battery)
+   */
+  virtual float Power_GetDefaultBatteryFullVoltage() = 0;
 
-namespace Power {
-/**
- * Return the default battery full voltage (i.e. this is considered 100% battery)
- */
-[[maybe_unused]] float GetDefaultBatteryFullVoltage();
+  /**
+   * Return the default battery empty voltage (i.e. this is considered 0% battery)
+   */
+  virtual float Power_GetDefaultBatteryEmptyVoltage() = 0;
 
-/**
- * Return the default battery empty voltage (i.e. this is considered 0% battery)
- */
-[[maybe_unused]] float GetDefaultBatteryEmptyVoltage();
+  /**
+   * Return the charging current for this robot
+   */
+  virtual float Power_GetDefaultChargeCurrent() = 0;
 
-/**
- * Return the charing current for this robot
- */
-[[maybe_unused]] float GetDefaultChargeCurrent();
-/**
- * Return the minimum voltage before shutting down as much as possible
- */
-[[maybe_unused]] float GetAbsoluteMinVoltage();
-}  // namespace Power
-};  // namespace Robot
+  /**
+   * Return the minimum voltage before shutting down as much as possible
+   */
+  virtual float Power_GetAbsoluteMinVoltage() = 0;
+};
+
+class MowerRobot : public Robot {
+ protected:
+  void InitMotors();
+
+  xbot::driver::motor::VescDriver left_motor_driver_{};
+  xbot::driver::motor::VescDriver right_motor_driver_{};
+  xbot::driver::motor::VescDriver mower_motor_driver_{};
+
+  DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver_};
+  DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver_};
+  DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver_};
+};
+
+Robot* GetRobot();
 
 #endif  // ROBOT_HPP
