@@ -112,12 +112,11 @@ static bool w25q_find_id(const uint8_t *set, size_t size, uint8_t element) {
 
 static flash_error_t w25q_poll_status(SNORDriver *devp) {
   int timeout = 100;
-  uint8_t sts;
 
   do {
     /* Read status command.*/
-    wspiReceive(devp->config->busp, &read_status_register_cmd, 1, &sts);
-    if ((sts & W25Q_FLAGS_BUSY) == 0U) {
+    wspiReceive(devp->config->busp, &read_status_register_cmd, 1, &devp->nocache->buf[0]);
+    if ((devp->nocache->buf[0] & W25Q_FLAGS_BUSY) == 0U) {
       break;
     }
 #if W25Q_NICE_WAITING == TRUE
@@ -282,13 +281,11 @@ flash_error_t snor_device_verify_erase(SNORDriver *devp, flash_sector_t sector) 
 }
 
 flash_error_t snor_device_query_erase(SNORDriver *devp, uint32_t *msec) {
-  uint8_t sts;
-
   /* Read status command.*/
-  wspiReceive(devp->config->busp, &read_status_register_cmd, 1, &sts);
+  wspiReceive(devp->config->busp, &read_status_register_cmd, 1, &devp->nocache->buf[0]);
 
   /* If the P/E bit is 1 (busy) report that the operation is still in progress.*/
-  if ((sts & W25Q_FLAGS_BUSY) != 0U) {
+  if ((devp->nocache->buf[0] & W25Q_FLAGS_BUSY) != 0U) {
     /* Recommended time before polling again, this is a simplified
        implementation.*/
     if (msec != NULL) {
