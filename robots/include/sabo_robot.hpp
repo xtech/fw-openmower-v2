@@ -3,8 +3,8 @@
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/emergency/gpio_emergency_driver.hpp>
+#include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
 
-#include "drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp"
 #include "robot.hpp"
 
 using namespace xbot::driver::ui;

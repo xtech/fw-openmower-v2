@@ -14,22 +14,13 @@ void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
 }
 
-float PowerService::GetChargeCurrent() {
-  return charge_current;
-}
-float PowerService::GetAdapterVoltage() {
-  return adapter_volts;
-}
-float PowerService::GetBatteryVoltage() {
-  return battery_volts;
-}
-
 bool PowerService::OnStart() {
   charger_configured_ = false;
   return true;
 }
 
 void PowerService::tick() {
+  xbot::service::Lock lk{&mtx_};
   // Send the sensor values
   StartTransaction();
   if (charger_configured_) {
@@ -103,6 +94,7 @@ void PowerService::charger_tick() {
       ULOG_ARG_ERROR(&service_id_, "Unable to Configure Charger");
     }
   } else {
+    xbot::service::Lock lk{&mtx_};
     // charger is configured, do monitoring
     bool success = true;
     {

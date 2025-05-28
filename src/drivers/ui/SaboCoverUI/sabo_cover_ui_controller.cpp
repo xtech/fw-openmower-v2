@@ -104,20 +104,22 @@ void SaboCoverUIController::DebounceButtons() {
 void SaboCoverUIController::UpdateStates() {
   if (!started_) return;
 
-  // For identification purposes, Red-Start-LED get handled with high priority
+  // For identification purposes, Red-Start-LED get handled exclusively with high priority before Green-Start-LED
   if (emergency_service.GetEmergency()) {
     SetLED(LEDID::START_RD, LEDMode::BLINK_FAST);  // Emergency
-  } else if (power_service.GetAdapterVoltage() > 26.0f && power_service.GetChargeCurrent() > 0.2f) {
-    SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);  // Docked and charging
+  } else if (false) {                              // FIXME: Add condition for ROS not alive
+    SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);  // Waiting for ROS
   } else {
     SetLED(LEDID::START_RD, LEDMode::OFF);
 
     // Green-Start-LED
-    if (power_service.GetAdapterVoltage() > 26.0f) {    // Docked
-      if (power_service.GetBatteryVoltage() < 20.0f) {  // No (or dead) battery
+    if (power_service.GetAdapterVolts() > 26.0f) {    // Docked
+      if (power_service.GetBatteryVolts() < 20.0f) {  // No (or dead) battery
         SetLED(LEDID::START_GN, LEDMode::BLINK_FAST);
-      } else {  // Battery charged
+      } else if (power_service.GetChargeCurrent() > 0.1f) {  // Battery charging
         SetLED(LEDID::START_GN, LEDMode::BLINK_SLOW);
+      } else {  // Battery charged
+        SetLED(LEDID::START_GN, LEDMode::ON);
       }
     } else {
       // TODO: Handle high level states like "Mowing" or "Area Recording"
