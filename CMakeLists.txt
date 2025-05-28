@@ -55,6 +55,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/boot_service_discovery.cpp
         src/services.cpp
         src/status_led.c
+        # LittleFS helpers
+        src/filesystem/file.cpp
+        src/filesystem/filesystem.cpp
         src/services/imu_service/imu_service.cpp
         src/services/power_service/power_service.cpp
         src/services/emergency_service/emergency_service.cpp
