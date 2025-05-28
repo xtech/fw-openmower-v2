@@ -8,6 +8,11 @@ class Robot {
   virtual void InitPlatform() = 0;
   virtual bool IsHardwareSupported() = 0;
 
+  virtual bool NeedsService(uint16_t id) {
+    (void)id;
+    return true;
+  }
+
   virtual UARTDriver* GPS_GetUartPort() {
     // If nothing defined, we require a user setting.
     return nullptr;

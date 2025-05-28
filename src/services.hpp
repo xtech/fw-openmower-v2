@@ -10,11 +10,11 @@
 
 extern EmergencyService emergency_service;
 extern DiffDriveService diff_drive;
-#ifndef NO_MOWER_SERVICE
 extern MowerService mower_service;
-#endif
 extern ImuService imu_service;
 extern PowerService power_service;
 extern GpsService gps_service;
+
+void StartServices();
 
 #endif  // SERVICES_HPP
