@@ -1,7 +1,10 @@
 #ifndef ROBOT_HPP
 #define ROBOT_HPP
 
+#include <drivers/motor/vesc/VescDriver.h>
 #include <hal.h>
+
+#include <debug/debug_tcp_interface.hpp>
 
 class Robot {
  public:
@@ -37,6 +40,19 @@ class Robot {
    * Return the minimum voltage before shutting down as much as possible
    */
   virtual float Power_GetAbsoluteMinVoltage() = 0;
+};
+
+class MowerRobot : public Robot {
+ protected:
+  void InitMotors();
+
+  xbot::driver::motor::VescDriver left_motor_driver_{};
+  xbot::driver::motor::VescDriver right_motor_driver_{};
+  xbot::driver::motor::VescDriver mower_motor_driver_{};
+
+  DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver_};
+  DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver_};
+  DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver_};
 };
 
 Robot* GetRobot();
