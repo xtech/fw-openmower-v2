@@ -7,10 +7,11 @@
 #include <SEGGER_RTT.h>
 #include <SEGGER_RTT_streams.h>
 #endif
-#include <boot_service_discovery.h>
 #include <etl/to_string.h>
 #include <lwipthread.h>
 
+#include <boot_service_discovery.hpp>
+#include <robot.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>

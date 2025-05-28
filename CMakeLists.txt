@@ -52,7 +52,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/globals.cpp
         src/heartbeat.c
         src/id_eeprom.c
-        src/boot_service_discovery.c
+        src/boot_service_discovery.cpp
         src/services.cpp
         src/status_led.c
         src/services/imu_service/imu_service.cpp

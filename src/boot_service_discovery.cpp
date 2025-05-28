@@ -2,13 +2,14 @@
 // Created by clemens on 01.10.24.
 //
 
-#include "boot_service_discovery.h"
+#include "boot_service_discovery.hpp"
 
 // clang-format off
 #include "ch.h"
 #include "hal.h"
 // clang-format on
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "chprintf.h"
