@@ -33,8 +33,6 @@
 
 #define LINE_CHARGER_ENABLE LINE_GPIO6
 
-#define NO_MOWER_SERVICE
-
 void xBotRobot::InitPlatform() {
   // Configure PWM and setup motor drivers
   auto* pwm_config = new PWMConfig();

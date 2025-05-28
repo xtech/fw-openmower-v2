@@ -4,6 +4,7 @@
 #include <drivers/charger/bq_2579/bq_2579.hpp>
 #include <drivers/motor/pwm/pwm_motor_driver.hpp>
 
+#include "../services/service_ids.h"
 #include "robot.hpp"
 
 using xbot::driver::motor::PwmMotorDriver;
@@ -12,6 +13,10 @@ class xBotRobot : public Robot {
  public:
   void InitPlatform() override;
   bool IsHardwareSupported() override;
+
+  bool NeedsService(uint16_t id) {
+    return id != xbot::service_ids::MOWER;
+  }
 
   float Power_GetDefaultBatteryFullVoltage() override {
     return 4.0f * 4.2f;
