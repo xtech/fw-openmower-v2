@@ -4,15 +4,7 @@
 #include <services.hpp>
 
 void WorxRobot::InitPlatform() {
-  left_motor_driver_.SetUART(&UARTD1, 115200);
-  right_motor_driver_.SetUART(&UARTD4, 115200);
-  mower_motor_driver_.SetUART(&UARTD2, 115200);
-  left_esc_driver_interface_.Start();
-  right_esc_driver_interface_.Start();
-  mower_esc_driver_interface_.Start();
-
-  diff_drive.SetDrivers(&left_motor_driver_, &right_motor_driver_);
-  mower_service.SetDriver(&mower_motor_driver_);
+  InitMotors();
   charger_.setI2C(&I2CD1);
   power_service.SetDriver(&charger_);
 }
