@@ -108,6 +108,7 @@ add_library(
         os/various/lwip_bindings/arch/sys_arch.c
         os/various/evtimer.c
         ${lwipnoapps_SRCS}
+        ${lwiptftp_SRCS}
 )
 
 

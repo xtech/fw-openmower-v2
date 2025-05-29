@@ -25,7 +25,64 @@
 #include "services.hpp"
 #include "status_led.h"
 
+extern "C" {
+#include <lwip/apps/tftp_server.h>
+}
+
 static void DispatchEvents();
+
+File ftp_file{};
+
+static void* ftp_open(const char* name, const char* mode, uint8_t write) {
+  (void)name;
+  (void)mode;
+  (void)write;
+  if (ftp_file.isOpen()) {
+    return nullptr;
+  }
+  if (ftp_file.open(name) == LFS_ERR_OK) {
+    return &ftp_file;
+  }
+  return nullptr;
+}
+
+static void ftp_close(void* handle) {
+  (void)handle;
+  ftp_file.close();
+}
+
+static int ftp_read(void* handle, void* buf, int bytes) {
+  (void)handle;
+  (void)buf;
+  (void)bytes;
+  return ftp_file.read(buf, bytes);
+}
+
+static int ftp_write(void* handle, struct pbuf* p) {
+  (void)handle;
+  (void)p;
+  if (!ftp_file.isOpen()) {
+    return -1;
+  }
+
+  for (pbuf* pbuf = p; pbuf != nullptr; pbuf = pbuf->next) {
+    if (ftp_file.write(pbuf->payload, pbuf->len) < 0) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+static void ftp_error(void* handle, int err, const char* msg, int size) {
+  (void)handle;
+  (void)err;
+  (void)msg;
+  (void)size;
+}
+
+static tftp_context ftp_ctx{
+    .open = ftp_open, .close = ftp_close, .read = ftp_read, .write = ftp_write, .error = ftp_error};
 
 /*
  * Application entry point.
@@ -98,6 +155,9 @@ int main() {
       chThdSleep(TIME_S2I(1));
     }
   }
+
+  auto error = tftp_init_server(&ftp_ctx);
+  (void)error;
 
   robot = GetRobot();
   if (!robot->IsHardwareSupported()) {
