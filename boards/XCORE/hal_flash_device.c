@@ -170,12 +170,11 @@ void snor_device_init(SNORDriver *devp) {
 }
 
 flash_error_t snor_device_read(SNORDriver *devp, flash_offset_t offset, size_t n, uint8_t *rp) {
-  // Address mode 32 bits is correct, since we need to extend with 0xFF, see datasheet
   wspi_command_t cmd = {.cmd = W25Q_CMD_FAST_READ_QUAD_IO,
-                     .cfg = (WSPI_CFG_CMD_MODE_ONE_LINE | WSPI_CFG_ADDR_MODE_FOUR_LINES | WSPI_CFG_ALT_MODE_NONE |
-                             WSPI_CFG_DATA_MODE_FOUR_LINES | WSPI_CFG_CMD_SIZE_8 | WSPI_CFG_ADDR_SIZE_32),
-                     .addr = (offset << 8) | 0xFF,
-                     .alt = 0,
+                     .cfg = (WSPI_CFG_CMD_MODE_ONE_LINE | WSPI_CFG_ADDR_MODE_FOUR_LINES | WSPI_CFG_ALT_MODE_FOUR_LINES | WSPI_CFG_ALT_SIZE_8 |
+                             WSPI_CFG_DATA_MODE_FOUR_LINES | WSPI_CFG_CMD_SIZE_8 | WSPI_CFG_ADDR_SIZE_24),
+                     .addr = offset,
+                     .alt = 0xFF,
                      .dummy = 4};
 
   wspiReceive(devp->config->busp, &cmd, n, rp);
