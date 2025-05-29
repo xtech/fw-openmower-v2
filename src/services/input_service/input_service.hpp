@@ -37,7 +37,7 @@ class InputService : public InputServiceBase {
   void OnInputChanged(Input& input);
 
  private:
-  etl::flat_map<etl::string<4>, InputDriver*, 2> drivers_;
+  etl::flat_map<etl::string<10>, InputDriver*, 3> drivers_;
 
   // Must not have more than 64 inputs due to the size of various bitmasks.
   etl::vector<Input*, 30> all_inputs_;
@@ -47,6 +47,7 @@ class InputService : public InputServiceBase {
   bool OnStart() override;
   void OnStop() override;
   void OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
+  void OnSimulatedInputsChanged(const uint64_t& new_value) override;
 
   bool SendInputEventHelper(Input& input, InputEventType type);
   void SendStatus();

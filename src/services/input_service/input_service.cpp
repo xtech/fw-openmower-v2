@@ -5,6 +5,9 @@
 #include <xbot-service/Lock.hpp>
 
 #include "../../drivers/input/gpio_input_driver.hpp"
+#ifdef DEBUG_BUILD
+#include "../../drivers/input/simulated_input_driver.hpp"
+#endif
 #include "../../globals.hpp"
 #include "../../json_stream.hpp"
 
@@ -157,4 +160,11 @@ void InputService::OnInputChanged(Input& input) {
     SendInputEventHelper(input, input.ActiveDuration() >= 500'000 ? InputEventType::LONG : InputEventType::SHORT);
   }
   CommitTransaction();
+}
+
+void InputService::OnSimulatedInputsChanged(const uint64_t& new_value) {
+#ifdef DEBUG_BUILD
+  auto* simulated_driver = static_cast<SimulatedInputDriver*>(drivers_.find("simulated")->second);
+  simulated_driver->SetActiveInputs(new_value);
+#endif
 }
