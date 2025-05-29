@@ -85,10 +85,10 @@ const static lfs_config cfg = {.context = nullptr,
                                .unlock = unlock_flash,
                                // block device configuration
                                .read_size = 16,
-                               .prog_size = 16,
+                               .prog_size = 256,
                                // make sure this is aligned with the flash sector size!
                                .block_size = 4096,
-                               .block_count = 128,
+                               .block_count = 4096,
                                .block_cycles = 500,
                                .cache_size = FS_CACHE_SIZE,
                                .lookahead_size = FS_LOOKAHEAD_SIZE,

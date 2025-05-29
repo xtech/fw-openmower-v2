@@ -7,8 +7,8 @@
 
 #include "lfs.h"
 
-#define FS_CACHE_SIZE 16
-#define FS_LOOKAHEAD_SIZE 16
+#define FS_CACHE_SIZE 256
+#define FS_LOOKAHEAD_SIZE 256
 
 extern lfs_t lfs;
 
