@@ -5,10 +5,7 @@
 #include <etl/string.h>
 #include <lwjson/lwjson.h>
 
-#include <xbot-service/Service.hpp>
 #include <xbot-service/portable/system.hpp>
-
-using namespace xbot::service;
 
 namespace xbot::driver::input {
 struct Input {
@@ -32,7 +29,7 @@ struct Input {
   bool Update(bool new_active);
 
   uint32_t ActiveDuration() {
-    return system::getTimeMicros() - active_since;
+    return xbot::service::system::getTimeMicros() - active_since;
   }
 
  private:
@@ -42,7 +39,7 @@ struct Input {
 
 class InputDriver {
  public:
-  explicit InputDriver(Service& service) : service_(service){};
+  explicit InputDriver(){};
   virtual Input& AddInput() = 0;
   virtual void ClearInputs() = 0;
   virtual bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
@@ -51,9 +48,6 @@ class InputDriver {
     return true;
   };
   virtual void OnStop(){};
-
- protected:
-  Service& service_;
 };
 }  // namespace xbot::driver::input
 
