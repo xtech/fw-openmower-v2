@@ -162,7 +162,7 @@ void InputService::OnInputChanged(Input& input) {
   CommitTransaction();
 }
 
-void InputService::OnSimulatedInputsChanged(const uint64_t& new_value) {
+void InputService::OnSimulatedInputsChanged([[maybe_unused]] const uint64_t& new_value) {
 #ifdef DEBUG_BUILD
   auto* simulated_driver = static_cast<SimulatedInputDriver*>(drivers_.find("simulated")->second);
   simulated_driver->SetActiveInputs(new_value);
