@@ -7,6 +7,8 @@
 
 #include <services.hpp>
 
+#include "services/mower_ui_service/mower_ui_service.hpp"
+
 namespace xbot::driver::ui {
 
 static constexpr uint8_t EVT_PACKET_RECEIVED = 1;
@@ -104,11 +106,15 @@ void SaboCoverUIController::DebounceButtons() {
 void SaboCoverUIController::UpdateStates() {
   if (!started_) return;
 
+  const auto high_level_state = mower_ui_service.GetHighLevelState();
+
+  // Start LEDs
   // For identification purposes, Red-Start-LED get handled exclusively with high priority before Green-Start-LED
   if (emergency_service.GetEmergency()) {
     SetLED(LEDID::START_RD, LEDMode::BLINK_FAST);  // Emergency
-  } else if (false) {                              // FIXME: Add condition for ROS not alive
-    SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);  // Waiting for ROS
+  } else if (high_level_state ==
+             MowerUiService::HighLevelState::MODE_UNKNOWN) {  // FIXME: Add condition for ROS not alive
+    SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);             // Waiting for ROS
   } else {
     SetLED(LEDID::START_RD, LEDMode::OFF);
 

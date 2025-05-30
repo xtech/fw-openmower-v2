@@ -22,6 +22,7 @@ void MowerUiService::OnSubStateNameChanged(const char *new_value, uint32_t lengt
     sub_state_name_ = new_value;
   }
 }
+
 void MowerUiService::OnGpsQualityChanged(const float &new_value) {
   xbot::service::Lock lk{&mtx_};
   gps_quality_ = new_value;

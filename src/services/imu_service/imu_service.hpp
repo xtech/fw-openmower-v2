@@ -39,8 +39,7 @@ class ImuService : public ImuServiceBase {
   etl::array<int8_t, 3> axis_remap_sign_{1, -1, -1};
 
   void tick();
-  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 10'000,
-                                 XBOT_FUNCTION_FOR_METHOD(ImuService, &ImuService::tick, this)};
+  ServiceSchedule tick_schedule_{*this, 10'000, XBOT_FUNCTION_FOR_METHOD(ImuService, &ImuService::tick, this)};
 };
 
 #endif  // IMU_SERVICE_HPP

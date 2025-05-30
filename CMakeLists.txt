@@ -4,9 +4,9 @@ include(robots/CMakeLists.txt)
 
 set(CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cfg)
 set(BOARD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boards/XCORE)
-# Set custom port path
+# Set custom port path and extended service classes
 set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
-
+set(XBOT_SERVICE_EXT "services/service_ext.hpp")
 
 # Set the project name
 set(CMAKE_PROJECT_NAME openmower)
