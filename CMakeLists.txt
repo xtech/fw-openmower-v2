@@ -4,9 +4,9 @@ include(robots/CMakeLists.txt)
 
 set(CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cfg)
 set(BOARD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boards/XCORE)
-# Set custom port path
+# Set custom port path and extended service classes
 set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
-
+set(XBOT_SERVICE_EXT "services/service_ext.hpp")
 
 # Set the project name
 set(CMAKE_PROJECT_NAME openmower)
@@ -63,6 +63,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/emergency_service/emergency_service.cpp
         src/services/diff_drive_service/diff_drive_service.cpp
         src/services/mower_service/mower_service.cpp
+        src/services/mower_ui_service/mower_ui_service.cpp
         src/services/gps_service/gps_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
@@ -81,6 +82,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ext/minmea/minmea.c
         # Emergency Driver
         src/drivers/emergency/gpio_emergency_driver.cpp
+        # Sabo CoverUI
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_driver_base.cpp
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_driver_s2_hw01.cpp
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
@@ -119,6 +124,7 @@ target_add_service(${CMAKE_PROJECT_NAME} EmergencyService ${CMAKE_CURRENT_SOURCE
 target_add_service(${CMAKE_PROJECT_NAME} DiffDriveService ${CMAKE_CURRENT_SOURCE_DIR}/services/diff_drive_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/services/gps_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} MowerUiService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_ui_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")
