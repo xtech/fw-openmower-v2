@@ -13,7 +13,7 @@ InputService input_service{xbot::service_ids::INPUT};
 
 #ifdef DEBUG_BUILD
 #include "../src/drivers/input/simulated_input_driver.hpp"
-SimulatedInputDriver simulated_input_driver_{input_service};
+SimulatedInputDriver simulated_input_driver_{};
 #endif
 
 void StartServices() {

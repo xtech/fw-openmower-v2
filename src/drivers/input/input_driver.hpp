@@ -42,7 +42,7 @@ struct Input {
 
 class InputDriver {
  public:
-  explicit InputDriver(Service& service) : service_(service){};
+  explicit InputDriver(){};
   virtual Input& AddInput() = 0;
   virtual void ClearInputs() = 0;
   virtual bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
@@ -51,9 +51,6 @@ class InputDriver {
     return true;
   };
   virtual void OnStop(){};
-
- protected:
-  Service& service_;
 };
 }  // namespace xbot::driver::input
 

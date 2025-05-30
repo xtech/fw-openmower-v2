@@ -4,6 +4,8 @@
 #include <etl/vector.h>
 #include <hal.h>
 
+#include <services.hpp>
+
 #include "input_driver.hpp"
 
 namespace xbot::driver::input {
@@ -42,7 +44,7 @@ class WorxInputDriver : public InputDriver {
   bool ReadKeypad(KeypadResponse& response);
 
   void tick();
-  ServiceSchedule tick_schedule_{service_, 20'000,
+  ServiceSchedule tick_schedule_{input_service, 20'000,
                                  XBOT_FUNCTION_FOR_METHOD(WorxInputDriver, &WorxInputDriver::tick, this)};
 };
 }  // namespace xbot::driver::input

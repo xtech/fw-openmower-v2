@@ -34,8 +34,8 @@ class WorxRobot : public MowerRobot {
 
  private:
   BQ2576 charger_{};
-  GpioInputDriver gpio_driver_{input_service};
-  WorxInputDriver worx_driver_{input_service};
+  GpioInputDriver gpio_driver_{};
+  WorxInputDriver worx_driver_{};
 };
 
 #endif  // WORX_ROBOT_HPP
