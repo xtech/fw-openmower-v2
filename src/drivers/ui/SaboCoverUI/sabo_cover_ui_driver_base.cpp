@@ -8,6 +8,19 @@
 namespace xbot::driver::ui {
 
 bool SaboCoverUIDriverBase::Init() {
+  // Init control pins
+  palSetLineMode(config_.control_pins.latch_load,
+                 PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+  palSetLineMode(config_.control_pins.oe, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+  if (config_.control_pins.btn_cs != PAL_NOLINE) {
+    palSetLineMode(config_.control_pins.btn_cs,
+                   PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+  }
+  if (config_.control_pins.inp_cs != PAL_NOLINE) {
+    palSetLineMode(config_.control_pins.inp_cs,
+                   PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+  }
+
   // Init SPI pins
   palSetLineMode(config_.spi_pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
   palSetLineMode(config_.spi_pins.miso, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);

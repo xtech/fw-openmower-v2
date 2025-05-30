@@ -16,8 +16,10 @@ class SaboCoverUIController {
 
   static constexpr uint8_t DEBOUNCE_TICKS = 20;  // 20 * 2ms(tick) = 40ms debounce time
 
-  enum class LEDID : uint8_t { AUTO, MOWING, HOME, START_GN, START_RD };  // FIXME: Same bits as connected to HEF4794BT
+  // Same bit order as in CoverUI Series-II (HEF4794BT). Series-I driver need to map the bits
+  enum class LEDID : uint8_t { AUTO = 0, MOWING, HOME, START_GN, START_RD };
   enum class LEDMode { OFF, ON, BLINK_SLOW, BLINK_FAST };
+  // Same bit order as in CoverUI Series-II (74HC165, Row 0/1). Series-I driver need to translate the bits
   enum class ButtonID : uint8_t { UP = 0, DOWN, LEFT, RIGHT, OK, START, MENU = 8, BACK, AUTO, MOW, HOME };
 
   void Configure(const SaboDriverConfig& config);  // Configure the controller, select and initialize the driver
@@ -59,8 +61,6 @@ class SaboCoverUIController {
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();
-
-  void tick();
 };
 
 }  // namespace xbot::driver::ui

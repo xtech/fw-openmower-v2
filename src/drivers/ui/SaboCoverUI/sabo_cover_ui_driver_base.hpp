@@ -37,16 +37,7 @@ class SaboCoverUIDriverBase {
   uint16_t button_states_ = 0;      // Bits 0-7: Row0, Bits 8-15: Row1. Low-active!
 
  public:
-  explicit SaboCoverUIDriverBase(const SaboDriverConfig& config) : config_(config) {
-    palSetLineMode(config_.control_pins.latch_load,
-                   PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
-    palSetLineMode(config_.control_pins.oe,
-                   PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
-    if (config_.control_pins.btn_cs != PAL_NOLINE) {
-      palSetLineMode(config_.control_pins.btn_cs,
-                     PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
-    }
-  }
+  explicit SaboCoverUIDriverBase(const SaboDriverConfig& config) : config_(config){};
 
   virtual ~SaboCoverUIDriverBase() = default;
 

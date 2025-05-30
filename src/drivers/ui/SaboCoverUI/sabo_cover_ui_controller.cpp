@@ -7,11 +7,7 @@
 
 #include <services.hpp>
 
-#include "services/mower_ui_service/mower_ui_service.hpp"
-
 namespace xbot::driver::ui {
-
-static constexpr uint8_t EVT_PACKET_RECEIVED = 1;
 
 void SaboCoverUIController::Configure(const SaboDriverConfig& config) {
   config_ = config;
@@ -91,7 +87,7 @@ void SaboCoverUIController::HandleLEDModes() {
 }
 
 void SaboCoverUIController::DebounceButtons() {
-  // Debounce all button (at once)
+  // Debounce all buttons (at once)
   const uint16_t raw = driver_->GetRawButtonStates();
   const uint16_t changed_bits = btn_last_raw_ ^ raw;  // XOR to find changed bits
   if (changed_bits == 0) {
@@ -106,15 +102,16 @@ void SaboCoverUIController::DebounceButtons() {
 void SaboCoverUIController::UpdateStates() {
   if (!started_) return;
 
-  const auto high_level_state = mower_ui_service.GetHighLevelState();
+  // const auto high_level_state = mower_ui_service.GetHighLevelState();
 
   // Start LEDs
   // For identification purposes, Red-Start-LED get handled exclusively with high priority before Green-Start-LED
   if (emergency_service.GetEmergency()) {
     SetLED(LEDID::START_RD, LEDMode::BLINK_FAST);  // Emergency
+    /* FIXME: Add/Enable once mower_ui_service is working
   } else if (high_level_state ==
-             MowerUiService::HighLevelState::MODE_UNKNOWN) {  // FIXME: Add condition for ROS not alive
-    SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);             // Waiting for ROS
+             MowerUiService::HighLevelState::MODE_UNKNOWN) {
+    SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);             // Waiting for ROS */
   } else {
     SetLED(LEDID::START_RD, LEDMode::OFF);
 
@@ -132,25 +129,6 @@ void SaboCoverUIController::UpdateStates() {
       SetLED(LEDID::START_GN, LEDMode::OFF);
     }
   }
-}
-
-void SaboCoverUIController::tick() {
-  HandleLEDModes();
-  DebounceButtons();
-  UpdateStates();
-
-  // Debug buttons
-  /*static uint16_t last_reported_states_ = 0xFFFF;  // Last debug output
-  if (last_reported_states_ != btn_stable_states_) {
-    last_reported_states_ = btn_stable_states_;
-    ULOG_INFO("DEBUG: Buttons: 0x%04X (Raw: 0x%04X)", (~btn_stable_states_ & 0xFFFF), btn_stable_states_);
-  }*/
-
-  // Debug stack size
-  /*size_t stack_size = sizeof(wa_);
-  size_t unused_stack = (uint8_t*)thread_->ctx.sp - (uint8_t*)&wa_[0];
-  size_t used_stack = stack_size - unused_stack;
-  ULOG_INFO("DEBUG: Stack: %u/%u used", used_stack, stack_size);*/
 }
 
 void SaboCoverUIController::SetLED(LEDID id, LEDMode mode) {
@@ -190,24 +168,12 @@ void SaboCoverUIController::PlayPowerOnAnimation() {
 
 void SaboCoverUIController::ThreadFunc() {
   while (true) {
-    tick();
+    HandleLEDModes();
+    DebounceButtons();
+    UpdateStates();
 
-    // Wait for event but max. 1ms for reliable button debouncing
-    eventmask_t event = chEvtWaitAnyTimeout(EVT_PACKET_RECEIVED, TIME_MS2I(1));
-    if (event & EVT_PACKET_RECEIVED) {
-      /*chSysLock();
-      // Forbid packet reception
-      processing = true;
-      chSysUnlock();
-      if (buffer_fill > 0) {
-        ProcessPacket();
-      }
-      buffer_fill = 0;
-      chSysLock();
-      // Allow packet reception
-      processing = false;
-      chSysUnlock();*/
-    }
+    // Sleep for max. 1ms for reliable button debouncing (and future LCD buffer updates (LVGL))
+    chThdSleep(TIME_MS2I(1));
   }
 }
 
