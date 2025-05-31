@@ -36,15 +36,10 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
 bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type,
                                             void* data_voidptr) {
   auto* data = static_cast<input_config_json_data_t*>(data_voidptr);
-  if ((jsp->stack_pos == 0 && !JsonIsTypeOrEndType(type, OBJECT)) ||
-      (jsp->stack_pos == 2 && !JsonIsTypeOrEndType(type, ARRAY)) ||
-      (jsp->stack_pos == 3 && !JsonIsTypeOrEndType(type, OBJECT)) ||  //
-      (jsp->stack_pos > 5)) {
-    ULOG_ERROR("Invalid config structure");
-    return false;
-  }
-
   switch (jsp->stack_pos) {
+    // Root
+    case 0: JsonExpectTypeOrEnd(OBJECT); break;
+
     // Driver key
     case 1: {
       const char* driver = jsp->data.str.buff;
@@ -62,8 +57,12 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
       break;
     }
 
+    // List of inputs per driver
+    case 2: JsonExpectTypeOrEnd(ARRAY); break;
+
     // Start/end of one InputConfig
     case 3: {
+      JsonExpectTypeOrEnd(OBJECT);
       if (type == LWJSON_STREAM_TYPE_OBJECT) {
         if (all_inputs_.full()) {
           ULOG_ERROR("Too many inputs (max. %d)", all_inputs_.max_size());

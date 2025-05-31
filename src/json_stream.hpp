@@ -13,11 +13,14 @@ struct json_data_t {
 
 bool ProcessJson(DataSource& source, json_data_t& data);
 
-#define JsonIsTypeOrEndType(type, expected) \
-  (type == LWJSON_STREAM_TYPE_##expected || type == LWJSON_STREAM_TYPE_##expected##_END)
-
 #define JsonExpectType(expected)               \
   if (type != LWJSON_STREAM_TYPE_##expected) { \
     ULOG_ERROR("Expected type %s", #expected); \
     return false;                              \
+  }
+
+#define JsonExpectTypeOrEnd(expected)                                                         \
+  if (type != LWJSON_STREAM_TYPE_##expected && type != LWJSON_STREAM_TYPE_##expected##_END) { \
+    ULOG_ERROR("Expected type %s or %s_END", #expected, #expected);                           \
+    return false;                                                                             \
   }
