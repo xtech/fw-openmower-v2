@@ -1,7 +1,5 @@
 #include "json_stream.hpp"
 
-#include <ulog.h>
-
 static bool OnlyWhitespaceRemaining(DataSource& json) {
   while (json.HasNext()) {
     if (strchr(" \t\r\n", json.Next()) == nullptr) {

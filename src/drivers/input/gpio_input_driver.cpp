@@ -1,6 +1,5 @@
 #include "gpio_input_driver.hpp"
 
-#include <etl/to_arithmetic.h>
 #include <ulog.h>
 
 #include "../../globals.hpp"
@@ -13,9 +12,7 @@ bool GpioInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char
                                          Input& input) {
   auto& gpio_input = static_cast<GpioInput&>(input);
   if (strcmp(key, "line") == 0) {
-    JsonExpectType(NUMBER);
-    gpio_input.line = etl::to_arithmetic<ioline_t>(jsp->data.prim.buff, strlen(jsp->data.prim.buff));
-    return true;
+    return JsonGetNumber(jsp, type, gpio_input.line);
   } else {
     ULOG_ERROR("Unknown attribute \"%s\"", key);
     return false;

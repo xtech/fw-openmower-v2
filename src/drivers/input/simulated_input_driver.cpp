@@ -1,6 +1,5 @@
 #include "simulated_input_driver.hpp"
 
-#include <etl/to_arithmetic.h>
 #include <ulog.h>
 
 #include "../../json_stream.hpp"
@@ -13,9 +12,7 @@ bool SimulatedInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const
                                               Input& input) {
   auto& simulated_input = static_cast<SimulatedInput&>(input);
   if (strcmp(key, "bit") == 0) {
-    JsonExpectType(NUMBER);
-    simulated_input.bit = etl::to_arithmetic<uint8_t>(jsp->data.prim.buff, strlen(jsp->data.prim.buff));
-    return true;
+    return JsonGetNumber(jsp, type, simulated_input.bit);
   } else {
     ULOG_ERROR("Unknown attribute \"%s\"", key);
     return false;
