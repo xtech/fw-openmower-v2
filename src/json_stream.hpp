@@ -1,5 +1,7 @@
 #include <etl/delegate.h>
+#include <etl/to_arithmetic.h>
 #include <lwjson/lwjson.h>
+#include <ulog.h>
 
 #include <cstddef>
 #include <xbot-service/DataSource.hpp>
@@ -24,3 +26,16 @@ bool ProcessJson(DataSource& source, json_data_t& data);
     ULOG_ERROR("Expected type %s or %s_END", #expected, #expected);                           \
     return false;                                                                             \
   }
+
+template <typename T>
+bool JsonGetNumber(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, T& value) {
+  JsonExpectType(NUMBER);
+  etl::to_arithmetic_result result = etl::to_arithmetic<T>(jsp->data.prim.buff, strlen(jsp->data.prim.buff));
+  if (result) {
+    value = result.value();
+    return true;
+  } else {
+    ULOG_ERROR("Failed to parse number from \"%s\"", jsp->data.prim.buff);
+    return false;
+  }
+}
