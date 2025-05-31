@@ -2,7 +2,6 @@
 #define WORX_ROBOT_HPP
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
-#include <drivers/input/gpio_input_driver.hpp>
 #include <drivers/input/worx_input_driver.hpp>
 #include <services.hpp>
 
@@ -34,7 +33,6 @@ class WorxRobot : public MowerRobot {
 
  private:
   BQ2576 charger_{};
-  GpioInputDriver gpio_driver_{};
   WorxInputDriver worx_driver_{};
 };
 
