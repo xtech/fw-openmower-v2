@@ -2,7 +2,6 @@
 #define SABO_ROBOT_HPP
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
-#include <drivers/emergency/gpio_emergency_driver.hpp>
 
 #include "robot.hpp"
 
@@ -40,7 +39,6 @@ class SaboRobot : public MowerRobot {
 
  private:
   BQ2576 charger_{};
-  GPIOEmergencyDriver emergency_driver_{};
 };
 
 #endif  // SABO_ROBOT_HPP
