@@ -92,3 +92,16 @@ bool ProcessJson(DataSource& json, json_data_t& data) {
   LogErrorPosition(json);
   return true;
 }
+
+bool JsonGetBool(lwjson_stream_type_t type, bool& value) {
+  if (type == LWJSON_STREAM_TYPE_TRUE) {
+    value = true;
+    return true;
+  } else if (type == LWJSON_STREAM_TYPE_FALSE) {
+    value = false;
+    return true;
+  } else {
+    ULOG_ERROR("Expected boolean");
+    return false;
+  }
+}

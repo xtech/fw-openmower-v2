@@ -9,17 +9,13 @@
 
 namespace xbot::driver::input {
 struct Input {
-  enum class EmergencyMode {
-    NONE,
-    EMERGENCY,
-    TRAPPED,
-  };
-
   // Configuration
   uint8_t idx;
   etl::string<20> name;
   bool invert = false;
-  EmergencyMode emergency_mode;
+  bool emergency_trigger = false;
+  uint16_t emergency_delay = 0;
+  bool emergency_latch = true;
 
   // State
   bool IsActive() const {

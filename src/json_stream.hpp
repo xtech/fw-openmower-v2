@@ -39,3 +39,5 @@ bool JsonGetNumber(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, T& va
     return false;
   }
 }
+
+bool JsonGetBool(lwjson_stream_type_t type, bool& value);

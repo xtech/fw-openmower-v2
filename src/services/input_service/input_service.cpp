@@ -84,20 +84,28 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
       if (strcmp(key, "name") == 0) {
         JsonExpectType(STRING);
         data->current_input->name = jsp->data.str.buff;
-      } else if (strcmp(key, "emergency_type") == 0) {
-        JsonExpectType(STRING);
-        if (strcmp(jsp->data.str.buff, "emergency") == 0) {
-          data->current_input->emergency_mode = Input::EmergencyMode::EMERGENCY;
-        } else if (strcmp(jsp->data.str.buff, "trapped") == 0) {
-          data->current_input->emergency_mode = Input::EmergencyMode::TRAPPED;
-        } else if (strcmp(jsp->data.str.buff, "none") != 0) {
-          ULOG_ERROR("Invalid emergency type \"%s\"", jsp->data.str.buff);
-          return false;
-        }
+      } else if (strcmp(key, "emergency") == 0) {
+        JsonExpectTypeOrEnd(OBJECT);
+        data->current_input->emergency_trigger = true;
       } else if (!data->driver->OnInputConfigValue(jsp, key, type, *data->current_input)) {
         return false;
       }
       break;
+    }
+
+    // Value inside "emergency" (key in 6, value in 7)
+    case 7: {
+      const char* parent_key = jsp->stack[4].meta.name;
+      const char* key = jsp->stack[6].meta.name;
+      if (strcmp(parent_key, "emergency") == 0) {
+        if (strcmp(key, "delay") == 0) {
+          return JsonGetNumber(jsp, type, data->current_input->emergency_delay);
+        } else if (strcmp(key, "latch") == 0) {
+          return JsonGetBool(type, data->current_input->emergency_latch);
+        }
+      }
+      ULOG_ERROR("Unknown attribute \"%s.%s\"", parent_key, key);
+      return false;
     }
   }
   return true;

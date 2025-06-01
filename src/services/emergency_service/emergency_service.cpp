@@ -58,43 +58,30 @@ void EmergencyService::tick() {
   CommitTransaction();
 }
 
-static bool CheckDelayed(bool condition, systimestamp_t& triggered_since, systimestamp_t delay, sysinterval_t now) {
-  if (condition) {
-    if (triggered_since == 0) {
-      triggered_since = now;
-      return false;
-    } else {
-      return chTimeStampDiffX(triggered_since, now) > delay;
-    }
-  } else {
-    triggered_since = 0;
-    return false;
-  }
-}
-
 void EmergencyService::OnInputsChangedEvent() {
-  static const sysinterval_t STOP_DELAY = TIME_MS2I(20);
-  static systimestamp_t stop_started = 0;
+  // Although the input states are atomic, the vector of inputs is not.
+  Lock lk(&input_service.mutex_);
 
-  size_t num_stop = 0, num_lift_tilt = 0;
-  {
-    // Although the input states are atomic, the vector of inputs is not.
-    Lock lk(&input_service.mutex_);
-    for (auto& input : input_service.GetAllInputs()) {
-      if (input->IsActive()) {
-        switch (input->emergency_mode) {
-          case Input::EmergencyMode::EMERGENCY: num_stop++; break;
-          case Input::EmergencyMode::TRAPPED: num_lift_tilt++; break;
-          default: break;
-        }
-      }
+  Input* longest_triggered = nullptr;
+  uint32_t longest_duration = 0;
+  bool latch = false;
+  for (auto& input : input_service.GetAllInputs()) {
+    // TODO: What if the input was triggered so briefly that we couldn't observe it?
+    if (!input->emergency_trigger || !input->IsActive()) continue;
+    const uint32_t duration = input->ActiveDuration();
+    if (duration < input->emergency_delay * 1000) continue;
+
+    if (longest_triggered == nullptr || duration > longest_duration) {
+      longest_triggered = input;
+      longest_duration = duration;
     }
+
+    latch |= input->emergency_latch;
   }
 
-  const systimestamp_t now = chVTGetTimeStamp();
-
-  if (CheckDelayed(num_stop > 0, stop_started, STOP_DELAY, now)) {
-    TriggerEmergency("Stop");
+  if (longest_triggered != nullptr) {
+    // TODO: Conditionally set latch.
+    TriggerEmergency(longest_triggered->name.c_str());
   }
 }
 
