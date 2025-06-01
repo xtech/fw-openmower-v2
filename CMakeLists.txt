@@ -82,8 +82,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/gps/ublox_gps_driver.cpp
         src/drivers/gps/nmea_gps_driver.cpp
         ext/minmea/minmea.c
-        # Emergency Driver
-        src/drivers/emergency/gpio_emergency_driver.cpp
         # Input driver
         src/drivers/input/input_driver.cpp
         src/drivers/input/gpio_input_driver.cpp
