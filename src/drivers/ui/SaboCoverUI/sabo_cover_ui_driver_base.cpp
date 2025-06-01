@@ -86,8 +86,22 @@ void SaboCoverUIDriverBase::ProcessLedStates() {
   current_led_mask_ |= leds_.fast_blink_state ? leds_.fast_blink_mask : 0;
 }
 
-uint16_t SaboCoverUIDriverBase::GetRawButtonStates() const {  // Get the raw button states (0-15). Low-active!
-  return button_states_raw_;
-};
+void SaboCoverUIDriverBase::DebounceButtons() {
+  // Debounce all buttons (at once)
+  const uint16_t changed_bits = btn_last_raw_mask_ ^ btn_cur_raw_mask_;  // XOR to find changed bits
+  if (changed_bits == 0) {
+    if (btn_debounce_counter_ < DEBOUNCE_TICKS) btn_debounce_counter_++;
+  } else {
+    btn_debounce_counter_ = 0;
+  }
+  btn_stable_raw_mask_ = (btn_debounce_counter_ >= DEBOUNCE_TICKS) ? btn_cur_raw_mask_ : btn_stable_raw_mask_;
+  btn_last_raw_mask_ = btn_cur_raw_mask_;
+}
+
+void SaboCoverUIDriverBase::Tick() {
+  ProcessLedStates();
+  LatchLoad();
+  DebounceButtons();
+}
 
 }  // namespace xbot::driver::ui

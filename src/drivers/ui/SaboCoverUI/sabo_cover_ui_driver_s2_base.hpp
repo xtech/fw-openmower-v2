@@ -21,9 +21,9 @@ class SaboCoverUIDriverS2Base : virtual public SaboCoverUIDriverBase {
 
     // Buffer / Shift & buffer depending on current row
     if (current_button_row_ == 0) {
-      button_states_raw_ = (button_states_raw_ & 0xFF00) | rx_data;
+      btn_cur_raw_mask_ = (btn_cur_raw_mask_ & 0xFF00) | rx_data;
     } else {
-      button_states_raw_ = (button_states_raw_ & 0x00FF) | (rx_data << 8);
+      btn_cur_raw_mask_ = (btn_cur_raw_mask_ & 0x00FF) | (rx_data << 8);
     }
 
     // Alternate between row0 and row1
@@ -45,6 +45,11 @@ class SaboCoverUIDriverS2Base : virtual public SaboCoverUIDriverBase {
       leds_.on_mask = (1 << i) - 1;
       chThdSleepMilliseconds(80);
     }
+  }
+
+  bool IsButtonPressed(ButtonID btn) {
+    // Series-II button bitmask matches ButtonID ENUM
+    return (btn_stable_raw_mask_ & (1 << uint8_t(btn))) == 0;  // We do have low-active buttons
   }
 
  protected:

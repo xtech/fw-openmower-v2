@@ -64,19 +64,6 @@ void SaboCoverUIController::ThreadHelper(void* instance) {
   i->ThreadFunc();
 }
 
-void SaboCoverUIController::DebounceButtons() {
-  // Debounce all buttons (at once)
-  const uint16_t raw = driver_->GetRawButtonStates();
-  const uint16_t changed_bits = btn_last_raw_ ^ raw;  // XOR to find changed bits
-  if (changed_bits == 0) {
-    if (btn_debounce_counter_ < DEBOUNCE_TICKS) btn_debounce_counter_++;
-  } else {
-    btn_debounce_counter_ = 0;
-  }
-  btn_stable_states_ = (btn_debounce_counter_ >= DEBOUNCE_TICKS) ? raw : btn_stable_states_;
-  btn_last_raw_ = raw;
-}
-
 void SaboCoverUIController::UpdateStates() {
   if (!started_) return;
 
@@ -111,18 +98,12 @@ void SaboCoverUIController::UpdateStates() {
 
 void SaboCoverUIController::ThreadFunc() {
   while (true) {
-    driver_->ProcessLedStates();
-    driver_->LatchLoad();
-    DebounceButtons();
+    driver_->Tick();
     UpdateStates();
 
     // Sleep for max. 1ms for reliable button debouncing (and future LCD buffer updates (LVGL))
     chThdSleep(TIME_MS2I(1));
   }
-}
-
-bool SaboCoverUIController::IsButtonPressed(ButtonID btn) {
-  return (btn_stable_states_ & (1 << uint8_t(btn))) == 0;
 }
 
 }  // namespace xbot::driver::ui

@@ -11,6 +11,7 @@
 
 namespace xbot::driver::ui {
 
+using sabo::ButtonID;
 using sabo::DriverConfig;
 using sabo::LEDID;
 using sabo::LEDMode;
@@ -19,15 +20,19 @@ class SaboCoverUIDriverBase {
  public:
   explicit SaboCoverUIDriverBase(const DriverConfig& config) : config_(config){};
 
+  static constexpr uint8_t DEBOUNCE_TICKS = 40;  // 40 * 1ms(tick) / 2(alternating button rows) = 20ms debounce time
+
   virtual bool Init();           // Init GPIOs and SPI
   virtual void LatchLoad() = 0;  // Latch data (LEDs, Button-rows, signals) and load inputs (buttons, signals, ...)
   virtual uint8_t LatchLoadRaw(uint8_t tx_data) = 0;  // Do the physical latch & load
   virtual void EnableOutput() = 0;                    // Enable output of HEF4794BT for HW01 or 74HC595 for HW02
   virtual void PowerOnAnimation() = 0;
+  virtual bool IsButtonPressed(ButtonID btn) = 0;
 
-  uint16_t GetRawButtonStates() const;  // Get the raw button states (0-15). Low-active!
   void SetLED(LEDID id, LEDMode mode);  // Set state of a single LED
   void ProcessLedStates();              // Process the different LED modes (on, blink, ...)
+  void DebounceButtons();               // Debounce all buttons
+  void Tick();                          // Call this function every 1ms to update LEDs, read and debounce buttons, ...
 
  protected:
   DriverConfig config_;
@@ -44,11 +49,15 @@ class SaboCoverUIDriverBase {
   };
   LEDState leds_;
 
-  uint8_t current_led_mask_ = 0;    // Current LEDs (with applied LED modes)
-  uint16_t button_states_raw_ = 0;  // Bits 0-7: Row0, Bits 8-15: Row1 for Series-II. Low-active!
+  uint8_t current_led_mask_ = 0;  // Current LEDs (with applied LED modes)
 
   // Map LEDID to bit position. Has to be implemented by derived series base
   virtual uint8_t MapLEDIDToBit(LEDID id) const = 0;
+
+  uint16_t btn_cur_raw_mask_ = 0xFFFF;     // Current read raw button state
+  uint16_t btn_last_raw_mask_ = 0xFFFF;    // Last raw button state
+  uint16_t btn_stable_raw_mask_ = 0xFFFF;  // Stable (debounced) button state
+  uint8_t btn_debounce_counter_ = 0;       // If this counter is >= DEBOUNCE_TICKS, the button state is stable/debounced
 };
 
 }  // namespace xbot::driver::ui

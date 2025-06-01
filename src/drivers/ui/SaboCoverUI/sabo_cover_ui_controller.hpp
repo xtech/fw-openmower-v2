@@ -18,8 +18,6 @@ using sabo::LEDMode;
 
 class SaboCoverUIController {
  public:
-  static constexpr uint8_t DEBOUNCE_TICKS = 20;  // 20 * 2ms(tick) = 40ms debounce time
-
   void Configure(const DriverConfig& config);  // Configure the controller, select and initialize the driver
   void Start();                                // Starts the controller thread
 
@@ -32,15 +30,10 @@ class SaboCoverUIController {
   DriverConfig config_;                      // Configuration for the CoverUI driver
   SaboCoverUIDriverBase* driver_ = nullptr;  // Pointer to the UI driver
 
-  uint16_t btn_last_raw_ = 0xFFFF;       // Last raw button state
-  uint16_t btn_stable_states_ = 0xFFFF;  // Stable (debounced) button state
-  uint8_t btn_debounce_counter_ = 0;     // If this counter is >= DEBOUNCE_TICKS, the button state is stable/debounced
-
   bool configured_ = false;
   bool started_ = false;  // True if the Start() finished
 
-  void DebounceButtons();  // Debounce all buttons
-  void UpdateStates();     // Update UI state based on system state
+  void UpdateStates();  // Update UI state based on system state
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();
