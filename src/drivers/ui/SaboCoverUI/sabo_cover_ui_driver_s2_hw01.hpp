@@ -7,21 +7,16 @@
 
 #include "ch.h"
 #include "hal.h"
-#include "sabo_cover_ui_driver_base.hpp"
+#include "sabo_cover_ui_driver_hw01_base.hpp"
+#include "sabo_cover_ui_driver_s2_base.hpp"
 
 namespace xbot::driver::ui {
 
-// Sabo CoverUI Series-II Hardware v0.1 driver
-class SaboCoverUIDriverS2HW01 final : public SaboCoverUIDriverBase {
+// Sabo CoverUI Series-II, Hardware v0.1 driver
+class SaboCoverUIDriverS2HW01 final : public SaboCoverUIDriverS2Base, public SaboCoverUIDriverHW01Base {
  public:
-  explicit SaboCoverUIDriverS2HW01(const SaboDriverConfig& config) : SaboCoverUIDriverBase(config) {
+  explicit SaboCoverUIDriverS2HW01(const DriverConfig& config) : SaboCoverUIDriverBase(config) {
   }
-
-  bool Init() override;                          // Init SPI and GPIOs
-  void LatchLoad() override;                     // Latch LEDs as well as button-row, and load button columns
-  void EnableOutput() override;                  // Enable output for HEF4794BT
-  uint16_t GetRawButtonStates() const override;  // Get the raw button states (0-15). Low-active!
-  void SetLEDs(uint8_t leds) override;           // Set LEDs to a specific pattern
 };
 
 }  // namespace xbot::driver::ui

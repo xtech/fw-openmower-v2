@@ -7,45 +7,48 @@
 
 #include "ch.h"
 #include "hal.h"
+#include "sabo_cover_ui_types.hpp"
 
 namespace xbot::driver::ui {
 
-struct SaboDriverConfig {
-  SPIDriver* spi_instance;  // SPI-Instance like &SPID1
-  struct {
-    ioline_t sck;   // Clock (SCK/CLK)
-    ioline_t miso;  // Master In Slave Out (MISO/RX)
-    ioline_t mosi;  // Master Out Slave In (MOSI/TX)
-  } spi_pins;
+using sabo::DriverConfig;
+using sabo::LEDID;
+using sabo::LEDMode;
 
-  struct {
-    ioline_t latch_load;
-    ioline_t oe;
-    ioline_t btn_cs;  // Button Chip Select (74HC165 /CE) only avail for Series-II CoverUI
-    ioline_t inp_cs;  // Input Chip Select (74HC165 /CE) only avail in HW >= v0.2
-  } control_pins;
-};
-
-// Base class for CoverUI Series-I/II
 class SaboCoverUIDriverBase {
+ public:
+  explicit SaboCoverUIDriverBase(const DriverConfig& config) : config_(config){};
+
+  virtual bool Init();           // Init GPIOs and SPI
+  virtual void LatchLoad() = 0;  // Latch data (LEDs, Button-rows, signals) and load inputs (buttons, signals, ...)
+  virtual uint8_t LatchLoadRaw(uint8_t tx_data) = 0;  // Do the physical latch & load
+  virtual void EnableOutput() = 0;                    // Enable output of HEF4794BT for HW01 or 74HC595 for HW02
+  virtual void PowerOnAnimation() = 0;
+
+  uint16_t GetRawButtonStates() const;  // Get the raw button states (0-15). Low-active!
+  void SetLED(LEDID id, LEDMode mode);  // Set state of a single LED
+  void ProcessLedStates();              // Process the different LED modes (on, blink, ...)
+
  protected:
-  SaboDriverConfig config_;
+  DriverConfig config_;
   SPIConfig spi_cfg_;
 
-  uint8_t current_leds_ = 0;
-  uint8_t current_button_row_ = 0;  // Alternating button rows
-  uint16_t button_states_ = 0;      // Bits 0-7: Row0, Bits 8-15: Row1. Low-active!
+  struct LEDState {
+    uint8_t on_mask = 0;
+    uint8_t slow_blink_mask = 0;
+    uint8_t fast_blink_mask = 0;
+    systime_t last_slow_update = 0;
+    systime_t last_fast_update = 0;
+    bool slow_blink_state = false;
+    bool fast_blink_state = false;
+  };
+  LEDState leds_;
 
- public:
-  explicit SaboCoverUIDriverBase(const SaboDriverConfig& config) : config_(config){};
+  uint8_t current_led_mask_ = 0;    // Current LEDs (with applied LED modes)
+  uint16_t button_states_raw_ = 0;  // Bits 0-7: Row0, Bits 8-15: Row1 for Series-II. Low-active!
 
-  virtual ~SaboCoverUIDriverBase() = default;
-
-  virtual bool Init();                              // Init SPI
-  virtual void LatchLoad() = 0;                     // Latch LEDs as well as button-row, and load button columns
-  virtual void EnableOutput() = 0;                  // Enable output for HEF4794BT
-  virtual uint16_t GetRawButtonStates() const = 0;  // Get the raw button states (0-15). Low-active!
-  virtual void SetLEDs(uint8_t leds) = 0;           // Set LEDs to a specific pattern
+  // Map LEDID to bit position. Has to be implemented by derived series base
+  virtual uint8_t MapLEDIDToBit(LEDID id) const = 0;
 };
 
 }  // namespace xbot::driver::ui

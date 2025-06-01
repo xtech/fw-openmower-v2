@@ -9,7 +9,9 @@
 
 namespace xbot::driver::ui {
 
-void SaboCoverUIController::Configure(const SaboDriverConfig& config) {
+using sabo::DriverConfig;
+
+void SaboCoverUIController::Configure(const DriverConfig& config) {
   config_ = config;
   configured_ = true;
 
@@ -19,7 +21,7 @@ void SaboCoverUIController::Configure(const SaboDriverConfig& config) {
     static SaboCoverUIDriverS2HW01 driver_s2hw01(config);
     driver_ = &driver_s2hw01;
   } else {
-    // HW v0.2 and later support both CoverUI-Series (I & II) and also has CoverUI-Series detection
+    // HW v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
     // TODO: Try drivers if connected
   }
 }
@@ -52,7 +54,7 @@ void SaboCoverUIController::Start() {
   // Now that driver is initialized and thread got started, we can enable output
   driver_->EnableOutput();
   chThdSleepMilliseconds(100);
-  PlayPowerOnAnimation();
+  driver_->PowerOnAnimation();
   chThdSleepMilliseconds(500);
   started_ = true;
 }
@@ -60,30 +62,6 @@ void SaboCoverUIController::Start() {
 void SaboCoverUIController::ThreadHelper(void* instance) {
   auto* i = static_cast<SaboCoverUIController*>(instance);
   i->ThreadFunc();
-}
-
-void SaboCoverUIController::HandleLEDModes() {
-  const systime_t now = chVTGetSystemTime();
-
-  // Slow blink handling
-  if (leds_.slow_blink_mask && (now - leds_.last_slow_update >= TIME_MS2I(500))) {
-    leds_.last_slow_update = now;
-    leds_.slow_blink_state = !leds_.slow_blink_state;
-  }
-
-  // Fast blink handling
-  if (leds_.fast_blink_mask && (now - leds_.last_fast_update >= TIME_MS2I(100))) {
-    leds_.last_fast_update = now;
-    leds_.fast_blink_state = !leds_.fast_blink_state;
-  }
-
-  // Final LED state calculation
-  uint8_t active_leds = leds_.on_mask;
-  active_leds |= leds_.slow_blink_state ? leds_.slow_blink_mask : 0;
-  active_leds |= leds_.fast_blink_state ? leds_.fast_blink_mask : 0;
-
-  driver_->SetLEDs(active_leds);
-  driver_->LatchLoad();
 }
 
 void SaboCoverUIController::DebounceButtons() {
@@ -107,68 +85,34 @@ void SaboCoverUIController::UpdateStates() {
   // Start LEDs
   // For identification purposes, Red-Start-LED get handled exclusively with high priority before Green-Start-LED
   if (emergency_service.GetEmergency()) {
-    SetLED(LEDID::START_RD, LEDMode::BLINK_FAST);  // Emergency
+    driver_->SetLED(LEDID::START_RD, LEDMode::BLINK_FAST);  // Emergency
     /* FIXME: Add/Enable once mower_ui_service is working
   } else if (high_level_state ==
              MowerUiService::HighLevelState::MODE_UNKNOWN) {
-    SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);             // Waiting for ROS */
+    driver_->SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);             // Waiting for ROS */
   } else {
-    SetLED(LEDID::START_RD, LEDMode::OFF);
+    driver_->SetLED(LEDID::START_RD, LEDMode::OFF);
 
     // Green-Start-LED
     if (power_service.GetAdapterVolts() > 26.0f) {    // Docked
       if (power_service.GetBatteryVolts() < 20.0f) {  // No (or dead) battery
-        SetLED(LEDID::START_GN, LEDMode::BLINK_FAST);
+        driver_->SetLED(LEDID::START_GN, LEDMode::BLINK_FAST);
       } else if (power_service.GetChargeCurrent() > 0.1f) {  // Battery charging
-        SetLED(LEDID::START_GN, LEDMode::BLINK_SLOW);
+        driver_->SetLED(LEDID::START_GN, LEDMode::BLINK_SLOW);
       } else {  // Battery charged
-        SetLED(LEDID::START_GN, LEDMode::ON);
+        driver_->SetLED(LEDID::START_GN, LEDMode::ON);
       }
     } else {
       // TODO: Handle high level states like "Mowing" or "Area Recording"
-      SetLED(LEDID::START_GN, LEDMode::OFF);
+      driver_->SetLED(LEDID::START_GN, LEDMode::OFF);
     }
-  }
-}
-
-void SaboCoverUIController::SetLED(LEDID id, LEDMode mode) {
-  const uint8_t bit = 1 << uint8_t(id);
-
-  // Clear existing state
-  leds_.on_mask &= ~bit;
-  leds_.slow_blink_mask &= ~bit;
-  leds_.fast_blink_mask &= ~bit;
-
-  // Set new state
-  switch (mode) {
-    case LEDMode::ON: leds_.on_mask |= bit; break;
-    case LEDMode::BLINK_SLOW: leds_.slow_blink_mask |= bit; break;
-    case LEDMode::BLINK_FAST: leds_.fast_blink_mask |= bit; break;
-    case LEDMode::OFF:
-    default: break;
-  }
-}
-
-void SaboCoverUIController::PlayPowerOnAnimation() {
-  leds_.on_mask = 0x1F;  // All on
-  chThdSleepMilliseconds(400);
-  leds_.on_mask = 0x00;  // All off
-  chThdSleepMilliseconds(800);
-
-  // Knight Rider
-  for (int i = 0; i <= 5; i++) {
-    leds_.on_mask = (1 << i) - 1;
-    chThdSleepMilliseconds(80);
-  }
-  for (int i = 4; i >= 0; i--) {
-    leds_.on_mask = (1 << i) - 1;
-    chThdSleepMilliseconds(80);
   }
 }
 
 void SaboCoverUIController::ThreadFunc() {
   while (true) {
-    HandleLEDModes();
+    driver_->ProcessLedStates();
+    driver_->LatchLoad();
     DebounceButtons();
     UpdateStates();
 

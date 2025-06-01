@@ -46,4 +46,48 @@ bool SaboCoverUIDriverBase::Init() {
 
   return true;
 }
+
+void SaboCoverUIDriverBase::SetLED(LEDID id, LEDMode mode) {
+  const uint8_t bit = MapLEDIDToBit(id);
+
+  // Clear existing state
+  leds_.on_mask &= ~bit;
+  leds_.slow_blink_mask &= ~bit;
+  leds_.fast_blink_mask &= ~bit;
+
+  // Set new state
+  switch (mode) {
+    case LEDMode::ON: leds_.on_mask |= bit; break;
+    case LEDMode::BLINK_SLOW: leds_.slow_blink_mask |= bit; break;
+    case LEDMode::BLINK_FAST: leds_.fast_blink_mask |= bit; break;
+    case LEDMode::OFF:
+    default: break;
+  }
+}
+
+void SaboCoverUIDriverBase::ProcessLedStates() {
+  const systime_t now = chVTGetSystemTime();
+
+  // Slow blink handling
+  if (leds_.slow_blink_mask && (now - leds_.last_slow_update >= TIME_MS2I(500))) {
+    leds_.last_slow_update = now;
+    leds_.slow_blink_state = !leds_.slow_blink_state;
+  }
+
+  // Fast blink handling
+  if (leds_.fast_blink_mask && (now - leds_.last_fast_update >= TIME_MS2I(100))) {
+    leds_.last_fast_update = now;
+    leds_.fast_blink_state = !leds_.fast_blink_state;
+  }
+
+  // Final LED state calculation
+  current_led_mask_ = leds_.on_mask;
+  current_led_mask_ |= leds_.slow_blink_state ? leds_.slow_blink_mask : 0;
+  current_led_mask_ |= leds_.fast_blink_state ? leds_.fast_blink_mask : 0;
+}
+
+uint16_t SaboCoverUIDriverBase::GetRawButtonStates() const {  // Get the raw button states (0-15). Low-active!
+  return button_states_raw_;
+};
+
 }  // namespace xbot::driver::ui

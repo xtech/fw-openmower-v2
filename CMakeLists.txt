@@ -81,7 +81,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/emergency/gpio_emergency_driver.cpp
         # Sabo CoverUI
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_driver_base.cpp
-        src/drivers/ui/SaboCoverUI/sabo_cover_ui_driver_s2_hw01.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp

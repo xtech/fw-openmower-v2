@@ -39,7 +39,7 @@ void SaboRobot::InitPlatform() {
   power_service.SetDriver(&charger_);
 
   // CoverUI
-  SaboDriverConfig ui_config;
+  sabo::DriverConfig ui_config;
   if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
     // HW v0.1
     ui_config = {
