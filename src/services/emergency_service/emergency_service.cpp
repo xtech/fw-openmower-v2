@@ -8,92 +8,82 @@
 
 #include "services.hpp"
 
-using xbot::driver::input::Input;
 using xbot::service::Lock;
 
-void EmergencyService::TriggerEmergency(const char* reason) {
+void EmergencyService::OnStop() {
+  // We won't be getting further updates from high level, so set that flag immediately.
+  UpdateEmergency(EmergencyReason::TIMEOUT_HIGH_LEVEL);
+}
+
+void EmergencyService::Check() {
+  // TODO: This shouldn't need to run with a fixed schedule, we can calculate the next due time.
+  CheckInputs();
+  CheckTimeouts();
+}
+
+void EmergencyService::CheckInputs() {
+  uint16_t reasons = 0;
   {
-    xbot::service::Lock lk{&mtx_};
-    // keep the reason for the initial emergency
-    if (emergency_latch) {
+    // Although the input states are atomic, the vector of inputs is not.
+    Lock lk(&input_service.mutex_);
+    for (auto& input : input_service.GetAllInputs()) {
+      // TODO: What if the input was triggered so briefly that we couldn't observe it?
+      if (input->emergency_reason == 0 || !input->IsActive()) continue;
+      const uint32_t duration = input->ActiveDuration();
+      if (duration < input->emergency_delay * 1000) continue;
+      reasons |= input->emergency_reason;
+    }
+  }
+
+  constexpr uint16_t potential_reasons =
+      EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::TILT | EmergencyReason::COLLISION;
+  UpdateEmergency(reasons, potential_reasons);
+}
+
+void EmergencyService::OnHighLevelEmergencyChanged(const uint16_t* new_value, uint32_t length) {
+  (void)length;
+  {
+    Lock lk(&mtx_);
+    last_high_level_emergency_message_ = chVTGetSystemTime();
+  }
+  UpdateEmergency(new_value[0], new_value[1]);
+}
+
+void EmergencyService::CheckTimeouts() {
+  uint16_t reasons = 0;
+  {
+    Lock lk{&mtx_};
+    if (chVTTimeElapsedSinceX(last_high_level_emergency_message_) > TIME_S2I(1)) {
+      reasons |= EmergencyReason::TIMEOUT_HIGH_LEVEL;
+    }
+  }
+
+  constexpr uint16_t potential_reasons = EmergencyReason::TIMEOUT_HIGH_LEVEL | EmergencyReason::TIMEOUT_INPUTS;
+  UpdateEmergency(reasons, potential_reasons);
+}
+
+void EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {
+  {
+    Lock lk{&mtx_};
+    uint16_t old_reason = reasons_;
+    reasons_ &= ~clear;
+    reasons_ |= add;
+    if (reasons_ == old_reason) {
       return;
     }
-    emergency_reason = reason;
-    emergency_latch = true;
   }
   chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
+  SendStatus();
 }
 
-void EmergencyService::ClearEmergency() {
-  {
-    xbot::service::Lock lk{&mtx_};
-    emergency_reason = "None";
-    emergency_latch = false;
-  }
-  chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
-}
-
-bool EmergencyService::OnStart() {
-  TriggerEmergency("Boot");
-  return true;
-}
-
-void EmergencyService::OnStop() {
-  TriggerEmergency("Stopped");
-}
-
-void EmergencyService::tick() {
-  xbot::service::Lock lk{&mtx_};
-  // Check timeout, but only overwrite if no emergency is currently active
-  // reasoning is that we want to keep the original reason and not overwrite
-  // with "timeout"
-  if (!emergency_latch && chVTTimeElapsedSinceX(last_clear_emergency_message_) > TIME_S2I(1)) {
-    TriggerEmergency("Timeout");
-  }
-
-  StartTransaction();
-  SendEmergencyActive(emergency_latch);
-  SendEmergencyLatch(emergency_latch);
-  SendEmergencyReason(emergency_reason.c_str(), emergency_reason.length());
-  CommitTransaction();
-}
-
-void EmergencyService::OnInputsChangedEvent() {
-  // Although the input states are atomic, the vector of inputs is not.
-  Lock lk(&input_service.mutex_);
-
-  Input* longest_triggered = nullptr;
-  uint32_t longest_duration = 0;
-  bool latch = false;
-  for (auto& input : input_service.GetAllInputs()) {
-    // TODO: What if the input was triggered so briefly that we couldn't observe it?
-    if (!input->emergency_trigger || !input->IsActive()) continue;
-    const uint32_t duration = input->ActiveDuration();
-    if (duration < input->emergency_delay * 1000) continue;
-
-    if (longest_triggered == nullptr || duration > longest_duration) {
-      longest_triggered = input;
-      longest_duration = duration;
-    }
-
-    latch |= input->emergency_latch;
-  }
-
-  if (longest_triggered != nullptr) {
-    // TODO: Conditionally set latch.
-    TriggerEmergency(longest_triggered->name.c_str());
-  }
-}
-
-void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
-  if (new_value) {
-    TriggerEmergency("High Level Emergency");
-  } else {
-    ClearEmergency();
-    last_clear_emergency_message_ = chVTGetSystemTime();
-  }
-}
 bool EmergencyService::GetEmergency() {
+  Lock lk{&mtx_};
+  return reasons_ != 0;
+}
+
+void EmergencyService::SendStatus() {
   xbot::service::Lock lk{&mtx_};
-  return emergency_latch;
+  StartTransaction();
+  SendEmergencyReason(reasons_);
+  CommitTransaction();
 }
