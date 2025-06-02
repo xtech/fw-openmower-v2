@@ -86,7 +86,9 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
         data->current_input->name = jsp->data.str.buff;
       } else if (strcmp(key, "emergency") == 0) {
         JsonExpectTypeOrEnd(OBJECT);
-        data->current_input->emergency_trigger = true;
+        if (type == LWJSON_STREAM_TYPE_OBJECT) {
+          data->current_input->emergency_reason = EmergencyReason::LATCH;
+        }
       } else if (!data->driver->OnInputConfigValue(jsp, key, type, *data->current_input)) {
         return false;
       }
@@ -98,10 +100,30 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
       const char* parent_key = jsp->stack[4].meta.name;
       const char* key = jsp->stack[6].meta.name;
       if (strcmp(parent_key, "emergency") == 0) {
-        if (strcmp(key, "delay") == 0) {
+        if (strcmp(key, "reason") == 0) {
+          JsonExpectType(STRING);
+          const char* reason = jsp->data.str.buff;
+          if (strcmp(reason, "stop") == 0) {
+            data->current_input->emergency_reason |= EmergencyReason::STOP;
+          } else if (strcmp(reason, "lift") == 0) {
+            data->current_input->emergency_reason |= EmergencyReason::LIFT;
+          } else if (strcmp(reason, "collision") == 0) {
+            data->current_input->emergency_reason |= EmergencyReason::COLLISION;
+          } else {
+            ULOG_ERROR("Unknown emergency reason \"%s\"", reason);
+            return false;
+          }
+          return true;
+        } else if (strcmp(key, "delay") == 0) {
           return JsonGetNumber(jsp, type, data->current_input->emergency_delay);
         } else if (strcmp(key, "latch") == 0) {
-          return JsonGetBool(type, data->current_input->emergency_latch);
+          if (type == LWJSON_STREAM_TYPE_FALSE) {
+            data->current_input->emergency_reason &= ~EmergencyReason::LATCH;
+            return true;
+          } else if (type != LWJSON_STREAM_TYPE_TRUE) {
+            ULOG_ERROR("Expected boolean");
+            return false;
+          }
         }
       }
       ULOG_ERROR("Unknown attribute \"%s.%s\"", parent_key, key);

@@ -13,9 +13,8 @@ struct Input {
   uint8_t idx;
   etl::string<20> name;
   bool invert = false;
-  bool emergency_trigger = false;
+  uint16_t emergency_reason = 0;
   uint16_t emergency_delay = 0;
-  bool emergency_latch = true;
 
   // State
   bool IsActive() const {
