@@ -2,6 +2,8 @@
 
 #include <ulog.h>
 
+#include <board_utils.hpp>
+
 #include "../../globals.hpp"
 #include "../../json_stream.hpp"
 #include "../../services.hpp"
@@ -12,7 +14,13 @@ bool GpioInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char
                                          Input& input) {
   auto& gpio_input = static_cast<GpioInput&>(input);
   if (strcmp(key, "line") == 0) {
-    return JsonGetNumber(jsp, type, gpio_input.line);
+    JsonExpectType(STRING);
+    gpio_input.line = GetIoLineByName(jsp->data.str.buff);
+    if (gpio_input.line == PAL_NOLINE) {
+      ULOG_ERROR("Unknown GPIO line \"%s\"", jsp->data.str.buff);
+      return false;
+    }
+    return true;
   } else {
     ULOG_ERROR("Unknown attribute \"%s\"", key);
     return false;
