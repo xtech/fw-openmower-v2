@@ -1,14 +1,6 @@
-//
-// Created by clemens on 14.04.25.
-//
+#include "board_utils.hpp"
 
-#ifndef UTILS_H
-#define UTILS_H
-
-#include <ch.h>
-#include <hal.h>
-
-inline UARTDriver* GetUARTDriverByIndex(uint8_t index) {
+UARTDriver* GetUARTDriverByIndex(uint8_t index) {
   switch (index) {
 #if STM32_UART_USE_USART1
     case 1: return &UARTD1;
@@ -40,9 +32,6 @@ inline UARTDriver* GetUARTDriverByIndex(uint8_t index) {
 #if STM32_UART_USE_USART10
     case 10: return &UARTD10;
 #endif
-    default: return NULL;
+    default: return nullptr;
   }
 }
-
-
-#endif //UTILS_H
