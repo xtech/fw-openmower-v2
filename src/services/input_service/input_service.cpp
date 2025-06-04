@@ -194,3 +194,17 @@ void InputService::OnSimulatedInputsChanged([[maybe_unused]] const uint64_t& new
   simulated_driver->SetActiveInputs(new_value);
 #endif
 }
+
+uint16_t InputService::GetEmergencyReasons() {
+  // Although the input states are atomic, the vector of inputs is not.
+  Lock lk(&mutex_);
+  uint16_t reasons = 0;
+  for (const auto& input : all_inputs_) {
+    // TODO: What if the input was triggered so briefly that we couldn't observe it?
+    if (input->emergency_reason == 0 || !input->IsActive()) continue;
+    const uint32_t duration = input->ActiveDuration();
+    if (duration < input->emergency_delay * 1000) continue;
+    reasons |= input->emergency_reason;
+  }
+  return reasons;
+}
