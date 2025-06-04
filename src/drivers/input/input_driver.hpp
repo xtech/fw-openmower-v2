@@ -11,7 +11,6 @@ namespace xbot::driver::input {
 struct Input {
   // Configuration
   uint8_t idx;
-  etl::string<20> name;
   bool invert = false;
   uint16_t emergency_reason = 0;
   uint16_t emergency_delay = 0;
