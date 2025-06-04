@@ -123,6 +123,19 @@ constexpr LineParams lines[] = {
     {crc16("OSC_OUT"), port_idx('H'), 1},
 };
 
+static_assert(
+    [] {
+      for (size_t i = 0; i < sizeof(lines) / sizeof(LineParams); i++) {
+        for (size_t j = 0; j < sizeof(lines) / sizeof(LineParams); j++) {
+          if (i != j && lines[i].crc == lines[j].crc) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }(),
+    "CRC16 values are not unique");
+
 ioline_t GetIoLineByName(const char* name) {
   uint16_t crc = crc16(name);
   for (const auto& line : lines) {
