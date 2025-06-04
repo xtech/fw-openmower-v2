@@ -13,7 +13,7 @@ struct Input {
   uint8_t idx;
   bool invert = false;
   uint16_t emergency_reason = 0;
-  uint16_t emergency_delay = 0;
+  uint16_t emergency_delay_ms = 0;
 
   // State
   bool IsActive() const {
@@ -22,8 +22,8 @@ struct Input {
 
   bool Update(bool new_active);
 
-  uint32_t ActiveDuration() const {
-    return xbot::service::system::getTimeMicros() - active_since;
+  uint32_t ActiveDuration(const uint32_t now) const {
+    return now - active_since;
   }
 
  private:

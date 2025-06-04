@@ -113,7 +113,7 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
           }
           return true;
         } else if (strcmp(key, "delay") == 0) {
-          return JsonGetNumber(jsp, type, data->current_input->emergency_delay);
+          return JsonGetNumber(jsp, type, data->current_input->emergency_delay_ms);
         } else if (strcmp(key, "latch") == 0) {
           if (type == LWJSON_STREAM_TYPE_FALSE) {
             data->current_input->emergency_reason &= ~EmergencyReason::LATCH;
@@ -173,16 +173,16 @@ bool InputService::SendInputEventHelper(Input& input, InputEventType type) {
   return SendInputEvent(payload, 2);
 }
 
-void InputService::OnInputChanged(Input& input) {
+void InputService::OnInputChanged(Input& input, const bool active, const uint32_t duration) {
   // TODO: This will be called in the middle of the driver's update loop.
   //       We might want to queue the raw changes and send them at a safe time.
   StartTransaction();
-  if (input.IsActive()) {
+  if (active) {
     SendInputEventHelper(input, InputEventType::ACTIVE);
   } else {
     SendInputEventHelper(input, InputEventType::INACTIVE);
     // TODO: This obviously needs debouncing, more variants and configuration.
-    SendInputEventHelper(input, input.ActiveDuration() >= 500'000 ? InputEventType::LONG : InputEventType::SHORT);
+    SendInputEventHelper(input, duration >= 500'000 ? InputEventType::LONG : InputEventType::SHORT);
   }
   CommitTransaction();
 }
@@ -194,15 +194,16 @@ void InputService::OnSimulatedInputsChanged([[maybe_unused]] const uint64_t& new
 #endif
 }
 
-uint16_t InputService::GetEmergencyReasons() {
+uint16_t InputService::GetEmergencyReasons(uint32_t now) {
   // Although the input states are atomic, the vector of inputs is not.
   Lock lk(&mutex_);
   uint16_t reasons = 0;
   for (const auto& input : all_inputs_) {
     // TODO: What if the input was triggered so briefly that we couldn't observe it?
     if (input->emergency_reason == 0 || !input->IsActive()) continue;
-    const uint32_t duration = input->ActiveDuration();
-    if (duration < input->emergency_delay * 1000) continue;
+    const uint32_t duration = input->ActiveDuration(now);
+    const uint32_t delay = input->emergency_delay_ms * 1'000;
+    if (duration < delay) continue;
     reasons |= input->emergency_reason;
   }
   return reasons;
