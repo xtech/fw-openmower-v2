@@ -16,16 +16,15 @@ struct input_config_json_data_t;
 class InputService : public InputServiceBase {
  public:
   explicit InputService(uint16_t service_id) : InputServiceBase(service_id, wa, sizeof(wa)) {
-    mutex::initialize(&mutex_);
   }
 
-  mutex_t mutex_;
+  MUTEX_DECL(mutex_);
 
   void RegisterInputDriver(const char* id, InputDriver* driver) {
     drivers_.emplace(id, driver);
   }
 
-  const etl::ivector<Input*>& GetAllInputs() const {
+  [[nodiscard]] const etl::ivector<Input*>& GetAllInputs() const {
     return all_inputs_;
   }
 

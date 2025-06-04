@@ -166,9 +166,7 @@ void InputService::SendStatus() {
     }
   }
 
-  StartTransaction();
   SendActiveInputs(active_inputs_mask);
-  CommitTransaction();
 }
 
 bool InputService::SendInputEventHelper(Input& input, InputEventType type) {
@@ -192,7 +190,8 @@ void InputService::OnInputChanged(Input& input) {
 
 void InputService::OnSimulatedInputsChanged([[maybe_unused]] const uint64_t& new_value) {
 #ifdef DEBUG_BUILD
-  auto* simulated_driver = static_cast<SimulatedInputDriver*>(drivers_.find("simulated")->second);
-  simulated_driver->SetActiveInputs(new_value);
+  if (auto* simulated_driver = dynamic_cast<SimulatedInputDriver*>(drivers_.find("simulated")->second)) {
+    simulated_driver->SetActiveInputs(new_value);
+  }
 #endif
 }

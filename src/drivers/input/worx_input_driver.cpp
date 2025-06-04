@@ -27,7 +27,7 @@ static const etl::flat_map<etl::string<13>, uint8_t, 8> INPUT_BITS = {
 
 bool WorxInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {
-  auto& worx_input = static_cast<WorxInput&>(input);
+  auto& worx_input = reinterpret_cast<WorxInput&>(input);
   if (strcmp(key, "id") == 0) {
     JsonExpectType(STRING);
     decltype(INPUT_BITS)::key_type input_id{jsp->data.str.buff};
@@ -35,14 +35,12 @@ bool WorxInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char
     if (bit_it != INPUT_BITS.end()) {
       worx_input.bit = bit_it->second;
       return true;
-    } else {
-      ULOG_ERROR("Unknown Worx input ID \"%s\"", input_id.c_str());
-      return false;
     }
-  } else {
-    ULOG_ERROR("Unknown attribute \"%s\"", key);
+    ULOG_ERROR("Unknown Worx input ID \"%s\"", input_id.c_str());
     return false;
   }
+  ULOG_ERROR("Unknown attribute \"%s\"", key);
+  return false;
 }
 
 bool WorxInputDriver::OnStart() {
@@ -60,11 +58,11 @@ void WorxInputDriver::tick() {
   }
 }
 
-bool WorxInputDriver::ReadKeypad(KeypadResponse& response) {
-  static const uint8_t address = 39;
-  static const uint8_t request_packet[] = {0x01, 0x01, 0xE0, 0xC1};
+bool WorxInputDriver::ReadKeypad(KeypadResponse& response) const {
+  static constexpr uint8_t address = 39;
+  static constexpr uint8_t request_packet[] = {0x01, 0x01, 0xE0, 0xC1};
 
-  uint8_t* response_ptr = (uint8_t*)&response;
+  auto* response_ptr = reinterpret_cast<uint8_t*>(&response);
   i2cAcquireBus(i2c_driver_);
   bool ok = i2cMasterTransmit(i2c_driver_, address, request_packet, sizeof(request_packet), nullptr, 0) == MSG_OK &&
             i2cMasterReceive(i2c_driver_, address, response_ptr, sizeof(response)) == MSG_OK;

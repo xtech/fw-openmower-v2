@@ -26,7 +26,7 @@ class GpioInputDriver : public InputDriver {
 
  private:
   struct GpioInput : public Input {
-    ioline_t line;
+    ioline_t line = PAL_NOLINE;
   };
 
   etl::vector<GpioInput, 4> inputs_;

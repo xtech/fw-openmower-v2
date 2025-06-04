@@ -34,14 +34,14 @@ class WorxInputDriver : public InputDriver {
 #pragma pack(pop)
 
   struct WorxInput : public Input {
-    uint8_t bit;
+    uint8_t bit = 0;
   };
 
-  I2CDriver* i2c_driver_;
+  I2CDriver* i2c_driver_ = nullptr;
 
   etl::vector<WorxInput, 16> inputs_;
 
-  bool ReadKeypad(KeypadResponse& response);
+  bool ReadKeypad(KeypadResponse& response) const;
 
   void tick();
   ServiceSchedule tick_schedule_{input_service, 20'000,
