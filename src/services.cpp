@@ -1,6 +1,7 @@
 #include "services.hpp"
 
-#include "../services/service_ids.h"
+#include <service_ids.h>
+
 #include "drivers/input/gpio_input_driver.hpp"
 #ifdef DEBUG_BUILD
 #include "drivers/input/simulated_input_driver.hpp"

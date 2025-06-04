@@ -6,8 +6,7 @@
 #include <lwjson/lwjson.h>
 
 #include <InputServiceBase.hpp>
-
-#include "../../drivers/input/input_driver.hpp"
+#include <drivers/input/input_driver.hpp>
 
 using namespace xbot::driver::input;
 using namespace xbot::service;

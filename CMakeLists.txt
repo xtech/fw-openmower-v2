@@ -102,6 +102,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         src
         robots/include
         ext/minmea
+        services
 )
 
 # Add project symbols (macros)

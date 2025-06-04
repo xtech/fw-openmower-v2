@@ -3,10 +3,9 @@
 #include <ulog.h>
 
 #include <board_utils.hpp>
-
-#include "../../globals.hpp"
-#include "../../json_stream.hpp"
-#include "../../services.hpp"
+#include <globals.hpp>
+#include <json_stream.hpp>
+#include <services.hpp>
 
 namespace xbot::driver::input {
 
