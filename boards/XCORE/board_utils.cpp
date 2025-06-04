@@ -125,9 +125,10 @@ constexpr LineParams lines[] = {
 
 static_assert(
     [] {
-      for (size_t i = 0; i < sizeof(lines) / sizeof(LineParams); i++) {
-        for (size_t j = 0; j < sizeof(lines) / sizeof(LineParams); j++) {
-          if (i != j && lines[i].crc == lines[j].crc) {
+      constexpr size_t count = sizeof(lines) / sizeof(LineParams);
+      for (size_t i = 0; i < count; i++) {
+        for (size_t j = i + 1; j < count; j++) {
+          if (lines[i].crc == lines[j].crc) {
             return false;
           }
         }
