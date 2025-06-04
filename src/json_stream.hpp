@@ -1,3 +1,6 @@
+#ifndef JSON_STREAM_HPP
+#define JSON_STREAM_HPP
+
 #include <etl/delegate.h>
 #include <etl/to_arithmetic.h>
 #include <lwjson/lwjson.h>
@@ -41,3 +44,4 @@ bool JsonGetNumber(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, T& va
 }
 
 bool JsonGetBool(lwjson_stream_type_t type, bool& value);
+#endif  // JSON_STREAM_HPP
