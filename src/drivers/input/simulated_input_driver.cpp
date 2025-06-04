@@ -2,7 +2,7 @@
 
 #include <ulog.h>
 
-#include "../../json_stream.hpp"
+#include <json_stream.hpp>
 
 #define IS_BIT_SET(x, bit) ((x & (1 << bit)) != 0)
 

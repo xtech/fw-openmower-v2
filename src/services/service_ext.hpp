@@ -1,9 +1,8 @@
 #ifndef SERVICE_EXT_HPP
 #define SERVICE_EXT_HPP
 
+#include <globals.hpp>
 #include <xbot-service/Service.hpp>
-
-#include "../globals.hpp"
 
 namespace xbot::service {
 class ServiceExt : public Service {

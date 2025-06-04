@@ -2,14 +2,13 @@
 
 #include <ulog.h>
 
+#include <drivers/input/gpio_input_driver.hpp>
 #include <xbot-service/Lock.hpp>
-
-#include "../../drivers/input/gpio_input_driver.hpp"
 #ifdef DEBUG_BUILD
-#include "../../drivers/input/simulated_input_driver.hpp"
+#include <drivers/input/simulated_input_driver.hpp>
 #endif
-#include "../../globals.hpp"
-#include "../../json_stream.hpp"
+#include <globals.hpp>
+#include <json_stream.hpp>
 
 using xbot::service::Lock;
 

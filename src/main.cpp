@@ -9,6 +9,7 @@
 #endif
 #include <etl/to_string.h>
 #include <lwipthread.h>
+#include <service_ids.h>
 
 #include <boot_service_discovery.hpp>
 #include <filesystem/file.hpp>
@@ -18,7 +19,6 @@
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
-#include "../services/service_ids.h"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
