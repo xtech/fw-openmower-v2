@@ -24,7 +24,7 @@ struct Input {
   bool Update(bool new_active);
 
   uint32_t ActiveDuration() const {
-    return service::system::getTimeMicros() - active_since;
+    return xbot::service::system::getTimeMicros() - active_since;
   }
 
  private:
