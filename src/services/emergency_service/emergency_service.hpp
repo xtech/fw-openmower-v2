@@ -22,7 +22,7 @@ class EmergencyService : public EmergencyServiceBase {
   }
 
   bool GetEmergency();
-  void CheckInputs();
+  void CheckInputs(uint32_t now);
 
  protected:
   void OnStop() override;
@@ -30,7 +30,7 @@ class EmergencyService : public EmergencyServiceBase {
 
  private:
   void Check();
-  void CheckTimeouts();
+  void CheckTimeouts(uint32_t now);
   ServiceSchedule timeouts_schedule_{*this, 50'000,
                                      XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::Check, this)};
 
@@ -43,7 +43,7 @@ class EmergencyService : public EmergencyServiceBase {
   void UpdateEmergency(uint16_t add, uint16_t clear = 0);
 
   uint16_t reasons_ = EmergencyReason::TIMEOUT_INPUTS | EmergencyReason::TIMEOUT_HIGH_LEVEL;
-  systime_t last_high_level_emergency_message_ = 0;
+  uint32_t last_high_level_emergency_message_ = 0;
 };
 
 #endif  // EMERGENCY_SERVICE_HPP

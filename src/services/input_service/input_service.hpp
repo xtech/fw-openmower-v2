@@ -26,9 +26,9 @@ class InputService : public InputServiceBase {
     SendStatus();
   }
 
-  void OnInputChanged(Input& input);
+  void OnInputChanged(Input& input, const bool active, const uint32_t duration);
 
-  uint16_t GetEmergencyReasons();
+  uint16_t GetEmergencyReasons(uint32_t now);
 
  private:
   MUTEX_DECL(mutex_);

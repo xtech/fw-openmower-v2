@@ -17,30 +17,31 @@ void EmergencyService::OnStop() {
 
 void EmergencyService::Check() {
   // TODO: This shouldn't need to run with a fixed schedule, we can calculate the next due time.
-  CheckInputs();
-  CheckTimeouts();
+  const uint32_t now = xbot::service::system::getTimeMicros();
+  CheckInputs(now);
+  CheckTimeouts(now);
 }
 
-void EmergencyService::CheckInputs() {
+void EmergencyService::CheckInputs(uint32_t now) {
   constexpr uint16_t potential_reasons =
       EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::TILT | EmergencyReason::COLLISION;
-  UpdateEmergency(input_service.GetEmergencyReasons(), potential_reasons);
+  UpdateEmergency(input_service.GetEmergencyReasons(now), potential_reasons);
 }
 
 void EmergencyService::OnHighLevelEmergencyChanged(const uint16_t* new_value, uint32_t length) {
   (void)length;
   {
     Lock lk(&mtx_);
-    last_high_level_emergency_message_ = chVTGetSystemTime();
+    last_high_level_emergency_message_ = xbot::service::system::getTimeMicros();
   }
   UpdateEmergency(new_value[0], new_value[1]);
 }
 
-void EmergencyService::CheckTimeouts() {
+void EmergencyService::CheckTimeouts(uint32_t now) {
   uint16_t reasons = 0;
   {
     Lock lk{&mtx_};
-    if (chVTTimeElapsedSinceX(last_high_level_emergency_message_) > TIME_S2I(1)) {
+    if (now - last_high_level_emergency_message_ > 1'000'000) {
       reasons |= EmergencyReason::TIMEOUT_HIGH_LEVEL;
     }
   }
