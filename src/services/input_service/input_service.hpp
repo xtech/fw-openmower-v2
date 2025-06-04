@@ -24,7 +24,7 @@ class InputService : public InputServiceBase {
     drivers_.emplace(id, driver);
   }
 
-  [[nodiscard]] const etl::ivector<Input*>& GetAllInputs() const {
+  const etl::ivector<Input*>& GetAllInputs() const {
     return all_inputs_;
   }
 

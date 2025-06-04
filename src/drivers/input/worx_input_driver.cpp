@@ -27,7 +27,7 @@ static const etl::flat_map<etl::string<13>, uint8_t, 8> INPUT_BITS = {
 
 bool WorxInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {
-  auto& worx_input = reinterpret_cast<WorxInput&>(input);
+  auto& worx_input = static_cast<WorxInput&>(input);
   if (strcmp(key, "id") == 0) {
     JsonExpectType(STRING);
     decltype(INPUT_BITS)::key_type input_id{jsp->data.str.buff};

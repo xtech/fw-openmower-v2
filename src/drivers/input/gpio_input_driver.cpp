@@ -11,7 +11,7 @@ namespace xbot::driver::input {
 
 bool GpioInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {
-  auto& gpio_input = reinterpret_cast<GpioInput&>(input);
+  auto& gpio_input = static_cast<GpioInput&>(input);
   if (strcmp(key, "line") == 0) {
     JsonExpectType(STRING);
     gpio_input.line = GetIoLineByName(jsp->data.str.buff);
