@@ -23,18 +23,19 @@ struct Input {
 
   bool Update(bool new_active);
 
-  uint32_t ActiveDuration() {
-    return xbot::service::system::getTimeMicros() - active_since;
+  uint32_t ActiveDuration() const {
+    return service::system::getTimeMicros() - active_since;
   }
 
  private:
   etl::atomic<bool> active = false;
-  uint32_t active_since;
+  uint32_t active_since = 0;
 };
 
 class InputDriver {
  public:
-  explicit InputDriver(){};
+  virtual ~InputDriver() = default;
+  explicit InputDriver() = default;
   virtual Input& AddInput() = 0;
   virtual void ClearInputs() = 0;
   virtual bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
