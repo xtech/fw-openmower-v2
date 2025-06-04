@@ -80,7 +80,9 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
     // Value inside InputConfig (key in 4, value in 5)
     case 5: {
       const char* key = jsp->stack[4].meta.name;
-      if (strcmp(key, "emergency") == 0) {
+      if (strcmp(key, "invert") == 0) {
+        return JsonGetBool(type, data->current_input->invert);
+      } else if (strcmp(key, "emergency") == 0) {
         JsonExpectTypeOrEnd(OBJECT);
         if (type == LWJSON_STREAM_TYPE_OBJECT) {
           data->current_input->emergency_reason = EmergencyReason::LATCH;

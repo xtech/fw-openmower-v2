@@ -20,6 +20,17 @@ bool GpioInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char
       return false;
     }
     return true;
+  } else if (strcmp(key, "active") == 0) {
+    JsonExpectType(STRING);
+    if (strcmp(jsp->data.str.buff, "high") == 0) {
+      input.invert = false;
+    } else if (strcmp(jsp->data.str.buff, "low") == 0) {
+      input.invert = true;
+    } else {
+      ULOG_ERROR("Valid values for \"active\" are \"high\" and \"low\"");
+      return false;
+    }
+    return true;
   }
   ULOG_ERROR("Unknown attribute \"%s\"", key);
   return false;
@@ -46,7 +57,7 @@ void GpioInputDriver::OnStop() {
 
 void GpioInputDriver::tick() {
   for (auto& input : inputs_) {
-    input.Update((palReadLine(input.line) == PAL_HIGH) ^ input.invert);
+    input.Update(palReadLine(input.line) == PAL_HIGH);
   }
 }
 
