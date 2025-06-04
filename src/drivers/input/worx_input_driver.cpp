@@ -32,12 +32,12 @@ bool WorxInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char
     JsonExpectType(STRING);
     decltype(INPUT_BITS)::key_type input_id{jsp->data.str.buff};
     auto bit_it = INPUT_BITS.find(input_id);
-    if (bit_it != INPUT_BITS.end()) {
-      worx_input.bit = bit_it->second;
-      return true;
+    if (bit_it == INPUT_BITS.end()) {
+      ULOG_ERROR("Unknown Worx input ID \"%s\"", input_id.c_str());
+      return false;
     }
-    ULOG_ERROR("Unknown Worx input ID \"%s\"", input_id.c_str());
-    return false;
+    worx_input.bit = bit_it->second;
+    return true;
   }
   ULOG_ERROR("Unknown attribute \"%s\"", key);
   return false;
