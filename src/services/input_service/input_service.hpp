@@ -18,14 +18,8 @@ class InputService : public InputServiceBase {
   explicit InputService(uint16_t service_id) : InputServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  MUTEX_DECL(mutex_);
-
   void RegisterInputDriver(const char* id, InputDriver* driver) {
     drivers_.emplace(id, driver);
-  }
-
-  const etl::ivector<Input*>& GetAllInputs() const {
-    return all_inputs_;
   }
 
   void OnInputsChangedEvent() {
@@ -34,7 +28,11 @@ class InputService : public InputServiceBase {
 
   void OnInputChanged(Input& input);
 
+  uint16_t GetEmergencyReasons();
+
  private:
+  MUTEX_DECL(mutex_);
+
   etl::flat_map<etl::string<10>, InputDriver*, 3> drivers_;
 
   // Must not have more than 64 inputs due to the size of various bitmasks.

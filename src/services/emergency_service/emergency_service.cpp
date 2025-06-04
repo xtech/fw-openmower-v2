@@ -22,22 +22,9 @@ void EmergencyService::Check() {
 }
 
 void EmergencyService::CheckInputs() {
-  uint16_t reasons = 0;
-  {
-    // Although the input states are atomic, the vector of inputs is not.
-    Lock lk(&input_service.mutex_);
-    for (auto& input : input_service.GetAllInputs()) {
-      // TODO: What if the input was triggered so briefly that we couldn't observe it?
-      if (input->emergency_reason == 0 || !input->IsActive()) continue;
-      const uint32_t duration = input->ActiveDuration();
-      if (duration < input->emergency_delay * 1000) continue;
-      reasons |= input->emergency_reason;
-    }
-  }
-
   constexpr uint16_t potential_reasons =
       EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::TILT | EmergencyReason::COLLISION;
-  UpdateEmergency(reasons, potential_reasons);
+  UpdateEmergency(input_service.GetEmergencyReasons(), potential_reasons);
 }
 
 void EmergencyService::OnHighLevelEmergencyChanged(const uint16_t* new_value, uint32_t length) {
