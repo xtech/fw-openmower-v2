@@ -38,8 +38,7 @@ class PowerService : public PowerServiceBase {
 
   void tick();
   void charger_tick();
-  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 1'000'000,
-                                 XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::tick, this)};
+  ServiceSchedule tick_schedule_{*this, 1'000'000, XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::tick, this)};
   Schedule charger_managed_schedule_{scheduler_, true, 1'000'000,
                                      XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::charger_tick, this)};
 

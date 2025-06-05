@@ -21,28 +21,26 @@ class EmergencyService : public EmergencyServiceBase {
   explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  void TriggerEmergency(const char* reason);
   bool GetEmergency();
+  uint32_t CheckInputs(uint32_t now);
 
  protected:
-  bool OnStart() override;
   void OnStop() override;
-
-  void OnSetEmergencyChanged(const uint8_t& new_value) override;
+  uint32_t OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
+  void OnHighLevelEmergencyChanged(const uint16_t* new_value, uint32_t length) override;
 
  private:
-  void tick();
-  ManagedSchedule tick_schedule_{scheduler_, IsRunning(), 100'000,
-                                 XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::tick, this)};
+  uint32_t CheckTimeouts(uint32_t now);
+  void SendStatus();
+  ServiceSchedule status_schedule_{*this, 1'000'000,
+                                   XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::SendStatus, this)};
 
   MUTEX_DECL(mtx_);
 
-  void ClearEmergency();
+  void UpdateEmergency(uint16_t add, uint16_t clear = 0);
 
-  bool emergency_latch = true;
-
-  systime_t last_clear_emergency_message_ = 0;
-  etl::string<100> emergency_reason{"Boot"};
+  uint16_t reasons_ = EmergencyReason::TIMEOUT_INPUTS | EmergencyReason::TIMEOUT_HIGH_LEVEL;
+  uint32_t last_high_level_emergency_message_ = 0;
 };
 
 #endif  // EMERGENCY_SERVICE_HPP

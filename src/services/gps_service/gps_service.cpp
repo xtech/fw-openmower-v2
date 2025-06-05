@@ -1,10 +1,10 @@
 #include "gps_service.hpp"
 
-#include <board_utils.h>
 #include <drivers/gps/nmea_gps_driver.h>
 #include <drivers/gps/ublox_gps_driver.h>
 #include <ulog.h>
 
+#include <board_utils.hpp>
 #include <cstdio>
 #include <globals.hpp>
 
