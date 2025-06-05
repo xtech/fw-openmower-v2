@@ -118,7 +118,9 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
           if (type == LWJSON_STREAM_TYPE_FALSE) {
             data->current_input->emergency_reason &= ~EmergencyReason::LATCH;
             return true;
-          } else if (type != LWJSON_STREAM_TYPE_TRUE) {
+          } else if (type == LWJSON_STREAM_TYPE_TRUE) {
+            return true;
+          } else {
             ULOG_ERROR("Expected boolean");
             return false;
           }
@@ -149,12 +151,13 @@ void InputService::OnStop() {
   }
 }
 
-void InputService::OnLoop(uint32_t, uint32_t) {
+uint32_t InputService::OnLoop(uint32_t, uint32_t) {
   eventmask_t events = chEvtGetAndClearEvents(Events::ids_to_mask({Events::GPIO_TRIGGERED}));
   if (events & EVENT_MASK(Events::GPIO_TRIGGERED)) {
     auto* gpio_driver = static_cast<GpioInputDriver*>(drivers_.find("gpio")->second);
     gpio_driver->tick();
   }
+  return UINT32_MAX;
 }
 
 void InputService::SendStatus() {
@@ -194,17 +197,17 @@ void InputService::OnSimulatedInputsChanged([[maybe_unused]] const uint64_t& new
 #endif
 }
 
-uint16_t InputService::GetEmergencyReasons(uint32_t now) {
+etl::pair<uint16_t, uint32_t> InputService::GetEmergencyReasons(uint32_t now) {
   // Although the input states are atomic, the vector of inputs is not.
   Lock lk(&mutex_);
   uint16_t reasons = 0;
+  uint32_t block_time = UINT32_MAX;
   for (const auto& input : all_inputs_) {
     // TODO: What if the input was triggered so briefly that we couldn't observe it?
     if (input->emergency_reason == 0 || !input->IsActive()) continue;
-    const uint32_t duration = input->ActiveDuration(now);
-    const uint32_t delay = input->emergency_delay_ms * 1'000;
-    if (duration < delay) continue;
-    reasons |= input->emergency_reason;
+    if (TimeoutReached(input->ActiveDuration(now), input->emergency_delay_ms * 1'000, block_time)) {
+      reasons |= input->emergency_reason;
+    }
   }
-  return reasons;
+  return {reasons, block_time};
 }
