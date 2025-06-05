@@ -17,11 +17,11 @@ void SaboCoverUIController::Configure(const DriverConfig& config) {
 
   // Select the CoverUI driver based on the carrier board version and/or CoverUI Series
   if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
-    // HW v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
-    static SaboCoverUIDriverS2HW01 driver_s2hw01(config);
-    driver_ = &driver_s2hw01;
+    // Mobo v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
+    static SaboCoverUIMoboDriverV01 driver_v01(config);
+    driver_ = &driver_v01;
   } else {
-    // HW v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
+    // Mobo v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
     // TODO: Try drivers if connected
   }
 }

@@ -6,7 +6,7 @@
 #define OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
 
 #include "ch.h"
-#include "sabo_cover_ui_driver_s2_hw01.hpp"
+#include "sabo_cover_ui_mobo_driver_v01.hpp"
 #include "sabo_cover_ui_types.hpp"
 
 namespace xbot::driver::ui {
@@ -27,8 +27,8 @@ class SaboCoverUIController {
   THD_WORKING_AREA(wa_, 1024);
   thread_t* thread_ = nullptr;
 
-  DriverConfig config_;                      // Configuration for the CoverUI driver
-  SaboCoverUIDriverBase* driver_ = nullptr;  // Pointer to the UI driver
+  DriverConfig config_;                          // Configuration for the CoverUI driver
+  SaboCoverUIMoboDriverBase* driver_ = nullptr;  // Pointer to the UI driver
 
   bool configured_ = false;
   bool started_ = false;  // True if the Start() finished

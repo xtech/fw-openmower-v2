@@ -1,13 +1,13 @@
 //
 // Created by Apehaenger on 5/27/25.
 //
-#include "sabo_cover_ui_driver_base.hpp"
+#include "sabo_cover_ui_mobo_driver_base.hpp"
 
 #include <ulog.h>
 
 namespace xbot::driver::ui {
 
-bool SaboCoverUIDriverBase::Init() {
+bool SaboCoverUIMoboDriverBase::Init() {
   // Init control pins
   palSetLineMode(config_.control_pins.latch_load,
                  PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
@@ -44,10 +44,16 @@ bool SaboCoverUIDriverBase::Init() {
     return false;
   }
 
+  series_ = GetSeriesDriver();
+  if (!series_) {
+    ULOG_ERROR("Failed getting CoverUI-Series driver");
+    return false;
+  }
+
   return true;
 }
 
-void SaboCoverUIDriverBase::SetLED(LEDID id, LEDMode mode) {
+void SaboCoverUIMoboDriverBase::SetLED(LEDID id, LEDMode mode) {
   const uint8_t bit = MapLEDIDToBit(id);
 
   // Clear existing state
@@ -65,7 +71,27 @@ void SaboCoverUIDriverBase::SetLED(LEDID id, LEDMode mode) {
   }
 }
 
-void SaboCoverUIDriverBase::ProcessLedStates() {
+void SaboCoverUIMoboDriverBase::PowerOnAnimation() {
+  // All on
+  for (int i = 0; i < 5; ++i) SetLED(static_cast<LEDID>(i), LEDMode::ON);
+  chThdSleepMilliseconds(400);
+
+  // All off
+  for (int i = 0; i < 5; ++i) SetLED(static_cast<LEDID>(i), LEDMode::OFF);
+  chThdSleepMilliseconds(800);
+
+  // Knight Rider
+  for (int i = 0; i <= 5; i++) {
+    for (int j = 0; j < 5; ++j) SetLED(static_cast<LEDID>(j), (j < i) ? LEDMode::ON : LEDMode::OFF);
+    chThdSleepMilliseconds(80);
+  }
+  for (int i = 4; i >= 0; i--) {
+    for (int j = 0; j < 5; ++j) SetLED(static_cast<LEDID>(j), (j < i) ? LEDMode::ON : LEDMode::OFF);
+    chThdSleepMilliseconds(80);
+  }
+}
+
+void SaboCoverUIMoboDriverBase::ProcessLedStates() {
   const systime_t now = chVTGetSystemTime();
 
   // Slow blink handling
@@ -86,7 +112,7 @@ void SaboCoverUIDriverBase::ProcessLedStates() {
   current_led_mask_ |= leds_.fast_blink_state ? leds_.fast_blink_mask : 0;
 }
 
-void SaboCoverUIDriverBase::DebounceButtons() {
+void SaboCoverUIMoboDriverBase::DebounceButtons() {
   // Debounce all buttons (at once)
   const uint16_t changed_bits = btn_last_raw_mask_ ^ btn_cur_raw_mask_;  // XOR to find changed bits
   if (changed_bits == 0) {
@@ -98,7 +124,7 @@ void SaboCoverUIDriverBase::DebounceButtons() {
   btn_last_raw_mask_ = btn_cur_raw_mask_;
 }
 
-void SaboCoverUIDriverBase::Tick() {
+void SaboCoverUIMoboDriverBase::Tick() {
   ProcessLedStates();
   LatchLoad();
   DebounceButtons();

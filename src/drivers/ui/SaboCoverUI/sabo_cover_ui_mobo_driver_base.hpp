@@ -2,11 +2,12 @@
 // Created by Apehaenger on 5/26/25.
 //
 
-#ifndef OPENMOWER_SABO_COVER_UI_DRIVER_BASE_HPP
-#define OPENMOWER_SABO_COVER_UI_DRIVER_BASE_HPP
+#ifndef OPENMOWER_SABO_COVER_UI_MOBO_DRIVER_BASE_HPP
+#define OPENMOWER_SABO_COVER_UI_MOBO_DRIVER_BASE_HPP
 
 #include "ch.h"
 #include "hal.h"
+#include "sabo_cover_ui_series_interface.hpp"
 #include "sabo_cover_ui_types.hpp"
 
 namespace xbot::driver::ui {
@@ -16,18 +17,19 @@ using sabo::DriverConfig;
 using sabo::LEDID;
 using sabo::LEDMode;
 
-class SaboCoverUIDriverBase {
+class SaboCoverUIMoboDriverBase {
  public:
-  explicit SaboCoverUIDriverBase(const DriverConfig& config) : config_(config){};
+  explicit SaboCoverUIMoboDriverBase(const DriverConfig& config) : config_(config){};
 
   static constexpr uint8_t DEBOUNCE_TICKS = 40;  // 40 * 1ms(tick) / 2(alternating button rows) = 20ms debounce time
 
-  virtual bool Init();           // Init GPIOs and SPI
+  virtual bool Init();                                        // Init GPIOs and SPI
+  virtual SaboCoverUISeriesInterface* GetSeriesDriver() = 0;  // Get the Series-I/II specific driver
   virtual void LatchLoad() = 0;  // Latch data (LEDs, Button-rows, signals) and load inputs (buttons, signals, ...)
-  virtual uint8_t LatchLoadRaw(uint8_t tx_data) = 0;  // Do the physical latch & load
-  virtual void EnableOutput() = 0;                    // Enable output of HEF4794BT for HW01 or 74HC595 for HW02
-  virtual void PowerOnAnimation() = 0;
-  virtual bool IsButtonPressed(ButtonID btn) = 0;
+                                 //  virtual uint8_t LatchLoadRaw(uint8_t tx_data) = 0;  // Do the physical latch & load
+  virtual void EnableOutput() = 0;  // Enable output of HEF4794BT for HW01 or 74HC595 for HW02
+  virtual void PowerOnAnimation();
+  // virtual bool IsButtonPressed(ButtonID btn) = 0;
 
   void SetLED(LEDID id, LEDMode mode);  // Set state of a single LED
   void ProcessLedStates();              // Process the different LED modes (on, blink, ...)
@@ -37,6 +39,7 @@ class SaboCoverUIDriverBase {
  protected:
   DriverConfig config_;
   SPIConfig spi_cfg_;
+  SaboCoverUISeriesInterface* series_ = nullptr;  // Series-I/II specific driver
 
   struct LEDState {
     uint8_t on_mask = 0;
@@ -51,14 +54,13 @@ class SaboCoverUIDriverBase {
 
   uint8_t current_led_mask_ = 0;  // Current LEDs (with applied LED modes)
 
-  // Map LEDID to bit position. Has to be implemented by derived series base
   virtual uint8_t MapLEDIDToBit(LEDID id) const = 0;
 
-  uint16_t btn_cur_raw_mask_ = 0xFFFF;     // Current read raw button state
+  uint16_t btn_cur_raw_mask_ = 0xFFFF;     // Current (read) raw button state
   uint16_t btn_last_raw_mask_ = 0xFFFF;    // Last raw button state
   uint16_t btn_stable_raw_mask_ = 0xFFFF;  // Stable (debounced) button state
   uint8_t btn_debounce_counter_ = 0;       // If this counter is >= DEBOUNCE_TICKS, the button state is stable/debounced
 };
 
 }  // namespace xbot::driver::ui
-#endif  // OPENMOWER_SABO_COVER_UI_DRIVER_BASE_HPP
+#endif  // OPENMOWER_SABO_COVER_UI_MOBO_DRIVER_BASE_HPP

@@ -2,17 +2,15 @@
 // Created by Apehaenger on 6/1/25.
 //
 
-#ifndef OPENMOWER_SABO_COVER_UI_DRIVER_HW01_BASE_HPP
-#define OPENMOWER_SABO_COVER_UI_DRIVER_HW01_BASE_HPP
+#ifndef OPENMOWER_SABO_COVER_UI_MOBO_DRIVER_V02_HPP
+#define OPENMOWER_SABO_COVER_UI_MOBO_DRIVER_V02_HPP
 
-#include "ch.h"
-#include "hal.h"
-#include "sabo_cover_ui_driver_base.hpp"
+#include "sabo_cover_ui_mobo_driver_base.hpp"
 
 namespace xbot::driver::ui {
 
-// Sabo CoverUI Series-II Hardware v0.1 driver
-class SaboCoverUIDriverHW01Base : virtual public SaboCoverUIDriverBase {
+// Sabo CoverUI Driver for Hardware v0.2
+class SaboCoverUIMoboDriverV02 : public SaboCoverUIMoboDriverBase {
  public:
   // Latch tx_data and return loaded data (button columns)
   uint8_t LatchLoadRaw(uint8_t tx_data) {
@@ -44,4 +42,4 @@ class SaboCoverUIDriverHW01Base : virtual public SaboCoverUIDriverBase {
 };
 
 }  // namespace xbot::driver::ui
-#endif  // OPENMOWER_SABO_COVER_UI_DRIVER_HW01_BASE_HPP
+#endif  // OPENMOWER_SABO_COVER_UI_MOBO_DRIVER_V02_HPP
