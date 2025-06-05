@@ -15,17 +15,16 @@ void EmergencyService::OnStop() {
   UpdateEmergency(EmergencyReason::TIMEOUT_HIGH_LEVEL);
 }
 
-void EmergencyService::Check() {
-  // TODO: This shouldn't need to run with a fixed schedule, we can calculate the next due time.
-  const uint32_t now = xbot::service::system::getTimeMicros();
-  CheckInputs(now);
-  CheckTimeouts(now);
+uint32_t EmergencyService::OnLoop(uint32_t now_micros, uint32_t) {
+  return etl::min(CheckInputs(now_micros), CheckTimeouts(now_micros));
 }
 
-void EmergencyService::CheckInputs(uint32_t now) {
+uint32_t EmergencyService::CheckInputs(uint32_t now) {
   constexpr uint16_t potential_reasons =
       EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::TILT | EmergencyReason::COLLISION;
-  UpdateEmergency(input_service.GetEmergencyReasons(now), potential_reasons);
+  auto [reasons, block_time] = input_service.GetEmergencyReasons(now);
+  UpdateEmergency(reasons, potential_reasons);
+  return block_time;
 }
 
 void EmergencyService::OnHighLevelEmergencyChanged(const uint16_t* new_value, uint32_t length) {
@@ -37,17 +36,18 @@ void EmergencyService::OnHighLevelEmergencyChanged(const uint16_t* new_value, ui
   UpdateEmergency(new_value[0], new_value[1]);
 }
 
-void EmergencyService::CheckTimeouts(uint32_t now) {
+uint32_t EmergencyService::CheckTimeouts(uint32_t now) {
   uint16_t reasons = 0;
+  uint32_t block_time = UINT32_MAX;
   {
     Lock lk{&mtx_};
-    if (now - last_high_level_emergency_message_ > 1'000'000) {
+    if (TimeoutReached(now - last_high_level_emergency_message_, 1'000'000, block_time)) {
       reasons |= EmergencyReason::TIMEOUT_HIGH_LEVEL;
     }
   }
-
   constexpr uint16_t potential_reasons = EmergencyReason::TIMEOUT_HIGH_LEVEL | EmergencyReason::TIMEOUT_INPUTS;
   UpdateEmergency(reasons, potential_reasons);
+  return block_time;
 }
 
 void EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {

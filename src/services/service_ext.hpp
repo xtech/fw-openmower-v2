@@ -4,6 +4,15 @@
 #include <globals.hpp>
 #include <xbot-service/Service.hpp>
 
+inline bool TimeoutReached(uint32_t duration, uint32_t delay, uint32_t& block_time) {
+  if (duration >= delay) {
+    return true;
+  } else {
+    block_time = etl::min(block_time, delay - duration);
+    return false;
+  }
+}
+
 namespace xbot::service {
 class ServiceExt : public Service {
  public:

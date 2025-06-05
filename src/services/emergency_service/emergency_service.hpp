@@ -22,18 +22,15 @@ class EmergencyService : public EmergencyServiceBase {
   }
 
   bool GetEmergency();
-  void CheckInputs(uint32_t now);
+  uint32_t CheckInputs(uint32_t now);
 
  protected:
   void OnStop() override;
+  uint32_t OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
   void OnHighLevelEmergencyChanged(const uint16_t* new_value, uint32_t length) override;
 
  private:
-  void Check();
-  void CheckTimeouts(uint32_t now);
-  ServiceSchedule timeouts_schedule_{*this, 50'000,
-                                     XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::Check, this)};
-
+  uint32_t CheckTimeouts(uint32_t now);
   void SendStatus();
   ServiceSchedule status_schedule_{*this, 1'000'000,
                                    XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::SendStatus, this)};

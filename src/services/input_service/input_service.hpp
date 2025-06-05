@@ -3,6 +3,7 @@
 
 #include <etl/flat_map.h>
 #include <etl/string.h>
+#include <etl/utility.h>
 #include <lwjson/lwjson.h>
 
 #include <InputServiceBase.hpp>
@@ -28,7 +29,7 @@ class InputService : public InputServiceBase {
 
   void OnInputChanged(Input& input, const bool active, const uint32_t duration);
 
-  uint16_t GetEmergencyReasons(uint32_t now);
+  etl::pair<uint16_t, uint32_t> GetEmergencyReasons(uint32_t now);
 
  private:
   MUTEX_DECL(mutex_);
@@ -42,7 +43,7 @@ class InputService : public InputServiceBase {
   bool InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data);
   bool OnStart() override;
   void OnStop() override;
-  void OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
+  uint32_t OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
   void OnSimulatedInputsChanged(const uint64_t& new_value) override;
 
   bool SendInputEventHelper(Input& input, InputEventType type);
