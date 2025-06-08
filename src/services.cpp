@@ -9,6 +9,7 @@ MowerService mower_service{xbot::service_ids::MOWER};
 ImuService imu_service{xbot::service_ids::IMU};
 PowerService power_service{xbot::service_ids::POWER};
 GpsService gps_service{xbot::service_ids::GPS};
+MowerUiService mower_ui_service{xbot::service_ids::MOWER_UI};
 
 void StartServices() {
 #define START_IF_NEEDED(service, id)                \

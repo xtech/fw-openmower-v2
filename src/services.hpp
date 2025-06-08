@@ -6,6 +6,7 @@
 #include "services/gps_service/gps_service.hpp"
 #include "services/imu_service/imu_service.hpp"
 #include "services/mower_service/mower_service.hpp"
+#include "services/mower_ui_service/mower_ui_service.hpp"
 #include "services/power_service/power_service.hpp"
 
 extern EmergencyService emergency_service;
@@ -14,6 +15,7 @@ extern MowerService mower_service;
 extern ImuService imu_service;
 extern PowerService power_service;
 extern GpsService gps_service;
+extern MowerUiService mower_ui_service;
 
 void StartServices();
 

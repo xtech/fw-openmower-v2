@@ -5,18 +5,38 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-#include <ch.h>
 #include <etl/delegate.h>
+#include <etl/initializer_list.h>
 #include <id_eeprom.h>
 
 #include <robot.hpp>
 
+#include "ch.h"
+
 extern Robot* robot;
+
+namespace Events {
+enum Events : eventid_t {
+  GLOBAL,
+
+  // InputService
+  GPIO_TRIGGERED,
+};
+
+constexpr int ids_to_mask(std::initializer_list<eventid_t> ids) {
+  int result = 0;
+  for (eventid_t id : ids) {
+    result |= EVENT_MASK(id);
+  }
+  return result;
+}
+}  // namespace Events
 
 namespace MowerEvents {
 enum : eventflags_t {
   // Emergency flags have changed
   EMERGENCY_CHANGED = 1 << 0,
+  INPUTS_CHANGED = 1 << 1,
 };
 }
 
