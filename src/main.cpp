@@ -7,10 +7,13 @@
 #include <SEGGER_RTT.h>
 #include <SEGGER_RTT_streams.h>
 #endif
-#include <boot_service_discovery.h>
 #include <etl/to_string.h>
 #include <lwipthread.h>
 
+#include <boot_service_discovery.hpp>
+#include <filesystem/file.hpp>
+#include <filesystem/filesystem.hpp>
+#include <robot.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
@@ -85,6 +88,16 @@ int main() {
   // Safe to do before checking the carrier board, needed for logging
   xbot::service::system::initSystem();
   xbot::service::startRemoteLogging();
+
+  // Try opening the filesystem, on error fail
+  if (!InitFS()) {
+    SetStatusLedMode(LED_MODE_BLINK_SLOW);
+    SetStatusLedColor(RED);
+    while (true) {
+      ULOG_ERROR("Error mounting filesystem!");
+      chThdSleep(TIME_S2I(1));
+    }
+  }
 
   robot = GetRobot();
   if (!robot->IsHardwareSupported()) {

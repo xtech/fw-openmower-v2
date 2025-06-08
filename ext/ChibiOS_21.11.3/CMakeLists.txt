@@ -66,6 +66,8 @@ add_library(
         os/hal/ports/STM32/LLD/xWDGv1/hal_wdg_lld.c
         os/hal/ports/STM32/LLD/FDCANv1/hal_can_lld.c
         os/hal/ports/STM32/LLD/SDMMCv2/hal_sdc_lld.c
+        # Flash Device
+        os/hal/lib/complex/serial_nor/hal_serial_nor.c
         #osal
         os/hal/osal/rt-nil/osal.c
         #RT
@@ -100,6 +102,7 @@ add_library(
         # board
         ${BOARD_DIR}/board.c
         ${BOARD_DIR}/board_ex.c
+        ${BOARD_DIR}/hal_flash_device.c
         # LwIP
         os/various/lwip_bindings/lwipthread.c
         os/various/lwip_bindings/arch/sys_arch.c
@@ -139,6 +142,8 @@ target_include_directories(ChibiOS PUBLIC
         os/hal/ports/STM32/LLD/xWDGv1
         os/hal/ports/STM32/LLD/FDCANv1
         os/hal/ports/STM32/LLD/SDMMCv2
+        # Flash Device
+        os/hal/lib/complex/serial_nor
         #osal
         os/hal/osal/rt-nil
         #RT
