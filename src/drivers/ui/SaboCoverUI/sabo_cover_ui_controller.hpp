@@ -7,6 +7,7 @@
 
 #include "ch.h"
 #include "sabo_cover_ui_mobo_driver_v01.hpp"
+#include "sabo_cover_ui_mobo_driver_v02.hpp"
 #include "sabo_cover_ui_types.hpp"
 
 namespace xbot::driver::ui {

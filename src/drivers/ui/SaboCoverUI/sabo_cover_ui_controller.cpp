@@ -22,7 +22,8 @@ void SaboCoverUIController::Configure(const DriverConfig& config) {
     driver_ = &driver_v01;
   } else {
     // Mobo v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
-    // TODO: Try drivers if connected
+    static SaboCoverUIMoboDriverV02 driver_v02(config);
+    driver_ = &driver_v02;
   }
 }
 
