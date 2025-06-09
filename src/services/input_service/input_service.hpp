@@ -41,7 +41,7 @@ class InputService : public InputServiceBase {
   etl::flat_map<etl::string<10>, InputDriver*, 3> drivers_;
 
   // Must not have more than 64 inputs due to the size of various bitmasks.
-  etl::vector<Input*, 30> all_inputs_;
+  etl::vector<Input, 30> all_inputs_;
 
   etl::atomic<uint8_t> num_active_lift_{0};
   Input lift_input_;

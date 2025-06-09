@@ -3,6 +3,7 @@
 
 #include <etl/atomic.h>
 #include <etl/string.h>
+#include <hal.h>
 #include <lwjson/lwjson.h>
 
 #include <xbot-service/portable/system.hpp>
@@ -16,6 +17,16 @@ struct Input {
   bool invert = false;
   uint16_t emergency_reason = 0;
   uint16_t emergency_delay_ms = 0;
+
+  union {
+    struct {
+      ioline_t line;
+    } gpio;
+
+    struct {
+      uint8_t bit;
+    } worx;
+  };
 
   // State
   bool IsActive() const {
@@ -31,20 +42,59 @@ struct Input {
  private:
   etl::atomic<bool> active = false;
   uint32_t active_since = 0;
+  Input* next_for_driver_ = nullptr;
+
+  friend class InputDriver;
+  friend struct InputIterable;
+};
+
+struct InputIterable {
+  Input* head;
+
+  struct Iterator {
+    Input* ptr;
+
+    Input& operator*() const {
+      return *ptr;
+    }
+
+    Iterator& operator++() {
+      ptr = ptr->next_for_driver_;
+      return *this;
+    }
+
+    bool operator!=(const Iterator& other) const {
+      return ptr != other.ptr;
+    }
+  };
+
+  Iterator begin() const {
+    return Iterator{head};
+  }
+
+  Iterator end() const {
+    return Iterator{nullptr};
+  }
 };
 
 class InputDriver {
  public:
   virtual ~InputDriver() = default;
   explicit InputDriver() = default;
-  virtual Input& AddInput() = 0;
-  virtual void ClearInputs() = 0;
+  void AddInput(Input* input);
+  void ClearInputs();
   virtual bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                   Input& input) = 0;
   virtual bool OnStart() {
     return true;
   };
   virtual void OnStop(){};
+
+ protected:
+  Input* inputs_head_ = nullptr;
+  InputIterable Inputs() {
+    return InputIterable{inputs_head_};
+  }
 };
 }  // namespace xbot::driver::input
 
