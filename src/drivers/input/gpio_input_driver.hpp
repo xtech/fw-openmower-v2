@@ -12,12 +12,6 @@ class GpioInputDriver : public InputDriver {
   using InputDriver::InputDriver;
 
  public:
-  Input& AddInput() override {
-    return inputs_.emplace_back();
-  }
-  void ClearInputs() override {
-    inputs_.clear();
-  }
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
   bool OnStart() override;
@@ -25,12 +19,6 @@ class GpioInputDriver : public InputDriver {
   void tick();
 
  private:
-  struct GpioInput : public Input {
-    ioline_t line = PAL_NOLINE;
-  };
-
-  etl::vector<GpioInput, 4> inputs_;
-
   ServiceSchedule tick_schedule_{input_service, 1'000'000,
                                  XBOT_FUNCTION_FOR_METHOD(GpioInputDriver, &GpioInputDriver::tick, this)};
 };

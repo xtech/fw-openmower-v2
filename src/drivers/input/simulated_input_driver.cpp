@@ -18,7 +18,7 @@ bool SimulatedInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const
 }
 
 void SimulatedInputDriver::SetActiveInputs(uint64_t active_inputs_mask) {
-  for (auto& input : inputs_) {
+  for (auto& input : Inputs()) {
     input.Update(IS_BIT_SET(active_inputs_mask, input.idx));
   }
 }

@@ -22,4 +22,20 @@ bool Input::Update(bool new_active) {
   return false;
 }
 
+void InputDriver::AddInput(Input* input) {
+  if (inputs_head_ == nullptr) {
+    inputs_head_ = input;
+  } else {
+    Input* current = inputs_head_;
+    while (current->next_for_driver_ != nullptr) {
+      current = current->next_for_driver_;
+    }
+    current->next_for_driver_ = input;
+  }
+}
+
+void InputDriver::ClearInputs() {
+  inputs_head_ = nullptr;
+}
+
 }  // namespace xbot::driver::input

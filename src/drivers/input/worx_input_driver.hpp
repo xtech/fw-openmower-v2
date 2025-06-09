@@ -13,12 +13,6 @@ class WorxInputDriver : public InputDriver {
   using InputDriver::InputDriver;
 
  public:
-  Input& AddInput() override {
-    return inputs_.emplace_back();
-  }
-  void ClearInputs() override {
-    inputs_.clear();
-  }
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
   bool OnStart() override;
@@ -33,13 +27,7 @@ class WorxInputDriver : public InputDriver {
   };
 #pragma pack(pop)
 
-  struct WorxInput : public Input {
-    uint8_t bit = 0;
-  };
-
   I2CDriver* i2c_driver_ = nullptr;
-
-  etl::vector<WorxInput, 16> inputs_;
 
   bool ReadKeypad(KeypadResponse& response) const;
 

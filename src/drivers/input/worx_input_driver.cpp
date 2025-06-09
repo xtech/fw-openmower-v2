@@ -27,7 +27,6 @@ static const etl::flat_map<etl::string<13>, uint8_t, 8> INPUT_BITS = {
 
 bool WorxInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {
-  auto& worx_input = static_cast<WorxInput&>(input);
   if (strcmp(key, "id") == 0) {
     JsonExpectType(STRING);
     decltype(INPUT_BITS)::key_type input_id{jsp->data.str.buff};
@@ -36,7 +35,7 @@ bool WorxInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char
       ULOG_ERROR("Unknown Worx input ID \"%s\"", input_id.c_str());
       return false;
     }
-    worx_input.bit = bit_it->second;
+    input.worx.bit = bit_it->second;
     return true;
   }
   ULOG_ERROR("Unknown attribute \"%s\"", key);
@@ -52,8 +51,8 @@ bool WorxInputDriver::OnStart() {
 void WorxInputDriver::tick() {
   KeypadResponse keypad{};
   if (ReadKeypad(keypad)) {
-    for (auto& input : inputs_) {
-      input.Update(IS_BIT_SET(keypad.keys_and_halls, input.bit));
+    for (auto& input : Inputs()) {
+      input.Update(IS_BIT_SET(keypad.keys_and_halls, input.worx.bit));
     }
   }
 }

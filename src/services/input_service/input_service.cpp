@@ -68,11 +68,11 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
           ULOG_ERROR("Too many inputs (max. %d)", all_inputs_.max_size());
           return false;
         }
-        data->current_input = &data->driver->AddInput();
+        data->current_input = &all_inputs_.emplace_back();
         data->current_input->idx = data->next_idx++;
+        data->driver->AddInput(data->current_input);
       } else {
         // TODO: Give driver a chance to check completeness of the input?
-        all_inputs_.push_back(data->current_input);
         data->current_input = nullptr;
       }
       break;
@@ -166,8 +166,8 @@ uint32_t InputService::OnLoop(uint32_t, uint32_t) {
 void InputService::SendStatus() {
   uint64_t active_inputs_mask = 0;
   for (auto& input : all_inputs_) {
-    if (input->IsActive()) {
-      active_inputs_mask |= 1 << input->idx;
+    if (input.IsActive()) {
+      active_inputs_mask |= 1 << input.idx;
     }
   }
 
@@ -214,9 +214,9 @@ etl::pair<uint16_t, uint32_t> InputService::GetEmergencyReasons(uint32_t now) {
   uint32_t block_time = UINT32_MAX;
   for (const auto& input : all_inputs_) {
     // TODO: What if the input was triggered so briefly that we couldn't observe it?
-    if (input->emergency_reason == 0 || !input->IsActive()) continue;
-    if (TimeoutReached(input->ActiveDuration(now), input->emergency_delay_ms * 1'000, block_time)) {
-      reasons |= input->emergency_reason;
+    if (input.emergency_reason == 0 || !input.IsActive()) continue;
+    if (TimeoutReached(input.ActiveDuration(now), input.emergency_delay_ms * 1'000, block_time)) {
+      reasons |= input.emergency_reason;
     }
   }
 

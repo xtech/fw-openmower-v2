@@ -11,11 +11,10 @@ namespace xbot::driver::input {
 
 bool GpioInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {
-  auto& gpio_input = static_cast<GpioInput&>(input);
   if (strcmp(key, "line") == 0) {
     JsonExpectType(STRING);
-    gpio_input.line = GetIoLineByName(jsp->data.str.buff);
-    if (gpio_input.line == PAL_NOLINE) {
+    input.gpio.line = GetIoLineByName(jsp->data.str.buff);
+    if (input.gpio.line == PAL_NOLINE) {
       ULOG_ERROR("Unknown GPIO line \"%s\"", jsp->data.str.buff);
       return false;
     }
@@ -41,23 +40,23 @@ static void LineCallback(void*) {
 }
 
 bool GpioInputDriver::OnStart() {
-  for (const auto& input : inputs_) {
-    palSetLineMode(input.line, PAL_MODE_INPUT);
-    palSetLineCallback(input.line, LineCallback, nullptr);
-    palEnableLineEvent(input.line, PAL_EVENT_MODE_BOTH_EDGES);
+  for (const auto& input : Inputs()) {
+    palSetLineMode(input.gpio.line, PAL_MODE_INPUT);
+    palSetLineCallback(input.gpio.line, LineCallback, nullptr);
+    palEnableLineEvent(input.gpio.line, PAL_EVENT_MODE_BOTH_EDGES);
   }
   return true;
 }
 
 void GpioInputDriver::OnStop() {
-  for (const auto& input : inputs_) {
-    palDisableLineEvent(input.line);
+  for (const auto& input : Inputs()) {
+    palDisableLineEvent(input.gpio.line);
   }
 }
 
 void GpioInputDriver::tick() {
-  for (auto& input : inputs_) {
-    input.Update(palReadLine(input.line) == PAL_HIGH);
+  for (auto& input : Inputs()) {
+    input.Update(palReadLine(input.gpio.line) == PAL_HIGH);
   }
 }
 
