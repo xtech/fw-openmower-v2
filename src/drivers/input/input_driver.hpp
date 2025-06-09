@@ -9,6 +9,8 @@
 
 namespace xbot::driver::input {
 struct Input {
+  enum { VIRTUAL = 255 };
+
   // Configuration
   uint8_t idx;
   bool invert = false;

@@ -26,6 +26,7 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
   for (auto& driver : drivers_) {
     driver.second->ClearInputs();
   }
+  num_active_lift_ = 0;
 
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
@@ -103,8 +104,10 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
           const char* reason = jsp->data.str.buff;
           if (strcmp(reason, "stop") == 0) {
             data->current_input->emergency_reason |= EmergencyReason::STOP;
-          } else if (strcmp(reason, "lift") == 0) {
-            data->current_input->emergency_reason |= EmergencyReason::LIFT;
+          } else if (strcmp(reason, "tilt_lift") == 0) {
+            // No typo! It takes two "lift" sensors to cause a "lift" emergency.
+            // A single sensor will only trigger a "tilt" emergency.
+            data->current_input->emergency_reason |= EmergencyReason::TILT;
           } else if (strcmp(reason, "collision") == 0) {
             data->current_input->emergency_reason |= EmergencyReason::COLLISION;
           } else {
@@ -177,6 +180,13 @@ bool InputService::SendInputEventHelper(Input& input, InputEventType type) {
 }
 
 void InputService::OnInputChanged(Input& input, const bool active, const uint32_t duration) {
+  if (input.idx == Input::VIRTUAL) return;
+
+  if ((input.emergency_reason & EmergencyReason::TILT) != 0) {
+    uint8_t lift_active = active ? ++num_active_lift_ : --num_active_lift_;
+    lift_input_.Update(lift_active >= 2);
+  }
+
   // TODO: This will be called in the middle of the driver's update loop.
   //       We might want to queue the raw changes and send them at a safe time.
   StartTransaction();
@@ -209,5 +219,12 @@ etl::pair<uint16_t, uint32_t> InputService::GetEmergencyReasons(uint32_t now) {
       reasons |= input->emergency_reason;
     }
   }
+
+  if (lift_input_.IsActive()) {
+    if (TimeoutReached(lift_input_.ActiveDuration(now), lift_input_.emergency_delay_ms * 1'000, block_time)) {
+      reasons |= lift_input_.emergency_reason;
+    }
+  }
+
   return {reasons, block_time};
 }
