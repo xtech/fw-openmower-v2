@@ -28,6 +28,12 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
   }
   num_active_lift_ = 0;
 
+  // Add virtual inputs.
+  lift_input_ = &all_inputs_.emplace_back();
+  lift_input_->idx = Input::VIRTUAL;
+  lift_input_->emergency_reason = EmergencyReason::LIFT | EmergencyReason::LATCH;
+  lift_input_->emergency_delay_ms = 10;
+
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
   return ProcessJson(source, json_data);
@@ -65,7 +71,7 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
       JsonExpectTypeOrEnd(OBJECT);
       if (type == LWJSON_STREAM_TYPE_OBJECT) {
         if (all_inputs_.full()) {
-          ULOG_ERROR("Too many inputs (max. %d)", all_inputs_.max_size());
+          ULOG_ERROR("Too many inputs (max. %d)", all_inputs_.max_size() - NUM_VIRTUAL_INPUTS);
           return false;
         }
         data->current_input = &all_inputs_.emplace_back();
@@ -166,7 +172,7 @@ uint32_t InputService::OnLoop(uint32_t, uint32_t) {
 void InputService::SendStatus() {
   uint64_t active_inputs_mask = 0;
   for (auto& input : all_inputs_) {
-    if (input.IsActive()) {
+    if (input.IsActive() && input.idx != input.VIRTUAL) {
       active_inputs_mask |= 1 << input.idx;
     }
   }
@@ -184,7 +190,7 @@ void InputService::OnInputChanged(Input& input, const bool active, const uint32_
 
   if ((input.emergency_reason & EmergencyReason::TILT) != 0) {
     uint8_t lift_active = active ? ++num_active_lift_ : --num_active_lift_;
-    lift_input_.Update(lift_active >= 2);
+    lift_input_->Update(lift_active >= 2);
   }
 
   // TODO: This will be called in the middle of the driver's update loop.
@@ -219,12 +225,5 @@ etl::pair<uint16_t, uint32_t> InputService::GetEmergencyReasons(uint32_t now) {
       reasons |= input.emergency_reason;
     }
   }
-
-  if (lift_input_.IsActive()) {
-    if (TimeoutReached(lift_input_.ActiveDuration(now), lift_input_.emergency_delay_ms * 1'000, block_time)) {
-      reasons |= lift_input_.emergency_reason;
-    }
-  }
-
   return {reasons, block_time};
 }
