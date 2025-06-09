@@ -6,6 +6,7 @@
 #include <etl/utility.h>
 #include <lwjson/lwjson.h>
 
+#include <EmergencyServiceBase.hpp>
 #include <InputServiceBase.hpp>
 #include <drivers/input/input_driver.hpp>
 
@@ -17,6 +18,9 @@ struct input_config_json_data_t;
 class InputService : public InputServiceBase {
  public:
   explicit InputService(uint16_t service_id) : InputServiceBase(service_id, wa, sizeof(wa)) {
+    lift_input_.idx = Input::VIRTUAL;
+    lift_input_.emergency_reason = EmergencyReason::LIFT | EmergencyReason::LATCH;
+    lift_input_.emergency_delay_ms = 10;
   }
 
   void RegisterInputDriver(const char* id, InputDriver* driver) {
@@ -38,6 +42,9 @@ class InputService : public InputServiceBase {
 
   // Must not have more than 64 inputs due to the size of various bitmasks.
   etl::vector<Input*, 30> all_inputs_;
+
+  etl::atomic<uint8_t> num_active_lift_{0};
+  Input lift_input_;
 
   bool OnRegisterInputConfigsChanged(const void* data, size_t length) override;
   bool InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data);
