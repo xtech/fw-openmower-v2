@@ -18,9 +18,6 @@ struct input_config_json_data_t;
 class InputService : public InputServiceBase {
  public:
   explicit InputService(uint16_t service_id) : InputServiceBase(service_id, wa, sizeof(wa)) {
-    lift_input_.idx = Input::VIRTUAL;
-    lift_input_.emergency_reason = EmergencyReason::LIFT | EmergencyReason::LATCH;
-    lift_input_.emergency_delay_ms = 10;
   }
 
   void RegisterInputDriver(const char* id, InputDriver* driver) {
@@ -41,10 +38,11 @@ class InputService : public InputServiceBase {
   etl::flat_map<etl::string<10>, InputDriver*, 3> drivers_;
 
   // Must not have more than 64 inputs due to the size of various bitmasks.
-  etl::vector<Input, 30> all_inputs_;
+  constexpr static uint8_t NUM_VIRTUAL_INPUTS = 1;
+  etl::vector<Input, 30 + NUM_VIRTUAL_INPUTS> all_inputs_;
 
   etl::atomic<uint8_t> num_active_lift_{0};
-  Input lift_input_;
+  Input* lift_input_ = nullptr;
 
   bool OnRegisterInputConfigsChanged(const void* data, size_t length) override;
   bool InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data);
