@@ -21,11 +21,7 @@ class SimulatedInputDriver : public InputDriver {
   void SetActiveInputs(uint64_t active_inputs_mask);
 
  private:
-  struct SimulatedInput : public Input {
-    uint8_t bit;
-  };
-
-  etl::vector<SimulatedInput, 64> inputs_;
+  etl::vector<Input, 64> inputs_;
 };
 }  // namespace xbot::driver::input
 
