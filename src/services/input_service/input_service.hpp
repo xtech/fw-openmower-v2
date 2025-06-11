@@ -42,7 +42,7 @@ class InputService : public InputServiceBase {
   etl::vector<Input, 30 + NUM_VIRTUAL_INPUTS> all_inputs_;
 
   etl::atomic<uint8_t> num_active_lift_{0};
-  Input* lift_input_ = nullptr;
+  Input* lift_multiple_input_ = nullptr;
 
   bool OnRegisterInputConfigsChanged(const void* data, size_t length) override;
   bool InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data);
