@@ -29,10 +29,10 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
   num_active_lift_ = 0;
 
   // Add virtual inputs.
-  lift_input_ = &all_inputs_.emplace_back();
-  lift_input_->idx = Input::VIRTUAL;
-  lift_input_->emergency_reason = EmergencyReason::LIFT | EmergencyReason::LATCH;
-  lift_input_->emergency_delay_ms = 10;
+  lift_multiple_input_ = &all_inputs_.emplace_back();
+  lift_multiple_input_->idx = Input::VIRTUAL;
+  lift_multiple_input_->emergency_reason = EmergencyReason::LIFT_MULTIPLE | EmergencyReason::LATCH;
+  lift_multiple_input_->emergency_delay_ms = 10;
 
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
@@ -110,10 +110,10 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
           const char* reason = jsp->data.str.buff;
           if (strcmp(reason, "stop") == 0) {
             data->current_input->emergency_reason |= EmergencyReason::STOP;
-          } else if (strcmp(reason, "tilt_lift") == 0) {
-            // No typo! It takes two "lift" sensors to cause a "lift" emergency.
-            // A single sensor will only trigger a "tilt" emergency.
-            data->current_input->emergency_reason |= EmergencyReason::TILT;
+          } else if (strcmp(reason, "lift") == 0) {
+            // A single sensor can only trigger a LIFT emergency.
+            // It takes two or more "lift" sensors to cause a LIFT_MULTIPLE emergency.
+            data->current_input->emergency_reason |= EmergencyReason::LIFT;
           } else if (strcmp(reason, "collision") == 0) {
             data->current_input->emergency_reason |= EmergencyReason::COLLISION;
           } else {
@@ -188,9 +188,9 @@ bool InputService::SendInputEventHelper(Input& input, InputEventType type) {
 void InputService::OnInputChanged(Input& input, const bool active, const uint32_t duration) {
   if (input.idx == Input::VIRTUAL) return;
 
-  if ((input.emergency_reason & EmergencyReason::TILT) != 0) {
-    uint8_t lift_active = active ? ++num_active_lift_ : --num_active_lift_;
-    lift_input_->Update(lift_active >= 2);
+  if ((input.emergency_reason & EmergencyReason::LIFT) != 0) {
+    uint8_t num_active_lift = active ? ++num_active_lift_ : --num_active_lift_;
+    lift_multiple_input_->Update(num_active_lift >= 2);
   }
 
   // TODO: This will be called in the middle of the driver's update loop.
