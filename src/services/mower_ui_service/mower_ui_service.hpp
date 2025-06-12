@@ -5,25 +5,26 @@
 #ifndef OPENMOWER_MOWER_UI_SERVICE_HPP
 #define OPENMOWER_MOWER_UI_SERVICE_HPP
 
+#include <etl/string.h>
+
 #include <MowerUiServiceBase.hpp>
+#include <xbot-service/Lock.hpp>
 
 #include "globals.hpp"
-#include <etl/string.h>
-#include <xbot-service/Lock.hpp>
 
 using namespace xbot::service;
 
 class MowerUiService : public MowerUiServiceBase {
  private:
-  THD_WORKING_AREA(wa, 1024) {};
+  THD_WORKING_AREA(wa, 1024){};
 
  public:
   explicit MowerUiService(uint16_t service_id) : MowerUiServiceBase(service_id, wa, sizeof(wa)) {
   }
-  
-  [[nodiscard]] HighLevelStatus getStateId() { 
+
+  [[nodiscard]] HighLevelStatus getStateId() {
     xbot::service::Lock lk{&mtx_};
-    return state_id_; 
+    return state_id_;
   }
   [[nodiscard]] etl::string<100> getStateName() {
     xbot::service::Lock lk{&mtx_};
@@ -52,15 +53,15 @@ class MowerUiService : public MowerUiServiceBase {
 
   void SendAction(HighLevelAction action);
 
-  void SetCallback(const etl::delegate<void()> &callback) {
+  void SetCallback(const etl::delegate<void()>& callback) {
     xbot::service::Lock lk{&mtx_};
     state_changed_callback_ = callback;
   }
 
  private:
   MUTEX_DECL(mtx_);
-  
-  HighLevelStatus state_id_ = MowerUiServiceBase::HighLevelStatus::UNKNOWN;
+
+  HighLevelStatus state_id_ = HighLevelStatus::UNKNOWN;
   etl::string<100> state_name_{};
   etl::string<100> sub_state_name_{};
   float gps_quality_ = 0;

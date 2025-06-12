@@ -47,4 +47,3 @@ void MowerUiService::OnTransactionEnd() {
     state_changed_callback_();
   }
 }
-
