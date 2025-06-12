@@ -20,6 +20,7 @@ bool PowerService::OnStart() {
 }
 
 void PowerService::tick() {
+  xbot::service::Lock lk{&mtx_};
   // Send the sensor values
   StartTransaction();
   if (charger_configured_) {
@@ -93,6 +94,7 @@ void PowerService::charger_tick() {
       ULOG_ARG_ERROR(&service_id_, "Unable to Configure Charger");
     }
   } else {
+    xbot::service::Lock lk{&mtx_};
     // charger is configured, do monitoring
     bool success = true;
     {
