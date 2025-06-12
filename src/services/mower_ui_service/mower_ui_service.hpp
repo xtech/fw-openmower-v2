@@ -14,44 +14,68 @@
 
 using namespace xbot::service;
 
+#define HL_SUBMODE_SHIFT 6
+
 class MowerUiService : public MowerUiServiceBase {
  private:
   THD_WORKING_AREA(wa, 1024){};
 
  public:
+  enum class HighLevelState : uint8_t {
+    // UNKNOWN (0)
+    MODE_UNKNOWN = 0,
+
+    // IDLE mode (1) and submodes
+    MODE_IDLE = 1,
+
+    // AUTONOMOUS mode (2) and submodes
+    MODE_AUTONOMOUS = 2,
+    MODE_AUTONOMOUS_MOWING = (0 << HL_SUBMODE_SHIFT) | MODE_AUTONOMOUS,
+    MODE_AUTONOMOUS_DOCKING = (1 << HL_SUBMODE_SHIFT) | MODE_AUTONOMOUS,
+    MODE_AUTONOMOUS_UNDOCKING = (2 << HL_SUBMODE_SHIFT) | MODE_AUTONOMOUS,
+
+    // RECORDING mode (3) and submodes
+    MODE_RECORDING = 3,
+    MODE_RECORDING_OUTLINE = (1 << HL_SUBMODE_SHIFT) | MODE_RECORDING,
+    MODE_RECORDING_OBSTACLE = (2 << HL_SUBMODE_SHIFT) | MODE_RECORDING,
+  };
+
   explicit MowerUiService(uint16_t service_id) : MowerUiServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  [[nodiscard]] HighLevelStatus getStateId() {
+  [[nodiscard]] HighLevelState GetHighLevelState() {
     xbot::service::Lock lk{&mtx_};
-    return state_id_;
+    return static_cast<HighLevelState>(state_id_);
   }
-  [[nodiscard]] etl::string<100> getStateName() {
+  [[nodiscard]] etl::string<100> GetStateName() {
     xbot::service::Lock lk{&mtx_};
     return state_name_;
   }
-  [[nodiscard]] etl::string<100> getSubStateName() {
+  [[nodiscard]] etl::string<100> GetSubStateName() {
     xbot::service::Lock lk{&mtx_};
     return sub_state_name_;
   }
-  [[nodiscard]] float getGpsQuality() {
+  [[nodiscard]] float GetGpsQuality() {
     xbot::service::Lock lk{&mtx_};
     return gps_quality_;
   }
-  [[nodiscard]] int16_t getCurrentArea() {
+  [[nodiscard]] int16_t GetCurrentArea() {
     xbot::service::Lock lk{&mtx_};
     return current_area_;
   }
-  [[nodiscard]] int16_t getCurrentPath() {
+  [[nodiscard]] int16_t GetCurrentPath() {
     xbot::service::Lock lk{&mtx_};
     return current_path_;
   }
-  [[nodiscard]] int16_t getCurrentPathIndex() {
+  [[nodiscard]] int16_t GetCurrentPathIndex() {
     xbot::service::Lock lk{&mtx_};
     return current_path_index_;
   }
 
-  void SendAction(HighLevelAction action);
+  void SendButtonPressedEvent(uint8_t button_id) {
+    xbot::service::Lock lk{&mtx_};
+    MowerUiServiceBase::SendButtonPressedEvent(button_id);
+  }
 
   void SetCallback(const etl::delegate<void()>& callback) {
     xbot::service::Lock lk{&mtx_};
