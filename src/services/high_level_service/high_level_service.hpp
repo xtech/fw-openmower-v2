@@ -8,17 +8,38 @@
 
 using namespace xbot::service;
 
+#define HL_SUBMODE_SHIFT 6
+
 class HighLevelService : public HighLevelServiceBase {
  private:
   THD_WORKING_AREA(wa, 1024){};
 
  public:
+  enum class HighLevelState : uint8_t {
+    // UNKNOWN (0)
+    MODE_UNKNOWN = 0,
+
+    // IDLE mode (1) and submodes
+    MODE_IDLE = 1,
+
+    // AUTONOMOUS mode (2) and submodes
+    MODE_AUTONOMOUS = 2,
+    MODE_AUTONOMOUS_MOWING = (0 << HL_SUBMODE_SHIFT) | MODE_AUTONOMOUS,
+    MODE_AUTONOMOUS_DOCKING = (1 << HL_SUBMODE_SHIFT) | MODE_AUTONOMOUS,
+    MODE_AUTONOMOUS_UNDOCKING = (2 << HL_SUBMODE_SHIFT) | MODE_AUTONOMOUS,
+
+    // RECORDING mode (3) and submodes
+    MODE_RECORDING = 3,
+    MODE_RECORDING_OUTLINE = (1 << HL_SUBMODE_SHIFT) | MODE_RECORDING,
+    MODE_RECORDING_OBSTACLE = (2 << HL_SUBMODE_SHIFT) | MODE_RECORDING,
+  };
+
   explicit HighLevelService(uint16_t service_id) : HighLevelServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  HighLevelStatus GetStateId() {
+  HighLevelState GetHighLevelState() {
     xbot::service::Lock lk{&mtx_};
-    return state_id_;
+    return static_cast<HighLevelState>(state_id_);
   }
 
   etl::string<100> GetStateName() {
