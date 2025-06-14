@@ -34,7 +34,6 @@ constexpr int ids_to_mask(std::initializer_list<eventid_t> ids) {
 
 namespace MowerEvents {
 enum : eventflags_t {
-  // Emergency flags have changed
   EMERGENCY_CHANGED = 1 << 0,
   INPUTS_CHANGED = 1 << 1,
 };

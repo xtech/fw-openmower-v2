@@ -9,6 +9,7 @@
 #endif
 #include <etl/to_string.h>
 #include <lwipthread.h>
+#include <service_ids.h>
 
 #include <boot_service_discovery.hpp>
 #include <filesystem/file.hpp>
@@ -18,7 +19,6 @@
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
-#include "../services/service_ids.h"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
@@ -141,6 +141,10 @@ static void DispatchEvents() {
 #ifndef NO_MOWER_SERVICE
         mower_service.OnEmergencyChangedEvent();
 #endif
+      }
+      if (flags & MowerEvents::INPUTS_CHANGED) {
+        input_service.OnInputsChangedEvent();
+        emergency_service.CheckInputs(xbot::service::system::getTimeMicros());
       }
     }
   }

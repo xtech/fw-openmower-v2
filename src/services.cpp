@@ -1,6 +1,11 @@
 #include "services.hpp"
 
-#include "../services/service_ids.h"
+#include <service_ids.h>
+
+#include "drivers/input/gpio_input_driver.hpp"
+#ifdef DEBUG_BUILD
+#include "drivers/input/simulated_input_driver.hpp"
+#endif
 #include "globals.hpp"
 
 EmergencyService emergency_service{xbot::service_ids::EMERGENCY};
@@ -9,12 +14,19 @@ MowerService mower_service{xbot::service_ids::MOWER};
 ImuService imu_service{xbot::service_ids::IMU};
 PowerService power_service{xbot::service_ids::POWER};
 GpsService gps_service{xbot::service_ids::GPS};
-MowerUiService mower_ui_service{xbot::service_ids::MOWER_UI};
+InputService input_service{xbot::service_ids::INPUT};
 
 void StartServices() {
 #define START_IF_NEEDED(service, id)                \
   if (robot->NeedsService(xbot::service_ids::id)) { \
     service.start();                                \
+  }
+
+  if (robot->NeedsService(xbot::service_ids::INPUT)) {
+    input_service.RegisterInputDriver("gpio", new GpioInputDriver{});
+#ifdef DEBUG_BUILD
+    input_service.RegisterInputDriver("simulated", new SimulatedInputDriver{});
+#endif
   }
 
   START_IF_NEEDED(emergency_service, EMERGENCY)
@@ -23,4 +35,5 @@ void StartServices() {
   START_IF_NEEDED(diff_drive, DIFF_DRIVE)
   START_IF_NEEDED(mower_service, MOWER)
   START_IF_NEEDED(gps_service, GPS)
+  START_IF_NEEDED(input_service, INPUT)
 }

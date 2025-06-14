@@ -4,64 +4,74 @@
 
 #include "emergency_service.hpp"
 
-#include "xbot-service/Lock.hpp"
+#include <xbot-service/Lock.hpp>
 
-void EmergencyService::TriggerEmergency(const char* reason) {
-  {
-    xbot::service::Lock lk{&mtx_};
-    // keep the reason for the initial emergency
-    if (emergency_latch) {
-      return;
-    }
-    emergency_reason = reason;
-    emergency_latch = true;
-  }
-  chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
-}
+#include "services.hpp"
 
-void EmergencyService::ClearEmergency() {
-  {
-    xbot::service::Lock lk{&mtx_};
-    emergency_reason = "None";
-    emergency_latch = false;
-  }
-  chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
-}
-
-bool EmergencyService::OnStart() {
-  TriggerEmergency("Boot");
-  return true;
-}
+using xbot::service::Lock;
 
 void EmergencyService::OnStop() {
-  TriggerEmergency("Stopped");
+  // We won't be getting further updates from high level, so set that flag immediately.
+  UpdateEmergency(EmergencyReason::TIMEOUT_HIGH_LEVEL);
 }
 
-void EmergencyService::tick() {
-  xbot::service::Lock lk{&mtx_};
-  // Check timeout, but only overwrite if no emergency is currently active
-  // reasoning is that we want to keep the original reason and not overwrite
-  // with "timeout"
-  if (!emergency_latch && chVTTimeElapsedSinceX(last_clear_emergency_message_) > TIME_S2I(1)) {
-    TriggerEmergency("Timeout");
+uint32_t EmergencyService::OnLoop(uint32_t now_micros, uint32_t) {
+  return etl::min(CheckInputs(now_micros), CheckTimeouts(now_micros));
+}
+
+uint32_t EmergencyService::CheckInputs(uint32_t now) {
+  constexpr uint16_t potential_reasons =
+      EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::LIFT_MULTIPLE | EmergencyReason::COLLISION;
+  auto [reasons, block_time] = input_service.GetEmergencyReasons(now);
+  UpdateEmergency(reasons, potential_reasons);
+  return block_time;
+}
+
+void EmergencyService::OnHighLevelEmergencyChanged(const uint16_t* new_value, uint32_t length) {
+  (void)length;
+  {
+    Lock lk(&mtx_);
+    last_high_level_emergency_message_ = xbot::service::system::getTimeMicros();
   }
-
-  StartTransaction();
-  SendEmergencyActive(emergency_latch);
-  SendEmergencyLatch(emergency_latch);
-  SendEmergencyReason(emergency_reason.c_str(), emergency_reason.length());
-  CommitTransaction();
+  UpdateEmergency(new_value[0], new_value[1]);
 }
 
-void EmergencyService::OnSetEmergencyChanged(const uint8_t& new_value) {
-  if (new_value) {
-    TriggerEmergency("High Level Emergency");
-  } else {
-    ClearEmergency();
-    last_clear_emergency_message_ = chVTGetSystemTime();
+uint32_t EmergencyService::CheckTimeouts(uint32_t now) {
+  uint16_t reasons = 0;
+  uint32_t block_time = UINT32_MAX;
+  {
+    Lock lk{&mtx_};
+    if (TimeoutReached(now - last_high_level_emergency_message_, 1'000'000, block_time)) {
+      reasons |= EmergencyReason::TIMEOUT_HIGH_LEVEL;
+    }
   }
+  constexpr uint16_t potential_reasons = EmergencyReason::TIMEOUT_HIGH_LEVEL | EmergencyReason::TIMEOUT_INPUTS;
+  UpdateEmergency(reasons, potential_reasons);
+  return block_time;
 }
+
+void EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {
+  {
+    Lock lk{&mtx_};
+    uint16_t old_reason = reasons_;
+    reasons_ &= ~clear;
+    reasons_ |= add;
+    if (reasons_ == old_reason) {
+      return;
+    }
+  }
+  chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
+  SendStatus();
+}
+
 bool EmergencyService::GetEmergency() {
+  Lock lk{&mtx_};
+  return reasons_ != 0;
+}
+
+void EmergencyService::SendStatus() {
   xbot::service::Lock lk{&mtx_};
-  return emergency_latch;
+  StartTransaction();
+  SendEmergencyReason(reasons_);
+  CommitTransaction();
 }
