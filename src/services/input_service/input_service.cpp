@@ -32,7 +32,7 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
   lift_multiple_input_ = &all_inputs_.emplace_back();
   lift_multiple_input_->idx = Input::VIRTUAL;
   lift_multiple_input_->emergency_reason = EmergencyReason::LIFT_MULTIPLE | EmergencyReason::LATCH;
-  lift_multiple_input_->emergency_delay_ms = 10;
+  lift_multiple_input_->emergency_delay_ms = LiftMultipleDelay.value;
 
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
@@ -200,8 +200,13 @@ void InputService::OnInputChanged(Input& input, const bool active, const uint32_
     SendInputEventHelper(input, InputEventType::ACTIVE);
   } else {
     SendInputEventHelper(input, InputEventType::INACTIVE);
-    // TODO: This obviously needs debouncing, more variants and configuration.
-    SendInputEventHelper(input, duration >= 500'000 ? InputEventType::LONG : InputEventType::SHORT);
+    if (duration >= LongPressTime.value) {
+      SendInputEventHelper(input, InputEventType::LONG);
+    } else if (duration >= DebounceTime.value) {
+      // Note that debouncing works only one-way here.
+      // If the input becomes inactive for just a nanosecond, it will interrupt the long press.
+      SendInputEventHelper(input, InputEventType::SHORT);
+    }
   }
   CommitTransaction();
 }
