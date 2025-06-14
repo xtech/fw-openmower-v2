@@ -12,18 +12,21 @@
 namespace xbot::driver::ui {
 
 using sabo::LEDID;
+using sabo::SeriesType;
 
 class SaboCoverUISeriesInterface {
  public:
   virtual ~SaboCoverUISeriesInterface() = default;
 
+  virtual SeriesType GetType() const = 0;
+
   // Get the current button row mask
-  virtual uint8_t GetButtonRowMask() = 0;
+  virtual uint8_t GetButtonRowMask() const = 0;
 
   // Process the received button column data dependent on the current row and advance row to the next column
-  virtual uint8_t ProcessButtonCol(uint16_t cur_btn_mask, uint8_t rx_data) = 0;
+  virtual uint8_t ProcessButtonCol(const uint16_t cur_btn_mask, const uint8_t rx_data) = 0;
 
-  virtual uint8_t MapLEDIDToBit(LEDID id) const = 0;
+  virtual uint8_t MapLEDIDToBit(const LEDID id) const = 0;
   // virtual bool IsButtonPressed(uint16_t stable_mask, ButtonID btn) const = 0;
 };
 

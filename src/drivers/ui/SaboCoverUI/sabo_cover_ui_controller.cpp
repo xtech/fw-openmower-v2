@@ -52,11 +52,11 @@ void SaboCoverUIController::Start() {
   processing_thread_->name = "SaboCoverUIController";
 #endif
 
-  // Now that driver is initialized and thread got started, we can enable output
-  driver_->EnableOutput();
+  // Now that driver is initialized and thread got started, detect connected CoverUI we can enable output
+  /*driver_->EnableOutput();
   chThdSleepMilliseconds(100);
   driver_->PowerOnAnimation();
-  chThdSleepMilliseconds(500);
+  chThdSleepMilliseconds(500);*/
   started_ = true;
 }
 
@@ -74,10 +74,12 @@ void SaboCoverUIController::UpdateStates() {
   // For identification purposes, Red-Start-LED get handled exclusively with high priority before Green-Start-LED
   if (emergency_service.GetEmergency()) {
     driver_->SetLED(LEDID::START_RD, LEDMode::BLINK_FAST);  // Emergency
+    driver_->SetLED(LEDID::START_GN, LEDMode::OFF);
     /* FIXME: Add/Enable once mower_ui_service is working
   } else if (high_level_state ==
-             MowerUiService::HighLevelState::MODE_UNKNOWN) {
-    driver_->SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);             // Waiting for ROS */
+             MowerUiService::HighLevelState::MODE_UNKNOWN) { // Waiting for ROS
+    driver_->SetLED(LEDID::START_RD, LEDMode::BLINK_SLOW);              */
+    driver_->SetLED(LEDID::START_GN, LEDMode::OFF);
   } else {
     driver_->SetLED(LEDID::START_RD, LEDMode::OFF);
 

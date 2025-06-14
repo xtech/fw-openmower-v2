@@ -16,10 +16,14 @@ class SaboCoverUIMoboDriverV01 : public SaboCoverUIMoboDriverBase {
   explicit SaboCoverUIMoboDriverV01(const DriverConfig& config) : SaboCoverUIMoboDriverBase(config) {
   }
 
-  SaboCoverUISeriesInterface* GetSeriesDriver() override {
-    // HW v0.1 has only CoverUI Series-II support
+  bool Init() override {
+    if (!SaboCoverUIMoboDriverBase::Init()) return false;
+
+    // HW v0.1 does only support CoverUI Series-II
     static SaboCoverUISeries2 series2_driver;
-    return &series2_driver;
+    series_ = &series2_driver;
+
+    return true;
   }
 
   // Latch LEDs as well as button-row, and load button columns
@@ -53,12 +57,12 @@ class SaboCoverUIMoboDriverV01 : public SaboCoverUIMoboDriverBase {
   };
 
   // Enable output for HEF4794BT
-  void EnableOutput() override {
+  /*void EnableOutput() override {
     // TODO: OE could also be used with a PWM signal to dim the LEDs
 
     // Sabo v0.1 has an HEF4794BT OE driver which inverts the signal. Newer boards will not have this driver anymore.
     palWriteLine(config_.control_pins.oe, PAL_LOW);
-  };
+  };*/
 
  protected:
   uint8_t MapLEDIDToBit(LEDID id) const override {

@@ -23,18 +23,17 @@ class SaboCoverUIMoboDriverBase {
 
   static constexpr uint8_t DEBOUNCE_TICKS = 40;  // 40 * 1ms(tick) / 2(alternating button rows) = 20ms debounce time
 
-  virtual bool Init();                                        // Init GPIOs and SPI
-  virtual SaboCoverUISeriesInterface* GetSeriesDriver() = 0;  // Get the Series-I/II specific driver
+  virtual bool Init();           // Init GPIOs, SPI and assign series_ driver
   virtual void LatchLoad() = 0;  // Latch data (LEDs, Button-rows, signals) and load inputs (buttons, signals, ...)
-                                 //  virtual uint8_t LatchLoadRaw(uint8_t tx_data) = 0;  // Do the physical latch & load
-  virtual void EnableOutput() = 0;  // Enable output of HEF4794BT for HW01 or 74HC595 for HW02
+  /* virtual uint8_t LatchLoadRaw(uint8_t tx_data) = 0;  // Do the physical latch & load */
+  // virtual void EnableOutput() = 0;  // Enable output of HEF4794BT for HW01 or 74HC595 for HW02
   virtual void PowerOnAnimation();
   // virtual bool IsButtonPressed(ButtonID btn) = 0;
 
   void SetLED(LEDID id, LEDMode mode);  // Set state of a single LED
   void ProcessLedStates();              // Process the different LED modes (on, blink, ...)
   void DebounceButtons();               // Debounce all buttons
-  void Tick();                          // Call this function every 1ms to update LEDs, read and debounce buttons, ...
+  virtual void Tick();                  // Call this function every 1ms to update LEDs, read and debounce buttons, ...
 
  protected:
   DriverConfig config_;
@@ -52,7 +51,7 @@ class SaboCoverUIMoboDriverBase {
   };
   LEDState leds_;
 
-  uint8_t current_led_mask_ = 0;  // Current LEDs (with applied LED modes)
+  uint8_t current_led_mask_ = 0;  // Series specific current LEDs, with applied LED modes, high-active
 
   virtual uint8_t MapLEDIDToBit(LEDID id) const = 0;
 

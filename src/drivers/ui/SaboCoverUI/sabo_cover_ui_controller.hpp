@@ -25,7 +25,7 @@ class SaboCoverUIController {
   bool IsButtonPressed(ButtonID btn);  // Debounced safe check if a button is pressed
 
  private:
-  THD_WORKING_AREA(wa_, 1024);
+  THD_WORKING_AREA(wa_, 2048);
   thread_t* thread_ = nullptr;
 
   DriverConfig config_;                          // Configuration for the CoverUI driver

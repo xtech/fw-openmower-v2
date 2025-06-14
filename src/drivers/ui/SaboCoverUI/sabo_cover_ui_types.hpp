@@ -32,6 +32,8 @@ enum class LEDMode { OFF, ON, BLINK_SLOW, BLINK_FAST };
 // Same bit order as in CoverUI Series-II (74HC165, Row 0+1). Series-I driver need to translate the bits
 enum class ButtonID : uint8_t { UP = 0, DOWN, LEFT, RIGHT, OK, START, MENU = 8, BACK, AUTO, MOW, HOME };
 
+enum class SeriesType { Series1, Series2 };
+
 }  // namespace xbot::driver::ui::sabo
 
 #endif  // OPENMOWER_SABO_COVER_UI_TYPES_HPP

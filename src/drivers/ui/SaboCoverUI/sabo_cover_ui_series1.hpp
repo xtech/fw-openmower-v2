@@ -1,9 +1,9 @@
 //
-// Created by Apehaenger on 6/1/25.
+// Created by Apehaenger on 6/14/25.
 //
 
-#ifndef OPENMOWER_SABO_COVER_UI_SERIES2_HPP
-#define OPENMOWER_SABO_COVER_UI_SERIES2_HPP
+#ifndef OPENMOWER_SABO_COVER_UI_SERIES1_HPP
+#define OPENMOWER_SABO_COVER_UI_SERIES1_HPP
 
 #include "ch.h"
 #include "hal.h"
@@ -11,11 +11,11 @@
 
 namespace xbot::driver::ui {
 
-// Series-II driver
-class SaboCoverUISeries2 : public SaboCoverUISeriesInterface {
+// Series-I driver
+class SaboCoverUISeries1 : public SaboCoverUISeriesInterface {
  public:
   SeriesType GetType() const override {
-    return SeriesType::Series2;
+    return SeriesType::Series1;
   };
 
   uint8_t GetButtonRowMask() const override {
@@ -41,10 +41,16 @@ class SaboCoverUISeries2 : public SaboCoverUISeriesInterface {
   uint8_t current_button_row_ = 0;  // Alternating button rows
 
   uint8_t MapLEDIDToBit(const LEDID id) const override {
-    //  ENUM value matches LEDs bit position (for Series-II)
-    return (1 << uint8_t(id)) & 0b11111;  // Safety mask to only use the connected LEDs
+    switch (id) {
+      case LEDID::AUTO: return 1 << 3;      // Bit 3
+      case LEDID::HOME: return 1 << 4;      // Bit 4
+      case LEDID::START_RD: return 1 << 5;  // Bit 5
+      case LEDID::MOWING: return 1 << 6;    // Bit 6
+      case LEDID::START_GN: return 1 << 7;  // Bit 7
+      default: return 0;
+    }
   }
 };
 
 }  // namespace xbot::driver::ui
-#endif  // OPENMOWER_SABO_COVER_UI_SERIES2_HPP
+#endif  // OPENMOWER_SABO_COVER_UI_SERIES1_HPP
