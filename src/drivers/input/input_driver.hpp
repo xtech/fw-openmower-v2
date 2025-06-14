@@ -33,7 +33,10 @@ struct Input {
     return active;
   }
 
-  bool Update(bool new_active);
+  bool Update(bool new_active, uint32_t predate = 0);
+
+  void InjectPress(bool long_press = false);
+  void InjectPress(uint32_t duration);
 
   uint32_t ActiveDuration(const uint32_t now) const {
     return now - active_since;

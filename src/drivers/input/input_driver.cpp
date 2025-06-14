@@ -5,13 +5,13 @@
 
 namespace xbot::driver::input {
 
-bool Input::Update(bool new_active) {
+bool Input::Update(bool new_active, uint32_t predate) {
   if (invert) {
     new_active = !new_active;
   }
   bool expected = !new_active;
   if (active.compare_exchange_strong(expected, new_active)) {
-    const uint32_t now = xbot::service::system::getTimeMicros();
+    const uint32_t now = xbot::service::system::getTimeMicros() - predate;
     if (new_active) {
       active_since = now;
     }
@@ -20,6 +20,15 @@ bool Input::Update(bool new_active) {
     return true;
   }
   return false;
+}
+
+void Input::InjectPress(bool long_press) {
+  InjectPress(input_service.GetPressDelay(long_press));
+}
+
+void Input::InjectPress(uint32_t duration) {
+  Update(true, duration);
+  Update(false);
 }
 
 void InputDriver::AddInput(Input* input) {
