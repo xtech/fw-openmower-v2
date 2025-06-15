@@ -34,6 +34,7 @@ struct Input {
   }
 
   bool Update(bool new_active, uint32_t predate = 0);
+  bool GetAndClearPendingEmergency();
 
   void InjectPress(bool long_press = false);
   void InjectPress(uint32_t duration);
@@ -43,9 +44,10 @@ struct Input {
   }
 
  private:
-  etl::atomic<bool> active = false;
-  uint32_t active_since = 0;
-  Input* next_for_driver_ = nullptr;
+  etl::atomic<bool> active{false};
+  etl::atomic<bool> emergency_pending{false};
+  uint32_t active_since{0};
+  Input* next_for_driver_{nullptr};
 
   friend class InputDriver;
   friend struct InputIterable;

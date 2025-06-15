@@ -14,12 +14,23 @@ bool Input::Update(bool new_active, uint32_t predate) {
     const uint32_t now = xbot::service::system::getTimeMicros() - predate;
     if (new_active) {
       active_since = now;
+      input_service.OnInputChanged(*this, true, 0);
+    } else {
+      const uint32_t duration = ActiveDuration(now);
+      if (emergency_reason != 0 && duration >= emergency_delay_ms * 1'000) {
+        emergency_pending = true;
+      }
+      input_service.OnInputChanged(*this, false, duration);
     }
-    input_service.OnInputChanged(*this, new_active, ActiveDuration(now));
     chEvtBroadcastFlags(&mower_events, MowerEvents::INPUTS_CHANGED);
     return true;
   }
   return false;
+}
+
+bool Input::GetAndClearPendingEmergency() {
+  bool only_if_pending = true;
+  return emergency_pending.compare_exchange_strong(only_if_pending, false);
 }
 
 void Input::InjectPress(bool long_press) {
