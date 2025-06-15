@@ -3,7 +3,7 @@
 
 #include <etl/crc16_ccitt.h>
 
-#include <drivers/input/input_driver.hpp>
+#include <drivers/input/yard_force_input_driver.hpp>
 
 #include "ch.h"
 #include "hal.h"
@@ -11,6 +11,8 @@
 
 class YardForceCoverUIDriver {
  private:
+  YardForceInputDriver input_driver_{};
+
   // Extend the config struct by a pointer to this instance, so that we can access it in callbacks.
   struct UARTConfigEx : UARTConfig {
     YardForceCoverUIDriver *context;
@@ -43,6 +45,9 @@ class YardForceCoverUIDriver {
 
  public:
   void Start(UARTDriver *uart);
+  YardForceInputDriver &GetInputDriver() {
+    return input_driver_;
+  }
 };
 
 #endif  // YARD_FORCE_COVER_UI_DRIVER_HPP

@@ -3,10 +3,13 @@
 #include <sys/unistd.h>
 #include <ulog.h>
 
+#include <json_stream.hpp>
 #include <services.hpp>
 
 #include "COBS.h"
 #include "ui_board.h"
+
+#define IS_BIT_SET(x, bit) ((x & (1 << bit)) != 0)
 
 static constexpr uint8_t EVT_PACKET_RECEIVED = 1;
 
@@ -203,12 +206,22 @@ void YardForceCoverUIDriver::ProcessPacket() {
   if (encode_decode_buf_[0] == Get_Version && size == sizeof(struct msg_get_version)) {
     board_found_ = true;
   } else if (encode_decode_buf_[0] == Get_Button && size == sizeof(struct msg_event_button)) {
-    // TODO: Send an event to the InputService.
-    // msg_event_button *msg = (struct msg_event_button *)encode_decode_buf_;
-  } /* else if (encode_decode_buf_[0] == Get_Emergency && size == sizeof(struct msg_event_emergency)) {
-     struct msg_event_emergency *msg = (struct msg_event_emergency *)encode_decode_buf_;
-     stock_ui_emergency_state = msg->state;
-   } else if (encode_decode_buf_[0] == Get_Rain && size == sizeof(struct msg_event_rain)) {
+    msg_event_button *msg = (struct msg_event_button *)encode_decode_buf_;
+    for (auto &input : input_driver_.Inputs()) {
+      if (input.yardforce.type == Input::Type::BUTTON && input.yardforce.button.id == msg->button_id) {
+        const bool long_press = msg->press_duration >= 1;
+        input.InjectPress(long_press);
+        break;
+      }
+    }
+  } else if (encode_decode_buf_[0] == Get_Emergency && size == sizeof(struct msg_event_emergency)) {
+    msg_event_emergency *msg = (struct msg_event_emergency *)encode_decode_buf_;
+    for (auto &input : input_driver_.Inputs()) {
+      if (input.yardforce.type == Input::Type::HALL) {
+        input.Update(IS_BIT_SET(msg->state, input.yardforce.hall.bit));
+      }
+    }
+  } /* else if (encode_decode_buf_[0] == Get_Rain && size == sizeof(struct msg_event_rain)) {
      struct msg_event_rain *msg = (struct msg_event_rain *)encode_decode_buf_;
      stock_ui_rain = (msg->value < llhl_config.rain_threshold);
    } else if (encode_decode_buf_[0] == Get_Subscribe && size == sizeof(struct msg_event_subscribe)) {

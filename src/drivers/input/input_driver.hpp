@@ -11,6 +11,7 @@
 namespace xbot::driver::input {
 struct Input {
   enum { VIRTUAL = 255 };
+  enum class Type : uint8_t { BUTTON, HALL };
 
   // Configuration
   uint8_t idx;
@@ -26,6 +27,18 @@ struct Input {
     struct {
       uint8_t bit;
     } worx;
+
+    struct {
+      Input::Type type;
+      union {
+        struct {
+          uint8_t id;
+        } button;
+        struct {
+          uint8_t bit;
+        } hall;
+      };
+    } yardforce;
   };
 
   // State
@@ -86,20 +99,23 @@ class InputDriver {
  public:
   virtual ~InputDriver() = default;
   explicit InputDriver() = default;
+
   void AddInput(Input* input);
   void ClearInputs();
+  InputIterable Inputs() {
+    return InputIterable{inputs_head_};
+  }
+
   virtual bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                   Input& input) = 0;
+
   virtual bool OnStart() {
     return true;
   };
   virtual void OnStop(){};
 
- protected:
+ private:
   Input* inputs_head_ = nullptr;
-  InputIterable Inputs() {
-    return InputIterable{inputs_head_};
-  }
 };
 }  // namespace xbot::driver::input
 
