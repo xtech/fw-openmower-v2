@@ -223,10 +223,13 @@ etl::pair<uint16_t, uint32_t> InputService::GetEmergencyReasons(uint32_t now) {
   Lock lk(&mutex_);
   uint16_t reasons = 0;
   uint32_t block_time = UINT32_MAX;
-  for (const auto& input : all_inputs_) {
-    // TODO: What if the input was triggered so briefly that we couldn't observe it?
-    if (input.emergency_reason == 0 || !input.IsActive()) continue;
-    if (TimeoutReached(input.ActiveDuration(now), input.emergency_delay_ms * 1'000, block_time)) {
+  for (auto& input : all_inputs_) {
+    if (input.emergency_reason == 0) continue;
+    if (input.GetAndClearPendingEmergency()) {
+      reasons |= input.emergency_reason;
+      block_time = 0;
+    } else if (input.IsActive() &&
+               TimeoutReached(input.ActiveDuration(now), input.emergency_delay_ms * 1'000, block_time)) {
       reasons |= input.emergency_reason;
     }
   }
