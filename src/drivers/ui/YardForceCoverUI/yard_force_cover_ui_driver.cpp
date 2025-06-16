@@ -208,7 +208,7 @@ void YardForceCoverUIDriver::ProcessPacket() {
   } else if (encode_decode_buf_[0] == Get_Button && size == sizeof(struct msg_event_button)) {
     msg_event_button *msg = (struct msg_event_button *)encode_decode_buf_;
     for (auto &input : input_driver_.Inputs()) {
-      if (input.yardforce.type == Input::Type::BUTTON && input.yardforce.button.id == msg->button_id) {
+      if (input.yardforce.button && input.yardforce.id_or_bit == msg->button_id) {
         const bool long_press = msg->press_duration >= 1;
         input.InjectPress(long_press);
         break;
@@ -217,8 +217,8 @@ void YardForceCoverUIDriver::ProcessPacket() {
   } else if (encode_decode_buf_[0] == Get_Emergency && size == sizeof(struct msg_event_emergency)) {
     msg_event_emergency *msg = (struct msg_event_emergency *)encode_decode_buf_;
     for (auto &input : input_driver_.Inputs()) {
-      if (input.yardforce.type == Input::Type::HALL) {
-        input.Update(IS_BIT_SET(msg->state, input.yardforce.hall.bit));
+      if (!input.yardforce.button) {
+        input.Update(IS_BIT_SET(msg->state, input.yardforce.id_or_bit));
       }
     }
   } /* else if (encode_decode_buf_[0] == Get_Rain && size == sizeof(struct msg_event_rain)) {

@@ -11,7 +11,6 @@
 namespace xbot::driver::input {
 struct Input {
   enum { VIRTUAL = 255 };
-  enum class Type : uint8_t { BUTTON, HALL };
 
   // Configuration
   uint8_t idx;
@@ -29,15 +28,8 @@ struct Input {
     } worx;
 
     struct {
-      Input::Type type;
-      union {
-        struct {
-          uint8_t id;
-        } button;
-        struct {
-          uint8_t bit;
-        } hall;
-      };
+      bool button : 1;
+      uint8_t id_or_bit : 7;
     } yardforce;
   };
 
