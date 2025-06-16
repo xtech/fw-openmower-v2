@@ -3,7 +3,7 @@
 
 #include <etl/crc16_ccitt.h>
 
-#include <drivers/input/yard_force_input_driver.hpp>
+#include <drivers/input/yardforce_input_driver.hpp>
 
 #include "ch.h"
 #include "hal.h"

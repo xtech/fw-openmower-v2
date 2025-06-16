@@ -2,7 +2,7 @@
 #define YARDFORCE_ROBOT_HPP
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
-#include <drivers/ui/YardForceCoverUI/yard_force_cover_ui_driver.hpp>
+#include <drivers/ui/YardForceCoverUI/yardforce_cover_ui_driver.hpp>
 
 #include "robot.hpp"
 
