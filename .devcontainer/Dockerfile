@@ -18,6 +18,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     cmake make \
     gdb-multiarch && \
     ln -s /usr/bin/nm /usr/bin/nm-multiarch && \
-    ln -s /usr/bin/objdump /usr/bin/objdump-multiarch
+    ln -s /usr/bin/objdump /usr/bin/objdump-multiarch && \
+    echo 'source /usr/share/bash-completion/completions/git' >> /home/dev/.bashrc
 
 USER $USERNAME

@@ -6,6 +6,8 @@ void YardForceRobot::InitPlatform() {
   InitMotors();
   charger_.setI2C(&I2CD1);
   power_service.SetDriver(&charger_);
+  input_service.RegisterInputDriver("yardforce", &cover_ui_driver_.GetInputDriver());
+  cover_ui_driver_.Start(&UARTD7);
 }
 
 bool YardForceRobot::IsHardwareSupported() {

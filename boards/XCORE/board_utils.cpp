@@ -1,6 +1,6 @@
 #include "board_utils.hpp"
 
-#include <etl/crc16_genibus.h>
+#include <crc_lookup_map.hpp>
 
 #pragma pack(push, 1)
 struct LineParams {
@@ -9,10 +9,6 @@ struct LineParams {
   uint8_t pad : 4;
 };
 #pragma pack(pop)
-
-constexpr uint16_t crc16(const char* str) {
-  return etl::crc16_genibus(str, str + strlen(str)).value();
-}
 
 constexpr uint32_t ports[] = {GPIOA_BASE, GPIOB_BASE, GPIOC_BASE, GPIOD_BASE,
                               GPIOE_BASE, GPIOF_BASE, GPIOG_BASE, GPIOH_BASE};
@@ -123,28 +119,11 @@ constexpr LineParams lines[] = {
     {crc16("OSC_OUT"), port_idx('H'), 1},
 };
 
-static_assert(
-    [] {
-      constexpr size_t count = sizeof(lines) / sizeof(LineParams);
-      for (size_t i = 0; i < count; i++) {
-        for (size_t j = i + 1; j < count; j++) {
-          if (lines[i].crc == lines[j].crc) {
-            return false;
-          }
-        }
-      }
-      return true;
-    }(),
-    "CRC16 values are not unique");
+static_assert(HasUniqueCrcs(lines), "CRC16 values are not unique");
 
 ioline_t GetIoLineByName(const char* name) {
-  uint16_t crc = crc16(name);
-  for (const auto& line : lines) {
-    if (line.crc == crc) {
-      return PAL_LINE(ports[line.port], line.pad);
-    }
-  }
-  return PAL_NOLINE;
+  auto* line = LookupByName(name, lines);
+  return line != nullptr ? PAL_LINE(ports[line->port], line->pad) : PAL_NOLINE;
 }
 
 UARTDriver* GetUARTDriverByIndex(uint8_t index) {

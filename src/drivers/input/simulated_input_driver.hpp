@@ -1,8 +1,6 @@
 #ifndef SIMULATED_INPUT_DRIVER_HPP
 #define SIMULATED_INPUT_DRIVER_HPP
 
-#include <etl/vector.h>
-
 #include "input_driver.hpp"
 
 namespace xbot::driver::input {
