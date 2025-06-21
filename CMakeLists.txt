@@ -90,7 +90,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/input/worx_input_driver.cpp
         $<$<CONFIG:Debug>:src/drivers/input/simulated_input_driver.cpp>
         # Sabo CoverUI
-        src/drivers/ui/SaboCoverUI/sabo_cover_ui_mobo_driver_base.cpp
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp

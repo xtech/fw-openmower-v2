@@ -6,30 +6,28 @@
 #define OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
 
 #include "ch.h"
-#include "sabo_cover_ui_mobo_driver_v01.hpp"
-#include "sabo_cover_ui_mobo_driver_v02.hpp"
+#include "sabo_cover_ui_cabo_driver_v01.hpp"
+#include "sabo_cover_ui_cabo_driver_v02.hpp"
 #include "sabo_cover_ui_types.hpp"
 
 namespace xbot::driver::ui {
 
-using sabo::ButtonID;
-using sabo::DriverConfig;
-using sabo::LEDID;
-using sabo::LEDMode;
+using namespace sabo;
 
 class SaboCoverUIController {
  public:
   void Configure(const DriverConfig& config);  // Configure the controller, select and initialize the driver
   void Start();                                // Starts the controller thread
 
-  bool IsButtonPressed(ButtonID btn);  // Debounced safe check if a button is pressed
+  bool IsButtonPressed(const ButtonID btn) const;          // Debounced safe check if a specific button is pressed
+  static const char* ButtonIDToString(const ButtonID id);  // Get string for ButtonID
 
  private:
-  THD_WORKING_AREA(wa_, 2048);
+  THD_WORKING_AREA(wa_, 1024);
   thread_t* thread_ = nullptr;
 
   DriverConfig config_;                          // Configuration for the CoverUI driver
-  SaboCoverUIMoboDriverBase* driver_ = nullptr;  // Pointer to the UI driver
+  SaboCoverUICaboDriverBase* driver_ = nullptr;  // Pointer to the UI driver
 
   bool configured_ = false;
   bool started_ = false;  // True if the Start() finished
