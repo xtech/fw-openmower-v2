@@ -22,10 +22,20 @@
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
+#include "mongoose.h"  // To build, run: cc main.c mongoose.c
 #include "services.hpp"
 #include "status_led.h"
-
 static void DispatchEvents();
+
+// HTTP server event handler function
+void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
+  if (ev == MG_EV_HTTP_MSG) {
+    struct mg_http_message *hm = (struct mg_http_message *)ev_data;
+    struct mg_http_serve_opts opts = {};
+    opts.root_dir = "./web_root/";
+    mg_http_serve_dir(c, hm, &opts);
+  }
+}
 
 /*
  * Application entry point.
@@ -85,6 +95,8 @@ int main() {
 
   InitBootloaderServiceDiscovery();
 
+  chThdSleepMilliseconds(1000);
+
   // Safe to do before checking the carrier board, needed for logging
   xbot::service::system::initSystem();
   xbot::service::startRemoteLogging();
@@ -132,20 +144,11 @@ static void DispatchEvents() {
   event_listener_t event_listener;
   chEvtRegister(&mower_events, &event_listener, Events::GLOBAL);
   while (1) {
-    eventmask_t events = chEvtWaitAnyTimeout(Events::ids_to_mask({Events::GLOBAL}), TIME_INFINITE);
-    if (events & EVENT_MASK(Events::GLOBAL)) {
-      // Get the flags provided by the event
-      eventflags_t flags = chEvtGetAndClearFlags(&event_listener);
-      if (flags & MowerEvents::EMERGENCY_CHANGED) {
-        diff_drive.OnEmergencyChangedEvent();
-        if (robot->NeedsService(xbot::service_ids::MOWER)) {
-          mower_service.OnEmergencyChangedEvent();
-        }
-      }
-      if (flags & MowerEvents::INPUTS_CHANGED) {
-        input_service.OnInputsChangedEvent();
-        emergency_service.CheckInputs(xbot::service::system::getTimeMicros());
-      }
+    struct mg_mgr mgr;                                              // Declare event manager
+    mg_mgr_init(&mgr);                                              // Initialise event manager
+    mg_http_listen(&mgr, "http://0.0.0.0:8000", ev_handler, NULL);  // Setup listener
+    for (;;) {                                                      // Run an infinite event loop
+      mg_mgr_poll(&mgr, 1000);
     }
   }
 }
