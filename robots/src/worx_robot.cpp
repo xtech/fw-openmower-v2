@@ -15,8 +15,9 @@ bool WorxRobot::IsHardwareSupported() {
   // so we assume that the firmware is compatible, if the xcore is the first batch and no carrier was found.
   if (carrier_board_info.board_info_version == 0 &&
       strncmp("N/A", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
-      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 && board_info.version_major == 1 &&
-      board_info.version_minor == 1 && board_info.version_patch == 7) {
+      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 &&
+      ((board_info.version_major == 1 && board_info.version_minor == 1 && board_info.version_patch == 7) ||
+       (board_info.version_major == 1 && board_info.version_minor == 0 && board_info.version_patch == 3))) {
     return true;
   }
 
