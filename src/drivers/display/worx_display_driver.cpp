@@ -14,9 +14,9 @@
 #include "hal_spi.h"
 
 #define LINE_DISPLAY_A0 LINE_GPIO4
-#define LINE_DISPLAY_RESET LINE_GPIO2
-#define LINE_DISPLAY_CS LINE_GPIO7
-#define LINE_DISPLAY_BACKLIGHT LINE_GPIO3
+#define LINE_DISPLAY_RESET LINE_GPIO3
+#define LINE_DISPLAY_CS LINE_GPIO2
+#define LINE_DISPLAY_BACKLIGHT LINE_SPI2_MISO
 
 extern "C" uint8_t u8x8_byte_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
   static SPIConfig spi_config = {
