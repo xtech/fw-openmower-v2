@@ -94,6 +94,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/debug/debuggable_driver.cpp
         robots/src/robot.cpp
         ${PLATFORM_SOURCES}
+        # REST API
+        src/api.cpp
 )
 
 # Add include paths
