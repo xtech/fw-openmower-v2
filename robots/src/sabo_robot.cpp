@@ -8,21 +8,22 @@ void SaboRobot::InitPlatform() {
   power_service.SetDriver(&charger_);
 
   // CoverUI
-  sabo::DriverConfig ui_config;
+  sabo::CoverUICfg cui_cfg;
   if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
     // HW v0.1
-    ui_config = {
-        .spi_instance = &SPID1,
-        .spi_pins = {.sck = LINE_SPI1_SCK, .miso = LINE_SPI1_MISO, .mosi = LINE_SPI1_MOSI},
-        .control_pins = {.latch_load = LINE_GPIO9, .oe = LINE_GPIO8, .btn_cs = LINE_GPIO1, .inp_cs = PAL_NOLINE}};
+    cui_cfg = {
+        .spi_cfg = {.instance = &SPID1, .pins = {.sck = LINE_SPI1_SCK, .miso = LINE_SPI1_MISO, .mosi = LINE_SPI1_MOSI}},
+        .sr_pins = {.latch_load = LINE_GPIO9, .oe = LINE_GPIO8, .btn_cs = LINE_GPIO1},
+        .lcd_pins = {}};
   } else {
     // HW v0.2 and later
-    ui_config = {
-        .spi_instance = &SPID1,
-        .spi_pins = {.sck = LINE_SPI1_SCK, .miso = LINE_SPI1_MISO, .mosi = LINE_SPI1_MOSI},
-        .control_pins = {.latch_load = LINE_GPIO9, .oe = PAL_NOLINE, .btn_cs = PAL_NOLINE, .inp_cs = LINE_GPIO1}};
+    cui_cfg = {
+        .spi_cfg = {.instance = &SPID1, .pins = {.sck = LINE_SPI1_SCK, .miso = LINE_SPI1_MISO, .mosi = LINE_SPI1_MOSI}},
+        .sr_pins = {.latch_load = LINE_GPIO9, .oe = PAL_NOLINE, .btn_cs = PAL_NOLINE, .inp_cs = LINE_GPIO1},
+        .lcd_pins = {.cs = LINE_GPIO5, .dc = LINE_AGPIO4, .rst = LINE_UART7_TX},
+    };
   }
-  cover_ui_.Configure(ui_config);
+  cover_ui_.Configure(cui_cfg);
   cover_ui_.Start();
 }
 

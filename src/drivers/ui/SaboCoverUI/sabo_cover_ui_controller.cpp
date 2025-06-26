@@ -7,24 +7,59 @@
 
 #include <services.hpp>
 
+#include "hal.h"
+#include "sabo_cover_ui_display.hpp"
+
 namespace xbot::driver::ui {
 
 using namespace sabo;
 
-void SaboCoverUIController::Configure(const DriverConfig& config) {
-  config_ = config;
-  configured_ = true;
+void SaboCoverUIController::Configure(const CoverUICfg& cui_cfg) {
+  // Init SPI pins
+  palSetLineMode(cui_cfg.spi_cfg.pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+  palSetLineMode(cui_cfg.spi_cfg.pins.miso, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+  palSetLineMode(cui_cfg.spi_cfg.pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+
+  // SPI
+  spi_instance_ = cui_cfg.spi_cfg.instance;
+  spi_config_ = {
+      .circular = false,
+      .slave = false,
+      .data_cb = NULL,
+      .error_cb = NULL,
+      .ssline = 0,  // Master mode
+      // HEF4794BT is the slowest device on SPI bus. F_clk(max)@5V: Min=5MHz, Typ=10MHz
+      // Worked, but let's be save within the limits of the HEF4794BT
+      //.cfg1 = SPI_CFG1_MBR_0 | SPI_CFG1_MBR_1 |  // Baudrate = FPCLK/16 (12.5 MHz @ 200 MHz PLL2_P)
+      //        SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
+      .cfg1 = SPI_CFG1_MBR_2 | SPI_CFG1_MBR_0 |  // Baudrate = FPCLK/32 (6.25 MHz @ 200 MHz PLL2_P)
+              SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
+      // For testing/debugging
+      //.cfg1 = SPI_CFG1_MBR_2 | SPI_CFG1_MBR_1 | SPI_CFG1_MBR_0 |       // Baudrate = FPCLK/256 (0.78 MHz @ 200 MHz)
+      //        SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
+      .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
+  };
+
+  // Start SPI
+  if (spiStart(cui_cfg.spi_cfg.instance, &spi_config_) != MSG_OK) {
+    ULOG_ERROR("CoverUI SPI init failed");
+    return;
+  }
 
   // Select the CoverUI driver based on the carrier board version and/or CoverUI Series
   if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
     // Mobo v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
-    static SaboCoverUICaboDriverV01 driver_v01(config);
+    static SaboCoverUICaboDriverV01 driver_v01(cui_cfg.spi_cfg.instance, cui_cfg.sr_pins);
     driver_ = &driver_v01;
   } else {
     // Mobo v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
-    static SaboCoverUICaboDriverV02 driver_v02(config);
+    static SaboCoverUICaboDriverV02 driver_v02(cui_cfg.spi_cfg.instance, cui_cfg.sr_pins);
     driver_ = &driver_v02;
+    static SaboCoverUIDisplay display(cui_cfg.spi_cfg.instance, cui_cfg.lcd_pins, 240, 160);
+    display_ = &display;
   }
+
+  configured_ = true;
 }
 
 void SaboCoverUIController::Start() {
@@ -43,7 +78,12 @@ void SaboCoverUIController::Start() {
     return;
   }
   if (!driver_->Init()) {
-    ULOG_ERROR("Sabo CoverUI driver initialization failed!");
+    ULOG_ERROR("Sabo CoverUI Driver initialization failed!");
+    return;
+  }
+
+  if (display_ && !display_->Init()) {
+    ULOG_ERROR("Sabo CoverUI Display initialization failed!");
     return;
   }
 
@@ -51,14 +91,6 @@ void SaboCoverUIController::Start() {
 #ifdef USE_SEGGER_SYSTEMVIEW
   processing_thread_->name = "SaboCoverUIController";
 #endif
-
-  // Wait until the CoverUI is connected
-  while (!driver_->IsConnected()) chThdSleepMilliseconds(500);
-
-  chThdSleepMilliseconds(200);
-  driver_->PowerOnAnimation();
-  chThdSleepMilliseconds(500);
-  started_ = true;
 }
 
 void SaboCoverUIController::ThreadHelper(void* instance) {
@@ -67,7 +99,7 @@ void SaboCoverUIController::ThreadHelper(void* instance) {
 }
 
 void SaboCoverUIController::UpdateStates() {
-  if (!started_) return;
+  if (!driver_->IsReady()) return;
 
   // const auto high_level_state = mower_ui_service.GetHighLevelState();
 
@@ -101,7 +133,7 @@ void SaboCoverUIController::UpdateStates() {
 }
 
 bool SaboCoverUIController::IsButtonPressed(const ButtonID button) const {
-  if (driver_ == nullptr) return false;
+  if (!driver_->IsReady()) return false;
   return driver_->IsButtonPressed(button);
 }
 
@@ -127,6 +159,30 @@ void SaboCoverUIController::ThreadFunc() {
   while (true) {
     driver_->Tick();
     UpdateStates();
+    display_->Tick();
+
+    static bool display_tested = false;
+    if (display_ && !display_tested) {
+      driver_->SetLED(LEDID::AUTO, LEDMode::ON);
+      driver_->Tick();
+      // display_->Test();
+      driver_->SetLED(LEDID::AUTO, LEDMode::OFF);
+      driver_->Tick();
+
+      /*driver_->SetLED(LEDID::HOME, LEDMode::ON);
+      driver_->Tick();
+      display_->TestBytes();
+      driver_->SetLED(LEDID::HOME, LEDMode::OFF);
+      driver_->Tick();*/
+
+      /*driver_->SetLED(LEDID::MOWING, LEDMode::ON);
+      driver_->Tick();
+      display_->TestAll(true);
+      driver_->SetLED(LEDID::MOWING, LEDMode::OFF);
+      driver_->Tick();*/
+
+      display_tested = true;
+    }
 
     // ----- Debug -----
     static uint32_t last_debug_time = 0;

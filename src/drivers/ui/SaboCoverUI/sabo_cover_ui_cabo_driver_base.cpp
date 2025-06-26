@@ -9,49 +9,22 @@ namespace xbot::driver::ui {
 
 bool SaboCoverUICaboDriverBase::Init() {
   // Init control pins
-  palSetLineMode(config_.control_pins.latch_load,
-                 PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-  palWriteLine(config_.control_pins.latch_load, PAL_LOW);  // HC595 RCLK/PL (parallel load)
+  palSetLineMode(sr_pins_.latch_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+  palWriteLine(sr_pins_.latch_load, PAL_LOW);  // HC595 RCLK/PL (parallel load)
 
-  if (config_.control_pins.oe != PAL_NOLINE) {
-    palSetLineMode(config_.control_pins.oe,
-                   PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
-    palWriteLine(config_.control_pins.oe, PAL_HIGH);  // /OE (output enable = no)
+  if (sr_pins_.oe != PAL_NOLINE) {
+    palSetLineMode(sr_pins_.oe, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_FLOATING);
+    palWriteLine(sr_pins_.oe, PAL_HIGH);  // /OE (output enable = no)
   }
 
-  if (config_.control_pins.btn_cs != PAL_NOLINE) {
-    palSetLineMode(config_.control_pins.btn_cs,
-                   PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-    palWriteLine(config_.control_pins.btn_cs, PAL_HIGH);  // /CS (chip select = no)
+  if (sr_pins_.btn_cs != PAL_NOLINE) {
+    palSetLineMode(sr_pins_.btn_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+    palWriteLine(sr_pins_.btn_cs, PAL_HIGH);  // /CS (chip select = no)
   }
 
-  if (config_.control_pins.inp_cs != PAL_NOLINE) {
-    palSetLineMode(config_.control_pins.inp_cs,
-                   PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-    palWriteLine(config_.control_pins.inp_cs, PAL_HIGH);  // /CS (chip select = no)
-  }
-
-  // Init SPI pins
-  palSetLineMode(config_.spi_pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-  palSetLineMode(config_.spi_pins.miso, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-  palSetLineMode(config_.spi_pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-
-  // Configure SPI
-  spi_cfg_ = {
-      .circular = false,
-      .slave = false,
-      .data_cb = NULL,
-      .error_cb = NULL,
-      .ssline = 0,                               // Master mode
-      .cfg1 = SPI_CFG1_MBR_0 | SPI_CFG1_MBR_1 |  // Baudrate = FPCLK/16 (12.5 MHz @ 200 MHz PLL2_P)
-              SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)
-      .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
-  };
-
-  // Start SPI
-  if (spiStart(config_.spi_instance, &spi_cfg_) != MSG_OK) {
-    ULOG_ERROR("CoverUI SPI init failed");
-    return false;
+  if (sr_pins_.inp_cs != PAL_NOLINE) {
+    palSetLineMode(sr_pins_.inp_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+    palWriteLine(sr_pins_.inp_cs, PAL_HIGH);  // /CS (chip select = no)
   }
 
   return true;
@@ -78,19 +51,27 @@ void SaboCoverUICaboDriverBase::SetLED(LEDID id, LEDMode mode) {
 void SaboCoverUICaboDriverBase::PowerOnAnimation() {
   // All on
   for (int i = 0; i < 5; ++i) SetLED(static_cast<LEDID>(i), LEDMode::ON);
+  ProcessLedStates();
+  LatchLoad();
   chThdSleepMilliseconds(500);
 
   // All off
   for (int i = 0; i < 5; ++i) SetLED(static_cast<LEDID>(i), LEDMode::OFF);
+  ProcessLedStates();
+  LatchLoad();
   chThdSleepMilliseconds(800);
 
   // Knight Rider
   for (int i = 0; i <= 5; i++) {
     for (int j = 0; j < 5; ++j) SetLED(static_cast<LEDID>(j), (j < i) ? LEDMode::ON : LEDMode::OFF);
+    ProcessLedStates();
+    LatchLoad();
     chThdSleepMilliseconds(100);
   }
   for (int i = 4; i >= 0; i--) {
     for (int j = 0; j < 5; ++j) SetLED(static_cast<LEDID>(j), (j < i) ? LEDMode::ON : LEDMode::OFF);
+    ProcessLedStates();
+    LatchLoad();
     chThdSleepMilliseconds(100);
   }
 }
@@ -137,13 +118,33 @@ bool SaboCoverUICaboDriverBase::IsButtonPressed(const ButtonID btn) const {
   return (btn_stable_raw_mask_ & series_->MapButtonIDToMask(btn)) == 0;  // low-active
 }
 
-bool SaboCoverUICaboDriverBase::IsConnected() const {
-  return series_ != nullptr;  // True if a CoverUI series driver got assigned
+bool SaboCoverUICaboDriverBase::IsReady() const {
+  return state_ == DriverState::READY;
 }
 
 void SaboCoverUICaboDriverBase::Tick() {
   ProcessLedStates();
-  LatchLoad();  // Also has to call DebounceRawButtons()
+
+  switch (state_) {
+    case DriverState::WAITING_FOR_CUI:
+      // Wait for CoverUI to be connected
+      series_ = GetSeriesDriver();
+      if (series_) {
+        state_ = DriverState::BOOT_ANIMATION;
+        chThdSleepMilliseconds(200);
+        PowerOnAnimation();
+        chThdSleepMilliseconds(500);
+        state_ = DriverState::READY;
+      }
+      break;
+    case DriverState::BOOT_ANIMATION:
+      // Do nothing till boot animation finished
+      break;
+
+    case DriverState::READY:
+      LatchLoad();  // Also has to call DebounceRawButtons()
+      break;
+  }
 
   // Debug log for stable button state
   /*static systime_t last_log_time = 0;

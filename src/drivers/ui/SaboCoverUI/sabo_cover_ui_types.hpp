@@ -9,20 +9,33 @@
 
 namespace xbot::driver::ui::sabo {
 
-struct DriverConfig {
-  SPIDriver* spi_instance;  // SPI-Instance like &SPID1
+struct SPICfg {
+  SPIDriver* instance;  // SPI-Instance like &SPID1
   struct {
     ioline_t sck;   // Clock (SCK/CLK)
     ioline_t miso;  // Master In Slave Out (MISO/RX)
     ioline_t mosi;  // Master Out Slave In (MOSI/TX)
-  } spi_pins;
+  } pins;
+};
 
-  struct {
-    ioline_t latch_load;
-    ioline_t oe;
-    ioline_t btn_cs;  // Button Chip Select (74HC165 /CE) only avail for Series-II CoverUI
-    ioline_t inp_cs;  // Input Chip Select (74HC165 /CE) only avail in HW >= v0.2
-  } control_pins;
+// Shift Register Pins for HC165 parallel load and HC595 or HEF4794BT latch/load
+struct SRPins {
+  ioline_t latch_load;
+  ioline_t oe = PAL_NOLINE;
+  ioline_t btn_cs = PAL_NOLINE;  // Button Chip Select (74HC165 /CE) only avail for Series-II CoverUI
+  ioline_t inp_cs = PAL_NOLINE;  // Input Chip Select (74HC165 /CE) only avail in HW >= v0.2
+};
+
+struct LCDPins {
+  ioline_t cs = PAL_NOLINE;   // Chip Select (/CS)
+  ioline_t dc = PAL_NOLINE;   // Data/Command (D/C)
+  ioline_t rst = PAL_NOLINE;  // Reset (/RST)
+};
+
+struct CoverUICfg {
+  SPICfg spi_cfg;    // SPI configuration for the CoverUI (LEDs, Buttons, Display
+  SRPins sr_pins;    // Control pins for the CoverUI (Latch/Load, OE, Button Chip Select)
+  LCDPins lcd_pins;  // Control pins for the CoverUI LCD (Chip Select, Data/Command, Reset)
 };
 
 // Same bit order as in CoverUI Series-II (HEF4794BT). Series-I driver need to map the bits

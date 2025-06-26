@@ -16,7 +16,8 @@ using namespace sabo;
 
 class SaboCoverUICaboDriverBase {
  public:
-  explicit SaboCoverUICaboDriverBase(const DriverConfig& config) : config_(config){};
+  explicit SaboCoverUICaboDriverBase(SPIDriver* spi_instance, const SRPins& sr_pins)
+      : spi_instance_(spi_instance), sr_pins_(sr_pins){};
 
   // 40 * 1ms(tick) / 2(alternating button rows) = 20ms debounce time
   // Series-I has no alternating button rows, so it will debounce in 40ms (who cares)
@@ -28,7 +29,7 @@ class SaboCoverUICaboDriverBase {
   virtual bool IsButtonPressed(const ButtonID btn) const;  // Check if a specific button is pressed
   virtual void Tick();  // Call this function every 1ms to update LEDs, read and debounce buttons, ...
 
-  bool IsConnected() const;  // True if a CoverUI got detected (and series_ driver is assigned)
+  bool IsReady() const;  // True if CoverUI detected, boot anim played and ready to serve requests
 
   void SetLED(LEDID id, LEDMode mode);  // Set state of a single LED
 
@@ -37,8 +38,8 @@ class SaboCoverUICaboDriverBase {
   void DebounceRawButtons(const uint16_t raw_buttons);
 
  protected:
-  DriverConfig config_;
-  SPIConfig spi_cfg_;
+  SPIDriver* spi_instance_;
+  const SRPins sr_pins_;
   SaboCoverUISeriesInterface* series_ = nullptr;  // Series-I/II specific driver
 
   struct LEDState {
@@ -52,8 +53,16 @@ class SaboCoverUICaboDriverBase {
   };
   LEDState leds_;
 
+  enum class DriverState {
+    WAITING_FOR_CUI,  // Waiting for CoverUI to be connected
+    BOOT_ANIMATION,   // Bootup- animation started/running
+    READY             // Driver is ready to server requests
+  };
+  DriverState state_ = DriverState::WAITING_FOR_CUI;
+
   uint8_t current_led_mask_ = 0;  // Series specific current LEDs, with applied LED modes, high-active
 
+  virtual SaboCoverUISeriesInterface* GetSeriesDriver() = 0;  // Get the CoverUI Series driver, if connected
   virtual uint8_t MapLEDIDToMask(LEDID id) const = 0;
 
   void ProcessLedStates();  // Process the different LED modes (on, blink, ...)
