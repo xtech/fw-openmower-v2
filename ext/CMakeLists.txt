@@ -10,6 +10,9 @@ target_compile_definitions(xbot-service PUBLIC XBOT_ENABLE_STATIC_STACK)
 add_subdirectory(LSM6DS3TR-C-PID)
 add_subdirectory(etl)
 
+set(CONFIG_LV_BUILD_EXAMPLES OFF)
+set(CONFIG_LV_BUILD_DEMOS OFF)
+add_subdirectory(lvgl)
 
 # Add LittleFS
 add_library(LittleFS littlefs/lfs.c littlefs/lfs_util.c)
