@@ -13,15 +13,25 @@ namespace xbot::driver::ui {
 // Sabo CoverUI Driver for Hardware v0.1
 class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
  public:
-  explicit SaboCoverUICaboDriverV01(SPIDriver* spi_instance, const SRPins& sr_pins)
-      : SaboCoverUICaboDriverBase(spi_instance, sr_pins) {
+  explicit SaboCoverUICaboDriverV01(CaboCfg cabo_cfg) : SaboCoverUICaboDriverBase(cabo_cfg) {
   }
 
   bool Init() override {
     if (!SaboCoverUICaboDriverBase::Init()) return false;
 
     // HW v0.1 has an HEF4794BT OE driver which inverts the signal. Newer boards will not have this driver anymore.
-    palWriteLine(sr_pins_.oe, PAL_LOW);
+    palWriteLine(cabo_cfg_.pins.oe, PAL_LOW);
+
+    spi_config_ = {
+        .circular = false,
+        .slave = false,
+        .data_cb = NULL,
+        .error_cb = NULL,
+        .ssline = 0,
+        .cfg1 = SPI_CFG1_MBR_0 | SPI_CFG1_MBR_1 |  // Baudrate = FPCLK/16 (12.5 MHz @ 200 MHz PLL2_P)
+                SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
+        .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
+    };
 
     return true;
   }
@@ -35,14 +45,14 @@ class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
     uint8_t rx_data;
 
     // SPI transfer LEDs+ButtonRow and read button for previously set row
-    spiAcquireBus(spi_instance_);
+    spiAcquireBus(cabo_cfg_.spi.instance);
     // Enable HC165 shifting, but this will also set HEF4794BT latch open! = low-glowing LEDs
-    palWriteLine(sr_pins_.latch_load, PAL_HIGH);
-    palWriteLine(sr_pins_.btn_cs, PAL_LOW);
-    spiExchange(spi_instance_, 1, &tx_data, &rx_data);  // Full duplex send and receive
-    palWriteLine(sr_pins_.btn_cs, PAL_HIGH);
-    palWriteLine(sr_pins_.latch_load, PAL_LOW);  // Close HEF4794BT latch (and /PL of HC165)
-    spiReleaseBus(spi_instance_);
+    palWriteLine(cabo_cfg_.pins.latch_load, PAL_HIGH);
+    palWriteLine(cabo_cfg_.pins.btn_cs, PAL_LOW);
+    spiExchange(cabo_cfg_.spi.instance, 1, &tx_data, &rx_data);  // Full duplex send and receive
+    palWriteLine(cabo_cfg_.pins.btn_cs, PAL_HIGH);
+    palWriteLine(cabo_cfg_.pins.latch_load, PAL_LOW);  // Close HEF4794BT latch (and /PL of HC165)
+    spiReleaseBus(cabo_cfg_.spi.instance);
 
     // Buffer / Shift & buffer depending on current row, as well as advance to next row
     // FIXME: Use now DebounceRawButtons()

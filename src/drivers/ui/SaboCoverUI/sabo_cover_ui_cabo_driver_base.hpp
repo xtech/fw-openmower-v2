@@ -16,8 +16,7 @@ using namespace sabo;
 
 class SaboCoverUICaboDriverBase {
  public:
-  explicit SaboCoverUICaboDriverBase(SPIDriver* spi_instance, const SRPins& sr_pins)
-      : spi_instance_(spi_instance), sr_pins_(sr_pins){};
+  explicit SaboCoverUICaboDriverBase(CaboCfg cabo_cfg) : cabo_cfg_(cabo_cfg){};
 
   // 40 * 1ms(tick) / 2(alternating button rows) = 20ms debounce time
   // Series-I has no alternating button rows, so it will debounce in 40ms (who cares)
@@ -38,8 +37,8 @@ class SaboCoverUICaboDriverBase {
   void DebounceRawButtons(const uint16_t raw_buttons);
 
  protected:
-  SPIDriver* spi_instance_;
-  const SRPins sr_pins_;
+  CaboCfg cabo_cfg_;
+  SPIConfig spi_config_;
   SaboCoverUISeriesInterface* series_ = nullptr;  // Series-I/II specific driver
 
   struct LEDState {

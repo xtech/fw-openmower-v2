@@ -9,54 +9,65 @@
 
 #include "hal.h"
 #include "sabo_cover_ui_display.hpp"
+#include "sabo_cover_ui_display_driver_uc1698.hpp"
 
 namespace xbot::driver::ui {
 
 using namespace sabo;
 
 void SaboCoverUIController::Configure(const CoverUICfg& cui_cfg) {
+  /* The code snippet you provided is initializing the SPI pins for communication. It is setting the mode
+  of the pins `sck`, `miso`, and `mosi` to alternate function mode 5, with a medium speed setting and
+  pull-up resistors enabled. This configuration is necessary to establish communication over SPI
+  (Serial Peripheral Interface) protocol. */
   // Init SPI pins
-  palSetLineMode(cui_cfg.spi_cfg.pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+  /*palSetLineMode(cui_cfg.spi_cfg.pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
   palSetLineMode(cui_cfg.spi_cfg.pins.miso, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-  palSetLineMode(cui_cfg.spi_cfg.pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+  palSetLineMode(cui_cfg.spi_cfg.pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);*/
 
   // SPI
-  spi_instance_ = cui_cfg.spi_cfg.instance;
+  /*spi_instance_ = cui_cfg.spi_cfg.instance;
   spi_config_ = {
       .circular = false,
       .slave = false,
       .data_cb = NULL,
       .error_cb = NULL,
-      .ssline = 0,  // Master mode
+      .ssline = LINE_GPIO5,
       // HEF4794BT is the slowest device on SPI bus. F_clk(max)@5V: Min=5MHz, Typ=10MHz
       // Worked, but let's be save within the limits of the HEF4794BT
       //.cfg1 = SPI_CFG1_MBR_0 | SPI_CFG1_MBR_1 |  // Baudrate = FPCLK/16 (12.5 MHz @ 200 MHz PLL2_P)
-      //        SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
+      //        SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)
       .cfg1 = SPI_CFG1_MBR_2 | SPI_CFG1_MBR_0 |  // Baudrate = FPCLK/32 (6.25 MHz @ 200 MHz PLL2_P)
-              SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
+              SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)
       // For testing/debugging
       //.cfg1 = SPI_CFG1_MBR_2 | SPI_CFG1_MBR_1 | SPI_CFG1_MBR_0 |       // Baudrate = FPCLK/256 (0.78 MHz @ 200 MHz)
-      //        SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
+      //        SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)
       .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
-  };
+  };*/
 
   // Start SPI
-  if (spiStart(cui_cfg.spi_cfg.instance, &spi_config_) != MSG_OK) {
+  /*if (spiStart(cui_cfg.spi_cfg.instance, &spi_config_) != MSG_OK) {
     ULOG_ERROR("CoverUI SPI init failed");
     return;
-  }
+  }*/
 
   // Select the CoverUI driver based on the carrier board version and/or CoverUI Series
   if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
     // Mobo v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
-    static SaboCoverUICaboDriverV01 driver_v01(cui_cfg.spi_cfg.instance, cui_cfg.sr_pins);
+    static SaboCoverUICaboDriverV01 driver_v01(cui_cfg.cabo_cfg);
     driver_ = &driver_v01;
   } else {
     // Mobo v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
-    static SaboCoverUICaboDriverV02 driver_v02(cui_cfg.spi_cfg.instance, cui_cfg.sr_pins);
+    static SaboCoverUICaboDriverV02 driver_v02(cui_cfg.cabo_cfg);
     driver_ = &driver_v02;
-    static SaboCoverUIDisplay display(cui_cfg.spi_cfg.instance, cui_cfg.lcd_pins, 240, 160);
+    static SaboCoverUIDisplay display(cui_cfg.lcd_cfg);
     display_ = &display;
+  }
+
+  auto* lcd_drv = SaboCoverUIDisplayDriverUC1698::InstancePtr();
+  if (!lcd_drv) {
+    ULOG_ERROR("SaboCoverUIDisplayDriverUC1698 not initialized!");
+    return;
   }
 
   configured_ = true;
@@ -156,6 +167,16 @@ const char* SaboCoverUIController::ButtonIDToString(const ButtonID id) {
 }
 
 void SaboCoverUIController::ThreadFunc() {
+  auto* lcd_drv = SaboCoverUIDisplayDriverUC1698::InstancePtr();
+  if (!lcd_drv) {
+    ULOG_ERROR("SaboCoverUIDisplayDriverUC1698 not initialized!");
+    return;
+  }
+
+  event_listener_t el_fill;
+  chEvtRegister(&lcd_drv->spi_fill_event, &el_fill, 0);
+  // chEvtRegister(&lcd_drv->spi_flush_event, &el_flush, 1);
+
   while (true) {
     driver_->Tick();
     UpdateStates();
@@ -164,25 +185,22 @@ void SaboCoverUIController::ThreadFunc() {
     static bool display_tested = false;
     if (display_ && !display_tested) {
       driver_->SetLED(LEDID::AUTO, LEDMode::ON);
-      driver_->Tick();
-      // display_->Test();
+      // driver_->Tick();
+      //  display_->Test();
       driver_->SetLED(LEDID::AUTO, LEDMode::OFF);
-      driver_->Tick();
-
-      /*driver_->SetLED(LEDID::HOME, LEDMode::ON);
-      driver_->Tick();
-      display_->TestBytes();
-      driver_->SetLED(LEDID::HOME, LEDMode::OFF);
-      driver_->Tick();*/
-
-      /*driver_->SetLED(LEDID::MOWING, LEDMode::ON);
-      driver_->Tick();
-      display_->TestAll(true);
-      driver_->SetLED(LEDID::MOWING, LEDMode::OFF);
-      driver_->Tick();*/
+      // driver_->Tick();
 
       display_tested = true;
     }
+
+    eventmask_t events = chEvtWaitAnyTimeout(ALL_EVENTS, TIME_IMMEDIATE);
+    if (events & EVENT_MASK(0)) {
+      // eventflags_t flags = chEvtGetAndClearFlags(&el_fill);
+      lcd_drv->FillScreenFast(false, false);
+    }
+    /*if (mask & EVENT_MASK(1)) {
+      lcd_drv->OnSpiFlushTransferDone();
+    }*/
 
     // ----- Debug -----
     static uint32_t last_debug_time = 0;

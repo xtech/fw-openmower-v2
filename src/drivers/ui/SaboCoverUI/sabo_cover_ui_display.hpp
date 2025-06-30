@@ -19,54 +19,102 @@
 
 #include <ulog.h>
 
+// #include "ch.h"
+// #include "hal.h"
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
-
-#define PIN_BACKLIGHT LINE_GPIO3
 
 namespace xbot::driver::ui {
 
 class SaboCoverUIDisplay {
  public:
-  explicit SaboCoverUIDisplay(SPIDriver* spi_instance, const LCDPins& lcd_pins, const uint16_t lcd_width,
-                              const uint16_t lcd_height)
-      : lcd_driver_(spi_instance, lcd_pins, lcd_width, lcd_height) {
-    // Constructor initializes the LCD driver with the provided SPI instance and pins
+  static constexpr systime_t backlight_timeout_ = TIME_S2I(120);  // 2 Minutes
+  static constexpr systime_t lcd_sleep_timeout_ = TIME_S2I(300);  // 5 Minutes
+
+  static constexpr size_t lcd_width = 240;
+  static constexpr size_t lcd_height = 160;
+
+  explicit SaboCoverUIDisplay(LCDCfg lcd_cfg) : lcd_cfg_(lcd_cfg) {
+    SaboCoverUIDisplayDriverUC1698::Instance(lcd_cfg, lcd_width, lcd_height);
   }
 
   bool Init() {
-    // FIXME: Backlight needs to go into a separate Class or Method with timeouts and ...
-    palSetLineMode(PIN_BACKLIGHT, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-    palWriteLine(PIN_BACKLIGHT, PAL_LOW);
-    chThdSleepMilliseconds(200);
-    palWriteLine(PIN_BACKLIGHT, PAL_HIGH);
+    // Backlight
+    if (lcd_cfg_.pins.backlight != PAL_NOLINE) {
+      palSetLineMode(lcd_cfg_.pins.backlight, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+      palWriteLine(lcd_cfg_.pins.backlight, PAL_LOW);
+    }
 
-    lcd_driver_.Init();  // Initialize the LCD driver
+    // Initialize the LCD driver
+    SaboCoverUIDisplayDriverUC1698::Instance().Init();
 
     return true;
   };
 
   void Tick() {
-    static bool controller_initialized = false;
-    if (!controller_initialized) {
-      lcd_driver_.InitController();  // Initialize the LCD controller
-      controller_initialized = true;
+    static bool lcd_controller_initialized = false;
+    // systime_t now = chVTGetSystemTimeX();
+    auto* lcd_driver = SaboCoverUIDisplayDriverUC1698::InstancePtr();
 
-      lcd_driver_.setVBiasPotentiometer(80);  // FIXME: Make configurable
+    static systime_t init_time = 0;
+    if (!lcd_controller_initialized && lcd_driver) {
+      // FIXME: This delay is only for debug measurements
+      if (init_time == 0) {
+        init_time = chVTGetSystemTimeX();
+      }
+      // Wait 500ms before handling initialization
+      if (chVTTimeElapsedSinceX(init_time) < TIME_MS2I(500)) {
+        return;
+      }
+
+      lcd_driver->InitController();  // Initialize the LCD controller
+      lcd_controller_initialized = true;
+
+      // Now that the LCD got fully initialized, switch backlight on
+      WakeUp();
+
+      lcd_driver->SetVBiasPotentiometer(90);  // FIXME: Make configurable */
 
       auto start = chVTGetSystemTimeX();
-      lcd_driver_.FillScreen(false);
+      lcd_driver->FillScreen(false);
       auto end = chVTGetSystemTimeX();
       ULOG_INFO("FillScreen took %u us", TIME_I2US(end - start));
 
       start = chVTGetSystemTimeX();
-      lcd_driver_.FillScreen(true);
+      lcd_driver->FillScreen(true);
       end = chVTGetSystemTimeX();
       ULOG_INFO("FillScreen took %u us", TIME_I2US(end - start));
+
+      start = chVTGetSystemTimeX();
+      lcd_driver->FillScreenFast(false);
+      end = chVTGetSystemTimeX();
+      ULOG_INFO("FillScreenFast took %u us", TIME_I2US(end - start));
     }
+
+    // Backlight timeout
+    if (palReadLine(lcd_cfg_.pins.backlight) == PAL_HIGH &&
+        chVTTimeElapsedSinceX(backlight_last_activity_) > backlight_timeout_) {
+      palWriteLine(lcd_cfg_.pins.backlight, PAL_LOW);
+    }
+
+    // LCD Timeout
+    /*if (lcd_awake_ && chVTTimeElapsedSinceX(lcd_last_activity_) > kLcdSleepTimeoutMs) {
+        SleepLcd();
+    }*/
   };
 
+  void WakeUp() {
+    // TODO: Wakeup LCD
+
+    // Backlight on
+    palWriteLine(lcd_cfg_.pins.backlight, PAL_HIGH);
+    backlight_last_activity_ = chVTGetSystemTimeX();
+  }
+
  protected:
-  SaboCoverUIDisplayDriverUC1698 lcd_driver_;
+  LCDCfg lcd_cfg_;
+
+  systime_t backlight_last_activity_ = 0;
+  systime_t lcd_last_activity_ = 0;
 };
 
 }  // namespace xbot::driver::ui
