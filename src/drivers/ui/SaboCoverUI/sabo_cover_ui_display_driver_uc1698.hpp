@@ -108,6 +108,7 @@ class SaboCoverUIDisplayDriverUC1698 {
 
       switch (drv->transfer_state_) {
         case TransferState::FILL_SCREEN:
+          drv->count_callback++;
           chSysLockFromISR();
           chEvtBroadcastI(&drv->spi_fill_event);
           chSysUnlockFromISR();
@@ -153,6 +154,7 @@ class SaboCoverUIDisplayDriverUC1698 {
             (block_bytes_remaining_ < spi_tx_buf_size_) ? block_bytes_remaining_ : spi_tx_buf_size_;
         block_bytes_remaining_ -= bytes_to_send;
         spiStartSend(lcd_cfg_.spi.instance, bytes_to_send, spi_tx_buf_);
+        count_start++;
       } else {
         transfer_state_ = TransferState::IDLE;
         spiUnselect(lcd_cfg_.spi.instance);
@@ -280,6 +282,9 @@ class SaboCoverUIDisplayDriverUC1698 {
   }
 
  private:
+  volatile int count_start = 0;
+  volatile int count_callback = 0;
+
   explicit SaboCoverUIDisplayDriverUC1698(LCDCfg lcd_cfg, uint16_t lcd_width, uint16_t lcd_height)
       : lcd_cfg_(lcd_cfg), lcd_width_(lcd_width), lcd_height_(lcd_height) {
     SaboCoverUIDisplayDriverUC1698::InstancePtr() = this;

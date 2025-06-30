@@ -99,6 +99,8 @@ int main() {
     }
   }
 
+  chThdSleepMilliseconds(1000);
+
   robot = GetRobot();
   if (!robot->IsHardwareSupported()) {
     SetStatusLedMode(LED_MODE_BLINK_FAST);
