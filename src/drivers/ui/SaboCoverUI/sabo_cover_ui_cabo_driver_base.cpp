@@ -153,14 +153,6 @@ void SaboCoverUICaboDriverBase::Tick() {
       LatchLoad();  // Also has to call DebounceRawButtons()
       break;
   }
-
-  // Debug log for stable button state
-  /*static systime_t last_log_time = 0;
-  systime_t now = chVTGetSystemTime();
-  if (now - last_log_time >= TIME_S2I(1)) {
-    last_log_time = now;
-    ULOG_INFO("Sabo CoverUI [btn_stable_raw_mask_: 0x%04X]", btn_stable_raw_mask_);
-  }*/
 }
 
 }  // namespace xbot::driver::ui

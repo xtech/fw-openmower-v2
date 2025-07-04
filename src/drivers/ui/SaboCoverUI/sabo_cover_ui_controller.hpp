@@ -27,14 +27,13 @@ class SaboCoverUIController {
   THD_WORKING_AREA(wa_, 1024);
   thread_t* thread_ = nullptr;
 
-  SPIDriver* spi_instance_;
-  SPIConfig spi_config_;
-  SaboCoverUICaboDriverBase* driver_ = nullptr;  // Pointer to the Carrierboard driver
-  SaboCoverUIDisplay* display_ = nullptr;        // Pointer to the Display driver
-
   bool configured_ = false;
 
+  SaboCoverUICaboDriverBase* cabo_ = nullptr;  // Pointer to the Carrierboard driver
+
   void UpdateStates();  // Update UI state based on system state
+
+  SaboCoverUIDisplay* display_ = nullptr;  // Pointer to the Display driver
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();

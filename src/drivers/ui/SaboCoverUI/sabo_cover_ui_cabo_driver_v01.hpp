@@ -46,12 +46,14 @@ class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
 
     // SPI transfer LEDs+ButtonRow and read button for previously set row
     spiAcquireBus(cabo_cfg_.spi.instance);
+
     // Enable HC165 shifting, but this will also set HEF4794BT latch open! = low-glowing LEDs
     palWriteLine(cabo_cfg_.pins.latch_load, PAL_HIGH);
     palWriteLine(cabo_cfg_.pins.btn_cs, PAL_LOW);
     spiExchange(cabo_cfg_.spi.instance, 1, &tx_data, &rx_data);  // Full duplex send and receive
     palWriteLine(cabo_cfg_.pins.btn_cs, PAL_HIGH);
     palWriteLine(cabo_cfg_.pins.latch_load, PAL_LOW);  // Close HEF4794BT latch (and /PL of HC165)
+
     spiReleaseBus(cabo_cfg_.spi.instance);
 
     // Buffer / Shift & buffer depending on current row, as well as advance to next row

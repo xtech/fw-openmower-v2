@@ -2,18 +2,6 @@
 // Created by Apehaenger on 6/23/25.
 //
 
-/**
- * @brief Model AGG240160B05?
- *
- * 240*160 pixels, 1-bit monochrome, UC1698u controller
- *
- * PINS:
- * ID0 = 0 => ?
- * ID1 = 0 => 8-bit input data D[0,2,4,6,8,10,12,14]
- * BM[1:0] = 00 => SPI w/ 8-bit token
- * WR[1:0] = NC
- *
- */
 #ifndef OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
 #define OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
 
@@ -45,51 +33,24 @@ class SaboCoverUIDisplay {
     }
 
     // Initialize the LCD driver
-    SaboCoverUIDisplayDriverUC1698::Instance().Init();
+    if (SaboCoverUIDisplayDriverUC1698::Instance().Init()) {
+      ULOG_ERROR("SaboCoverUIDisplayDriverUC1698 initialization failed!");
+      // We shouldn't fail here for those without a connected display
+    }
 
     return true;
   };
 
-  void Tick() {
-    static bool lcd_controller_initialized = false;
-    // systime_t now = chVTGetSystemTimeX();
+  void Start() {
     auto* lcd_driver = SaboCoverUIDisplayDriverUC1698::InstancePtr();
-
-    static systime_t init_time = 0;
-    if (!lcd_controller_initialized && lcd_driver) {
-      // FIXME: This delay is only for debug measurements
-      if (init_time == 0) {
-        init_time = chVTGetSystemTimeX();
-      }
-      // Wait 500ms before handling initialization
-      if (chVTTimeElapsedSinceX(init_time) < TIME_MS2I(500)) {
-        return;
-      }
-
-      lcd_driver->InitController();  // Initialize the LCD controller
-      lcd_controller_initialized = true;
-
-      // Now that the LCD got fully initialized, switch backlight on
-      WakeUp();
-
-      lcd_driver->SetVBiasPotentiometer(90);  // FIXME: Make configurable */
-
-      auto start = chVTGetSystemTimeX();
-      lcd_driver->FillScreen(false);
-      auto end = chVTGetSystemTimeX();
-      ULOG_INFO("FillScreen took %u us", TIME_I2US(end - start));
-
-      start = chVTGetSystemTimeX();
-      lcd_driver->FillScreen(true);
-      end = chVTGetSystemTimeX();
-      ULOG_INFO("FillScreen took %u us", TIME_I2US(end - start));
-
-      start = chVTGetSystemTimeX();
-      lcd_driver->FillScreenFast(false);
-      end = chVTGetSystemTimeX();
-      ULOG_INFO("FillScreenFast took %u us", TIME_I2US(end - start));
+    if (lcd_driver == nullptr) {
+      ULOG_ERROR("Failed getting UC1698 LCD-Driver!");
+      return;
     }
+    lcd_driver->Start();
+  }
 
+  void Tick() {
     // Backlight timeout
     if (palReadLine(lcd_cfg_.pins.backlight) == PAL_HIGH &&
         chVTTimeElapsedSinceX(backlight_last_activity_) > backlight_timeout_) {
@@ -97,13 +58,23 @@ class SaboCoverUIDisplay {
     }
 
     // LCD Timeout
-    /*if (lcd_awake_ && chVTTimeElapsedSinceX(lcd_last_activity_) > kLcdSleepTimeoutMs) {
-        SleepLcd();
-    }*/
+    auto* lcd_driver = SaboCoverUIDisplayDriverUC1698::InstancePtr();
+    if (lcd_driver != nullptr) {
+      if (lcd_driver->IsDisplayEnabled() && chVTTimeElapsedSinceX(lcd_last_activity_) > lcd_sleep_timeout_) {
+        lcd_driver->SetDisplayEnable(false);
+      }
+    }
   };
 
   void WakeUp() {
-    // TODO: Wakeup LCD
+    // Enable Display
+    auto* lcd_driver = SaboCoverUIDisplayDriverUC1698::InstancePtr();
+    if (lcd_driver != nullptr) {
+      if (!lcd_driver->IsDisplayEnabled()) {
+        lcd_driver->SetDisplayEnable(true);
+      }
+    }
+    lcd_last_activity_ = chVTGetSystemTimeX();
 
     // Backlight on
     palWriteLine(lcd_cfg_.pins.backlight, PAL_HIGH);

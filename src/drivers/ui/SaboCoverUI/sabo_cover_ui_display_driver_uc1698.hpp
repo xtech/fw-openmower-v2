@@ -2,10 +2,31 @@
 // Created by Apehaenger on 6/24/25.
 //
 
+/**
+ * @brief Model AGG240160B05?
+ *
+ * 240*160 pixels, UC1698u controller
+ *
+ * The display does support gray-scale mode, and UC1698 is already configured for optimized gray-scale operation,
+ * but due to it's bad quality, in fact only 1 or max. 2 gray scales are usabe:
+ * 0xf = black, 0xa = 50%, (0x2 = 25%), 0x0 = off
+ *
+ * PINS:
+ * ID0 = 0 => ?
+ * ID1 = 0 => 8-bit input data D[0,2,4,6,8,10,12,14]
+ * BM[1:0] = 00 => SPI w/ 8-bit token
+ * WR[1:0] = NC
+ *
+ */
+
 #ifndef OPENMOWER_SABO_COVER_UI_DISPLAY_DRIVER_UC1698_HPP
 #define OPENMOWER_SABO_COVER_UI_DISPLAY_DRIVER_UC1698_HPP
 
+#include <ch.h>
+#include <hal.h>
+
 #include "sabo_cover_ui_types.hpp"
+#include "spi_transaction_queue.hpp"
 
 namespace xbot::driver::ui {
 
@@ -30,10 +51,6 @@ class SaboCoverUIDisplayDriverUC1698 {
     static SaboCoverUIDisplayDriverUC1698* instance = nullptr;
     return instance;
   }
-
-  event_source_t spi_fill_event;  // FillScreen
-  // event_source_t spi_flush_event;  // LVGL flush_callback
-  //  event_source_t spi_image_event_;
 
   bool Init() {
     // Init SPI pins
@@ -78,6 +95,13 @@ class SaboCoverUIDisplayDriverUC1698 {
     return true;
   }
 
+  void Start() {
+    thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO, ThreadHelper, this);
+#ifdef USE_SEGGER_SYSTEMVIEW
+    processing_thread_->name = "SaboCoverUIDisplayDriverUC1698";
+#endif
+  }
+
   void InitController() {
     // Directly after reset set Booster, Regulator, and Power Control in that order
     SendCommand(0b00101000 | 0b0);  // [6] Set Power Control, Booster: LCD<=13nF
@@ -90,8 +114,8 @@ class SaboCoverUIDisplayDriverUC1698 {
     // SendCommand(0b10100110 | 1);  // [16] Set Inverse Display. Will save inversion logic in LVGL's flush_cb()
     SendCommand(0b11010000 | 1);  // [20] Set Color Pattern to R-G-B
     // SendCommand(0b11010100 | 0b10);  // [21] Set Color Mode to RRRRR-GGGGGG-BBBBB, 64k-color
-    SendCommand(0b11010100 | 0b01);   // [21] Set Color Mode to RRRR-GGGG-BBBB, 4k-color
-    SendCommand(0b10101000 | 0b111);  // [17] Set Display Enable: Green Enh. Mode off, Gray Shade On, Activate
+    SendCommand(0b11010100 | 0b01);  // [21] Set Color Mode to RRRR-GGGG-BBBB, 4k-color
+    SetDisplayEnable(true);
   }
 
   // [10] Set VBias Potentiometer
@@ -100,67 +124,25 @@ class SaboCoverUIDisplayDriverUC1698 {
     SendCommands(cmd, sizeof(cmd));
   }
 
-  static void SpiDataCallback(SPIDriver* spip) {
-    if (spiIsBufferComplete(spip)) {
-      // Get driver instance and call OnSpiTransferDone() handler
-      auto* drv = SaboCoverUIDisplayDriverUC1698::InstancePtr();
-      if (!drv) return;
-
-      switch (drv->transfer_state_) {
-        case TransferState::FILL_SCREEN:
-          drv->count_callback++;
-          chSysLockFromISR();
-          chEvtBroadcastI(&drv->spi_fill_event);
-          chSysUnlockFromISR();
-          break;
-        case TransferState::IDLE:
-          // No action needed, just return
-          break;
-      }
-    } else {
-      asm("nop");  // No data received, just return
-    }
+  void SetDisplayEnable(bool on) {
+    SendCommand(0b10101000 |
+                (on ? 0b111 : 0b110));  // [17] Set Display Enable: Green Enh. Mode ?, Gray Shade On, Active
+    display_enabled_ = on;
   }
 
-  void FillScreenFast(bool black, bool first_call = true) {
-    if (first_call) {
-      if (transfer_state_ != TransferState::IDLE) return;  // Already another transfer running
+  bool IsDisplayEnabled() {
+    return display_enabled_;
+  }
 
-      // Calc screensize to bytes
-      const uint32_t pixels = lcd_width_ * lcd_height_;
-      const uint32_t bytes = (pixels / 6) * 3;  // 6 monochrome Pixel = 3 Bytes
+  static void SpiDataCallback(SPIDriver* spip) {
+    if (!spiIsBufferComplete(spip)) return;
 
-      block_bytes_remaining_ = bytes;
-
-      // Fill buffer
-      uint8_t val = black ? 0xFF : 0x00;
-      for (size_t i = 0; i < spi_tx_buf_size_; ++i) {
-        spi_tx_buf_[i] = val;
-      }
-
-      spiAcquireBus(lcd_cfg_.spi.instance);
-      spiSelect(lcd_cfg_.spi.instance);
-      SetCmdMode();
-      SetWindowProgramAreaRaw(0, lcd_width_ - 1, 0, lcd_height_ - 1);
-
-      transfer_state_ = TransferState::FILL_SCREEN;
-      SetDataMode();
+    chSysLockFromISR();
+    auto* drv = SaboCoverUIDisplayDriverUC1698::InstancePtr();
+    if (drv && drv->transfer_state_ == TransferState::FLUSH_AREA) {
+      chEvtBroadcastI(&drv->flush_area_);
     }
-
-    // Block senden (bei Erstaufruf und bei Folgeaufrufen identisch)
-    if (transfer_state_ == TransferState::FILL_SCREEN) {
-      if (block_bytes_remaining_ > 0) {
-        uint32_t bytes_to_send =
-            (block_bytes_remaining_ < spi_tx_buf_size_) ? block_bytes_remaining_ : spi_tx_buf_size_;
-        block_bytes_remaining_ -= bytes_to_send;
-        spiStartSend(lcd_cfg_.spi.instance, bytes_to_send, spi_tx_buf_);
-        count_start++;
-      } else {
-        transfer_state_ = TransferState::IDLE;
-        spiUnselect(lcd_cfg_.spi.instance);
-        spiReleaseBus(lcd_cfg_.spi.instance);
-      }
-    }
+    chSysUnlockFromISR();
   }
 
   void FillScreen(bool black) {
@@ -182,21 +164,40 @@ class SaboCoverUIDisplayDriverUC1698 {
     spiReleaseBus(lcd_cfg_.spi.instance);
   }
 
- protected:
+  /*void FlushArea(const lv_area_t* area, const lv_color_t* color_p) {
+    TransferRequest req{.type = TransferState::FLUSH_CB,
+                        .x1 = static_cast<uint16_t>(area->x1),
+                        .y1 = static_cast<uint16_t>(area->y1),
+                        .x2 = static_cast<uint16_t>(area->x2),
+                        .y2 = static_cast<uint16_t>(area->y2),
+                        .data = reinterpret_cast<const uint8_t*>(color_p),
+                        .data_size = (area->x2 - area->x1 + 1) * (area->y2 - area->y1 + 1) * 2};
+    transfer_queue_.post(req, TIME_IMMEDIATE);
+  }*/
+
+ private:
+  THD_WORKING_AREA(wa_, 1024);
+  thread_t* thread_ = nullptr;
+
   LCDCfg lcd_cfg_;
   SPIConfig spi_config_;
 
   const uint16_t lcd_width_;
   const uint16_t lcd_height_;
+  bool display_enabled_;  // Sleep mode of UC1698
 
-  static constexpr size_t spi_tx_buf_size_ = 2048;
-  uint8_t spi_tx_buf_[spi_tx_buf_size_];
+  enum class TransferState { SYNC, FLUSH_AREA };
+  volatile TransferState transfer_state_ = TransferState::SYNC;
 
-  enum class TransferState { IDLE, FILL_SCREEN };
-  volatile TransferState transfer_state_ = TransferState::IDLE;
+  EVENTSOURCE_DECL(flush_area_);  // FillScreen
 
   // We do send block wise. This is the number of byte left to send for the next blocks
   uint32_t block_bytes_remaining_ = 0;
+
+  explicit SaboCoverUIDisplayDriverUC1698(LCDCfg lcd_cfg, uint16_t lcd_width, uint16_t lcd_height)
+      : lcd_cfg_(lcd_cfg), lcd_width_(lcd_width), lcd_height_(lcd_height) {
+    SaboCoverUIDisplayDriverUC1698::InstancePtr() = this;
+  }
 
   // clang-format off
   // Data/Command (D/C)
@@ -275,22 +276,81 @@ class SaboCoverUIDisplayDriverUC1698 {
                           bool p4, bool p5, bool p6   // Triplet 2
   ) {
     uint8_t buf[3];
-    buf[0] = ((p1 ? 0xF : 0) << 4) | ((p2 ? 0xF : 0));
-    buf[1] = ((p3 ? 0xF : 0) << 4) | ((p4 ? 0xF : 0));
-    buf[2] = ((p5 ? 0xF : 0) << 4) | ((p6 ? 0xF : 0));
+    buf[0] = ((p1 ? 0xf : 0) << 4) | ((p2 ? 0xf : 0));
+    buf[1] = ((p3 ? 0xf : 0) << 4) | ((p4 ? 0xf : 0));
+    buf[2] = ((p5 ? 0xf : 0) << 4) | ((p6 ? 0xf : 0));
     spiSend(lcd_cfg_.spi.instance, 3, buf);
   }
 
- private:
-  volatile int count_start = 0;
-  volatile int count_callback = 0;
+  /*void StartTransfer() {
+    spiAcquireBus(lcd_cfg_.spi.instance);
+    spiSelect(lcd_cfg_.spi.instance);
 
-  explicit SaboCoverUIDisplayDriverUC1698(LCDCfg lcd_cfg, uint16_t lcd_width, uint16_t lcd_height)
-      : lcd_cfg_(lcd_cfg), lcd_width_(lcd_width), lcd_height_(lcd_height) {
-    SaboCoverUIDisplayDriverUC1698::InstancePtr() = this;
-    chEvtObjectInit(&spi_fill_event);
-    // chEvtObjectInit(&spi_flush_event);
-  };
+    SetCmdMode();
+    SetWindowProgramAreaRaw(req.x1, req.x2, req.y1, req.y2);
+    SetDataMode();
+
+    transfer_state_ = req.type;
+
+    // Handle different transfer types
+    if (req.type == TransferState::FILL_SCREEN) {
+      block_bytes_remaining_ = req.data_size;
+      SendNextBlock();
+    } else {  // FLUSH_CB
+      // Directly send LVGL's buffer in one go
+      spiStartSend(lcd_cfg_.spi.instance, req.data_size, req.data);
+      // No need to track remaining bytes for flushes
+    }
+  }
+
+  void SendNextBlock() {
+    uint32_t chunk_size = MIN(block_bytes_remaining_, spi_tx_buf_size_);
+    memset(spi_tx_buf_, current_fill_value_, chunk_size);
+
+    spiStartSend(lcd_cfg_.spi.instance, chunk_size, spi_tx_buf_);
+    block_bytes_remaining_ -= chunk_size;
+  }*/
+
+  /*void HandleTransferCompletion() {
+    if (transfer_state_ == TransferState::FILL_SCREEN) {
+      SendNextBlock();
+    } else {  // FLUSH_CB
+      CompleteTransfer();
+    }
+  }*/
+
+  void CompleteTransfer() {
+    transfer_state_ = TransferState::SYNC;
+    spiUnselect(lcd_cfg_.spi.instance);
+    spiReleaseBus(lcd_cfg_.spi.instance);
+
+    // Notify LVGL if this was a flush operation
+    /*if (transfer_state_ == TransferState::FLUSH_CB && flush_ready_cb_) {
+      flush_ready_cb_();
+    }*/
+  }
+
+  static void ThreadHelper(void* instance) {
+    auto* i = static_cast<SaboCoverUIDisplayDriverUC1698*>(instance);
+    i->ThreadFunc();
+  }
+
+  void ThreadFunc() {
+    InitController();           // Initialize the LCD controller
+    SetVBiasPotentiometer(90);  // TODO: Make Bias configurable?!
+    FillScreen(false);          // Clear screen
+
+    while (true) {
+      // Handle SPI completion events
+      /*eventflags_t flags = chEvtGetAndClearFlags(&flush_area_);
+      if (flags) {
+        //HandleTransferCompletion();
+      }*/
+
+      // Sleep max. 10ms for smooth LVGL flush-buffer updates
+      chThdSleep(TIME_MS2I(10));
+    }
+  }
 };
 
 }  // namespace xbot::driver::ui

@@ -112,11 +112,13 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
    */
   void Series2LatchSR(uint8_t tx_data) {
     spiAcquireBus(cabo_cfg_.spi.instance);
+
     spiStart(cabo_cfg_.spi.instance, &spi_config_);
     spiSend(cabo_cfg_.spi.instance, 1, &tx_data);  // Send tx_data to HEF4794
     palWriteLine(UI_S2_LATCH, PAL_HIGH);           // Latch HEF4794
     chThdSleepMicroseconds(1);
     palWriteLine(UI_S2_LATCH, PAL_LOW);  // Close HEF4794 latch
+
     spiReleaseBus(cabo_cfg_.spi.instance);
   }
 
@@ -128,6 +130,7 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
     assert(sr_load_size_ <= sizeof(sr_load_buf_));
 
     spiAcquireBus(cabo_cfg_.spi.instance);
+
     spiStart(cabo_cfg_.spi.instance, &spi_config_);
     palWriteLine(cabo_cfg_.pins.latch_load, PAL_LOW);           // HC165 /PL (parallel load) pulse, also blocks shifting
     if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_LOW);  // S2- /PL

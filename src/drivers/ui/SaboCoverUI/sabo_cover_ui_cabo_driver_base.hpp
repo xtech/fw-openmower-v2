@@ -18,9 +18,9 @@ class SaboCoverUICaboDriverBase {
  public:
   explicit SaboCoverUICaboDriverBase(CaboCfg cabo_cfg) : cabo_cfg_(cabo_cfg){};
 
-  // 40 * 1ms(tick) / 2(alternating button rows) = 20ms debounce time
+  // 4 * 10ms(tick) / 2(alternating button rows) = 20ms debounce time
   // Series-I has no alternating button rows, so it will debounce in 40ms (who cares)
-  static constexpr uint8_t DEBOUNCE_TICKS = 40;
+  static constexpr uint8_t DEBOUNCE_TICKS = 4;
 
   virtual bool Init();              // Init GPIOs, SPI and assign series_ driver
   virtual void LatchLoad() = 0;     // Latch data (LEDs, Button-rows, signals) and load inputs (buttons, signals, ...)
