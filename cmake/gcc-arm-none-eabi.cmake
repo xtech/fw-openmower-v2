@@ -44,5 +44,5 @@ set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-Map=${CMAKE_PROJECT_NAME}.map
 set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--start-group -lc -lm -Wl,--end-group")
 set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--print-memory-usage")
 set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--library-path=${CMAKE_CURRENT_LIST_DIR}/../ext/ChibiOS_21.11.3/os/common/startup/ARMCMx/compilers/GCC/ld,--script=${BOARD_DIR}/STM32H723xG_ITCM64k.ld")
-set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--defsym=__main_stack_size__=0x400,--defsym=__process_stack_size__=0x900")
+set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--defsym=__main_stack_size__=0x600,--defsym=__process_stack_size__=0x1900")
 set(CMAKE_CXX_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--start-group -lstdc++ -lsupc++ -Wl,--end-group")
