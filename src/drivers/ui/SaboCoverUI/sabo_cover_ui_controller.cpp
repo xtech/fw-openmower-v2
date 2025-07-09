@@ -52,18 +52,15 @@ void SaboCoverUIController::Start() {
     return;
   }
 
+  if (display_ && !display_->Init()) {
+    ULOG_ERROR("Sabo CoverUI Display initialization failed!");
+    return;
+  }
+
   thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO, ThreadHelper, this);
 #ifdef USE_SEGGER_SYSTEMVIEW
   processing_thread_->name = "SaboCoverUIController";
 #endif
-
-  if (display_) {
-    if (!display_->Init()) {
-      ULOG_ERROR("Sabo CoverUI Display initialization failed!");
-      return;
-    }
-    display_->Start();
-  }
 }
 
 void SaboCoverUIController::ThreadHelper(void* instance) {
@@ -129,8 +126,10 @@ const char* SaboCoverUIController::ButtonIDToString(const ButtonID id) {
 }
 
 void SaboCoverUIController::ThreadFunc() {
-  // Now that the LCD got started (thread running and fully initialized), wake it up
-  if (display_) display_->WakeUp();
+  if (display_) {
+    SaboCoverUIDisplayDriverUC1698::Instance().Start();
+    display_->WakeUp();
+  }
 
   while (true) {
     cabo_->Tick();

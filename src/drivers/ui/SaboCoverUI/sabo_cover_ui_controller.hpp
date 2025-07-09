@@ -24,7 +24,7 @@ class SaboCoverUIController {
   static const char* ButtonIDToString(const ButtonID id);  // Get string for ButtonID
 
  private:
-  THD_WORKING_AREA(wa_, 1024);
+  THD_WORKING_AREA(wa_, 8192);
   thread_t* thread_ = nullptr;
 
   bool configured_ = false;

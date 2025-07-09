@@ -117,6 +117,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user defined symbols
         timegm=mktime
         ROBOT_PLATFORM=${ROBOT_PLATFORM}
+        ROBOT_PLATFORM_${ROBOT_PLATFORM}=1
 )
 
 # Add linked libraries
