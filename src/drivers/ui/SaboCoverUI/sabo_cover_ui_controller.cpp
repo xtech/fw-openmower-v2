@@ -131,12 +131,10 @@ void SaboCoverUIController::ThreadFunc() {
     display_->WakeUp();
   }
 
-  ULOG_INFO("Controller-Thread: %p", chThdGetSelfX());
-
   while (true) {
     cabo_->Tick();
     UpdateStates();
-    if (display_) {
+    if (cabo_->IsReady() && display_) {
       display_->Tick();
       if (cabo_->IsAnyButtonPressed()) display_->WakeUp();
     }
