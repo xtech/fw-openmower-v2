@@ -8,8 +8,8 @@
 #include "ch.h"
 #include "sabo_cover_ui_cabo_driver_v01.hpp"
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
+#include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_display.hpp"
-#include "sabo_cover_ui_types.hpp"
 
 namespace xbot::driver::ui {
 
@@ -24,7 +24,7 @@ class SaboCoverUIController {
   static const char* ButtonIDToString(const ButtonID id);  // Get string for ButtonID
 
  private:
-  THD_WORKING_AREA(wa_, 8192);
+  THD_WORKING_AREA(wa_, 4096);  // AH20250714 In use = 2912. Let's be save for future LVGL GUI
   thread_t* thread_ = nullptr;
 
   bool configured_ = false;

@@ -127,14 +127,19 @@ const char* SaboCoverUIController::ButtonIDToString(const ButtonID id) {
 
 void SaboCoverUIController::ThreadFunc() {
   if (display_) {
-    SaboCoverUIDisplayDriverUC1698::Instance().Start();
+    display_->Start();
     display_->WakeUp();
   }
+
+  ULOG_INFO("Controller-Thread: %p", chThdGetSelfX());
 
   while (true) {
     cabo_->Tick();
     UpdateStates();
-    if (display_) display_->Tick();
+    if (display_) {
+      display_->Tick();
+      if (cabo_->IsAnyButtonPressed()) display_->WakeUp();
+    }
 
     // ----- Debug -----
     static uint32_t last_debug_time = 0;

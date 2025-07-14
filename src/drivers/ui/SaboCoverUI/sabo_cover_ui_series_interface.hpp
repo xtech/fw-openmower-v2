@@ -7,7 +7,7 @@
 
 #include "ch.h"
 #include "hal.h"
-#include "sabo_cover_ui_types.hpp"
+#include "sabo_cover_ui_defs.hpp"
 
 namespace xbot::driver::ui {
 
@@ -27,6 +27,7 @@ class SaboCoverUISeriesInterface {
 
   // Map ButtonID to a corresponding bitmask of the connected CoverUI Series type
   virtual uint16_t MapButtonIDToMask(const ButtonID id) const = 0;
+  virtual uint16_t AllButtonsMask() const = 0;
 
   virtual uint8_t MapLEDIDToMask(const LEDID id) const = 0;
 };

@@ -34,7 +34,7 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
   // Relevant input bits of 74HC165 parallel-input shift register
   static constexpr uint16_t INP_MASK_S1_CONNECTED_L  = (1 << 2);  // Series-I CoverUI /Connected
   static constexpr uint16_t INP_MASK_S2_CONNECTED_L  = (1 << 9);  // Series-II CoverUI /Connected
-  static constexpr uint16_t INP_MASK_JP3_L           = (1 << 11); // Mainboard solder jumper JP3
+  static constexpr uint16_t INP_MASK_JP3_L           = (1 << 11); // Carrierboard solder jumper JP3
 
   // See also LED and Button bits in sabo_cover_ui_series1_v02.hpp
 
@@ -70,7 +70,7 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
     return true;
   }
 
-  // Latch LEDs (as well as button-row if existent) and load button columns
+  // Latch LEDs (as well as button-row if exists) and load button columns
   void LatchLoad() override {
     if (!series_) return;
 

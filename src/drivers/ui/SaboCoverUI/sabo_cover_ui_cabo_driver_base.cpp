@@ -105,7 +105,7 @@ void SaboCoverUICaboDriverBase::ProcessLedStates() {
   current_led_mask_ |= leds_.fast_blink_state ? leds_.fast_blink_mask : 0;
 }
 
-void SaboCoverUICaboDriverBase::DebounceRawButtons(const uint16_t raw_buttons) {
+void SaboCoverUICaboDriverBase::DebounceRawButtons(uint16_t raw_buttons) {
   static uint16_t btn_last_raw_mask_ = 0xFFFF;  // Last raw button state
   static size_t btn_debounce_counter_ = 0;      // If >= DEBOUNCE_TICKS, the button state is stable/debounced
 
@@ -119,11 +119,16 @@ void SaboCoverUICaboDriverBase::DebounceRawButtons(const uint16_t raw_buttons) {
   btn_last_raw_mask_ = raw_buttons;
 }
 
-bool SaboCoverUICaboDriverBase::IsButtonPressed(const ButtonID btn) const {
+bool SaboCoverUICaboDriverBase::IsButtonPressed(ButtonID btn) const {
   if (!series_) return false;
   auto btn_mask = series_->MapButtonIDToMask(btn);
   if (btn_mask == 0) return false;                                       // Unknown button ID = "not pressed"
   return (btn_stable_raw_mask_ & series_->MapButtonIDToMask(btn)) == 0;  // low-active
+}
+
+bool SaboCoverUICaboDriverBase::IsAnyButtonPressed() const {
+  if (!series_) return false;
+  return (btn_stable_raw_mask_ & series_->AllButtonsMask()) != series_->AllButtonsMask();  // low-active
 }
 
 bool SaboCoverUICaboDriverBase::IsReady() const {

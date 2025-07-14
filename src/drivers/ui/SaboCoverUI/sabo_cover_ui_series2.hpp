@@ -38,6 +38,10 @@ class SaboCoverUISeries2 : public SaboCoverUISeriesInterface {
     return (1 << uint16_t(id));
   }
 
+  uint16_t AllButtonsMask() const {
+    return 0b0001111101111111;
+  };
+
  protected:
   uint8_t current_button_row_ = 0;  // Alternating button rows
   uint16_t cur_btn_mask = 0;        // Current button mask, high-active

@@ -7,8 +7,8 @@
 
 #include "ch.h"
 #include "hal.h"
+#include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_series_interface.hpp"
-#include "sabo_cover_ui_types.hpp"
 
 namespace xbot::driver::ui {
 
@@ -18,15 +18,17 @@ class SaboCoverUICaboDriverBase {
  public:
   explicit SaboCoverUICaboDriverBase(CaboCfg cabo_cfg) : cabo_cfg_(cabo_cfg){};
 
-  // 4 * 10ms(tick) / 2(alternating button rows) = 20ms debounce time
-  // Series-I has no alternating button rows, so it will debounce in 40ms (who cares)
-  static constexpr uint8_t DEBOUNCE_TICKS = 4;
+  // 6 * 10ms(tick) / 2(alternating button rows) = 30ms debounce time
+  // Series-I has no alternating button rows, so it will debounce in 60ms (who cares)
+  static constexpr uint8_t DEBOUNCE_TICKS = 5;
 
   virtual bool Init();              // Init GPIOs, SPI and assign series_ driver
   virtual void LatchLoad() = 0;     // Latch data (LEDs, Button-rows, signals) and load inputs (buttons, signals, ...)
   virtual void PowerOnAnimation();  // KIT like anim
-  virtual bool IsButtonPressed(const ButtonID btn) const;  // Check if a specific button is pressed
-  virtual void Tick();  // Call this function every 1ms to update LEDs, read and debounce buttons, ...
+  virtual void Tick();              // Call this function every 1ms to update LEDs, read and debounce buttons, ...
+
+  bool IsButtonPressed(ButtonID btn) const;  // Check if a specific button is pressed
+  bool IsAnyButtonPressed() const;           // Check if any button is pressed
 
   bool IsReady() const;  // True if CoverUI detected, boot anim played and ready to serve requests
 
@@ -34,7 +36,7 @@ class SaboCoverUICaboDriverBase {
 
   // Debounce all raw buttons at once in one quick XOR operation
   // This Method needs to be called by driver implementation once it read the buttons
-  void DebounceRawButtons(const uint16_t raw_buttons);
+  void DebounceRawButtons(uint16_t raw_buttons);
 
  protected:
   CaboCfg cabo_cfg_;

@@ -16,17 +16,13 @@
  * ID1 = 0 => 8-bit input data D[0,2,4,6,8,10,12,14]
  * BM[1:0] = 00 => SPI w/ 8-bit token
  * WR[1:0] = NC
- *
  */
 
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
 
-#include "sabo_cover_ui_display.hpp"
+#include <ulog.h>
 
 namespace xbot::driver::ui {
-
-// Static instance_ initialization
-SaboCoverUIDisplayDriverUC1698* SaboCoverUIDisplayDriverUC1698::instance_ = nullptr;
 
 bool SaboCoverUIDisplayDriverUC1698::Init() {
   // Init SPI pins
@@ -53,11 +49,12 @@ bool SaboCoverUIDisplayDriverUC1698::Init() {
   spi_config_ = {
       .circular = false,
       .slave = false,
-      .data_cb = SpiDataCallback,
+      .data_cb = SPIDataCB,
       .error_cb = NULL,
       .ssline = lcd_cfg_.spi.pins.cs,  // Chip Select line
-                                       // UC1698u is rated with a max frequency of 25 MHz
-      .cfg1 = SPI_CFG1_MBR_1 |         // Baudrate = FPCLK/8 (25 MHz @ 200 MHz PLL2_P)
+
+      // UC1698u is rated with a max frequency of 25 MHz
+      .cfg1 = SPI_CFG1_MBR_1 |                                         // Baudrate = FPCLK/8 (25 MHz @ 200 MHz PLL2_P)
               SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
       .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
   };
@@ -80,19 +77,14 @@ void SaboCoverUIDisplayDriverUC1698::Start() {
 
 void SaboCoverUIDisplayDriverUC1698::InitController() {
   // Directly after reset set Booster, Regulator, and Power Control in that order
-  SendCommand(0b00101000 | 0b0);  // [6] Set Power Control, Booster: LCD<=13nF
-  // SendCommand(0b00101000 | 0b1);  // [6] Set Power Control, Booster: 13nF<LCD<=22nF
+  SendCommand(0b00101000 | 0b0);  // [6] Set Power Control, Booster: 0=LCD<=13nF, 1=13nF<LCD<=22nF
   chThdSleepMilliseconds(10);
-  SendCommand(0b00101000 | 0b10);  // [6] Set Power Control, VReg: Internal Vlcd(*10)
-  chThdSleepMilliseconds(100);     // Give charge pump some time to stabilize
-  // SendCommand(0b00100100 | 0b01);  // [5] Set Temperature Compensation (-0.05%/C)
-  SendCommand(0b00100100 | 0b10);  // [5] Set Temperature Compensation (-0.15%/C)
-  // SendCommand(0b00100100 | 0b11);  // [5] Set Temperature Compensation (-0.25%/C)
+  SendCommand(0b00101000 | 0b10);   // [6] Set Power Control, VReg: Internal Vlcd(*10)
+  chThdSleepMilliseconds(100);      // Give charge pump some time to stabilize
+  SendCommand(0b00100100 | 0b10);   // [5] Set Temperature Compensation. 1=-0.05%/C, 2=-0.15%/C, 3=-0.25%/C
   SendCommand(0b11000000 | 0b100);  // [18] Set LCD Mapping Control, Mirror Y
-  // SendCommand(0b10100110 | 1);     // [16] Set Inverse Display. Will save inversion logic in LVGL's flush_cb()
-  SendCommand(0b11010000 | 1);     // [20] Set Color Pattern to R-G-B
-  SendCommand(0b11010100 | 0b01);  // [21] Set Color Mode to RRRR-GGGG-BBBB, 4k-color
-  // SendCommand(0b11010100 | 0b10);  // [21] Set Color Mode to RRRRR-GGGGGG-BBBBB, 64k-color
+  SendCommand(0b11010000 | 1);      // [20] Set Color Pattern to R-G-B
+  SendCommand(0b11010100 | 0b01);   // [21] Set Color Mode: 1=RRRR-GGGG-BBBB, 4k-color, 2=RRRRR-GGGGGG-BBBBB, 64k-color
   SetDisplayEnable(true);
 }
 
@@ -108,45 +100,27 @@ void SaboCoverUIDisplayDriverUC1698::SetDisplayEnable(bool on) {
   display_enabled_ = on;
 }
 
-void SaboCoverUIDisplayDriverUC1698::SpiDataCallback(SPIDriver* spip) {
-  if (!spiIsBufferComplete(spip)) return;
+void SaboCoverUIDisplayDriverUC1698::SPIDataCB(SPIDriver* spip) {
+  auto& driver = SaboCoverUIDisplayDriverUC1698::Instance();
+  (void)spip;
 
-  chSysLockFromISR();
-  auto* drv = SaboCoverUIDisplayDriverUC1698::InstancePtr();
-  if (drv && drv->transfer_state_ == TransferState::FLUSH_AREA) {
-    chEvtBroadcastI(&drv->flush_area_);
+  if (driver.transfer_state_ == TransferState::FLUSH_AREA) {
+    chSysLockFromISR();
+    chEvtBroadcastFlagsI(&driver.event_source_, static_cast<eventmask_t>(TransferEvent::ASYNC_TX_DONE));
+    chSysUnlockFromISR();
   }
-  chSysUnlockFromISR();
 }
 
-void SaboCoverUIDisplayDriverUC1698::FillScreen(const uint8_t color) {
-  uint8_t sextet[6] = {color, color, color, color, color, color};
-
-  spiAcquireBus(lcd_cfg_.spi.instance);
-  spiStart(lcd_cfg_.spi.instance, &spi_config_);
-  spiSelect(lcd_cfg_.spi.instance);
-
-  SetCmdMode();
-  SetWindowProgramAreaRaw(0, SABO_LCD_WIDTH - 1, 0, SABO_LCD_HEIGHT - 1);
-
-  SetDataMode();
-  for (uint8_t i = 0; i < SABO_LCD_HEIGHT; i++) {
-    for (uint8_t j = 0; j < SABO_LCD_WIDTH / 3; j++) {
-      SendPixelSextetRaw(sextet);
-    }
-  }
-
-  spiUnselect(lcd_cfg_.spi.instance);
-  spiReleaseBus(lcd_cfg_.spi.instance);
-}
-
-void SaboCoverUIDisplayDriverUC1698::LVGLRounderCallback(lv_event_t* e) {
+void SaboCoverUIDisplayDriverUC1698::LVGLRounderCB(lv_event_t* e) {
   lv_area_t* area = lv_event_get_invalidated_area(e);
 
-  area->x1 = (area->x1 & ~0x7);  // Round down to the nearest multiple of 8
-  area->x2 = (area->x2 | 0x7);   // Round up to the next multiple of 8
+  // Round x axis to a multiple of 24 to fullfil:
+  // - multiple of 8 requirement of LV_COLOR_FORMAT_I1
+  // - multiple of 3 requirement of 3 LCD pixel form one UC1698 pixel
+  area->x1 = (area->x1 / 24) * 24;
+  area->x2 = ((area->x2 + 1 + 23) / 24) * 24 - 1;
 
-  // Due to the 25% more efficient RRRR-GGGG-BBBB, 4K-color mode of UC1698,
+  // Due to the 25% more efficient RRRR-GGGG-BBBB, 4K-color mode of UC1698 (in comparison to 64k-color mode)
   // we need to assure that the total num of send pixels is a multiple of 6
   int width = area->x2 - area->x1 + 1;
   int height = area->y2 - area->y1 + 1;
@@ -160,47 +134,56 @@ void SaboCoverUIDisplayDriverUC1698::LVGLRounderCallback(lv_event_t* e) {
   }
 }
 
-void SaboCoverUIDisplayDriverUC1698::LVGLFlushCallback(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
-  if (!instance_) {
-    lv_display_flush_ready(disp);
-    return;
-  }
-
-  // Setze das Fenster für den zu beschreibenden Bereich
-  spiAcquireBus(instance_->lcd_cfg_.spi.instance);
-  spiStart(instance_->lcd_cfg_.spi.instance, &instance_->spi_config_);
-  spiSelect(instance_->lcd_cfg_.spi.instance);
-
-  instance_->SetCmdMode();
-  instance_->SetWindowProgramAreaRaw(area->x1, area->x2, area->y1, area->y2);
-
-  instance_->SetDataMode();
+/**
+ * @brief LVGL Flush Callback does only convert the I1 px_map data to our RRRR-GGGG-BBBB, 4K-color mode,
+ * buffers it in our internal buffer and triggers an ASYNC_BUF_READY event.
+ */
+void SaboCoverUIDisplayDriverUC1698::LVGLFlushCB(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
+  (void)disp;
+  auto& driver = SaboCoverUIDisplayDriverUC1698::Instance();
+  uint8_t* buf = driver.pending_flush_.buffer;
+  // driver.profile_.flush_start = chVTGetSystemTimeX();
 
   int width = area->x2 - area->x1 + 1;
   int height = area->y2 - area->y1 + 1;
   int total_pixels = width * height;
-
-  const uint8_t* src = px_map + 8;  // Skip 2*4 byte palette
   int blocks = total_pixels / 24;
 
+  const uint8_t* src = px_map + 8;  // Skip 2*4 byte palette
+
+  // Fill buffer with 2 pixels per byte
+  size_t buf_idx = 0;
   for (int b = 0; b < blocks; b++) {
-    // Buid 24 Bits from 3 Bytes
-    // ATTENTION: Each byte's MSB is the leftmost pixel, which is contrary to the current LVGL 9.3 docs!
+    // Build 24 Bits from 3 Bytes
     uint32_t pix24 = (src[0] << 16) | (src[1] << 8) | src[2];
-    /*uint32_t pix24 = src[0];
-    src++;
-    pix24 |= (src[0] << 8);
-    src++;
-    pix24 |= (src[0] << 16);
-    src++;*/
-    instance_->Send24MonoPixelsAs12NibblesRaw(pix24);
     src += 3;
+
+    // MSB = Leftmost Pixel, LSB = Rightmost pixel
+    for (int i = 23; i >= 0; i -= 2) {
+      bool p1 = (pix24 >> i) & 0x01;
+      bool p2 = (pix24 >> (i - 1)) & 0x01;
+
+      chDbgAssert(buf_idx < buffer_size_, "SPI TX Buffer Overflow");
+
+      // LVGL bit true == white == LCD dot off
+      buf[buf_idx++] = (p1 ? 0x00 : 0xF0) | (p2 ? 0x00 : 0x0F);
+    }
   }
+  driver.transfer_state_ = TransferState::QUEUED;
 
-  spiUnselect(instance_->lcd_cfg_.spi.instance);
-  spiReleaseBus(instance_->lcd_cfg_.spi.instance);
+  driver.pending_flush_.size = buf_idx;
+  driver.pending_flush_.area = *area;
 
-  lv_display_flush_ready(disp);
+  chEvtBroadcastFlags(&driver.event_source_, static_cast<eventmask_t>(TransferEvent::ASYNC_BUF_READY));
+}
+
+void SaboCoverUIDisplayDriverUC1698::LVGLFlushWaitCB(lv_display_t* disp) {
+  (void)disp;
+  auto& driver = SaboCoverUIDisplayDriverUC1698::Instance();
+
+  while (driver.transfer_state_ != TransferState::IDLE) {
+    chThdSleepMicroseconds(100);
+  }
 }
 
 void SaboCoverUIDisplayDriverUC1698::SendCommand(const uint8_t cmd) {
@@ -248,120 +231,59 @@ void SaboCoverUIDisplayDriverUC1698::SetWindowProgramAreaRaw(uint8_t t_x1, uint8
                                                              bool t_outside_mode) {
   const uint8_t data[] = {
       // Set SRAM col/row start address
-      (uint8_t)(0x10 | (((t_x1 / 3) >> 4) & 0b00000111)),  // Set Column MSB Address
-      (uint8_t)(0x00 | ((t_x1 / 3) & 0b00001111)),         // Set Column LSB Address
-      (uint8_t)(0x70 | (t_y1 >> 4)),                       // Set Row MSB Address
-      (uint8_t)(0x60 | ((uint8_t)t_y1 & 0b00001111)),      // Set Row LSB Address
+      (uint8_t)(0x10 | (((t_x1 / 3) >> 4) & 0b00000111)),  // (4) Set Column MSB Address
+      (uint8_t)(0x00 | ((t_x1 / 3) & 0b00001111)),         // (4) Set Column LSB Address
+      (uint8_t)(0x70 | (t_y1 >> 4)),                       // (9) Set Row MSB Address
+      (uint8_t)(0x60 | ((uint8_t)t_y1 & 0b00001111)),      // (9) Set Row LSB Address
 
       // Set Windows Program
-      (0xf5), (t_y1),                                   // Starting Row Address
-      (0xf7), (t_y2),                                   // Ending Row Address
-      (0xf4), (uint8_t)(t_x1 / 3),                      // Starting Column Address
-      (0xf6), (uint8_t)((int8_t)((t_x2 + 1) / 3) - 1),  // Ending Column Address
+      (0xf5), (t_y1),                                   // (31) Starting Row Address
+      (0xf7), (t_y2),                                   // (33) Ending Row Address
+      (0xf4), (uint8_t)(t_x1 / 3),                      // (30) Starting Column Address
+      (0xf6), (uint8_t)((int8_t)((t_x2 + 1) / 3) - 1),  // (32) Ending Column Address
       (uint8_t)(0xf8 | t_outside_mode)                  // Windows Program Mode (0 = inside, 1 = outside)
   };
-  spiSend(lcd_cfg_.spi.instance, sizeof(data) / sizeof(data[0]), data);
-}
-
-// This is required for RRRR-GGGG-BBBB, 4K-color mode which need 25% less data than RRRRR-GGGGG-BBBBB, 64K-color mode.
-// See UC1698u datasheet: (21) SET COLOR MODE
-void SaboCoverUIDisplayDriverUC1698::Send24MonoPixelsAs12NibblesRaw(uint32_t pix24) {
-  // MSB = Leftmost Pixel, LSB = Rightmost pixel
-  for (int i = 23; i >= 0; i -= 2) {
-    bool p1 = (pix24 >> i) & 0x01;
-    bool p2 = (pix24 >> (i - 1)) & 0x01;
-
-    const uint8_t data = (p1 ? 0x00 : 0xF0) | (p2 ? 0x00 : 0x0F);  // LVGL bit true == white == LCD dot off
-
-    spiSend(lcd_cfg_.spi.instance, 1, &data);
-  }
-}
-
-// Send Pixel Sextet will send 2*3 pixels in one command.
-// This is required for RRRR-GGGG-BBBB, 4K-color mode which need 25% less data than RRRRR-GGGGG-BBBBB, 64K-color mode.
-void SaboCoverUIDisplayDriverUC1698::SendPixelSextetRaw(const uint8_t* px) {
-  // Map LVGL grayscale to our usable 4 values
-  auto map = [](uint8_t val) -> uint8_t {
-    if (val <= 60)
-      return 0xff;  // Black
-    else if (val <= 140)
-      return 0x0a;  // 50% Gray
-    else if (val <= 220)
-      return 0x05;  // 25% Gray
-    else
-      return 0x00;  // White/Off
-  };
-
-  uint8_t buf[3];
-  buf[0] = (map(px[0]) << 4) | map(px[1]);
-  buf[1] = (map(px[2]) << 4) | map(px[3]);
-  buf[2] = (map(px[4]) << 4) | map(px[5]);
-
-  spiSend(lcd_cfg_.spi.instance, 3, buf);
-}
-
-/*void SaboCoverUIDisplayDriverUC1698::StartTransfer() {
-  spiAcquireBus(lcd_cfg_.spi.instance);
-  spiSelect(lcd_cfg_.spi.instance);
-
-  SetCmdMode();
-  SetWindowProgramAreaRaw(req.x1, req.x2, req.y1, req.y2);
-  SetDataMode();
-
-  transfer_state_ = req.type;
-
-  // Handle different transfer types
-  if (req.type == TransferState::FILL_SCREEN) {
-    block_bytes_remaining_ = req.data_size;
-    SendNextBlock();
-  } else {  // FLUSH_CB
-    // Directly send LVGL's buffer in one go
-    spiStartSend(lcd_cfg_.spi.instance, req.data_size, req.data);
-    // No need to track remaining bytes for flushes
-  }
-}
-
-void SaboCoverUIDisplayDriverUC1698::SendNextBlock() {
-  uint32_t chunk_size = MIN(block_bytes_remaining_, spi_tx_buf_size_);
-  memset(spi_tx_buf_, current_fill_value_, chunk_size);
-
-  spiStartSend(lcd_cfg_.spi.instance, chunk_size, spi_tx_buf_);
-  block_bytes_remaining_ -= chunk_size;
-}*/
-
-/*void SaboCoverUIDisplayDriverUC1698::HandleTransferCompletion() {
-  if (transfer_state_ == TransferState::FILL_SCREEN) {
-    SendNextBlock();
-  } else {  // FLUSH_CB
-    CompleteTransfer();
-  }
-}*/
-
-void SaboCoverUIDisplayDriverUC1698::CompleteTransfer() {
-  transfer_state_ = TransferState::SYNC;
-  spiUnselect(lcd_cfg_.spi.instance);
-  spiReleaseBus(lcd_cfg_.spi.instance);
-
-  // Notify LVGL if this was a flush operation
-  /*if (transfer_state_ == TransferState::FLUSH_CB && flush_ready_cb_) {
-    flush_ready_cb_();
-  }*/
+  spiSend(lcd_cfg_.spi.instance, sizeof(data), data);
 }
 
 void SaboCoverUIDisplayDriverUC1698::ThreadFunc() {
   InitController();            // Initialize the LCD controller
   SetVBiasPotentiometer(100);  // TODO: Make Bias configurable?!
-  // FillScreen(0xff);           // Clear screen (color white)
+
+  event_listener_t event_listener;
+  chEvtRegister(&event_source_, &event_listener, 0);
 
   while (true) {
-    // Handle SPI completion events
-    /*eventflags_t flags = chEvtGetAndClearFlags(&flush_area_);
-    if (flags) {
-      //HandleTransferCompletion();
-    }*/
+    chEvtWaitAny(ALL_EVENTS);
+    eventflags_t flags = chEvtGetAndClearFlags(&event_listener);
 
-    // Sleep max. 10ms for smooth LVGL flush-buffer updates
-    chThdSleep(TIME_MS2I(10));
+    if (flags & static_cast<eventmask_t>(TransferEvent::ASYNC_BUF_READY)) {
+      // profile_.spi_start = chVTGetSystemTimeX();
+
+      spiAcquireBus(lcd_cfg_.spi.instance);
+      transfer_state_ = TransferState::SYNC;
+      spiStart(lcd_cfg_.spi.instance, &spi_config_);
+      spiSelect(lcd_cfg_.spi.instance);
+
+      SetCmdMode();
+      SetWindowProgramAreaRaw(pending_flush_.area.x1, pending_flush_.area.x2, pending_flush_.area.y1,
+                              pending_flush_.area.y2);
+
+      SetDataMode();
+      transfer_state_ = TransferState::FLUSH_AREA;
+      spiStartSend(lcd_cfg_.spi.instance, pending_flush_.size, pending_flush_.buffer);
+    }
+
+    // SPI async transfer complete event
+    if (flags & static_cast<eventmask_t>(TransferEvent::ASYNC_TX_DONE)) {
+      spiUnselect(lcd_cfg_.spi.instance);
+      spiReleaseBus(lcd_cfg_.spi.instance);
+      transfer_state_ = TransferState::IDLE;
+      /*profile_.spi_end = chVTGetSystemTimeX();
+      ULOG_INFO("UC1698 (%d bytes): Flush->SPI %lu us, SPI %lu us, Flush total %lu us", pending_flush_.size,
+                TIME_I2US(profile_.spi_start - profile_.flush_start), TIME_I2US(profile_.spi_end - profile_.spi_start),
+                TIME_I2US(profile_.spi_end - profile_.flush_start));*/
+    }
   }
 }
 

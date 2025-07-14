@@ -2,8 +2,8 @@
 // Created by Apehaenger on 5/31/25.
 //
 
-#ifndef OPENMOWER_SABO_COVER_UI_TYPES_HPP
-#define OPENMOWER_SABO_COVER_UI_TYPES_HPP
+#ifndef OPENMOWER_SABO_COVER_UI_DEFS_HPP
+#define OPENMOWER_SABO_COVER_UI_DEFS_HPP
 
 #include "ch.h"
 
@@ -68,6 +68,15 @@ enum class ButtonID {
 
 enum class SeriesType { Series1, Series2 };
 
+namespace display {
+constexpr uint16_t LCD_WIDTH = 240;  // ATTENTION: LVGL I1 mode requires a multiple of 8 width
+constexpr uint16_t LCD_HEIGHT = 160;
+constexpr uint8_t BUFFER_FRACTION = 10;  // 1/10 screen size for buffers
+
+constexpr systime_t BACKLIGHT_TIMEOUT = TIME_S2I(120);  // 2 Minutes
+constexpr systime_t LCD_SLEEP_TIMEOUT = TIME_S2I(300);  // 5 Minutes
+}  // namespace display
+
 }  // namespace xbot::driver::ui::sabo
 
-#endif  // OPENMOWER_SABO_COVER_UI_TYPES_HPP
+#endif  // OPENMOWER_SABO_COVER_UI_DEFS_HPP

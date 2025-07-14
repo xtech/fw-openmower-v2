@@ -24,90 +24,89 @@
 
 #include <ch.h>
 #include <hal.h>
+#include <ulog.h>
 
 #include "lvgl.h"
-#include "sabo_cover_ui_types.hpp"
+#include "sabo_cover_ui_defs.hpp"
 
 namespace xbot::driver::ui {
 
 using namespace sabo;
+using namespace sabo::display;
 
 class SaboCoverUIDisplayDriverUC1698 {
  public:
-  // Singleton accessor that creates the instance on first call with provided parameters.
-  // Usage: SaboCoverUIDisplayDriverUC1698::Instance(cfg, width, height).SendCommand(...);
-  // Note: The first call initializes the singleton with the given arguments; subsequent calls ignore them.
-  static SaboCoverUIDisplayDriverUC1698& Instance(LCDCfg lcd_cfg) {
-    if (!instance_) {
-      // Uncommon, but quicker for LVGLFlushCallback()
-      static SaboCoverUIDisplayDriverUC1698 instance(lcd_cfg);
-      instance_ = &instance;
-    }
-    return *instance_;
+  static SaboCoverUIDisplayDriverUC1698& Instance(const LCDCfg* lcd_cfg = nullptr) {
+    static bool initialized = false;
+    chDbgAssert(lcd_cfg != nullptr || initialized, "First call to Instance() must provide LCDCfg!");
+    static SaboCoverUIDisplayDriverUC1698 instance_placeholder{lcd_cfg ? *lcd_cfg : LCDCfg{}};
+    initialized = true;
+    return instance_placeholder;
   }
 
-  // Convenience singleton accessor using global/default configuration.
-  // Usage: SaboCoverUIDisplayDriverUC1698::Instance().SendCommand(...);
-  // Note: Uses global LCDCfg and hardcoded dummy dimensions (they're not used anyway)
-  static SaboCoverUIDisplayDriverUC1698& Instance() {
-    return Instance(LCDCfg{});  // Dummy values
-  }
-  // Ptr to Singleton i.e.: auto* drv = SaboCoverUIDisplayDriverBase::InstancePtr();
-  static SaboCoverUIDisplayDriverUC1698* InstancePtr() {
-    return instance_;
-  }
+  enum class TransferState { IDLE, QUEUED, SYNC, FLUSH_AREA };
 
-  bool Init();
-  void InitController();
+  bool Init();            // Configure pins and SPI config
+  void InitController();  // Initialize UC1698 (needs to be called from thread!)
 
-  void Start();
+  void Start();  // Start UC1698 own thread (required for async SPI)
 
   void SetVBiasPotentiometer(uint8_t data);  // [10] Set VBias Potentiometer
-  void SetDisplayEnable(bool on);            // [17] Set Display Enable: Green Enh. Mode ?, Gray Shade On, Active
+  void SetDisplayEnable(bool on);            // [17] Set Display Enable: Green Enh. Mode off, Gray Shade, Active
 
-  bool IsDisplayEnabled() {
+  bool IsDisplayEnabled() const {  // LCD active (or sleeping)
     return display_enabled_;
   }
 
-  static void SpiDataCallback(SPIDriver* spip);
-
-  void FillScreen(const uint8_t color);
-
-  static void LVGLRounderCallback(lv_event_t* e);
-  static void LVGLFlushCallback(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map);
+  static void LVGLRounderCB(lv_event_t* e);
+  static void LVGLFlushCB(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map);
+  static void LVGLFlushWaitCB(lv_display_t* disp);
+  static void SPIDataCB(SPIDriver* spip);
 
  private:
-  static SaboCoverUIDisplayDriverUC1698* instance_;  // Singleton instance and fast LVGL callback access
+  SaboCoverUIDisplayDriverUC1698(const LCDCfg& lcd_cfg) : lcd_cfg_(lcd_cfg) {
+  }
 
-  THD_WORKING_AREA(wa_, 1024);
+  THD_WORKING_AREA(wa_, 768);  // AH20250714 In use = 512
   thread_t* thread_ = nullptr;
+
+  // We need some signals to start and finish our async SPI transfers
+  EVENTSOURCE_DECL(event_source_);
+
+  // With UC1698u RRRR-GGGG-BBBB, 4k-color mode, we send 2 pixels per byte (3 bytes per sextet)
+  static constexpr size_t buffer_size_ = LCD_WIDTH * LCD_HEIGHT / BUFFER_FRACTION / 2;
+  struct AsyncFlush {
+    lv_area_t area;  // Area in buffer
+    uint8_t buffer[buffer_size_];
+    size_t size = 0;  // Size of buffer
+  };
+  AsyncFlush pending_flush_;
 
   LCDCfg lcd_cfg_;
   SPIConfig spi_config_;
 
-  bool display_enabled_;  // Sleep mode of UC1698
+  bool display_enabled_ = false;  // Sleep mode of UC1698
 
-  enum class TransferState { SYNC, FLUSH_AREA };
-  volatile TransferState transfer_state_ = TransferState::SYNC;
+  volatile TransferState transfer_state_ = TransferState::IDLE;
 
-  EVENTSOURCE_DECL(flush_area_);  // FillScreen
+  enum class TransferEvent : eventmask_t {
+    NONE = 0,
+    ASYNC_BUF_READY = EVENT_MASK(0),  // LVGLFlushCB filled spi_tx_buf_ => Start SPI transfer
+    ASYNC_TX_DONE = EVENT_MASK(1),    // SPI-Transfer done. spiUnselect, spiRelease, inform lvgl
+  };
 
-  uint32_t block_bytes_remaining_ =
-      0;  // We do send block wise. This is the number of byte left to send for the next blocks
-
-  explicit SaboCoverUIDisplayDriverUC1698(LCDCfg lcd_cfg) : lcd_cfg_(lcd_cfg) {
-  }
+  // Some benchmarking vars
+  /*struct Profile {
+    systime_t flush_start, spi_start, spi_end;
+  } profile_;*/
 
   // clang-format off
-  // Data/Command (D/C)
-  inline void SetDC() { palWriteLine(lcd_cfg_.pins.dc, PAL_HIGH); }
-  inline void ClrDC() { palWriteLine(lcd_cfg_.pins.dc, PAL_LOW); }
   // Reset (RST)
   inline void SetRST() { palWriteLine(lcd_cfg_.pins.rst, PAL_HIGH); }
   inline void ClrRST() { palWriteLine(lcd_cfg_.pins.rst, PAL_LOW); }
-  // Some comfort shortcuts
-  inline void SetCmdMode() { ClrDC(); }
-  inline void SetDataMode() { SetDC(); }
+  // Data/Command (D/C)
+  inline void SetDataMode() { palWriteLine(lcd_cfg_.pins.dc, PAL_HIGH); }
+  inline void SetCmdMode() { palWriteLine(lcd_cfg_.pins.dc, PAL_LOW); }
   // clang-format on
 
   void SendCommand(const uint8_t cmd);
@@ -115,10 +114,6 @@ class SaboCoverUIDisplayDriverUC1698 {
   void SendData(const uint8_t* data, size_t size);
 
   void SetWindowProgramAreaRaw(uint8_t t_x1, uint8_t t_x2, uint8_t t_y1, uint8_t t_y2, bool t_outside_mode = false);
-  void SendPixelSextetRaw(const uint8_t* px);
-  void Send24MonoPixelsAs12NibblesRaw(uint32_t pix24);
-
-  void CompleteTransfer();
 
   static void ThreadHelper(void* instance) {
     auto* i = static_cast<SaboCoverUIDisplayDriverUC1698*>(instance);

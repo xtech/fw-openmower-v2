@@ -69,6 +69,10 @@ class SaboCoverUISeries1V02 : public SaboCoverUISeriesInterface {
     }
   }
 
+  uint16_t AllButtonsMask() const {
+    return INP_MASK_BTN_ALL_L;
+  };
+
  protected:
   uint8_t MapLEDIDToMask(const LEDID id) const override {
     switch (id) {
