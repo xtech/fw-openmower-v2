@@ -24,7 +24,6 @@
 
 #include <ch.h>
 #include <hal.h>
-#include <ulog.h>
 
 #include "lvgl.h"
 #include "sabo_cover_ui_defs.hpp"

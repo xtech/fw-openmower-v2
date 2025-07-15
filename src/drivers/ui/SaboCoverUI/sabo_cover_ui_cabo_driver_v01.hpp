@@ -28,7 +28,9 @@ class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
         .data_cb = NULL,
         .error_cb = NULL,
         .ssline = 0,
-        .cfg1 = SPI_CFG1_MBR_0 | SPI_CFG1_MBR_1 |  // Baudrate = FPCLK/16 (12.5 MHz @ 200 MHz PLL2_P)
+        // HEF4794BT is the slowest device on SPI bus. F_clk(max)@5V: Min=5MHz, Typ=10MHz
+        // Also worked with 12.5MHz, but let's be save within the limits of the HEF4794BT
+        .cfg1 = SPI_CFG1_MBR_2 | SPI_CFG1_MBR_0 |  // Baudrate = FPCLK/32 (6.25 MHz @ 200 MHz PLL2_P)
                 SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
         .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
     };
@@ -47,6 +49,7 @@ class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
     // SPI transfer LEDs+ButtonRow and read button for previously set row
     spiAcquireBus(cabo_cfg_.spi.instance);
 
+    spiStart(cabo_cfg_.spi.instance, &spi_config_);
     // Enable HC165 shifting, but this will also set HEF4794BT latch open! = low-glowing LEDs
     palWriteLine(cabo_cfg_.pins.latch_load, PAL_HIGH);
     palWriteLine(cabo_cfg_.pins.btn_cs, PAL_LOW);

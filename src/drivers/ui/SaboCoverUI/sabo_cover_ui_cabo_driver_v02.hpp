@@ -87,7 +87,7 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
         LatchLoadSR();                                                    // Load raw buttons
         DebounceRawButtons(series_->ProcessButtonCol(sr_load_buf_[2]));   // Process received button column
         break;
-      default: ULOG_ERROR("Unknown CoverUI series type"); return;
+      default: ULOG_ERROR("Unknown Sabo CoverUI series type"); return;
     }
   };
 
@@ -164,13 +164,13 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
     LatchLoadSR();  // Latch ctrl mask and read the parallel-input shift register to get the two /CON signals
 
     if ((sr_inp_mask_ & INP_MASK_S1_CONNECTED_L) == 0) {
-      ULOG_INFO("Detected Series-I CoverUI");
+      ULOG_INFO("Detected Sabo Series-I CoverUI");
       static SaboCoverUISeries1V02 series1_driver;
       return &series1_driver;
     }
 
     if ((sr_inp_mask_ & INP_MASK_S2_CONNECTED_L) == 0) {
-      ULOG_INFO("Detected Series-II CoverUI");
+      ULOG_INFO("Detected Sabo Series-II CoverUI");
       Series2LatchSR(0);                            // Latch LEDs=off and select no button row
       cabo_sr_ctrl_mask_ &= ~SR_MASK_S2_HALL_EN_L;  // S2-Hall = on
       cabo_sr_ctrl_mask_ |= SR_MASK_S2_OE;          // S2-OE = on

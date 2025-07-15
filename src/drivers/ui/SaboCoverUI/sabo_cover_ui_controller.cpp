@@ -52,9 +52,11 @@ void SaboCoverUIController::Start() {
     return;
   }
 
-  if (display_ && !display_->Init()) {
-    ULOG_ERROR("Sabo CoverUI Display initialization failed!");
-    return;
+  if (display_) {
+    if (!display_->Init()) {
+      ULOG_ERROR("Sabo CoverUI Display initialization failed!");
+      return;
+    }
   }
 
   thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO, ThreadHelper, this);
@@ -147,7 +149,7 @@ void SaboCoverUIController::ThreadFunc() {
       for (int btn = static_cast<int>(ButtonID::_FIRST); btn <= static_cast<int>(ButtonID::_LAST); ++btn) {
         ButtonID button = static_cast<ButtonID>(btn);
         if (cabo_->IsButtonPressed(button)) {
-          ULOG_INFO("Button [%s] pressed", ButtonIDToString(static_cast<ButtonID>(btn)));
+          ULOG_INFO("Sabo CoverUI Button [%s] pressed", ButtonIDToString(static_cast<ButtonID>(btn)));
         }
       }
     }
