@@ -140,9 +140,6 @@ static void DispatchEvents() {
       eventflags_t flags = chEvtGetAndClearFlags(&event_listener);
       if (flags & MowerEvents::EMERGENCY_CHANGED) {
         diff_drive.OnEmergencyChangedEvent();
-#ifndef NO_MOWER_SERVICE
-        mower_service.OnEmergencyChangedEvent();
-#endif
       }
       if (flags & MowerEvents::INPUTS_CHANGED) {
         input_service.OnInputsChangedEvent();
