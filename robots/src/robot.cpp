@@ -3,28 +3,18 @@
 #include <services.hpp>
 
 #include "../include/lyfco_e1600_robot.hpp"
-#if ROBOT_PLATFORM_Sabo
 #include "../include/sabo_robot.hpp"
-#endif
 #include "../include/worx_robot.hpp"
 #include "../include/xbot_robot.hpp"
 #include "../include/yardforce_robot.hpp"
 
+#define EXPAND(x) x
+#define ROBOT_CLASS_NAME(platform) platform##Robot
+#define CREATE_ROBOT(platform) new EXPAND(ROBOT_CLASS_NAME(platform))()
+
 Robot* GetRobot() {
-// TODO: This should look at the flash to determine the mower type.
-#if ROBOT_PLATFORM_Sabo
-  return new SaboRobot();
-#elif ROBOT_PLATFORM_YardForce
-  return new YardForceRobot();
-#elif ROBOT_PLATFORM_Worx
-  return new WorxRobot();
-#elif ROBOT_PLATFORM_Lyfco_E1600
-  return new Lyfco_E1600Robot();
-#elif ROBOT_PLATFORM_xBot
-  return new xBotRobot();
-#else
-#error "Unknown ROBOT_PLATFORM"
-#endif
+  // TODO: This should look at the flash to determine the mower type.
+  return CREATE_ROBOT(ROBOT_PLATFORM);
 }
 
 void MowerRobot::InitMotors() {

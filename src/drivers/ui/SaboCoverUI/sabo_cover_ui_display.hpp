@@ -5,12 +5,12 @@
 #ifndef OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
 #define OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
 
+#include <lvgl.h>
 #include <ulog.h>
 
 #include <cstring>
 
 #include "ch.h"
-#include "lvgl.h"
 #include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
 

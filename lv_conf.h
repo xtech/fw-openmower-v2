@@ -1,11 +1,26 @@
 /**
  * @file lv_conf.h
- * Configuration file for LVGL v9.3 - Sabo Robot CoverUI
- * This file should only be included via the main lv_conf.h dispatcher
+ * Configuration file for v9.3.0
  */
+
+/*
+ * Copy this file as `lv_conf.h`
+ * 1. simply next to `lvgl` folder
+ * 2. or to any other place and
+ *    - define `LV_CONF_INCLUDE_SIMPLE`;
+ *    - add the path as an include path.
+ */
+
+/* clang-format off */
+#if 1 /* Set this to "1" to enable content */
 
 #ifndef LV_CONF_H
 #define LV_CONF_H
+
+/* If you need to include anything here, do it inside the `__ASSEMBLY__` guard */
+#if  0 && defined(__ASSEMBLY__)
+#include "my_include.h"
+#endif
 
 /*====================
    COLOR SETTINGS
@@ -603,8 +618,8 @@
 #define LV_FONT_SOURCE_HAN_SANS_SC_16_CJK 0 /**< 1338 most common CJK radicals */
 
 /** Pixel perfect monospaced fonts */
-#define LV_FONT_UNSCII_8 0
-#define LV_FONT_UNSCII_16 0
+#define LV_FONT_UNSCII_8 1
+#define LV_FONT_UNSCII_16 1
 
 /** Optionally declare custom fonts here.
  *
@@ -618,7 +633,7 @@
 #define LV_FONT_CUSTOM_DECLARE
 
 /** Always set a default font */
-#define LV_FONT_DEFAULT &lv_font_montserrat_14
+#define LV_FONT_DEFAULT &lv_font_unscii_8
 
 /** Enable handling large font and/or fonts with a lot of characters.
  *  The limit depends on the font size, font face and bpp.
@@ -799,7 +814,7 @@
  * https://docs.lvgl.io/master/details/common-widget-features/styles/styles.html#themes . */
 
 /** A simple, impressive and very complete theme */
-#define LV_USE_THEME_DEFAULT 1
+#define LV_USE_THEME_DEFAULT 0
 #if LV_USE_THEME_DEFAULT
 /** 0: Light mode; 1: Dark mode */
 #define LV_THEME_DEFAULT_DARK 0
@@ -812,7 +827,7 @@
 #endif /*LV_USE_THEME_DEFAULT*/
 
 /** A very simple theme that is a good starting point for a custom theme */
-#define LV_USE_THEME_SIMPLE 1
+#define LV_USE_THEME_SIMPLE 0
 
 /** A theme designed for monochrome displays */
 #define LV_USE_THEME_MONO 1
@@ -1194,4 +1209,8 @@
 /** Build the demos */
 #define LV_BUILD_DEMOS 0
 
-#endif /*LV_CONF_SABO_H*/
+/*--END OF LV_CONF_H--*/
+
+#endif /*LV_CONF_H*/
+
+#endif /*End of "Content enable"*/

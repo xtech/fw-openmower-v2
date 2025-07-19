@@ -4,7 +4,6 @@
 #include "services/diff_drive_service/diff_drive_service.hpp"
 #include "services/emergency_service/emergency_service.hpp"
 #include "services/gps_service/gps_service.hpp"
-#include "services/high_level_service/high_level_service.hpp"
 #include "services/imu_service/imu_service.hpp"
 #include "services/input_service/input_service.hpp"
 #include "services/mower_service/mower_service.hpp"
@@ -17,7 +16,6 @@ extern ImuService imu_service;
 extern PowerService power_service;
 extern GpsService gps_service;
 extern InputService input_service;
-extern HighLevelService high_level_service;
 
 void StartServices();
 
