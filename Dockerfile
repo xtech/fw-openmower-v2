@@ -9,6 +9,14 @@ RUN apt-get update && apt-get install -y  \
     make \
     && rm -rf /var/lib/apt/lists/*
 
+# Install ccache (TODO: REMOVE as soon as we have universal firmware)
+RUN apt-get update && apt-get install -y ccache \
+    && rm -rf /var/lib/apt/lists/* \
+    && /usr/sbin/update-ccache-symlinks
+ENV PATH="/usr/lib/ccache:$PATH"
+
+RUN pip install elf-size-analyze
+
 COPY . /project
 
 WORKDIR /project
@@ -18,9 +26,16 @@ RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Worx -BWorx && cd Wor
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Lyfco_E1600 -BLyfco_E1600 && cd Lyfco_E1600 && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Sabo -BSabo && cd Sabo && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=xBot -BxBot && cd xBot && make -j$(nproc)
-
+# Use Sabo build for RAM and ROM analysis for now - it has the most libraries
+RUN elf-size-analyze -H -R -t arm-none-eabi- ./build/Sabo/openmower.elf -W > build/ram-info.html
+RUN elf-size-analyze -H -F -t arm-none-eabi- ./build/Sabo/openmower.elf -W > build/flash-info.html
+RUN ccache -s > build/ccache.txt
 
 FROM scratch
+COPY --from=builder /project/build/ccache.txt /ccache.txt
+COPY --from=builder /project/build/ram-info.html /ram-info.html
+COPY --from=builder /project/build/flash-info.html /flash-info.html
+
 COPY --from=builder /project/build/YardForce/openmower.bin /openmower-yardforce.bin
 COPY --from=builder /project/build/YardForce/openmower.elf /openmower-yardforce.elf
 
