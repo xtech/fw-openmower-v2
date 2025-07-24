@@ -11,6 +11,7 @@
 #include <lwipthread.h>
 #include <service_ids.h>
 
+#include <api.hpp>
 #include <boot_service_discovery.hpp>
 #include <filesystem/file.hpp>
 #include <filesystem/filesystem.hpp>
@@ -98,6 +99,8 @@ int main() {
       chThdSleep(TIME_S2I(1));
     }
   }
+
+  InitRestAPI();
 
   robot = GetRobot();
   if (!robot->IsHardwareSupported()) {
