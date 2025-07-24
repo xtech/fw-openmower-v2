@@ -27,8 +27,6 @@
  *====================*/
 
 /** Color depth: 1 (I1), 8 (L8), 16 (RGB565), 24 (RGB888), 32 (XRGB8888) */
-// Our display has shitty grayscale support, but at least 2 gray scales would look okay,
-// but didn't got L8 nor RGB565 working
 #define LV_COLOR_DEPTH 1
 
 /*=========================
@@ -206,7 +204,7 @@
  * - 0: Use a simple renderer capable of drawing only simple rectangles with gradient, images, text, and straight lines
  * only.
  * - 1: Use a complex renderer capable of drawing rounded corners, shadow, skew lines, and arcs too. */
-#define LV_DRAW_SW_COMPLEX 1
+#define LV_DRAW_SW_COMPLEX 0
 
 #if LV_DRAW_SW_COMPLEX == 1
 /** Allow buffering some shadow calculation.
@@ -346,7 +344,6 @@
 #endif
 
 /** Accelerate blends, fills, etc. with STM32 DMA2D */
-// TODO
 #define LV_USE_DRAW_DMA2D 0
 
 #if LV_USE_DRAW_DMA2D
@@ -367,7 +364,7 @@
  *-----------*/
 
 /** Enable log module */
-#define LV_USE_LOG 0
+#define LV_USE_LOG 1
 #if LV_USE_LOG
 /** Set value to one of the following levels of logging detail:
  *  - LV_LOG_LEVEL_TRACE    Log detailed information.
@@ -376,7 +373,7 @@
  *  - LV_LOG_LEVEL_ERROR    Log only critical issues, when system may fail.
  *  - LV_LOG_LEVEL_USER     Log only custom log messages added by the user.
  *  - LV_LOG_LEVEL_NONE     Do not log anything. */
-#define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
+#define LV_LOG_LEVEL LV_LOG_LEVEL_INFO
 
 /** - 1: Print log with 'printf';
  *  - 0: User needs to register a callback with `lv_log_register_print_cb()`. */
@@ -590,7 +587,7 @@
 #define LV_FONT_MONTSERRAT_8 0
 #define LV_FONT_MONTSERRAT_10 0
 #define LV_FONT_MONTSERRAT_12 0
-#define LV_FONT_MONTSERRAT_14 1
+#define LV_FONT_MONTSERRAT_14 0
 #define LV_FONT_MONTSERRAT_16 0
 #define LV_FONT_MONTSERRAT_18 0
 #define LV_FONT_MONTSERRAT_20 0
@@ -980,7 +977,7 @@
 #define LV_USE_FRAGMENT 0
 
 /** 1: Support using images as font in label or span widgets */
-#define LV_USE_IMGFONT 0
+#define LV_USE_IMGFONT 1
 
 /** 1: Enable an observer pattern implementation */
 #define LV_USE_OBSERVER 1

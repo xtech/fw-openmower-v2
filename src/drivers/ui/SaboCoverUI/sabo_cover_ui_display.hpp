@@ -10,13 +10,20 @@
 
 #include <cstring>
 
+#include "../lvgl/sabo_defs.hpp"
+#include "../lvgl/sabo_screen_boot.hpp"
+#include "../lvgl/sabo_screen_main.hpp"
 #include "ch.h"
 #include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
 
 namespace xbot::driver::ui {
 
-using namespace sabo::display;
+using namespace xbot::driver::ui::sabo::display;
+using namespace xbot::driver::ui::lvgl;
+using namespace xbot::driver::ui::lvgl::sabo;
+
+using SaboScreenBase = xbot::driver::ui::lvgl::ScreenBase<xbot::driver::ui::lvgl::sabo::ScreenId>;
 
 class SaboCoverUIDisplay {
  public:
@@ -38,6 +45,15 @@ class SaboCoverUIDisplay {
 
     // Init LVGL, CBs, buffer, display driver, ...
     lv_init();
+
+// LVGL-Logausgabe auf ULOG umleiten
+#if LV_USE_LOG
+    lv_log_register_print_cb([](lv_log_level_t level, const char* buf) {
+      (void)level;
+      ULOG_INFO("[LVGL] %s", buf);
+    });
+#endif
+
     lv_tick_set_cb(GetMillis);
 
     // 1/10 screen buffer / 8 pixel per byte, + 2*4 byte palette
@@ -54,6 +70,10 @@ class SaboCoverUIDisplay {
 
   void Start() {
     SaboCoverUIDisplayDriverUC1698::Instance().Start();
+
+    active_screen_ = new SaboScreenBoot();
+    active_screen_->Create();
+    active_screen_->Show();
   }
 
   void Tick() {
@@ -61,6 +81,18 @@ class SaboCoverUIDisplay {
     if (palReadLine(lcd_cfg_.pins.backlight) == PAL_HIGH &&
         chVTTimeElapsedSinceX(backlight_last_activity_) > BACKLIGHT_TIMEOUT) {
       palWriteLine(lcd_cfg_.pins.backlight, PAL_LOW);
+    }
+
+    if (active_screen_->GetScreenId() == ScreenId::BOOT) {
+      // Boot screen is active, switch to main screen after 3 seconds
+      // TODO: Change to real service checks or fancy anim
+      static systime_t boot_screen_start_time = chVTGetSystemTimeX();
+      if (chVTTimeElapsedSinceX(boot_screen_start_time) > TIME_S2I(300)) {
+        delete active_screen_;
+        active_screen_ = new SaboScreenMain();
+        active_screen_->Create();
+        active_screen_->Show();
+      }
     }
 
     // LCD & LVGL Timeout
@@ -72,7 +104,9 @@ class SaboCoverUIDisplay {
         static bool test_pattern_drawn = false;
         if (!test_pattern_drawn) {
           test_pattern_drawn = true;
-          create_bouncing_label();
+          // create_bouncing_label();
+          // create_bouncing_image();
+          //  lv_anim_refr_now();
         }
       }
       lv_timer_handler();  // Triggers LVGLFlushCB (if LVGL display content changed)
@@ -100,6 +134,8 @@ class SaboCoverUIDisplay {
 
   systime_t backlight_last_activity_ = 0;
   systime_t lcd_last_activity_ = 0;
+
+  SaboScreenBase* active_screen_ = nullptr;
 
   // ----- As long as we've no GUI, let's play Rovo's bounce anim -----
   typedef struct {
@@ -154,6 +190,27 @@ class SaboCoverUIDisplay {
     // Create timer to update position
     lv_timer_create(bounce_anim_cb, 100, &anim_data);
   }
+
+  /*  void create_bouncing_image() {
+      lv_obj_t* img1 = lv_image_create(lv_screen_active());
+      lv_image_set_src(img1, &mower_220x99x1);
+      //lv_img_set_src(img1, LV_SYMBOL_OK);
+      //lv_obj_set_style_img_opa(img1, LV_OPA_COVER, LV_PART_MAIN);
+      //lv_obj_align(img1, LV_ALIGN_CENTER, 0, 0);
+  */
+
+  /*lv_obj_t* label = lv_label_create(lv_screen_active());
+  lv_label_set_text(label, "OpenMower");
+  lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);*/
+
+  // lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+
+  // Create animation data
+  /*    static label_anim_data_t anim_data = {.obj = img1, .dx = 1, .dy = 1};
+
+      // Create timer to update position
+      lv_timer_create(bounce_anim_cb, 100, &anim_data);
+    }*/
 };
 
 }  // namespace xbot::driver::ui

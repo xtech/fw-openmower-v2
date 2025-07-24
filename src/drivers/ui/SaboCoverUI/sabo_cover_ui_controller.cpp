@@ -13,7 +13,7 @@
 
 namespace xbot::driver::ui {
 
-using namespace sabo;
+using namespace xbot::driver::ui::sabo;
 
 void SaboCoverUIController::Configure(const CoverUICfg& cui_cfg) {
   // Select the CoverUI driver based on the carrier board version and/or CoverUI Series

@@ -2,13 +2,15 @@
 
 #include <services.hpp>
 
+using namespace xbot::driver::ui::sabo;
+
 void SaboRobot::InitPlatform() {
   InitMotors();
   charger_.setI2C(&I2CD1);
   power_service.SetDriver(&charger_);
 
   // CoverUI
-  sabo::CoverUICfg cui_cfg;
+  CoverUICfg cui_cfg;
   if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
     // HW v0.1
     cui_cfg = {.cabo_cfg = {.spi = {.instance = &SPID1,

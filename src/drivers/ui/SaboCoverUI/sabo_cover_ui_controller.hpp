@@ -13,7 +13,7 @@
 
 namespace xbot::driver::ui {
 
-using namespace sabo;
+using namespace xbot::driver::ui::sabo;
 
 class SaboCoverUIController {
  public:
@@ -24,7 +24,7 @@ class SaboCoverUIController {
   static const char* ButtonIDToString(const ButtonID id);  // Get string for ButtonID
 
  private:
-  THD_WORKING_AREA(wa_, 4096);  // AH20250714 In use = 2912. Let's be save for future LVGL GUI
+  THD_WORKING_AREA(wa_, 4096);  // AH20250714 In use = 2912. Let's be save for LVGL GUI development
   thread_t* thread_ = nullptr;
 
   bool configured_ = false;

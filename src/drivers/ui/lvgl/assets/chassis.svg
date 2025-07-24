@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="109.70572mm"
+   height="53.205593mm"
+   viewBox="0 0 109.70572 53.205593"
+   version="1.1"
+   id="svg814"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   sodipodi:docname="mower.svg"
+   inkscape:dataloss="true"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview816"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.66635802"
+     inkscape:cx="396.93377"
+     inkscape:cy="561.25984"
+     inkscape:window-width="1920"
+     inkscape:window-height="1141"
+     inkscape:window-x="1920"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs811" />
+  <g
+     inkscape:label="Ebene 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-30.89046,-11.22378)">
+    <path
+       d="m 139.57126,15.500506 c -5.33188,-2.01586 -14.61664,-4.276725 -29.44257,-4.276725 -34.77154,0 -57.228579,18.378223 -58.210183,20.860808 h 22.268391 l 10.5918,-10.5918 h 20.031342 c 0.53207,-1.258887 1.79943,-2.131483 3.26443,-2.075656 1.75022,0.06641 3.19881,1.514739 3.26522,3.264958 0.0738,1.938338 -1.47585,3.532717 -3.39752,3.532717 -1.40917,0 -2.61778,-0.856986 -3.13372,-2.078302 H 85.873809 l -7.948084,7.948083 h 7.7216 c 0.576527,-1.364985 2.019036,-2.275152 3.639079,-2.04179 1.507596,0.217223 2.705365,1.461559 2.873111,2.975505 0.227277,2.051579 -1.372923,3.788304 -3.378729,3.788304 -1.408907,0 -2.617523,-0.856986 -3.133461,-2.078302 H 48.346367 c -2.897981,1.459441 -5.541962,2.859616 -7.877704,4.138877 h 9.795404 l 6.608234,6.608233 h 17.006093 c 0.576792,-1.36525 2.019036,-2.275152 3.639079,-2.04179 1.507596,0.217223 2.705365,1.461294 2.873111,2.97524 0.227277,2.051579 -1.372659,3.788569 -3.378465,3.788569 -1.409171,0 -2.617787,-0.85725 -3.133725,-2.078302 H 55.776926 L 49.168957,41.510899 H 35.765695 c -1.112044,0.641879 -2.09894,1.223698 -2.946929,1.731434 -1.978025,1.184275 -2.531534,3.798622 -1.204648,5.684043 l 4.213225,5.987521 -3.861065,7.180527 c -0.567796,1.055688 0.19685,2.334948 1.395413,2.334948 h 74.239699 c 1.69439,-3.150394 2.05052,-3.812646 3.74491,-6.962775 -2.57148,-3.94626 -4.06585,-8.658489 -4.06585,-13.719704 0,-13.681604 10.91274,-24.987779 24.51365,-25.161875 1.54146,-0.01984 4.45717,-0.02196 7.21254,-0.01826 1.76265,0.0024 2.21324,-2.442898 0.56462,-3.066256"
+       style="clip-rule:evenodd;display:inline;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke-width:0.264583;stroke-linejoin:round;stroke-miterlimit:2"
+       id="path419"
+       inkscape:export-filename="mower.svg"
+       inkscape:export-xdpi="24.37"
+       inkscape:export-ydpi="24.37" />
+  </g>
+</svg>
