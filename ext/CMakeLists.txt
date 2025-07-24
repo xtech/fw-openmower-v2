@@ -16,3 +16,6 @@ add_library(LittleFS littlefs/lfs.c littlefs/lfs_util.c)
 target_include_directories(LittleFS PUBLIC littlefs ../cfg)
 target_compile_definitions(LittleFS PUBLIC LFS_DEFINES=lfs_config.h)
 target_link_libraries(LittleFS PUBLIC ulog ChibiOS etl::etl)
+
+add_subdirectory(u8g2)
+target_compile_definitions(u8g2 PUBLIC U8X8_WITH_USER_PTR)

@@ -10,3 +10,6 @@
 [submodule "ext/littlefs"]
 	path = ext/littlefs
 	url = https://github.com/littlefs-project/littlefs.git
+[submodule "ext/u8g2"]
+	path = ext/u8g2
+	url = https://github.com/olikraus/u8g2
