@@ -895,6 +895,10 @@ typedef struct hal_uart_config {
    */
   uartcb_t                  timeout_cb;
   /**
+   * @brief Character Received callback.
+   */
+  uartcb_t                  rx_cm_cb;
+  /**
    * @brief   Receiver timeout value in terms of number of bit duration.
    * @details Set it to 0 when you want to handle idle interrupt instead of
    *          hardware timeout.

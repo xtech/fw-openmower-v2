@@ -1217,6 +1217,10 @@ void uart_lld_serve_interrupt(UARTDriver *uartp) {
   isr = u->ISR;
   u->ICR = isr;
 
+  if (isr & USART_ISR_CMF) {
+    _uart_rx_char_match_isr_code(uartp);
+  }
+
   if (isr & (USART_ISR_LBDF | USART_ISR_ORE | USART_ISR_NE |
              USART_ISR_FE   | USART_ISR_PE)) {
     _uart_rx_error_isr_code(uartp, translate_errors(isr));
