@@ -2,8 +2,11 @@
 #define SABO_ROBOT_HPP
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
 
 #include "robot.hpp"
+
+using namespace xbot::driver::ui;
 
 class SaboRobot : public MowerRobot {
  public:
@@ -39,6 +42,7 @@ class SaboRobot : public MowerRobot {
 
  private:
   BQ2576 charger_{};
+  SaboCoverUIController cover_ui_{};
 };
 
 #endif  // SABO_ROBOT_HPP

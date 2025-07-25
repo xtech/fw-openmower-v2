@@ -5,12 +5,13 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-#include <ch.h>
 #include <etl/delegate.h>
 #include <etl/initializer_list.h>
 #include <id_eeprom.h>
 
 #include <robot.hpp>
+
+#include "ch.h"
 
 extern Robot* robot;
 
