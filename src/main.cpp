@@ -99,6 +99,11 @@ int main() {
     }
   }
 
+#ifdef DEBUG_BUILD
+  // Give time for debugger to attach
+  chThdSleepMilliseconds(1000);
+#endif
+
   robot = GetRobot();
   if (!robot->IsHardwareSupported()) {
     SetStatusLedMode(LED_MODE_BLINK_FAST);
@@ -138,9 +143,6 @@ static void DispatchEvents() {
       eventflags_t flags = chEvtGetAndClearFlags(&event_listener);
       if (flags & MowerEvents::EMERGENCY_CHANGED) {
         diff_drive.OnEmergencyChangedEvent();
-        if (robot->NeedsService(xbot::service_ids::MOWER)) {
-          mower_service.OnEmergencyChangedEvent();
-        }
       }
       if (flags & MowerEvents::INPUTS_CHANGED) {
         input_service.OnInputsChangedEvent();
