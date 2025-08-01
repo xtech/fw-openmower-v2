@@ -40,6 +40,10 @@ class SaboRobot : public MowerRobot {
     return 7.0f * 3.0;
   }
 
+  CHARGER_STATUS GetChargerStatus() {
+    return charger_.getChargerStatus();
+  }
+
  private:
   BQ2576 charger_{};
   SaboCoverUIController cover_ui_{};

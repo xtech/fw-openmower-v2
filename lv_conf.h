@@ -178,7 +178,7 @@
 #define LV_DRAW_SW_SUPPORT_RGB565A8 0
 #define LV_DRAW_SW_SUPPORT_RGB888 0
 #define LV_DRAW_SW_SUPPORT_XRGB8888 0
-#define LV_DRAW_SW_SUPPORT_ARGB8888 0
+#define LV_DRAW_SW_SUPPORT_ARGB8888 1
 #define LV_DRAW_SW_SUPPORT_ARGB8888_PREMULTIPLIED 0
 #define LV_DRAW_SW_SUPPORT_L8 0
 #define LV_DRAW_SW_SUPPORT_AL88 0
@@ -204,7 +204,7 @@
  * - 0: Use a simple renderer capable of drawing only simple rectangles with gradient, images, text, and straight lines
  * only.
  * - 1: Use a complex renderer capable of drawing rounded corners, shadow, skew lines, and arcs too. */
-#define LV_DRAW_SW_COMPLEX 0
+#define LV_DRAW_SW_COMPLEX 1
 
 #if LV_DRAW_SW_COMPLEX == 1
 /** Allow buffering some shadow calculation.
@@ -373,7 +373,7 @@
  *  - LV_LOG_LEVEL_ERROR    Log only critical issues, when system may fail.
  *  - LV_LOG_LEVEL_USER     Log only custom log messages added by the user.
  *  - LV_LOG_LEVEL_NONE     Do not log anything. */
-#define LV_LOG_LEVEL LV_LOG_LEVEL_INFO
+#define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
 
 /** - 1: Print log with 'printf';
  *  - 0: User needs to register a callback with `lv_log_register_print_cb()`. */
@@ -616,7 +616,7 @@
 
 /** Pixel perfect monospaced fonts */
 #define LV_FONT_UNSCII_8 1
-#define LV_FONT_UNSCII_16 1
+#define LV_FONT_UNSCII_16 0
 
 /** Optionally declare custom fonts here.
  *

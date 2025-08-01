@@ -11,6 +11,10 @@
 #include "sabo_defs.hpp"
 #include "screen_base.hpp"
 
+extern "C" {
+LV_FONT_DECLARE(orbitron_12);
+}
+
 namespace xbot::driver::ui::lvgl::sabo {
 
 class SaboScreenMain : public ScreenBase<sabo::ScreenId> {
@@ -22,8 +26,9 @@ class SaboScreenMain : public ScreenBase<sabo::ScreenId> {
     ScreenBase::Create(bg_color);
 
     lv_obj_t* title_label = lv_label_create(screen_);
-    lv_label_set_text(title_label, "OpenMower @ SABO");
+    lv_label_set_text(title_label, "ToDo: MainScreen @ SABO");
     lv_obj_set_style_text_color(title_label, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(title_label, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(title_label, LV_ALIGN_CENTER, 0, 0);
   }
 

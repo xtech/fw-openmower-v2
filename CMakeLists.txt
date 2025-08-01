@@ -46,6 +46,12 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user defined library search paths
 )
 
+# Add LVGL assets
+file(GLOB LVGL_ASSETS_SRC
+    "src/drivers/ui/lvgl/assets/*.c"
+    "src/drivers/ui/lvgl/assets/Orbitron/*.c"
+)
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         boards/XCORE/board_utils.cpp
@@ -91,14 +97,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_display_driver_uc1698.cpp
-        src/drivers/ui/lvgl/assets/chassis_193x94x1.c
-        src/drivers/ui/lvgl/assets/wheel_83x83x1.c
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
         src/debug/debuggable_driver.cpp
         robots/src/robot.cpp
         ${PLATFORM_SOURCES}
+        ${LVGL_ASSETS_SRC}
 )
 
 # Add include paths

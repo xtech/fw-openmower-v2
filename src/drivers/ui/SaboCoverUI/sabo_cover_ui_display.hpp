@@ -22,6 +22,7 @@ namespace xbot::driver::ui {
 using namespace xbot::driver::ui::sabo::display;
 using namespace xbot::driver::ui::lvgl;
 using namespace xbot::driver::ui::lvgl::sabo;
+using DriverUC1698 = SaboCoverUIDisplayDriverUC1698;
 
 using SaboScreenBase = xbot::driver::ui::lvgl::ScreenBase<xbot::driver::ui::lvgl::sabo::ScreenId>;
 
@@ -38,7 +39,7 @@ class SaboCoverUIDisplay {
     }
 
     // Initialize and start the LCD driver
-    if (!SaboCoverUIDisplayDriverUC1698::Instance(&lcd_cfg_).Init()) {
+    if (!DriverUC1698::Instance(&lcd_cfg_).Init()) {
       ULOG_ERROR("SaboCoverUIDisplayDriverUC1698 initialization failed!");
       return true;  // We shouldn't fail here for those without a connected display
     }
@@ -46,7 +47,7 @@ class SaboCoverUIDisplay {
     // Init LVGL, CBs, buffer, display driver, ...
     lv_init();
 
-// LVGL-Logausgabe auf ULOG umleiten
+    // Redirect LVGL log output to ULOG
 #if LV_USE_LOG
     lv_log_register_print_cb([](lv_log_level_t level, const char* buf) {
       (void)level;
@@ -54,26 +55,49 @@ class SaboCoverUIDisplay {
     });
 #endif
 
-    lv_tick_set_cb(GetMillis);
+    lv_tick_set_cb([]() -> uint32_t { return TIME_I2MS(chVTGetSystemTimeX()); });
 
-    // 1/10 screen buffer / 8 pixel per byte, + 2*4 byte palette
+    // 1/BUFFER_FRACTION screen buffer / 8 pixel per byte, + 2*4 byte palette
     static uint8_t draw_buf1[(LCD_WIDTH * LCD_HEIGHT / BUFFER_FRACTION / 8) + 8];
     lvgl_display_ = lv_display_create(LCD_WIDTH, LCD_HEIGHT);
-    lv_display_add_event_cb(lvgl_display_, SaboCoverUIDisplayDriverUC1698::LVGLRounderCB, LV_EVENT_INVALIDATE_AREA,
-                            NULL);
-    lv_display_set_flush_cb(lvgl_display_, SaboCoverUIDisplayDriverUC1698::LVGLFlushCB);
-    lv_display_set_flush_wait_cb(lvgl_display_, SaboCoverUIDisplayDriverUC1698::LVGLFlushWaitCB);
+    lv_display_add_event_cb(lvgl_display_, DriverUC1698::LVGLRounderCB, LV_EVENT_INVALIDATE_AREA, NULL);
+    lv_display_set_flush_cb(lvgl_display_, DriverUC1698::LVGLFlushCB);
+    lv_display_set_flush_wait_cb(lvgl_display_, DriverUC1698::LVGLFlushWaitCB);
     lv_display_set_buffers(lvgl_display_, draw_buf1, NULL, sizeof(draw_buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     return true;
   };
 
   void Start() {
-    SaboCoverUIDisplayDriverUC1698::Instance().Start();
+    DriverUC1698::Instance().Start();
 
-    active_screen_ = new SaboScreenBoot();
-    active_screen_->Create();
-    active_screen_->Show();
+    ShowBootScreen();
+  }
+
+  void SetBootStatus(const etl::string_view& text, int progress) {
+    if (screen_boot_) screen_boot_->SetBootStatus(text, progress);
+  }
+
+  void ShowBootScreen() {
+    if (!screen_boot_) {
+      screen_boot_ = new SaboScreenBoot();
+      screen_boot_->Create();
+    }
+    active_screen_ = screen_boot_;
+    screen_boot_->Show();
+  }
+
+  void ShowMainScreen() {
+    if (!screen_main_) {
+      screen_main_ = new SaboScreenMain();
+      screen_main_->Create();
+    }
+    active_screen_ = screen_main_;
+    screen_main_->Show();
+    if (screen_boot_) {
+      delete screen_boot_;
+      screen_boot_ = nullptr;
+    }
   }
 
   void Tick() {
@@ -96,9 +120,9 @@ class SaboCoverUIDisplay {
     }
 
     // LCD & LVGL Timeout
-    if (lvgl_display_ && SaboCoverUIDisplayDriverUC1698::Instance().IsDisplayEnabled()) {
+    if (lvgl_display_ && DriverUC1698::Instance().IsDisplayEnabled()) {
       if (chVTTimeElapsedSinceX(lcd_last_activity_) > LCD_SLEEP_TIMEOUT) {
-        SaboCoverUIDisplayDriverUC1698::Instance().SetDisplayEnable(false);
+        DriverUC1698::Instance().SetDisplayEnable(false);
       } else {
         // One time Test-Pattern
         static bool test_pattern_drawn = false;
@@ -115,8 +139,9 @@ class SaboCoverUIDisplay {
 
   void WakeUp() {
     // Enable Display
-    if (!SaboCoverUIDisplayDriverUC1698::Instance().IsDisplayEnabled())
-      SaboCoverUIDisplayDriverUC1698::Instance().SetDisplayEnable(true);
+    if (!DriverUC1698::Instance().IsDisplayEnabled()) {
+      DriverUC1698::Instance().SetDisplayEnable(true);
+    }
     lcd_last_activity_ = chVTGetSystemTimeX();
 
     // Backlight on
@@ -124,8 +149,16 @@ class SaboCoverUIDisplay {
     backlight_last_activity_ = chVTGetSystemTimeX();
   }
 
-  static uint32_t GetMillis(void) {
-    return TIME_I2MS(chVTGetSystemTimeX());
+  SaboScreenBase* GetActiveScreen() const {
+    return active_screen_;
+  }
+
+  SaboScreenBoot* GetBootScreen() const {
+    return screen_boot_;
+  }
+
+  SaboScreenMain* GetMainScreen() const {
+    return screen_main_;
   }
 
  private:
@@ -135,83 +168,9 @@ class SaboCoverUIDisplay {
   systime_t backlight_last_activity_ = 0;
   systime_t lcd_last_activity_ = 0;
 
+  SaboScreenBoot* screen_boot_ = nullptr;
+  SaboScreenMain* screen_main_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
-
-  // ----- As long as we've no GUI, let's play Rovo's bounce anim -----
-  typedef struct {
-    lv_obj_t* obj;
-    int dx;
-    int dy;
-  } label_anim_data_t;
-
-  static void bounce_anim_cb(lv_timer_t* timer) {
-    label_anim_data_t* data = (label_anim_data_t*)lv_timer_get_user_data(timer);
-    lv_obj_t* obj = data->obj;
-
-    // Get current position
-    lv_coord_t x = lv_obj_get_x(obj);
-    lv_coord_t y = lv_obj_get_y(obj);
-
-    // Get object size and screen size
-    lv_coord_t w = lv_obj_get_width(obj);
-    lv_coord_t h = lv_obj_get_height(obj);
-    lv_coord_t sw = lv_obj_get_width(lv_screen_active());
-    lv_coord_t sh = lv_obj_get_height(lv_screen_active());
-
-    // Update position
-    x += data->dx;
-    y += data->dy;
-
-    // Bounce from edges
-    if (x <= 0 || (x + w) >= sw) {
-      data->dx = -data->dx;
-      x += data->dx;
-    }
-
-    if (y <= 0 || (y + h) >= sh) {
-      data->dy = -data->dy;
-      y += data->dy;
-    }
-
-    // Set new position
-    lv_obj_set_pos(obj, x, y);
-  }
-
-  void create_bouncing_label() {
-    lv_obj_t* label = lv_label_create(lv_screen_active());
-    lv_label_set_text(label, "OpenMower");
-    lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
-
-    // lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
-
-    // Create animation data
-    static label_anim_data_t anim_data = {.obj = label, .dx = 1, .dy = 1};
-
-    // Create timer to update position
-    lv_timer_create(bounce_anim_cb, 100, &anim_data);
-  }
-
-  /*  void create_bouncing_image() {
-      lv_obj_t* img1 = lv_image_create(lv_screen_active());
-      lv_image_set_src(img1, &mower_220x99x1);
-      //lv_img_set_src(img1, LV_SYMBOL_OK);
-      //lv_obj_set_style_img_opa(img1, LV_OPA_COVER, LV_PART_MAIN);
-      //lv_obj_align(img1, LV_ALIGN_CENTER, 0, 0);
-  */
-
-  /*lv_obj_t* label = lv_label_create(lv_screen_active());
-  lv_label_set_text(label, "OpenMower");
-  lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);*/
-
-  // lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
-
-  // Create animation data
-  /*    static label_anim_data_t anim_data = {.obj = img1, .dx = 1, .dy = 1};
-
-      // Create timer to update position
-      lv_timer_create(bounce_anim_cb, 100, &anim_data);
-    }*/
 };
-
 }  // namespace xbot::driver::ui
 #endif  // OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
