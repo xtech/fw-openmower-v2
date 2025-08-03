@@ -55,11 +55,15 @@ class MotorDriver {
     state_callback_ = function;
   }
 
- protected:
   bool IsStarted() {
     return started_;
   }
 
+  ESCState GetLatestState() const {
+    return latest_state_;
+  }
+
+ protected:
   void NotifyCallback() {
     chDbgAssert(started_, "Notify can only be called after driver started.");
     if (state_callback_) {
