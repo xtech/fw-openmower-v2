@@ -8,6 +8,7 @@
 #include <services.hpp>
 
 #include "chprintf.h"
+#include "globals.hpp"
 #include "hal.h"
 #include "robots/include/sabo_robot.hpp"
 #include "sabo_cover_ui_display.hpp"
@@ -220,18 +221,21 @@ bool SaboCoverUIController::TestGPS() {
 }
 
 bool SaboCoverUIController::TestLeftESC() {
-  auto esc_state = diff_drive.GetLeftESCState();
-  return esc_state.status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_OK;
+  if (!robot) return false;
+  auto* sabo = static_cast<SaboRobot*>(robot);
+  return sabo->TestLeftESC();
 }
 
 bool SaboCoverUIController::TestRightESC() {
-  auto esc_state = diff_drive.GetRightESCState();
-  return esc_state.status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_OK;
+  if (!robot) return false;
+  auto* sabo = static_cast<SaboRobot*>(robot);
+  return sabo->TestRightESC();
 }
 
 bool SaboCoverUIController::TestMowerESC() {
-  auto esc_state = mower_service.GetESCState();
-  return esc_state.status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_OK;
+  if (!robot) return false;
+  auto* sabo = static_cast<SaboRobot*>(robot);
+  return sabo->TestMowerESC();
 }
 
 void SaboCoverUIController::ThreadFunc() {

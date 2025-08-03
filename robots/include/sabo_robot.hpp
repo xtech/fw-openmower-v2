@@ -7,6 +7,7 @@
 #include "robot.hpp"
 
 using namespace xbot::driver::ui;
+using namespace xbot::driver::motor;
 
 class SaboRobot : public MowerRobot {
  public:
@@ -40,8 +41,21 @@ class SaboRobot : public MowerRobot {
     return 7.0f * 3.0;
   }
 
+  // ----- Some driver Test* functions used by Boot-Screen -----
+
   CHARGER_STATUS GetChargerStatus() {
     return charger_.getChargerStatus();
+  }
+
+  bool TestESC(VescDriver& motor_driver);
+  bool TestLeftESC() {
+    return TestESC(left_motor_driver_);
+  }
+  bool TestRightESC() {
+    return TestESC(right_motor_driver_);
+  }
+  bool TestMowerESC() {
+    return TestESC(mower_motor_driver_);
   }
 
  private:

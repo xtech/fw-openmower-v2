@@ -44,3 +44,15 @@ bool SaboRobot::IsHardwareSupported() {
 
   return false;
 }
+
+bool SaboRobot::TestESC(VescDriver& motor_driver) {
+  if (!motor_driver.IsStarted()) return false;
+
+  if (motor_driver.GetLatestState().status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED) {
+    motor_driver.RequestStatus();
+    // Give ESC driver some time to respond so that callee don't need to go into retry loop
+    chThdSleepMilliseconds(100);
+  }
+
+  return motor_driver.GetLatestState().status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_OK;
+}

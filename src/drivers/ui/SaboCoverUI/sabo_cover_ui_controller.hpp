@@ -44,7 +44,7 @@ class SaboCoverUIController {
     BootStepState state = BootStepState::WAIT;
     systime_t last_action_time = 0;
   };
-  static constexpr size_t BOOT_STEP_COUNT_ = 7;
+  static constexpr size_t BOOT_STEP_COUNT_ = 6;
   etl::array<SaboCoverUIController::BootStep, BOOT_STEP_COUNT_> boot_steps_ = {{
       {"Motion Sensor", &TestIMU},
       {"Charger", &TestCharger},
@@ -52,7 +52,6 @@ class SaboCoverUIController {
       {"Left Motor", &TestLeftESC},
       {"Right Motor", &TestRightESC},
       {"Mower Motor", &TestMowerESC},
-      {"Flux Compensator", &TestFluxCompensator},
   }};
   size_t current_boot_step_ = 0;
   static constexpr size_t BOOT_STEP_RETRIES = 3;
@@ -66,9 +65,6 @@ class SaboCoverUIController {
   static bool TestLeftESC();
   static bool TestRightESC();
   static bool TestMowerESC();
-  static bool TestFluxCompensator() {
-    return false;  // Placeholder for a non-existent service
-  }
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();

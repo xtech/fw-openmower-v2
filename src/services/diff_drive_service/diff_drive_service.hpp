@@ -43,14 +43,6 @@ class DiffDriveService : public DiffDriveServiceBase {
 
   void OnEmergencyChangedEvent();
 
-  MotorDriver::ESCState GetLeftESCState() const {
-    return left_esc_state_;
-  }
-
-  MotorDriver::ESCState GetRightESCState() const {
-    return right_esc_state_;
-  }
-
   void SetDrivers(MotorDriver *left_driver, MotorDriver *right_driver);
 
  protected:
