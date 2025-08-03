@@ -26,7 +26,7 @@ class SaboCoverUIController {
   static const char* ButtonIDToString(const ButtonID id);  // Get string for ButtonID
 
  private:
-  THD_WORKING_AREA(wa_, 5120);  // AH20250801 In use = 3808. Let's be save (+1k) for LVGL GUI development
+  THD_WORKING_AREA(wa_, 5120);  // AH20250803 In use = 3744. Let's be save (+1k) for LVGL GUI development
   thread_t* thread_ = nullptr;
 
   bool configured_ = false;
