@@ -211,10 +211,6 @@ bool SaboCoverUIController::TestCharger() {
   return status != CHARGER_STATUS::FAULT && status != CHARGER_STATUS::COMMS_ERROR;
 }
 
-bool SaboCoverUIController::TestGPS() {
-  return true;
-}
-
 bool SaboCoverUIController::TestLeftESC() {
   if (!robot) return false;
   auto* sabo = static_cast<SaboRobot*>(robot);
