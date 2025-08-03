@@ -204,16 +204,11 @@ bool SaboCoverUIController::TestIMU() {
 }
 
 bool SaboCoverUIController::TestCharger() {
-  Robot* robot = GetRobot();
   if (!robot) return false;
-
   auto* sabo = static_cast<SaboRobot*>(robot);
-  if (!sabo) return false;
 
   const CHARGER_STATUS status = sabo->GetChargerStatus();
-  // TODO: Why do I get COMMS_ERROR here?
-  // return status != CHARGER_STATUS::FAULT && status != CHARGER_STATUS::COMMS_ERROR;
-  return status != CHARGER_STATUS::FAULT;
+  return status != CHARGER_STATUS::FAULT && status != CHARGER_STATUS::COMMS_ERROR;
 }
 
 bool SaboCoverUIController::TestGPS() {
