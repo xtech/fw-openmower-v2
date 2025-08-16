@@ -7,6 +7,7 @@
 #include "../include/worx_robot.hpp"
 #include "../include/xbot_robot.hpp"
 #include "../include/yardforce_robot.hpp"
+#include "../include/yardforce_v4_robot.hpp"
 
 #define EXPAND(x) x
 #define ROBOT_CLASS_NAME(platform) platform##Robot
