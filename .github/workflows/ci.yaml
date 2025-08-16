@@ -42,6 +42,8 @@ jobs:
           mkdir artifacts
           cp ./out/openmower-yardforce.bin ./artifacts
           cp ./out/openmower-yardforce.elf ./artifacts
+          cp ./out/openmower-yardforce-v4.bin ./artifacts
+          cp ./out/openmower-yardforce-v4.elf ./artifacts
           cp ./out/openmower-worx.bin ./artifacts
           cp ./out/openmower-worx.elf ./artifacts
           cp ./out/openmower-lyfco-e1600.bin ./artifacts
