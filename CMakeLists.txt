@@ -76,6 +76,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/motor/vesc/buffer.cpp
         src/drivers/motor/vesc/crc.cpp
         src/drivers/motor/vesc/VescDriver.cpp
+        # YFR4-ESC driver
+        src/drivers/motor/yfr4esc/YFR4escDriver.cpp
         # PWM motor driver
         src/drivers/motor/pwm/pwm_motor_driver.cpp
         # GPS driver
