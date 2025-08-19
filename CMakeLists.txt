@@ -94,6 +94,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/debug/debuggable_driver.cpp
         robots/src/robot.cpp
         ${PLATFORM_SOURCES}
+        # REST API
+        src/api.cpp
 )
 
 # Add include paths
@@ -120,6 +122,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         etl::etl
         LittleFS
         lwjson
+        mongoose
 )
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)

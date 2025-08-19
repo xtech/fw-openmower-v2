@@ -16,3 +16,8 @@ add_library(LittleFS littlefs/lfs.c littlefs/lfs_util.c)
 target_include_directories(LittleFS PUBLIC littlefs ../cfg)
 target_compile_definitions(LittleFS PUBLIC LFS_DEFINES=lfs_config.h)
 target_link_libraries(LittleFS PUBLIC ulog ChibiOS etl::etl)
+
+add_library(mongoose mongoose/mongoose.c)
+target_include_directories(mongoose PUBLIC mongoose)
+target_link_libraries(mongoose PUBLIC ChibiOS)
+target_compile_definitions(mongoose PUBLIC MG_ARCH=MG_ARCH_CUSTOM)

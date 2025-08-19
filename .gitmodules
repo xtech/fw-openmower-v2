@@ -10,3 +10,6 @@
 [submodule "ext/littlefs"]
 	path = ext/littlefs
 	url = https://github.com/littlefs-project/littlefs.git
+[submodule "ext/mongoose"]
+	path = ext/mongoose
+	url = https://github.com/cesanta/mongoose.git
