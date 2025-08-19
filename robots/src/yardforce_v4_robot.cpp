@@ -3,6 +3,7 @@
 #include <services.hpp>
 
 void YardForce_V4Robot::InitPlatform() {
+  // Initialize default motors (VESC for left/right + mower)
   InitMotors();
   charger_.setI2C(&I2CD1);
   power_service.SetDriver(&charger_);
