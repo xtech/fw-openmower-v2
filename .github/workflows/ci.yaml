@@ -68,9 +68,9 @@ jobs:
           name: openmower
           path: artifacts
       - name: Compress release directory into a versioned ZIP file
-        run: zip -r "xcore-boot-${{ github.ref_name }}.zip" artifacts/*
+        run: cd artifacts && zip -r "../fw-openmower-v2-${{ github.ref_name }}.zip" .
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
-          files: "xcore-boot-${{ github.ref_name }}.zip"
+          files: "fw-openmower-v2-${{ github.ref_name }}.zip"
