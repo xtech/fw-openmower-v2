@@ -47,7 +47,15 @@ class SaboRobot : public MowerRobot {
     return charger_.getChargerStatus();
   }
 
-  bool TestESC(VescDriver& motor_driver);
+  template <typename EscDriver>
+  bool TestESC(EscDriver& motor_driver) {
+    if (!motor_driver.IsStarted()) return false;
+    if (motor_driver.GetLatestState().status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED) {
+      motor_driver.RequestStatus();
+      chThdSleepMilliseconds(100);  // give it a chance to respond
+    }
+    return motor_driver.GetLatestState().status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_OK;
+  }
   bool TestLeftESC() {
     return TestESC(left_motor_driver_);
   }
