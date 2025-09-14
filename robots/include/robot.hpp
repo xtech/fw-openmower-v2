@@ -2,6 +2,7 @@
 #define ROBOT_HPP
 
 #include <drivers/motor/vesc/VescDriver.h>
+#include <drivers/motor/yfr4esc/YFR4escDriver.h>
 #include <hal.h>
 
 #include <debug/debug_tcp_interface.hpp>
@@ -48,7 +49,14 @@ class MowerRobot : public Robot {
 
   xbot::driver::motor::VescDriver left_motor_driver_{};
   xbot::driver::motor::VescDriver right_motor_driver_{};
-  xbot::driver::motor::VescDriver mower_motor_driver_{};
+
+  // Select mower motor ESC by platform: YFR4 on YardForce_V4, VESC otherwise
+#if defined(ROBOT_PLATFORM_YardForce_V4)
+  using MowerEscDriver = xbot::driver::motor::YFR4escDriver;
+#else
+  using MowerEscDriver = xbot::driver::motor::VescDriver;
+#endif
+  MowerEscDriver mower_motor_driver_{};
 
   DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver_};
   DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver_};

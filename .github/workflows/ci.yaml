@@ -42,12 +42,16 @@ jobs:
           mkdir artifacts
           cp ./out/openmower-yardforce.bin ./artifacts
           cp ./out/openmower-yardforce.elf ./artifacts
+          cp ./out/openmower-yardforce-v4.bin ./artifacts
+          cp ./out/openmower-yardforce-v4.elf ./artifacts
           cp ./out/openmower-worx.bin ./artifacts
           cp ./out/openmower-worx.elf ./artifacts
           cp ./out/openmower-lyfco-e1600.bin ./artifacts
           cp ./out/openmower-lyfco-e1600.elf ./artifacts
           cp ./out/openmower-sabo.bin ./artifacts
           cp ./out/openmower-sabo.elf ./artifacts
+          cp ./out/ram-info.html ./artifacts
+          cp ./out/flash-info.html ./artifacts
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -64,9 +68,9 @@ jobs:
           name: openmower
           path: artifacts
       - name: Compress release directory into a versioned ZIP file
-        run: zip -r "xcore-boot-${{ github.ref_name }}.zip" artifacts/*
+        run: cd artifacts && zip -r "../fw-openmower-v2-${{ github.ref_name }}.zip" .
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
-          files: "xcore-boot-${{ github.ref_name }}.zip"
+          files: "fw-openmower-v2-${{ github.ref_name }}.zip"

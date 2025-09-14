@@ -81,6 +81,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/motor/vesc/buffer.cpp
         src/drivers/motor/vesc/crc.cpp
         src/drivers/motor/vesc/VescDriver.cpp
+        # YFR4-ESC driver
+        src/drivers/motor/yfr4esc/YFR4escDriver.cpp
         # PWM motor driver
         src/drivers/motor/pwm/pwm_motor_driver.cpp
         # GPS driver
@@ -155,3 +157,16 @@ add_custom_target(upload
         COMMAND docker run --rm --network=host -v ${CMAKE_BINARY_DIR}:/workdir ghcr.io/xtech/fw-xcore-boot:latest -i tap0 upload /workdir/${CMAKE_PROJECT_NAME}.bin
         DEPENDS ${CMAKE_PROJECT_NAME}
 )
+
+# Check if elf-size-analyze is available
+find_program(ELF_SIZE_ANALYZE_EXECUTABLE elf-size-analyze)
+
+if(ELF_SIZE_ANALYZE_EXECUTABLE)
+    add_custom_command(
+            TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+            COMMAND ${ELF_SIZE_ANALYZE_EXECUTABLE} -R -t arm-none-eabi- ${CMAKE_PROJECT_NAME}.elf
+            COMMENT "Running elf-size-analyze on target binary..."
+    )
+else()
+    message(WARNING "elf-size-analyze not found! Skipping size analysis.")
+endif()

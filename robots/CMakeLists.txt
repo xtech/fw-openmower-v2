@@ -6,20 +6,8 @@ else()
     message("Selected Robot Platform: ${ROBOT_PLATFORM}")
 endif ()
 
-string(TOLOWER "${ROBOT_PLATFORM}" ROBOT_PLATFORM_LOWER)
+# find the platform sources and add them
+file(GLOB_RECURSE PLATFORM_SOURCES "${CMAKE_CURRENT_LIST_DIR}/src/*")
 
-# Common Robot sources
-file(GLOB ROBOT_COMMON_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/src/robot.cpp"
-)
-
-# Robot specific sources
-file(GLOB ROBOT_PLATFORM_SOURCES
-    "${CMAKE_CURRENT_LIST_DIR}/src/${ROBOT_PLATFORM_LOWER}_*.cpp"
-)
-
-# Zusammenführen und nach oben geben
-set(PLATFORM_SOURCES
-    ${ROBOT_COMMON_SOURCES}
-    ${ROBOT_PLATFORM_SOURCES}
-)
+# Expose a preprocessor guard like ROBOT_PLATFORM_YardForce_V4=1 for #ifdef use
+add_compile_definitions(ROBOT_PLATFORM_${ROBOT_PLATFORM}=1)
