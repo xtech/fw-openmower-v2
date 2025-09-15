@@ -99,11 +99,6 @@ int main() {
     }
   }
 
-#ifdef DEBUG_BUILD
-  // Give time for debugger to attach
-  chThdSleepMilliseconds(1000);
-#endif
-
   robot = GetRobot();
   if (!robot->IsHardwareSupported()) {
     SetStatusLedMode(LED_MODE_BLINK_FAST);
