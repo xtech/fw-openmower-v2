@@ -16,10 +16,11 @@ namespace xbot::driver::motor {
 
 using namespace yfr4esc;
 
-// Event when the RX DMA buffer wrapped (full) and was re-armed.
-static constexpr uint32_t EVT_RX_DMA_WRAP = 1;
+// Events signaled to the processing thread.
+static constexpr eventmask_t EVT_RX_DMA_WRAP = (1U << 0);    // DMA buffer full/wrap
+static constexpr eventmask_t EVT_RX_CHAR_MATCH = (1U << 1);  // Character match (0x0) received
 
-bool YFR4escDriver::SetUART(UARTDriver *uart, uint32_t baudrate) {
+bool YFR4escDriver::SetUART(UARTDriver* uart, uint32_t baudrate) {
   chDbgAssert(!IsStarted(), "Only set UART when the driver is stopped");
   chDbgAssert(uart != nullptr, "need to provide a driver");
   if (IsStarted()) return false;
@@ -27,11 +28,14 @@ bool YFR4escDriver::SetUART(UARTDriver *uart, uint32_t baudrate) {
   uart_ = uart;
   uart_config_.speed = baudrate;
   uart_config_.context = this;
+  // Character-Match interrupt to trigger on COBS end marker (0x0).
+  uart_config_.cr2 = ('\0' << USART_CR2_ADD_Pos);  // Just for intent character match
+  uart_config_.cr1 |= USART_CR1_CMIE;
 
   return true;
 }
 
-void YFR4escDriver::ProcessDecodedPacket(uint8_t *packet, size_t len) {
+void YFR4escDriver::ProcessDecodedPacket(uint8_t* packet, size_t len) {
   // Packages have to be at least 1 byte of type + 1 byte of data + 2 bytes of CRC
   if (len < 4) {
     ULOGT_EVERY_MS(WARNING, 500, "Decoded packet too short (%zu bytes). Dropping!", len);
@@ -89,10 +93,10 @@ void YFR4escDriver::ProcessDecodedPacket(uint8_t *packet, size_t len) {
   }
 }
 
-void YFR4escDriver::ProcessRxBytes(const volatile uint8_t *data, size_t len) {
+void YFR4escDriver::ProcessRxBytes(const volatile uint8_t* data, size_t len) {
   if (len == 0) return;
   if (IsRawMode()) {
-    RawDataOutput(const_cast<uint8_t *>(data), len);
+    RawDataOutput(const_cast<uint8_t*>(data), len);
     return;
   }
   for (size_t i = 0; i < len; ++i) {
@@ -123,11 +127,11 @@ void YFR4escDriver::SetDuty(float duty) {
 
 void YFR4escDriver::SendControl(float duty) {
   ControlPacket cp{.message_type = MessageType::CONTROL, .duty_cycle = static_cast<double>(duty), .crc = 0};
-  const uint8_t *payload = reinterpret_cast<const uint8_t *>(&cp);
+  const uint8_t* payload = reinterpret_cast<const uint8_t*>(&cp);
   cp.crc = yfr4esc_crc::crc16_ccitt_false(payload, sizeof(ControlPacket) - sizeof(cp.crc));
 
   chMtxLock(&mutex_);  // protect shared tx_buffer_ and send
-  size_t len = cobs_encode(reinterpret_cast<const uint8_t *>(&cp), sizeof(cp), tx_buffer_);
+  size_t len = cobs_encode(reinterpret_cast<const uint8_t*>(&cp), sizeof(cp), tx_buffer_);
   if (len + 1 > TX_BUFFER_SIZE) {
     ULOGT_EVERY_MS(WARNING, 1000, "TX control frame too large: len=%u", (unsigned)len);
     chMtxUnlock(&mutex_);
@@ -147,11 +151,11 @@ void YFR4escDriver::SendSettings() {
                     .crc = 0};
 
   // Compute CRC over message_type + data only (exclude crc), store as-is (LE on wire)
-  const uint8_t *payload = reinterpret_cast<const uint8_t *>(&sp);
+  const uint8_t* payload = reinterpret_cast<const uint8_t*>(&sp);
   sp.crc = yfr4esc_crc::crc16_ccitt_false(payload, sizeof(SettingsPacket) - sizeof(sp.crc));
 
   chMtxLock(&mutex_);  // protect shared tx_buffer_ and send
-  size_t len = cobs_encode(reinterpret_cast<const uint8_t *>(&sp), sizeof(SettingsPacket), tx_buffer_);
+  size_t len = cobs_encode(reinterpret_cast<const uint8_t*>(&sp), sizeof(SettingsPacket), tx_buffer_);
   if (len + 1 > TX_BUFFER_SIZE) {
     ULOGT_EVERY_MS(WARNING, 1000, "TX settings frame too large: len=%u", (unsigned)len);
     chMtxUnlock(&mutex_);
@@ -162,7 +166,7 @@ void YFR4escDriver::SendSettings() {
   chMtxUnlock(&mutex_);
 }
 
-void YFR4escDriver::RawDataInput(uint8_t *data, size_t size) {
+void YFR4escDriver::RawDataInput(uint8_t* data, size_t size) {
   if (!IsRawMode() || !IsStarted()) return;
   chMtxLock(&mutex_);
   size_t len = size > TX_BUFFER_SIZE ? TX_BUFFER_SIZE : size;
@@ -175,17 +179,24 @@ bool YFR4escDriver::Start() {
   chDbgAssert(!IsStarted(), "don't start the driver twice");
   if (IsStarted()) return false;
 
-  // Configure RX callback
-  uart_config_.rxend_cb = [](UARTDriver *uartp) {
+  // Configure RX buffer-full (DMA wrap) callback
+  uart_config_.rxend_cb = [](UARTDriver* uartp) {
     chSysLockFromISR();
-    YFR4escDriver *instance = reinterpret_cast<const UARTConfigEx *>(uartp->config)->context;
+    YFR4escDriver* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
     chDbgAssert(instance != nullptr, "instance cannot be null!");
     // Buffer reached full length. Re-arm DMA immediately to minimize RX gap, then signal the thread.
-    uartStartReceiveI(uartp, DMA_RX_BUFFER_SIZE, const_cast<uint8_t *>(instance->dma_rx_buffer_));
-    // Tell the thread a wrap occurred; it will handle the final tail and reset rx_seen_len_.
-    if (instance->processing_thread_) {
-      chEvtSignalI(instance->processing_thread_, EVT_RX_DMA_WRAP);
-    }
+    uartStartReceiveI(uartp, DMA_RX_BUFFER_SIZE, const_cast<uint8_t*>(instance->dma_rx_buffer_));
+    if (instance->processing_thread_) chEvtSignalI(instance->processing_thread_, EVT_RX_DMA_WRAP);
+    chSysUnlockFromISR();
+  };
+
+  // Configure Character-Match callback for 0x00 delimiter. This ISR should
+  // NOT process bytes; it just wakes the thread so it reads NDTR deltas.
+  uart_config_.rx_cm_cb = [](UARTDriver* uartp) {
+    chSysLockFromISR();
+    YFR4escDriver* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
+    chDbgAssert(instance != nullptr, "instance cannot be null!");
+    if (instance->processing_thread_) chEvtSignalI(instance->processing_thread_, EVT_RX_CHAR_MATCH);
     chSysUnlockFromISR();
   };
 
@@ -202,7 +213,7 @@ bool YFR4escDriver::Start() {
 
   // Arm RX
   rx_seen_len_ = 0;
-  uartStartReceive(uart_, DMA_RX_BUFFER_SIZE, const_cast<uint8_t *>(dma_rx_buffer_));
+  uartStartReceive(uart_, DMA_RX_BUFFER_SIZE, const_cast<uint8_t*>(dma_rx_buffer_));
 
   // Send an initial settings packet
   SendSettings();
@@ -211,17 +222,16 @@ bool YFR4escDriver::Start() {
 }
 
 void YFR4escDriver::threadFunc() {
-  systime_t last_heartbeat = 0;
+  systime_t last_heartbeat = chVTGetSystemTimeX();
 
   while (IsStarted()) {
-    uint32_t events;
+    eventmask_t events;
 
-    // YFRev4-ESC always send a status packet every 20ms.
-    // So, read with timeout, instead of waiting for a buffer full ISR call.
-    events = chEvtWaitOneTimeout(EVT_RX_DMA_WRAP, TIME_MS2I(10));
+    // Wait for either DMA wrap or char-match; timeout keeps heartbeat running.
+    events = chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, HEARTBEAT_INTERVAL);
     (void)events;
 
-    // Process newly arrived bytes immediately using NDTR deltas; handle wrap if the buffer was refilled.
+    // Process newly arrived bytes using NDTR deltas; handle wrap if the buffer was refilled.
     uint32_t ndtr_now = uart_->dmarx->stream->NDTR;
     if (ndtr_now <= DMA_RX_BUFFER_SIZE) {
       size_t received_so_far = DMA_RX_BUFFER_SIZE - ndtr_now;
@@ -239,8 +249,8 @@ void YFR4escDriver::threadFunc() {
 
     // Heartbeat: send control periodically even if unchanged, to satisfy ESC watchdog
     systime_t now = chVTGetSystemTimeX();
-    if ((systime_t)(now - last_heartbeat) >= HEARTBEAT_INTERVAL) {
-      last_heartbeat = now;
+    if ((now - last_heartbeat) >= HEARTBEAT_INTERVAL) {
+      last_heartbeat += HEARTBEAT_INTERVAL;
       SendControl(last_duty_);
     }
   }
