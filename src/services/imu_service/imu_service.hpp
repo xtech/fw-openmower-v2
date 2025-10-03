@@ -20,6 +20,10 @@ class ImuService : public ImuServiceBase {
   explicit ImuService(const uint16_t service_id) : ImuServiceBase(service_id, wa, sizeof(wa)) {
   }
 
+  bool IsFound() const {
+    return imu_found;
+  }
+
  protected:
   void OnCreate() override;
   bool OnStart() override;

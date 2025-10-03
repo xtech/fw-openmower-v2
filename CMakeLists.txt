@@ -36,7 +36,6 @@ set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
 
 target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
 
-
 # Add lib subdirectory
 add_subdirectory(ext)
 target_compile_definitions(ulog PUBLIC ULOG_ENABLED)
@@ -45,6 +44,12 @@ target_compile_definitions(ulog PUBLIC ULOG_ENABLED)
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user defined library search paths
+)
+
+# Add LVGL assets
+file(GLOB LVGL_ASSETS_SRC
+    "src/drivers/ui/lvgl/assets/*.c"
+    "src/drivers/ui/lvgl/assets/Orbitron/*.c"
 )
 
 # Add sources to executable
@@ -77,6 +82,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/motor/vesc/buffer.cpp
         src/drivers/motor/vesc/crc.cpp
         src/drivers/motor/vesc/VescDriver.cpp
+        # YFR4-ESC driver
+        src/drivers/motor/yfr4esc/YFR4escDriver.cpp
         # PWM motor driver
         src/drivers/motor/pwm/pwm_motor_driver.cpp
         # GPS driver
@@ -92,12 +99,17 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         $<$<CONFIG:Debug>:src/drivers/input/simulated_input_driver.cpp>
         # YardForce Cover UI Driver
         src/drivers/ui/YardForceCoverUI/yardforce_cover_ui_driver.cpp
+        # Sabo driver
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_display_driver_uc1698.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
         src/debug/debuggable_driver.cpp
         robots/src/robot.cpp
         ${PLATFORM_SOURCES}
+        ${LVGL_ASSETS_SRC}
 )
 
 # Add include paths
@@ -124,6 +136,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         etl::etl
         LittleFS
         lwjson
+        lvgl
 )
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
@@ -149,3 +162,16 @@ add_custom_target(upload
         COMMAND docker run --rm --network=host -v ${CMAKE_BINARY_DIR}:/workdir ghcr.io/xtech/fw-xcore-boot:latest -i tap0 upload /workdir/${CMAKE_PROJECT_NAME}.bin
         DEPENDS ${CMAKE_PROJECT_NAME}
 )
+
+# Check if elf-size-analyze is available
+find_program(ELF_SIZE_ANALYZE_EXECUTABLE elf-size-analyze)
+
+if(ELF_SIZE_ANALYZE_EXECUTABLE)
+    add_custom_command(
+            TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+            COMMAND ${ELF_SIZE_ANALYZE_EXECUTABLE} -R -t arm-none-eabi- ${CMAKE_PROJECT_NAME}.elf
+            COMMENT "Running elf-size-analyze on target binary..."
+    )
+else()
+    message(WARNING "elf-size-analyze not found! Skipping size analysis.")
+endif()
