@@ -21,13 +21,13 @@ class YFR4escDriver : public DebuggableDriver, public MotorDriver {
   };
   ~YFR4escDriver() override = default;
 
-  bool SetUART(UARTDriver *uart, uint32_t baudrate);
+  bool SetUART(UARTDriver* uart, uint32_t baudrate);
 
   void RequestStatus() override{};  // No-op, ESC streams status periodically
   void SetDuty(float duty) override;
   bool Start() override;
 
-  void RawDataInput(uint8_t *data, size_t size) override;
+  void RawDataInput(uint8_t* data, size_t size) override;
 
  private:
   // Heartbeat: resend control regularly to satisfy ESC watchdog
@@ -36,7 +36,7 @@ class YFR4escDriver : public DebuggableDriver, public MotorDriver {
   float last_duty_ = 0.0f;
 
   struct UARTConfigEx : UARTConfig {
-    YFR4escDriver *context;
+    YFR4escDriver* context;
   };
 
   // RX buffer size calc: We only receive Status packets
@@ -65,19 +65,19 @@ class YFR4escDriver : public DebuggableDriver, public MotorDriver {
   size_t cobs_rx_len_ = 0;
   size_t rx_seen_len_ = 0;  // Track how many bytes we already processed in the receiving DMA buffer
 
-  THD_WORKING_AREA(thd_wa_, 512){};  // AH20250819: Measured stack usage of 144 bytes (without ULOG errors)
-  thread_t *processing_thread_ = nullptr;
+  THD_WORKING_AREA(thd_wa_, 512){};  // AH20250922: Measured stack usage of 208 bytes (without ULOG errors)
+  thread_t* processing_thread_ = nullptr;
 
-  UARTDriver *uart_{};
+  UARTDriver* uart_{};
   UARTConfigEx uart_config_{};
 
   void threadFunc();
-  static void threadHelper(void *instance) {
-    static_cast<YFR4escDriver *>(instance)->threadFunc();
+  static void threadHelper(void* instance) {
+    static_cast<YFR4escDriver*>(instance)->threadFunc();
   };
 
-  void ProcessRxBytes(const volatile uint8_t *data, size_t len);
-  void ProcessDecodedPacket(uint8_t *packet, size_t len);
+  void ProcessRxBytes(const volatile uint8_t* data, size_t len);
+  void ProcessDecodedPacket(uint8_t* packet, size_t len);
 
   void SendControl(float duty);
   void SendSettings();
