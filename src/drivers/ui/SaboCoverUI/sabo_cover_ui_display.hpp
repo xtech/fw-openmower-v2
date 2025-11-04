@@ -25,6 +25,7 @@
 #include "../lvgl/sabo/sabo_defs.hpp"
 #include "../lvgl/sabo/sabo_input_device_keypad.hpp"
 #include "../lvgl/sabo/sabo_screen_boot.hpp"
+#include "../lvgl/sabo/sabo_screen_config.hpp"
 #include "../lvgl/sabo/sabo_screen_main.hpp"
 #include "../lvgl/sabo/sabo_screen_menu.hpp"
 #include "../lvgl/screen_base.hpp"
@@ -153,7 +154,20 @@ class SaboCoverUIDisplay {
         ULOG_ERROR("No active screen for menu!");
         return;
       }
+
+      // Set up menu item callbacks
+      screen_menu_->SetMenuItemCallback(
+          SaboScreenMenu::MenuItem::CONFIG,
+          [](lv_event_t* e) {
+            auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
+            display->HideMenu();
+            display->ShowConfigScreen();
+          },
+          this);
     }
+
+    // Remember which screen was active before menu
+    screen_before_menu_ = active_screen_;
 
     // Clear group to prevent underlying screen from receiving input
     if (default_group_) {
@@ -174,6 +188,63 @@ class SaboCoverUIDisplay {
         lv_group_remove_all_objs(default_group_);
         // TODO: If active screen has focusable items, add them back here
         // For now, main screen has no focusable items, so we just clear
+      }
+    }
+  }
+
+  void ShowConfigScreen() {
+    if (!screen_config_) {
+      screen_config_ = new SaboScreenConfig();
+      screen_config_->Create();
+
+      // Set up callbacks for config changes
+      screen_config_->SetOnContrastChangedCallback([](uint8_t contrast) {
+        DriverUC1698::Instance().SetVBiasPotentiometer(contrast);
+        ULOG_INFO("Contrast changed to %d", contrast);
+      });
+
+      screen_config_->SetOnTempCompChangedCallback([](uint8_t temp_comp) {
+        DriverUC1698::Instance().SetTemperatureCompensation(temp_comp);
+        ULOG_INFO("Temp compensation changed to %d", temp_comp);
+      });
+
+      screen_config_->SetOnSleepTimerChangedCallback([](uint8_t minutes) {
+        // TODO: Implement auto-sleep timer
+        ULOG_INFO("Auto-sleep timer changed to %d min", minutes);
+      });
+
+      screen_config_->SetOnSaveCallback([](const SaboScreenConfig::Config& config) {
+        // TODO: Save config to persistent storage
+        ULOG_INFO("Config saved: contrast=%d, temp_comp=%d, sleep=%d", config.contrast, config.temp_compensation,
+                  config.auto_sleep_minutes);
+      });
+    }
+
+    active_screen_ = screen_config_;
+    screen_config_->Show();
+
+    // Add config screen controls to group
+    if (default_group_) {
+      lv_group_remove_all_objs(default_group_);
+      screen_config_->AddToGroup(default_group_);
+    }
+  }
+
+  void HideConfigScreen() {
+    if (screen_config_) {
+      screen_config_->OnBackButton();  // Trigger save
+
+      // Return to screen that was active before menu
+      if (screen_before_menu_) {
+        active_screen_ = screen_before_menu_;
+        screen_before_menu_->Show();
+      } else {
+        ShowMainScreen();
+      }
+
+      // Clear group
+      if (default_group_) {
+        lv_group_remove_all_objs(default_group_);
       }
     }
   }
@@ -246,6 +317,10 @@ class SaboCoverUIDisplay {
     return screen_main_;
   }
 
+  SaboScreenConfig* GetConfigScreen() const {
+    return screen_config_;
+  }
+
   SaboScreenMenu* GetMenuScreen() const {
     return screen_menu_;
   }
@@ -286,8 +361,10 @@ class SaboCoverUIDisplay {
 
   SaboScreenBoot* screen_boot_ = nullptr;
   SaboScreenMain* screen_main_ = nullptr;
+  SaboScreenConfig* screen_config_ = nullptr;
   SaboScreenMenu* screen_menu_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
+  SaboScreenBase* screen_before_menu_ = nullptr;  // Remember screen before menu opened
 
   // Input device
   SaboCoverUICaboDriverBase* cabo_ = nullptr;

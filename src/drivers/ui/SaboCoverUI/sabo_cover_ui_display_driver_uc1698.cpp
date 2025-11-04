@@ -88,10 +88,17 @@ void SaboCoverUIDisplayDriverUC1698::InitController() {
   SetDisplayEnable(true);
 }
 
-// [10] Set VBias Potentiometer
+// [10] Set VBias Potentiometer (Contrast)
 void SaboCoverUIDisplayDriverUC1698::SetVBiasPotentiometer(uint8_t data) {
   uint8_t cmd[] = {0b10000001, data};
   SendCommands(cmd, sizeof(cmd));
+}
+
+// [5] Set Temperature Compensation
+// 0 = Off, 1 = -0.05%/C, 2 = -0.15%/C, 3 = -0.25%/C
+void SaboCoverUIDisplayDriverUC1698::SetTemperatureCompensation(uint8_t tc) {
+  if (tc > 3) tc = 3;  // Clamp to valid range
+  SendCommand(0b00100100 | tc);
 }
 
 void SaboCoverUIDisplayDriverUC1698::SetDisplayEnable(bool on) {

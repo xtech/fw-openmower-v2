@@ -50,8 +50,9 @@ class SaboCoverUIDisplayDriverUC1698 {
 
   void Start();  // Start UC1698 own thread (required for async SPI)
 
-  void SetVBiasPotentiometer(uint8_t data);  // [10] Set VBias Potentiometer
-  void SetDisplayEnable(bool on);            // [17] Set Display Enable: Green Enh. Mode off, Gray Shade, Active
+  void SetVBiasPotentiometer(uint8_t data);     // [10] Set VBias Potentiometer (Contrast: 0-255)
+  void SetTemperatureCompensation(uint8_t tc);  // [5] Set Temperature Compensation (0-3)
+  void SetDisplayEnable(bool on);               // [17] Set Display Enable: Green Enh. Mode off, Gray Shade, Active
 
   bool IsDisplayEnabled() const {  // LCD active (or sleeping)
     return display_enabled_;

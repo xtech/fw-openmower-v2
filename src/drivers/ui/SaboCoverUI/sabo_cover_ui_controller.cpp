@@ -278,7 +278,11 @@ void SaboCoverUIController::ThreadFunc() {
               }
               break;
             case ButtonID::BACK:
-              if (display_->GetActiveScreen()->GetScreenId() != ScreenId::BOOT) {
+              if (display_->GetActiveScreen()->GetScreenId() == ScreenId::CONFIG) {
+                // BACK from config screen returns to previous screen
+                display_->HideConfigScreen();
+              } else if (display_->GetActiveScreen()->GetScreenId() != ScreenId::BOOT) {
+                // BACK from other screens hides menu
                 display_->HideMenu();
               }
               break;
