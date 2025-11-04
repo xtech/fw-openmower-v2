@@ -19,12 +19,13 @@
 
 #include <lvgl.h>
 
-#include "../SaboCoverUI/sabo_cover_ui_defs.hpp"
+#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
+#include "../screen_base.hpp"
 #include "sabo_defs.hpp"
-#include "screen_base.hpp"
 
 extern "C" {
 LV_FONT_DECLARE(orbitron_12);
+LV_FONT_DECLARE(orbitron_16b);
 }
 
 namespace xbot::driver::ui::lvgl::sabo {
@@ -91,25 +92,34 @@ class SaboScreenMenu : public ScreenBase<ScreenId, xbot::driver::ui::sabo::Butto
     menu_container_ = lv_obj_create(parent_screen);
     lv_obj_set_size(menu_container_, LCD_WIDTH / 3, LCD_HEIGHT);
     lv_obj_set_style_bg_color(menu_container_, lv_color_make(0xE0, 0xE0, 0xE0), LV_PART_MAIN);
-    lv_obj_set_style_border_width(menu_container_, 2, LV_PART_MAIN);
+    lv_obj_set_style_border_width(menu_container_, 1, LV_PART_MAIN);  // Thinner border (1px instead of 2px)
     lv_obj_set_style_border_color(menu_container_, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(menu_container_, 0, LV_PART_MAIN);  // Remove internal padding
     lv_obj_clear_flag(menu_container_, LV_OBJ_FLAG_SCROLLABLE);
 
     // Start hidden (off-screen to the right)
     lv_obj_set_pos(menu_container_, LCD_WIDTH, 0);
 
-    // Menu title
+    // Menu title - larger bold font
     lv_obj_t* title_label = lv_label_create(menu_container_);
     lv_label_set_text(title_label, "Menu");
     lv_obj_set_style_text_color(title_label, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(title_label, &orbitron_12, LV_PART_MAIN);
-    lv_obj_align(title_label, LV_ALIGN_TOP_MID, 0, 5);
+    lv_obj_set_style_text_font(title_label, &orbitron_16b, LV_PART_MAIN);  // Bold font
+    lv_obj_align(title_label, LV_ALIGN_TOP_MID, 0, 3);
 
-    // Create menu items
-    CreateMenuItem(MenuItem::CMD, "Command", 30);
+    // Horizontal separator line below title - full width
+    lv_obj_t* separator = lv_obj_create(menu_container_);
+    lv_obj_set_size(separator, LCD_WIDTH / 3, 1);  // Full width, no margins
+    lv_obj_set_pos(separator, 0, 23);              // Just below title, flush left
+    lv_obj_set_style_bg_color(separator, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_border_width(separator, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(separator, 0, LV_PART_MAIN);
+
+    // Create menu items (starting after separator)
+    CreateMenuItem(MenuItem::CMD, "Command", 35);
     CreateMenuItem(MenuItem::STATUS, "Status", 60);
-    CreateMenuItem(MenuItem::CONFIG, "Config", 90);
-    CreateMenuItem(MenuItem::ABOUT, "About", 120);
+    CreateMenuItem(MenuItem::CONFIG, "Config", 85);
+    CreateMenuItem(MenuItem::ABOUT, "About", 110);
 
     anim_state_ = AnimationState::HIDDEN;
   }
@@ -189,19 +199,81 @@ class SaboScreenMenu : public ScreenBase<ScreenId, xbot::driver::ui::sabo::Butto
     }
   }
 
+  /**
+   * @brief Add menu items to an LVGL group for keypad navigation
+   * @param group The group to add items to
+   */
+  void AddToGroup(lv_group_t* group) {
+    if (!group) {
+      return;
+    }
+
+    for (int i = 0; i < 4; i++) {
+      if (menu_items_[i]) {
+        lv_group_add_obj(group, menu_items_[i]);
+      }
+    }
+
+    // Focus first item after adding to group
+    if (menu_items_[0]) {
+      lv_group_focus_obj(menu_items_[0]);
+    }
+  } /**
+     * @brief Remove menu items from their LVGL group
+     */
+  void RemoveFromGroup() {
+    for (int i = 0; i < 4; i++) {
+      if (menu_items_[i]) {
+        lv_group_remove_obj(menu_items_[i]);
+      }
+    }
+  }
+
  private:
   void CreateMenuItem(MenuItem item, const char* text, int y_offset) {
+    // Create button with flat styling for non-touch display
     lv_obj_t* btn = lv_button_create(menu_container_);
-    lv_obj_set_size(btn, LCD_WIDTH / 3 - 10, 25);
+    lv_obj_set_size(btn, LCD_WIDTH / 3 - 10, 20);
     lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, y_offset);
-    lv_obj_set_style_bg_color(btn, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(btn, lv_color_make(0xC0, 0xC0, 0xC0), LV_STATE_PRESSED);
 
+    // Flat button style: no shadow, no 3D effect
+    lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(btn, lv_color_make(0xD0, 0xD0, 0xD0), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
+
+    // Focused style: inverted (white text on black)
+    lv_obj_set_style_bg_color(btn, lv_color_black(), LV_STATE_FOCUSED);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_STATE_FOCUSED);
+
+    // Create label inside button
     lv_obj_t* label = lv_label_create(btn);
     lv_label_set_text(label, text);
+    lv_obj_center(label);
     lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(label, &orbitron_12, LV_PART_MAIN);
-    lv_obj_center(label);
+
+    // Add event callback to handle focus state changes and clicks
+    lv_obj_add_event_cb(
+        btn,
+        [](lv_event_t* e) {
+          lv_obj_t* btn = static_cast<lv_obj_t*>(lv_event_get_target(e));
+          lv_obj_t* label = lv_obj_get_child(btn, 0);
+          lv_event_code_t code = lv_event_get_code(e);
+
+          if (code == LV_EVENT_FOCUSED) {
+            // Change label to white when button focused
+            lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
+          } else if (code == LV_EVENT_DEFOCUSED) {
+            // Change label back to black when button defocused
+            lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
+          } else if (code == LV_EVENT_CLICKED) {
+            const char* text = lv_label_get_text(label);
+            ULOG_INFO("Menu item clicked: %s", text);
+          }
+        },
+        LV_EVENT_ALL, nullptr);
 
     menu_items_[(int)item] = btn;
   }

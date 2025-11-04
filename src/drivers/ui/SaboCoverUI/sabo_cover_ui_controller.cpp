@@ -69,6 +69,9 @@ void SaboCoverUIController::Start() {
   }
 
   if (display_) {
+    // Set cabo driver for input device before Init
+    display_->SetCaboDriver(cabo_);
+
     if (!display_->Init()) {
       ULOG_ERROR("Sabo CoverUI Display initialization failed!");
       return;
@@ -251,6 +254,16 @@ void SaboCoverUIController::ThreadFunc() {
         ButtonID button_id = static_cast<ButtonID>(btn);
         if (cabo_->IsButtonPressed(button_id)) {
           ULOG_INFO("Sabo CoverUI Button [%s] pressed", ButtonIDToString(button_id));
+
+          // Skip navigation keys (UP/DOWN/LEFT/RIGHT/OK) when menu is visible
+          // LVGL input device handles these for menu navigation
+          if (display_->IsMenuVisible()) {
+            if (button_id == ButtonID::UP || button_id == ButtonID::DOWN || button_id == ButtonID::LEFT ||
+                button_id == ButtonID::RIGHT || button_id == ButtonID::OK) {
+              // LVGL input device will handle navigation in menu
+              continue;
+            }
+          }
 
           // Let the active screen handle the button first
           if (display_->OnButtonPress(button_id)) {

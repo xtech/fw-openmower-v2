@@ -22,12 +22,14 @@
 
 #include <cstring>
 
-#include "../lvgl/sabo_defs.hpp"
-#include "../lvgl/sabo_screen_boot.hpp"
-#include "../lvgl/sabo_screen_main.hpp"
-#include "../lvgl/sabo_screen_menu.hpp"
+#include "../lvgl/sabo/sabo_defs.hpp"
+#include "../lvgl/sabo/sabo_input_device_keypad.hpp"
+#include "../lvgl/sabo/sabo_screen_boot.hpp"
+#include "../lvgl/sabo/sabo_screen_main.hpp"
+#include "../lvgl/sabo/sabo_screen_menu.hpp"
 #include "../lvgl/screen_base.hpp"
 #include "ch.h"
+#include "sabo_cover_ui_cabo_driver_base.hpp"
 #include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
 
@@ -44,6 +46,16 @@ using SaboScreenBase = ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID>;
 class SaboCoverUIDisplay {
  public:
   explicit SaboCoverUIDisplay(LCDCfg lcd_cfg) : lcd_cfg_(lcd_cfg) {
+  }
+
+  /**
+   * @brief Set the cabo driver for input device
+   * @param cabo Pointer to the cabo driver
+   *
+   * Must be called before Init() to enable keypad input device
+   */
+  void SetCaboDriver(SaboCoverUICaboDriverBase* cabo) {
+    cabo_ = cabo;
   }
 
   bool Init() {
@@ -79,6 +91,21 @@ class SaboCoverUIDisplay {
     lv_display_set_flush_cb(lvgl_display_, DriverUC1698::LVGLFlushCB);
     lv_display_set_flush_wait_cb(lvgl_display_, DriverUC1698::LVGLFlushWaitCB);
     lv_display_set_buffers(lvgl_display_, draw_buf1, NULL, sizeof(draw_buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
+
+    // Initialize input device if cabo driver is set
+    if (cabo_) {
+      keypad_device_ = new SaboInputDeviceKeypad(cabo_);
+      if (!keypad_device_->Init()) {
+        ULOG_ERROR("Keypad input device initialization failed!");
+        delete keypad_device_;
+        keypad_device_ = nullptr;
+      } else {
+        // Create default group for keypad navigation
+        default_group_ = lv_group_create();
+        keypad_device_->SetGroup(default_group_);
+        ULOG_INFO("Keypad input device initialized");
+      }
+    }
 
     return true;
   };
@@ -123,16 +150,31 @@ class SaboCoverUIDisplay {
       if (active_screen_ && active_screen_->GetLvScreen()) {
         screen_menu_->CreateOverlay(active_screen_->GetLvScreen());
       } else {
-        ULOG_ERROR("[LVGL] No active screen for menu!");
+        ULOG_ERROR("No active screen for menu!");
         return;
       }
     }
+
+    // Clear group to prevent underlying screen from receiving input
+    if (default_group_) {
+      lv_group_remove_all_objs(default_group_);
+      // Add only menu items to group
+      screen_menu_->AddToGroup(default_group_);
+    }
+
     screen_menu_->SlideIn();
   }
 
   void HideMenu() {
     if (screen_menu_) {
       screen_menu_->SlideOut();
+
+      // Clear group and restore underlying screen's focus
+      if (default_group_) {
+        lv_group_remove_all_objs(default_group_);
+        // TODO: If active screen has focusable items, add them back here
+        // For now, main screen has no focusable items, so we just clear
+      }
     }
   }
 
@@ -208,6 +250,33 @@ class SaboCoverUIDisplay {
     return screen_menu_;
   }
 
+  /**
+   * @brief Check if menu is currently visible
+   * @return true if menu is visible or sliding in/out
+   */
+  bool IsMenuVisible() const {
+    if (!screen_menu_) return false;
+    auto state = screen_menu_->GetAnimationState();
+    return state == SaboScreenMenu::AnimationState::VISIBLE || state == SaboScreenMenu::AnimationState::SLIDING_IN ||
+           state == SaboScreenMenu::AnimationState::SLIDING_OUT;
+  }
+
+  /**
+   * @brief Get the default LVGL group for keypad navigation
+   * @return Pointer to the default group, or nullptr if not initialized
+   */
+  lv_group_t* GetDefaultGroup() const {
+    return default_group_;
+  }
+
+  /**
+   * @brief Get the keypad input device
+   * @return Pointer to the keypad device, or nullptr if not initialized
+   */
+  SaboInputDeviceKeypad* GetKeypadDevice() const {
+    return keypad_device_;
+  }
+
  private:
   LCDCfg lcd_cfg_;
   lv_display_t* lvgl_display_ = nullptr;  // LVGL display instance
@@ -219,6 +288,11 @@ class SaboCoverUIDisplay {
   SaboScreenMain* screen_main_ = nullptr;
   SaboScreenMenu* screen_menu_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
+
+  // Input device
+  SaboCoverUICaboDriverBase* cabo_ = nullptr;
+  SaboInputDeviceKeypad* keypad_device_ = nullptr;
+  lv_group_t* default_group_ = nullptr;  // Default group for keypad navigation
 };
 }  // namespace xbot::driver::ui
 #endif  // OPENMOWER_SABO_COVER_UI_DISPLAY_HPP

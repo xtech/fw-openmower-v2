@@ -13,10 +13,10 @@
 #include <etl/string_view.h>
 #include <lvgl.h>
 
-#include "../SaboCoverUI/sabo_cover_ui_defs.hpp"
+#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
+#include "../screen_base.hpp"
+#include "../widget_textbar.hpp"
 #include "sabo_defs.hpp"
-#include "screen_base.hpp"
-#include "widget_textbar.hpp"
 
 extern "C" {
 LV_IMG_DECLARE(chassis_193x94x1);
