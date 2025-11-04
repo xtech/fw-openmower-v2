@@ -22,8 +22,7 @@ class SaboCoverUIController {
   void Configure(const CoverUICfg& cui_cfg);  // Configure the controller, select and initialize the driver
   void Start();                               // Starts the controller thread
 
-  bool IsButtonPressed(const ButtonID btn) const;          // Debounced safe check if a specific button is pressed
-  static const char* ButtonIDToString(const ButtonID id);  // Get string for ButtonID
+  bool IsButtonPressed(const ButtonID btn) const;  // Debounced safe check if a specific button is pressed
 
  private:
   THD_WORKING_AREA(wa_, 5120);  // AH20250803 In use = 3744. Let's be save (+1k) for LVGL GUI development
@@ -48,9 +47,9 @@ class SaboCoverUIController {
   etl::array<SaboCoverUIController::BootStep, BOOT_STEP_COUNT_> boot_steps_ = {{
       {"Motion Sensor", &TestIMU},
       {"Charger", &TestCharger},
-      {"Left Motor", &TestLeftESC},
-      {"Right Motor", &TestRightESC},
-      {"Mower Motor", &TestMowerESC},
+      {"Left ESC", &TestLeftESC},
+      {"Right ESC", &TestRightESC},
+      {"Mower ESC", &TestMowerESC},
   }};
   size_t current_boot_step_ = 0;
   static constexpr size_t BOOT_STEP_RETRIES = 3;

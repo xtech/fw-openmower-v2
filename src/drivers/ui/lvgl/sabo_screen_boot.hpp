@@ -1,9 +1,19 @@
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2025 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #ifndef LVGL_SABO_SCREEN_BOOT_HPP_
 #define LVGL_SABO_SCREEN_BOOT_HPP_
 
 #include <etl/string_view.h>
 #include <lvgl.h>
 
+#include "../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "sabo_defs.hpp"
 #include "screen_base.hpp"
 #include "widget_textbar.hpp"
@@ -17,9 +27,9 @@ LV_FONT_DECLARE(orbitron_12);
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-class SaboScreenBoot : public ScreenBase<sabo::ScreenId> {
+class SaboScreenBoot : public ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID> {
  public:
-  SaboScreenBoot() : ScreenBase<sabo::ScreenId>(sabo::ScreenId::BOOT) {
+  SaboScreenBoot() : ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID>(sabo::ScreenId::BOOT) {
   }
 
   ~SaboScreenBoot() {
@@ -31,7 +41,7 @@ class SaboScreenBoot : public ScreenBase<sabo::ScreenId> {
     ScreenBase::Create(bg_color);
 
     // Title
-    lv_obj_t *title_label = lv_label_create(screen_);
+    lv_obj_t* title_label = lv_label_create(screen_);
     lv_label_set_text(title_label, "OpenMower @ SABO");
     lv_obj_set_style_text_color(title_label, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(title_label, &orbitron_16b, LV_PART_MAIN);
@@ -45,7 +55,7 @@ class SaboScreenBoot : public ScreenBase<sabo::ScreenId> {
     lv_obj_align(mower_, LV_ALIGN_CENTER, 0, 0);
 
     // Chassis
-    lv_obj_t *chassis = lv_img_create(mower_);
+    lv_obj_t* chassis = lv_img_create(mower_);
     lv_img_set_src(chassis, &chassis_193x94x1);
     lv_obj_align(chassis, LV_ALIGN_CENTER, -14, -2);
 
@@ -61,7 +71,7 @@ class SaboScreenBoot : public ScreenBase<sabo::ScreenId> {
                                     20, &orbitron_12);
   }
 
-  void SetBootStatus(const etl::string_view &text, int progress) {
+  void SetBootStatus(const etl::string_view& text, int progress) {
     if (status_bar_) {
       status_bar_->SetValue(progress, text.data());
     }
@@ -85,16 +95,16 @@ class SaboScreenBoot : public ScreenBase<sabo::ScreenId> {
     lv_anim_set_time(&anim, 3000);  // Time to drive off
     lv_anim_set_repeat_count(&anim, 1);
     lv_anim_set_path_cb(&anim, lv_anim_path_ease_in);      // Start slow, then accelerate
-    lv_anim_set_exec_cb(&anim, [](void *var, int32_t v) {  // Animator callback
-      auto *self = static_cast<SaboScreenBoot *>(var);
+    lv_anim_set_exec_cb(&anim, [](void* var, int32_t v) {  // Animator callback
+      auto* self = static_cast<SaboScreenBoot*>(var);
       lv_obj_align(self->mower_, LV_ALIGN_CENTER, v, 0);
     });
-    lv_anim_set_ready_cb(&anim, [](lv_anim_t *a) {
-      auto *self = static_cast<SaboScreenBoot *>(a->var);
+    lv_anim_set_ready_cb(&anim, [](lv_anim_t* a) {
+      auto* self = static_cast<SaboScreenBoot*>(a->var);
       lv_anim_delete(self->wheel_anim_, self->wheel_anim_->exec_cb);
     });
-    lv_anim_set_deleted_cb(&anim, [](lv_anim_t *a) {
-      auto *self = static_cast<SaboScreenBoot *>(a->var);
+    lv_anim_set_deleted_cb(&anim, [](lv_anim_t* a) {
+      auto* self = static_cast<SaboScreenBoot*>(a->var);
       self->animation_state_ = AnimationState::DONE;
       self->mower_anim_ = nullptr;  // Clear reference when deleted
     });
@@ -114,13 +124,13 @@ class SaboScreenBoot : public ScreenBase<sabo::ScreenId> {
     lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
     lv_anim_set_path_cb(&anim, lv_anim_path_ease_in);  // Start slow, then accelerate
     lv_anim_set_exec_cb(
-        &anim, [](void *var, int32_t v) { lv_obj_set_style_transform_angle(static_cast<lv_obj_t *>(var), v, 0); });
-    lv_anim_set_completed_cb(&anim, [](lv_anim_t *a) {
-      auto *self = static_cast<SaboScreenBoot *>(a->var);
+        &anim, [](void* var, int32_t v) { lv_obj_set_style_transform_angle(static_cast<lv_obj_t*>(var), v, 0); });
+    lv_anim_set_completed_cb(&anim, [](lv_anim_t* a) {
+      auto* self = static_cast<SaboScreenBoot*>(a->var);
       self->wheel_anim_ = nullptr;  // Clear reference when done
     });
-    lv_anim_set_deleted_cb(&anim, [](lv_anim_t *a) {
-      auto *self = static_cast<SaboScreenBoot *>(a->var);
+    lv_anim_set_deleted_cb(&anim, [](lv_anim_t* a) {
+      auto* self = static_cast<SaboScreenBoot*>(a->var);
       self->wheel_anim_ = nullptr;  // Clear reference when deleted
     });
     wheel_anim_ = lv_anim_start(&anim);
@@ -131,13 +141,13 @@ class SaboScreenBoot : public ScreenBase<sabo::ScreenId> {
   }
 
  private:
-  lv_obj_t *mower_ = nullptr;
-  lv_obj_t *wheel_ = nullptr;
+  lv_obj_t* mower_ = nullptr;
+  lv_obj_t* wheel_ = nullptr;
 
-  lv_anim_t *mower_anim_ = nullptr;
-  lv_anim_t *wheel_anim_ = nullptr;
+  lv_anim_t* mower_anim_ = nullptr;
+  lv_anim_t* wheel_anim_ = nullptr;
 
-  WidgetTextBar *status_bar_ = nullptr;
+  WidgetTextBar* status_bar_ = nullptr;
 
   AnimationState animation_state_ = AnimationState::NONE;
 };

@@ -1,6 +1,19 @@
-//
-// Created by Apehaenger on 4/20/25.
-//
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2025 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/**
+ * @file sabo_cover_ui_controller.cpp
+ * @brief Controller for the Sabo Cover UI
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2025-04-20
+ */
+
 #include "sabo_cover_ui_controller.hpp"
 
 #include <ulog.h>
@@ -110,24 +123,6 @@ void SaboCoverUIController::UpdateStates() {
 bool SaboCoverUIController::IsButtonPressed(const ButtonID button) const {
   if (!cabo_->IsReady()) return false;
   return cabo_->IsButtonPressed(button);
-}
-
-const char* SaboCoverUIController::ButtonIDToString(const ButtonID id) {
-  switch (id) {
-    case ButtonID::UP: return "Up";
-    case ButtonID::DOWN: return "Down";
-    case ButtonID::LEFT: return "Left";
-    case ButtonID::RIGHT: return "Right";
-    case ButtonID::OK: return "OK";
-    case ButtonID::PLAY: return "Play";
-    case ButtonID::S1_SELECT: return "Select (S1)";
-    case ButtonID::MENU: return "Menu";
-    case ButtonID::BACK: return "Back";
-    case ButtonID::S2_AUTO: return "Auto (S2)";
-    case ButtonID::S2_MOW: return "Mow (S2)";
-    case ButtonID::S2_HOME: return "Home (S2)";
-    default: return "Unknown";
-  }
 }
 
 /**
@@ -247,15 +242,35 @@ void SaboCoverUIController::ThreadFunc() {
       }
     }
 
-    // ----- Debug -----
-    static uint32_t last_debug_time = 0;
+    // ----- Button Handling -----
+    static uint32_t last_button_check = 0;
     uint32_t now = chVTGetSystemTimeX();
-    if (TIME_I2MS(now - last_debug_time) >= 500) {
-      last_debug_time = now;
+    if (TIME_I2MS(now - last_button_check) >= 100) {  // Check buttons every 100ms
+      last_button_check = now;
       for (int btn = static_cast<int>(ButtonID::_FIRST); btn <= static_cast<int>(ButtonID::_LAST); ++btn) {
-        ButtonID button = static_cast<ButtonID>(btn);
-        if (cabo_->IsButtonPressed(button)) {
-          ULOG_INFO("Sabo CoverUI Button [%s] pressed", ButtonIDToString(static_cast<ButtonID>(btn)));
+        ButtonID button_id = static_cast<ButtonID>(btn);
+        if (cabo_->IsButtonPressed(button_id)) {
+          ULOG_INFO("Sabo CoverUI Button [%s] pressed", ButtonIDToString(button_id));
+
+          // Let the active screen handle the button first
+          if (display_->OnButtonPress(button_id)) {
+            continue;  // Handled by screen
+          }
+
+          // If screen didn't handle it, global button logic here
+          switch (button_id) {
+            case ButtonID::MENU:
+              if (display_->GetActiveScreen()->GetScreenId() != ScreenId::BOOT) {
+                display_->ShowMenu();
+              }
+              break;
+            case ButtonID::BACK:
+              if (display_->GetActiveScreen()->GetScreenId() != ScreenId::BOOT) {
+                display_->HideMenu();
+              }
+              break;
+            default: break;
+          }
         }
       }
     }

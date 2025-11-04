@@ -1,6 +1,18 @@
-//
-// Created by Apehaenger on 6/23/25.
-//
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2025 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/**
+ * @file sabo_cover_ui_display.hpp
+ * @brief Sabo Cover UI Display management with LVGL and UC1698 driver
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2025-6-23
+ */
 
 #ifndef OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
 #define OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
@@ -13,6 +25,8 @@
 #include "../lvgl/sabo_defs.hpp"
 #include "../lvgl/sabo_screen_boot.hpp"
 #include "../lvgl/sabo_screen_main.hpp"
+#include "../lvgl/sabo_screen_menu.hpp"
+#include "../lvgl/screen_base.hpp"
 #include "ch.h"
 #include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
@@ -24,7 +38,8 @@ using namespace xbot::driver::ui::lvgl;
 using namespace xbot::driver::ui::lvgl::sabo;
 using DriverUC1698 = SaboCoverUIDisplayDriverUC1698;
 
-using SaboScreenBase = xbot::driver::ui::lvgl::ScreenBase<xbot::driver::ui::lvgl::sabo::ScreenId>;
+// Type alias for Sabo screens with button handling
+using SaboScreenBase = ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID>;
 
 class SaboCoverUIDisplay {
  public:
@@ -71,7 +86,8 @@ class SaboCoverUIDisplay {
   void Start() {
     DriverUC1698::Instance().Start();
 
-    ShowBootScreen();
+    // ShowBootScreen();
+    ShowMainScreen();
   }
 
   void SetBootStatus(const etl::string_view& text, int progress) {
@@ -100,6 +116,26 @@ class SaboCoverUIDisplay {
     }
   }
 
+  void ShowMenu() {
+    if (!screen_menu_) {
+      screen_menu_ = new SaboScreenMenu();
+      // Create menu as overlay on the ACTIVE screen
+      if (active_screen_ && active_screen_->GetLvScreen()) {
+        screen_menu_->CreateOverlay(active_screen_->GetLvScreen());
+      } else {
+        ULOG_ERROR("[LVGL] No active screen for menu!");
+        return;
+      }
+    }
+    screen_menu_->SlideIn();
+  }
+
+  void HideMenu() {
+    if (screen_menu_) {
+      screen_menu_->SlideOut();
+    }
+  }
+
   void Tick() {
     // Backlight timeout
     if (palReadLine(lcd_cfg_.pins.backlight) == PAL_HIGH &&
@@ -107,16 +143,9 @@ class SaboCoverUIDisplay {
       palWriteLine(lcd_cfg_.pins.backlight, PAL_LOW);
     }
 
-    if (active_screen_->GetScreenId() == ScreenId::BOOT) {
-      // Boot screen is active, switch to main screen after 3 seconds
-      // TODO: Change to real service checks or fancy anim
-      static systime_t boot_screen_start_time = chVTGetSystemTimeX();
-      if (chVTTimeElapsedSinceX(boot_screen_start_time) > TIME_S2I(300)) {
-        delete active_screen_;
-        active_screen_ = new SaboScreenMain();
-        active_screen_->Create();
-        active_screen_->Show();
-      }
+    // Call active screen's Tick method for screen-specific updates
+    if (active_screen_) {
+      active_screen_->Tick();
     }
 
     // LCD & LVGL Timeout
@@ -149,6 +178,20 @@ class SaboCoverUIDisplay {
     backlight_last_activity_ = chVTGetSystemTimeX();
   }
 
+  /**
+   * @brief Handle button press by delegating to active screen
+   * @param button_id The button that was pressed
+   * @return true if button was handled, false otherwise
+   *
+   * This method allows screens to implement their own button logic.
+   * If a screen doesn't handle a button (returns false), the caller
+   * can implement global button handling (e.g., MENU button behavior).
+   */
+  bool OnButtonPress(xbot::driver::ui::sabo::ButtonID button_id) {
+    if (!active_screen_) return false;
+    return active_screen_->OnButtonPress(button_id);
+  }
+
   SaboScreenBase* GetActiveScreen() const {
     return active_screen_;
   }
@@ -161,6 +204,10 @@ class SaboCoverUIDisplay {
     return screen_main_;
   }
 
+  SaboScreenMenu* GetMenuScreen() const {
+    return screen_menu_;
+  }
+
  private:
   LCDCfg lcd_cfg_;
   lv_display_t* lvgl_display_ = nullptr;  // LVGL display instance
@@ -170,6 +217,7 @@ class SaboCoverUIDisplay {
 
   SaboScreenBoot* screen_boot_ = nullptr;
   SaboScreenMain* screen_main_ = nullptr;
+  SaboScreenMenu* screen_menu_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
 };
 }  // namespace xbot::driver::ui

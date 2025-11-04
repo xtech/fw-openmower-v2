@@ -1,6 +1,18 @@
-//
-// Created by Apehaenger on 5/31/25.
-//
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2025 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/**
+ * @file sabo_cover_ui_defs.hpp
+ * @brief Definitions for the Sabo Cover UI
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2025-05-31
+ */
 
 #ifndef OPENMOWER_SABO_COVER_UI_DEFS_HPP
 #define OPENMOWER_SABO_COVER_UI_DEFS_HPP
@@ -48,6 +60,8 @@ struct CoverUICfg {
 enum class LEDID : uint8_t { AUTO = 0, MOWING, HOME, PLAY_GN, PLAY_RD };
 enum class LEDMode { OFF, ON, BLINK_SLOW, BLINK_FAST };
 
+enum class SeriesType { Series1, Series2 };
+
 // Same bit order as in CoverUI Series-II (74HC165, Row 0+1). Series-I driver need to translate the bits
 enum class ButtonID {
   UP = 0,
@@ -66,7 +80,26 @@ enum class ButtonID {
   _LAST = S2_HOME
 };
 
-enum class SeriesType { Series1, Series2 };
+/**
+ * @brief Convert ButtonID to human-readable string
+ */
+inline const char* ButtonIDToString(ButtonID id) {
+  switch (id) {
+    case ButtonID::UP: return "Up";
+    case ButtonID::DOWN: return "Down";
+    case ButtonID::LEFT: return "Left";
+    case ButtonID::RIGHT: return "Right";
+    case ButtonID::OK: return "OK";
+    case ButtonID::PLAY: return "Play";
+    case ButtonID::S1_SELECT: return "Select (S1)";
+    case ButtonID::MENU: return "Menu";
+    case ButtonID::BACK: return "Back";
+    case ButtonID::S2_AUTO: return "Auto (S2)";
+    case ButtonID::S2_MOW: return "Mow (S2)";
+    case ButtonID::S2_HOME: return "Home (S2)";
+    default: return "Unknown";
+  }
+}
 
 namespace display {
 constexpr uint16_t LCD_WIDTH = 240;  // ATTENTION: LVGL I1 mode requires a multiple of 8 width
