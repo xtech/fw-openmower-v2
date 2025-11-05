@@ -273,7 +273,7 @@ void SaboCoverUIController::ThreadFunc() {
           // If screen didn't handle it, global button logic here
           switch (button_id) {
             case ButtonID::MENU:
-              if (display_->GetActiveScreen()->GetScreenId() != ScreenId::BOOT) {
+              if (display_->GetActiveScreen()->GetScreenId() == ScreenId::MAIN) {
                 display_->ShowMenu();
               }
               break;
