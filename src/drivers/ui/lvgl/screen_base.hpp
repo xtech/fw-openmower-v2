@@ -34,7 +34,32 @@ class ScreenBase {
 
   virtual void Show() {
     if (screen_) lv_screen_load(screen_);
+    is_visible_ = true;
   };
+
+  /**
+   * @brief Hide the screen (but keep in memory)
+   */
+  virtual void Hide() {
+    is_visible_ = false;
+    // Note: We don't unload the screen as LVGL is capable of screen switching
+  }
+
+  /**
+   * @brief Activate screen for input focus - override for screens with interactive elements
+   */
+  virtual void Activate(lv_group_t* group) {
+    current_group_ = group;
+    // Base implementation does nothing - screens without buttons don't need group
+  }
+
+  /**
+   * @brief Deactivate screen input focus - override for screens with interactive elements
+   */
+  virtual void Deactivate() {
+    current_group_ = nullptr;
+    // Base implementation does nothing
+  }
 
   /**
    * @brief Handle button press events
@@ -68,9 +93,25 @@ class ScreenBase {
     return screen_;
   }
 
+  /**
+   * @brief Check if screen is currently visible
+   */
+  bool IsVisible() const {
+    return is_visible_;
+  }
+
+  /**
+   * @brief Check if screen is currently active (has input focus)
+   */
+  bool IsActive() const {
+    return current_group_ != nullptr;
+  }
+
  protected:
   lv_obj_t* screen_ = nullptr;
   ScreenId screen_id_;
+  lv_group_t* current_group_ = nullptr;
+  bool is_visible_ = false;
 };
 
 }  // namespace xbot::driver::ui::lvgl

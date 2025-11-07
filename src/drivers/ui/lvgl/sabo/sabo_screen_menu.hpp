@@ -47,7 +47,7 @@ class SaboScreenMenu : public ScreenBase<ScreenId, xbot::driver::ui::sabo::Butto
 
   enum class AnimationState { HIDDEN, SLIDING_IN, VISIBLE, SLIDING_OUT };
 
-  enum class MenuItem { CMD, STATUS, CONFIG, ABOUT };
+  enum class MenuItem { CMD, STATUS, SETTINGS, ABOUT };
 
   void Create(lv_color_t bg_color = lv_color_white()) override {
     ScreenBase::Create(bg_color);
@@ -73,7 +73,7 @@ class SaboScreenMenu : public ScreenBase<ScreenId, xbot::driver::ui::sabo::Butto
     // Create menu items
     CreateMenuItem(MenuItem::CMD, "Command", 30);
     CreateMenuItem(MenuItem::STATUS, "Status", 60);
-    CreateMenuItem(MenuItem::CONFIG, "Config", 90);
+    CreateMenuItem(MenuItem::SETTINGS, "Settings", 90);
     CreateMenuItem(MenuItem::ABOUT, "About", 120);
 
     anim_state_ = AnimationState::HIDDEN;
@@ -118,7 +118,7 @@ class SaboScreenMenu : public ScreenBase<ScreenId, xbot::driver::ui::sabo::Butto
     // Create menu items (starting after separator)
     CreateMenuItem(MenuItem::CMD, "Command", 35);
     CreateMenuItem(MenuItem::STATUS, "Status", 60);
-    CreateMenuItem(MenuItem::CONFIG, "Config", 85);
+    CreateMenuItem(MenuItem::SETTINGS, "Settings", 85);
     CreateMenuItem(MenuItem::ABOUT, "About", 110);
 
     anim_state_ = AnimationState::HIDDEN;

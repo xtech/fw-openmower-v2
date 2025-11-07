@@ -17,6 +17,7 @@
 #ifndef OPENMOWER_SABO_COVER_UI_DEFS_HPP
 #define OPENMOWER_SABO_COVER_UI_DEFS_HPP
 
+#include "../../../filesystem/versioned_struct.hpp"
 #include "ch.h"
 
 namespace xbot::driver::ui::sabo {
@@ -105,10 +106,50 @@ namespace display {
 constexpr uint16_t LCD_WIDTH = 240;  // ATTENTION: LVGL I1 mode requires a multiple of 8 width
 constexpr uint16_t LCD_HEIGHT = 160;
 constexpr uint8_t BUFFER_FRACTION = 10;  // 1/10 screen size for buffers
-
-constexpr systime_t BACKLIGHT_TIMEOUT = TIME_S2I(120);  // 2 Minutes
-constexpr systime_t LCD_SLEEP_TIMEOUT = TIME_S2I(300);  // 5 Minutes
 }  // namespace display
+
+namespace settings {
+
+/**
+ * @brief LCD Temperature Compensation modes
+ * Maps directly to UC1698 hardware register values
+ */
+enum class TempCompensation : uint8_t {
+  OFF = 0,     // No temperature compensation
+  LOW = 1,     // -0.05%/°C
+  MEDIUM = 2,  // -0.15%/°C (recommended default)
+  HIGH = 3     // -0.25%/°C
+};
+
+/**
+ * @brief LCD persistent settings stored in LittleFS
+ *
+ * This struct is serialized directly to flash as binary data.
+ * Evolution strategy: version field + append-only new fields.
+ *
+ * Rules for evolution:
+ * - NEVER change existing field types or order
+ * - ALWAYS increment VERSION when adding fields
+ * - ONLY append new fields at the end
+ * - Use padding to maintain alignment if needed
+ *
+ * Migration is handled automatically by VersionedStruct base class.
+ */
+#pragma pack(push, 1)
+struct LCDSettings : public xbot::driver::filesystem::VersionedStruct<xbot::driver::ui::sabo::settings::LCDSettings> {
+  VERSIONED_STRUCT_FIELDS(1);  // Version 1 - automatically defines VERSION constant and version field
+  static constexpr const char* PATH = "/cfg/sabo/lcd.bin";
+
+  uint8_t contrast = 100;                                         // LCD contrast (0-255)
+  TempCompensation temp_compensation = TempCompensation::MEDIUM;  // Temperature compensation
+  uint8_t auto_sleep_minutes = 5;                                 // Auto-sleep timeout (1-20 minutes)
+};
+#pragma pack(pop)
+
+static_assert(sizeof(LCDSettings) == 5,
+              "LCDSettings must be 5 bytes (2 version + 3 data)");  // Protect against thoughtless changes
+
+}  // namespace settings
 
 }  // namespace xbot::driver::ui::sabo
 
