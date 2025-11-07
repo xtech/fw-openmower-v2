@@ -1,6 +1,18 @@
-//
-// Created by Apehaenger on 6/24/25.
-//
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2025 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/**
+ * @file sabo_cover_ui_display_driver_uc1698.hpp
+ * @brief Display driver for UC1698-based LCDs
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2025-06-24
+ */
 
 /**
  * @brief Model AGG240160B05?
@@ -32,6 +44,7 @@ namespace xbot::driver::ui {
 
 using namespace sabo;
 using namespace sabo::display;
+using namespace sabo::settings;
 
 class SaboCoverUIDisplayDriverUC1698 {
  public:
@@ -50,9 +63,9 @@ class SaboCoverUIDisplayDriverUC1698 {
 
   void Start();  // Start UC1698 own thread (required for async SPI)
 
-  void SetVBiasPotentiometer(uint8_t data);     // [10] Set VBias Potentiometer (Contrast: 0-255)
-  void SetTemperatureCompensation(uint8_t tc);  // [5] Set Temperature Compensation (0-3)
-  void SetDisplayEnable(bool on);               // [17] Set Display Enable: Green Enh. Mode off, Gray Shade, Active
+  void SetVBiasPotentiometer(uint8_t data);              // [10] Set VBias Potentiometer (Contrast: 0-255)
+  void SetTemperatureCompensation(TempCompensation tc);  // [5] Set Temperature Compensation
+  void SetDisplayEnable(bool on);  // [17] Set Display Enable: Green Enh. Mode off, Gray Shade, Active
 
   bool IsDisplayEnabled() const {  // LCD active (or sleeping)
     return display_enabled_;
@@ -67,7 +80,7 @@ class SaboCoverUIDisplayDriverUC1698 {
   SaboCoverUIDisplayDriverUC1698(const LCDCfg& lcd_cfg) : lcd_cfg_(lcd_cfg) {
   }
 
-  THD_WORKING_AREA(wa_, 768);  // AH20250714 In use = 512
+  THD_WORKING_AREA(wa_, 640);  // AH20251106 In use = 320
   thread_t* thread_ = nullptr;
 
   // We need some signals to start and finish our async SPI transfers
@@ -86,6 +99,7 @@ class SaboCoverUIDisplayDriverUC1698 {
   SPIConfig spi_config_;
 
   bool display_enabled_ = false;  // Sleep mode of UC1698
+  LCDSettings lcd_settings_;      // Loaded settings from file (or defaults)
 
   volatile TransferState transfer_state_ = TransferState::IDLE;
 

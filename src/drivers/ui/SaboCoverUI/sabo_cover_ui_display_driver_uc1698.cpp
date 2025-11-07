@@ -1,6 +1,18 @@
-//
-// Created by Apehaenger on 6/24/25.
-//
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2025 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/**
+ * @file sabo_cover_ui_display_driver_uc1698.cpp
+ * @brief Display driver for UC1698-based LCDs
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2025-06-24
+ */
 
 /**
  * @brief Model AGG240160B05?
@@ -21,6 +33,8 @@
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
 
 #include <ulog.h>
+
+#include "sabo_cover_ui_defs.hpp"
 
 namespace xbot::driver::ui {
 
@@ -69,6 +83,11 @@ bool SaboCoverUIDisplayDriverUC1698::Init() {
 }
 
 void SaboCoverUIDisplayDriverUC1698::Start() {
+  // Load LCD settings from file (or use defaults)
+  if (!LCDSettings::Load(lcd_settings_)) {
+    ULOG_WARNING("LCD settings file not found, using defaults");
+  }
+
   thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO, ThreadHelper, this);
 #ifdef USE_SEGGER_SYSTEMVIEW
   processing_thread_->name = "SaboCoverUIDisplayDriverUC1698";
@@ -79,13 +98,19 @@ void SaboCoverUIDisplayDriverUC1698::InitController() {
   // Directly after reset set Booster, Regulator, and Power Control in that order
   SendCommand(0b00101000 | 0b0);  // [6] Set Power Control, Booster: 0=LCD<=13nF, 1=13nF<LCD<=22nF
   chThdSleepMilliseconds(10);
-  SendCommand(0b00101000 | 0b10);   // [6] Set Power Control, VReg: Internal Vlcd(*10)
-  chThdSleepMilliseconds(100);      // Give charge pump some time to stabilize
-  SendCommand(0b00100100 | 0b10);   // [5] Set Temperature Compensation. 1=-0.05%/C, 2=-0.15%/C, 3=-0.25%/C
+  SendCommand(0b00101000 | 0b10);  // [6] Set Power Control, VReg: Internal Vlcd(*10)
+  chThdSleepMilliseconds(100);     // Give charge pump some time to stabilize
+  SendCommand(0b00100100 | static_cast<uint8_t>(lcd_settings_.temp_compensation));  // [5] Set Temperature Compensation
   SendCommand(0b11000000 | 0b100);  // [18] Set LCD Mapping Control, Mirror Y
   SendCommand(0b11010000 | 1);      // [20] Set Color Pattern to R-G-B
   SendCommand(0b11010100 | 0b01);   // [21] Set Color Mode: 1=RRRR-GGGG-BBBB, 4k-color, 2=RRRRR-GGGGGG-BBBBB, 64k-color
+
+  SetVBiasPotentiometer(lcd_settings_.contrast);  // Apply contrast from settings
+
   SetDisplayEnable(true);
+
+  ULOG_INFO("LCD initialized with settings: contrast=%d, temp_comp=%d, sleep=%d min", lcd_settings_.contrast,
+            static_cast<uint8_t>(lcd_settings_.temp_compensation), lcd_settings_.auto_sleep_minutes);
 }
 
 // [10] Set VBias Potentiometer (Contrast)
@@ -95,10 +120,8 @@ void SaboCoverUIDisplayDriverUC1698::SetVBiasPotentiometer(uint8_t data) {
 }
 
 // [5] Set Temperature Compensation
-// 0 = Off, 1 = -0.05%/C, 2 = -0.15%/C, 3 = -0.25%/C
-void SaboCoverUIDisplayDriverUC1698::SetTemperatureCompensation(uint8_t tc) {
-  if (tc > 3) tc = 3;  // Clamp to valid range
-  SendCommand(0b00100100 | tc);
+void SaboCoverUIDisplayDriverUC1698::SetTemperatureCompensation(sabo::settings::TempCompensation tc) {
+  SendCommand(0b00100100 | static_cast<uint8_t>(tc));
 }
 
 void SaboCoverUIDisplayDriverUC1698::SetDisplayEnable(bool on) {
@@ -254,8 +277,7 @@ void SaboCoverUIDisplayDriverUC1698::SetWindowProgramAreaRaw(uint8_t t_x1, uint8
 }
 
 void SaboCoverUIDisplayDriverUC1698::ThreadFunc() {
-  InitController();            // Initialize the LCD controller
-  SetVBiasPotentiometer(100);  // TODO: Make Bias configurable?!
+  InitController();  // Initialize the LCD controller (loads settings and applies them)
 
   event_listener_t event_listener;
   chEvtRegister(&event_source_, &event_listener, 0);
