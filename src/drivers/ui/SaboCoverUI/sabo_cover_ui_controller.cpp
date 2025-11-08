@@ -41,7 +41,9 @@ void SaboCoverUIController::Configure(const CoverUICfg& cui_cfg) {
     // Mobo v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
     static SaboCoverUICaboDriverV02 driver_v02(cui_cfg.cabo_cfg);
     cabo_ = &driver_v02;
-    static SaboCoverUIDisplay display(cui_cfg.lcd_cfg);
+    static SaboCoverUIDisplay display(
+        cui_cfg.lcd_cfg,
+        etl::delegate<bool(ButtonID)>::create<SaboCoverUIController, &SaboCoverUIController::IsButtonPressed>(*this));
     display_ = &display;
   }
 
@@ -69,9 +71,6 @@ void SaboCoverUIController::Start() {
   }
 
   if (display_) {
-    // Set cabo driver for input device before Init
-    display_->SetCaboDriver(cabo_);
-
     if (!display_->Init()) {
       ULOG_ERROR("Sabo CoverUI Display initialization failed!");
       return;
@@ -236,6 +235,7 @@ void SaboCoverUIController::ThreadFunc() {
   while (true) {
     cabo_->Tick();
     UpdateStates();
+
     if (cabo_->IsReady() && display_) {
       display_->Tick();
       if (cabo_->IsAnyButtonPressed()) display_->WakeUp();
@@ -270,24 +270,7 @@ void SaboCoverUIController::ThreadFunc() {
             continue;  // Handled by screen
           }
 
-          // If screen didn't handle it, global button logic here
-          switch (button_id) {
-            case ButtonID::MENU:
-              if (display_->GetActiveScreen()->GetScreenId() == ScreenId::MAIN) {
-                display_->ShowMenu();
-              }
-              break;
-            case ButtonID::BACK:
-              if (display_->GetActiveScreen()->GetScreenId() == ScreenId::CONFIG) {
-                // BACK from config screen returns to previous screen
-                display_->HideConfigScreen();
-              } else if (display_->GetActiveScreen()->GetScreenId() != ScreenId::BOOT) {
-                // BACK from other screens hides menu
-                display_->HideMenu();
-              }
-              break;
-            default: break;
-          }
+          // If display_ (and thus also screens) didn't handle buttons, global button logic could also apply here
         }
       }
     }

@@ -11,12 +11,13 @@
  * @file sabo_cover_ui_display.hpp
  * @brief Sabo Cover UI Display management with LVGL and UC1698 driver
  * @author Apehaenger <joerg@ebeling.ws>
- * @date 2025-6-23
+ * @date 2025-11-08
  */
 
 #ifndef OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
 #define OPENMOWER_SABO_COVER_UI_DISPLAY_HPP
 
+#include <etl/delegate.h>
 #include <lvgl.h>
 #include <ulog.h>
 
@@ -25,9 +26,9 @@
 #include "../lvgl/sabo/sabo_defs.hpp"
 #include "../lvgl/sabo/sabo_input_device_keypad.hpp"
 #include "../lvgl/sabo/sabo_screen_boot.hpp"
-#include "../lvgl/sabo/sabo_screen_config.hpp"
 #include "../lvgl/sabo/sabo_screen_main.hpp"
 #include "../lvgl/sabo/sabo_screen_menu.hpp"
+#include "../lvgl/sabo/sabo_screen_settings.hpp"
 #include "../lvgl/screen_base.hpp"
 #include "ch.h"
 #include "sabo_cover_ui_cabo_driver_base.hpp"
@@ -36,27 +37,22 @@
 
 namespace xbot::driver::ui {
 
-using namespace xbot::driver::ui::sabo::display;
+using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::ui::lvgl;
 using namespace xbot::driver::ui::lvgl::sabo;
-using DriverUC1698 = SaboCoverUIDisplayDriverUC1698;
 
-// Type alias for Sabo screens with button handling
-using SaboScreenBase = ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID>;
+using DriverUC1698 = SaboCoverUIDisplayDriverUC1698;
+using SaboScreenBase = ScreenBase<ScreenId, ButtonID>;
+using ButtonCheckCallback = etl::delegate<bool(ButtonID)>;
 
 class SaboCoverUIDisplay {
  public:
-  explicit SaboCoverUIDisplay(LCDCfg lcd_cfg) : lcd_cfg_(lcd_cfg) {
-  }
-
-  /**
-   * @brief Set the cabo driver for input device
-   * @param cabo Pointer to the cabo driver
-   *
-   * Must be called before Init() to enable keypad input device
-   */
-  void SetCaboDriver(SaboCoverUICaboDriverBase* cabo) {
-    cabo_ = cabo;
+  explicit SaboCoverUIDisplay(LCDCfg lcd_cfg, ButtonCheckCallback button_check_callback = ButtonCheckCallback())
+      : lcd_cfg_(lcd_cfg), button_check_callback_(button_check_callback) {
+    // Load LCD settings
+    if (!settings::LCDSettings::Load(lcd_settings_)) {
+      ULOG_DEBUG("LCD settings file not found, using defaults");
+    }
   }
 
   bool Init() {
@@ -93,19 +89,13 @@ class SaboCoverUIDisplay {
     lv_display_set_flush_wait_cb(lvgl_display_, DriverUC1698::LVGLFlushWaitCB);
     lv_display_set_buffers(lvgl_display_, draw_buf1, NULL, sizeof(draw_buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    // Initialize input device if cabo driver is set
-    if (cabo_) {
-      keypad_device_ = new SaboInputDeviceKeypad(cabo_);
-      if (!keypad_device_->Init()) {
-        ULOG_ERROR("Keypad input device initialization failed!");
-        delete keypad_device_;
-        keypad_device_ = nullptr;
-      } else {
-        // Create default group for keypad navigation
-        default_group_ = lv_group_create();
-        keypad_device_->SetGroup(default_group_);
-        ULOG_INFO("Keypad input device initialized");
-      }
+    // Initialize input device (AFTER LVGL is initialized!)
+    if (!keypad_device_.Init()) {
+      ULOG_ERROR("Keypad input device initialization failed!");
+      // Keypad device remains initialized but won't work properly
+    } else {
+      default_group_ = lv_group_create();
+      keypad_device_.SetGroup(default_group_);
     }
 
     return true;
@@ -157,17 +147,14 @@ class SaboCoverUIDisplay {
 
       // Set up menu item callbacks
       screen_menu_->SetMenuItemCallback(
-          SaboScreenMenu::MenuItem::CONFIG,
+          SaboScreenMenu::MenuItem::SETTINGS,
           [](lv_event_t* e) {
             auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
             display->HideMenu();
-            display->ShowConfigScreen();
+            display->ShowSettingsScreen();
           },
           this);
     }
-
-    // Remember which screen was active before menu
-    screen_before_menu_ = active_screen_;
 
     // Clear group to prevent underlying screen from receiving input
     if (default_group_) {
@@ -192,91 +179,59 @@ class SaboCoverUIDisplay {
     }
   }
 
-  void ShowConfigScreen() {
-    if (!screen_config_) {
-      screen_config_ = new SaboScreenConfig();
-      screen_config_->Create();
-
-      // Set up callbacks for config changes
-      screen_config_->SetOnContrastChangedCallback([](uint8_t contrast) {
-        DriverUC1698::Instance().SetVBiasPotentiometer(contrast);
-        ULOG_INFO("Contrast changed to %d", contrast);
-      });
-
-      screen_config_->SetOnTempCompChangedCallback([](uint8_t temp_comp) {
-        DriverUC1698::Instance().SetTemperatureCompensation(temp_comp);
-        ULOG_INFO("Temp compensation changed to %d", temp_comp);
-      });
-
-      screen_config_->SetOnSleepTimerChangedCallback([](uint8_t minutes) {
-        // TODO: Implement auto-sleep timer
-        ULOG_INFO("Auto-sleep timer changed to %d min", minutes);
-      });
-
-      screen_config_->SetOnSaveCallback([](const SaboScreenConfig::Config& config) {
-        // TODO: Save config to persistent storage
-        ULOG_INFO("Config saved: contrast=%d, temp_comp=%d, sleep=%d", config.contrast, config.temp_compensation,
-                  config.auto_sleep_minutes);
-      });
+  void ShowSettingsScreen() {
+    if (active_screen_) {
+      active_screen_->Deactivate();
+      active_screen_->Hide();
+      // TODO: Delete?!
     }
 
-    active_screen_ = screen_config_;
-    screen_config_->Show();
-
-    // Add config screen controls to group
-    if (default_group_) {
-      lv_group_remove_all_objs(default_group_);
-      screen_config_->AddToGroup(default_group_);
+    if (!screen_settings_) {
+      screen_settings_ = new SaboScreenSettings();
+      screen_settings_->Create();
     }
+
+    active_screen_ = screen_settings_;
+    screen_settings_->Show();
+    screen_settings_->Activate(default_group_);
   }
 
-  void HideConfigScreen() {
-    if (screen_config_) {
-      screen_config_->OnBackButton();  // Trigger save
+  void CloseSettingsScreen() {
+    if (screen_settings_) {
+      lcd_settings_ = screen_settings_->GetSettings();
+      delete screen_settings_;
+      screen_settings_ = nullptr;
+      ShowMainScreen();
+    }
 
-      // Return to screen that was active before menu
-      if (screen_before_menu_) {
-        active_screen_ = screen_before_menu_;
-        screen_before_menu_->Show();
-      } else {
-        ShowMainScreen();
-      }
-
-      // Clear group
-      if (default_group_) {
-        lv_group_remove_all_objs(default_group_);
-      }
+    // Clear group
+    if (default_group_) {
+      lv_group_remove_all_objs(default_group_);
     }
   }
 
   void Tick() {
-    // Backlight timeout
-    if (palReadLine(lcd_cfg_.pins.backlight) == PAL_HIGH &&
-        chVTTimeElapsedSinceX(backlight_last_activity_) > BACKLIGHT_TIMEOUT) {
-      palWriteLine(lcd_cfg_.pins.backlight, PAL_LOW);
-    }
+    // Calculate timeout from settings (convert minutes to system time)
+    const systime_t timeout = TIME_S2I(lcd_settings_.auto_sleep_minutes * 60);
 
     // Call active screen's Tick method for screen-specific updates
     if (active_screen_) {
       active_screen_->Tick();
     }
 
-    // LCD & LVGL Timeout
-    if (lvgl_display_ && DriverUC1698::Instance().IsDisplayEnabled()) {
-      if (chVTTimeElapsedSinceX(lcd_last_activity_) > LCD_SLEEP_TIMEOUT) {
-        DriverUC1698::Instance().SetDisplayEnable(false);
-      } else {
-        // One time Test-Pattern
-        static bool test_pattern_drawn = false;
-        if (!test_pattern_drawn) {
-          test_pattern_drawn = true;
-          // create_bouncing_label();
-          // create_bouncing_image();
-          //  lv_anim_refr_now();
-        }
+    // Backlight & LCD Timeout
+    if (chVTTimeElapsedSinceX(last_activity_) > timeout) {
+      // Backlight off
+      if (palReadLine(lcd_cfg_.pins.backlight) == PAL_HIGH) {
+        palWriteLine(lcd_cfg_.pins.backlight, PAL_LOW);
       }
-      lv_timer_handler();  // Triggers LVGLFlushCB (if LVGL display content changed)
+      // LCD off
+      if (lvgl_display_ && DriverUC1698::Instance().IsDisplayEnabled()) {
+        DriverUC1698::Instance().SetDisplayEnable(false);
+      }
     }
+
+    lv_timer_handler();
   }
 
   void WakeUp() {
@@ -284,11 +239,10 @@ class SaboCoverUIDisplay {
     if (!DriverUC1698::Instance().IsDisplayEnabled()) {
       DriverUC1698::Instance().SetDisplayEnable(true);
     }
-    lcd_last_activity_ = chVTGetSystemTimeX();
 
     // Backlight on
     palWriteLine(lcd_cfg_.pins.backlight, PAL_HIGH);
-    backlight_last_activity_ = chVTGetSystemTimeX();
+    last_activity_ = chVTGetSystemTimeX();
   }
 
   /**
@@ -302,7 +256,34 @@ class SaboCoverUIDisplay {
    */
   bool OnButtonPress(xbot::driver::ui::sabo::ButtonID button_id) {
     if (!active_screen_) return false;
-    return active_screen_->OnButtonPress(button_id);
+
+    // Let the active screen handle the button first
+    if (active_screen_->OnButtonPress(button_id)) {
+      return true;  // Handled by screen
+    }
+
+    // If screen didn't handle it, global button logic here
+    switch (button_id) {
+      case ButtonID::MENU:
+        if (active_screen_->GetScreenId() == ScreenId::MAIN) {
+          ShowMenu();
+          return true;  // Handled
+        }
+        break;
+      case ButtonID::BACK:
+        if (active_screen_->GetScreenId() == ScreenId::SETTINGS) {
+          screen_settings_->SaveSettings();
+          CloseSettingsScreen();
+          return true;  // Handled
+        } else if (active_screen_->GetScreenId() != ScreenId::BOOT) {
+          // BACK from other screens hides menu
+          HideMenu();
+          return true;  // Handled
+        }
+        break;
+      default: break;
+    }
+    return false;  // Not handled
   }
 
   SaboScreenBase* GetActiveScreen() const {
@@ -311,18 +292,6 @@ class SaboCoverUIDisplay {
 
   SaboScreenBoot* GetBootScreen() const {
     return screen_boot_;
-  }
-
-  SaboScreenMain* GetMainScreen() const {
-    return screen_main_;
-  }
-
-  SaboScreenConfig* GetConfigScreen() const {
-    return screen_config_;
-  }
-
-  SaboScreenMenu* GetMenuScreen() const {
-    return screen_menu_;
   }
 
   /**
@@ -336,40 +305,26 @@ class SaboCoverUIDisplay {
            state == SaboScreenMenu::AnimationState::SLIDING_OUT;
   }
 
-  /**
-   * @brief Get the default LVGL group for keypad navigation
-   * @return Pointer to the default group, or nullptr if not initialized
-   */
-  lv_group_t* GetDefaultGroup() const {
-    return default_group_;
-  }
-
-  /**
-   * @brief Get the keypad input device
-   * @return Pointer to the keypad device, or nullptr if not initialized
-   */
-  SaboInputDeviceKeypad* GetKeypadDevice() const {
-    return keypad_device_;
-  }
-
  private:
   LCDCfg lcd_cfg_;
   lv_display_t* lvgl_display_ = nullptr;  // LVGL display instance
+  settings::LCDSettings lcd_settings_;    // LCD settings for timeout calculations
 
-  systime_t backlight_last_activity_ = 0;
-  systime_t lcd_last_activity_ = 0;
+  systime_t last_activity_ = 0;
 
   SaboScreenBoot* screen_boot_ = nullptr;
   SaboScreenMain* screen_main_ = nullptr;
-  SaboScreenConfig* screen_config_ = nullptr;
+  SaboScreenSettings* screen_settings_ = nullptr;
   SaboScreenMenu* screen_menu_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
   SaboScreenBase* screen_before_menu_ = nullptr;  // Remember screen before menu opened
 
-  // Input device
-  SaboCoverUICaboDriverBase* cabo_ = nullptr;
-  SaboInputDeviceKeypad* keypad_device_ = nullptr;
-  lv_group_t* default_group_ = nullptr;  // Default group for keypad navigation
+  ButtonCheckCallback button_check_callback_;  // Button check callback delegate
+
+  // Input device (owned by display)
+  SaboInputDeviceKeypad keypad_device_{button_check_callback_};  // Static allocation
+  lv_group_t* default_group_ = nullptr;
 };
 }  // namespace xbot::driver::ui
+
 #endif  // OPENMOWER_SABO_COVER_UI_DISPLAY_HPP

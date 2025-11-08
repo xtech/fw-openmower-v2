@@ -17,7 +17,6 @@
 #ifndef SABO_INPUT_DEVICE_KEYPAD_HPP_
 #define SABO_INPUT_DEVICE_KEYPAD_HPP_
 
-#include "../../SaboCoverUI/sabo_cover_ui_cabo_driver_base.hpp"
 #include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../input_device_base.hpp"
 
@@ -34,12 +33,14 @@ using namespace xbot::driver::ui::sabo;
  * - LEFT → LV_KEY_LEFT (edit focused widget)
  * - RIGHT → LV_KEY_RIGHT (edit focused widget)
  * - OK → LV_KEY_ENTER (activate focused item)
- * - MENU → Custom handling (can be remapped)
  * - BACK → LV_KEY_ESC (cancel/back)
  */
 class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonID> {
  public:
-  explicit SaboInputDeviceKeypad(SaboCoverUICaboDriverBase* cabo) : cabo_(cabo) {
+  using ButtonCheckCallback = etl::delegate<bool(ButtonID)>;
+
+  explicit SaboInputDeviceKeypad(ButtonCheckCallback callback = ButtonCheckCallback())
+      : button_check_callback_(callback) {
   }
 
   /**
@@ -56,7 +57,7 @@ class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonID> {
    * @param data The input device data structure to fill
    */
   void ReadCallback(lv_indev_data_t* data) override {
-    if (!cabo_ || !cabo_->IsReady()) {
+    if (!button_check_callback_) {
       data->state = LV_INDEV_STATE_RELEASED;
       return;
     }
@@ -64,42 +65,42 @@ class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonID> {
     // Check for pressed buttons and map to LVGL keys
     // Priority order: UP, DOWN, LEFT, RIGHT, OK, BACK
 
-    if (cabo_->IsButtonPressed(ButtonID::UP)) {
+    if (button_check_callback_(ButtonID::UP)) {
       data->key = LV_KEY_PREV;  // Navigate to previous item in group
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_PREV;
       return;
     }
 
-    if (cabo_->IsButtonPressed(ButtonID::DOWN)) {
+    if (button_check_callback_(ButtonID::DOWN)) {
       data->key = LV_KEY_NEXT;  // Navigate to next item in group
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_NEXT;
       return;
     }
 
-    if (cabo_->IsButtonPressed(ButtonID::LEFT)) {
-      data->key = LV_KEY_LEFT;
+    if (button_check_callback_(ButtonID::LEFT)) {
+      data->key = LV_KEY_LEFT;  // Edit focused widget
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_LEFT;
       return;
     }
 
-    if (cabo_->IsButtonPressed(ButtonID::RIGHT)) {
-      data->key = LV_KEY_RIGHT;
+    if (button_check_callback_(ButtonID::RIGHT)) {
+      data->key = LV_KEY_RIGHT;  // Edit focused widget
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_RIGHT;
       return;
     }
 
-    if (cabo_->IsButtonPressed(ButtonID::OK)) {
+    if (button_check_callback_(ButtonID::OK)) {
       data->key = LV_KEY_ENTER;
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_ENTER;
       return;
     }
 
-    if (cabo_->IsButtonPressed(ButtonID::BACK)) {
+    if (button_check_callback_(ButtonID::BACK)) {
       data->key = LV_KEY_ESC;
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_ESC;
@@ -112,8 +113,8 @@ class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonID> {
   }
 
  private:
-  SaboCoverUICaboDriverBase* cabo_ = nullptr;
-  uint32_t last_key_ = 0;  // Track last pressed key for release event
+  ButtonCheckCallback button_check_callback_;  // Button check callback delegate
+  uint32_t last_key_ = 0;                      // Track last pressed key for release event
 };
 
 }  // namespace xbot::driver::ui

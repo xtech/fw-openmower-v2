@@ -25,7 +25,7 @@ class SaboCoverUIController {
   bool IsButtonPressed(const ButtonID btn) const;  // Debounced safe check if a specific button is pressed
 
  private:
-  THD_WORKING_AREA(wa_, 5120);  // AH20250803 In use = 3744. Let's be save (+1k) for LVGL GUI development
+  THD_WORKING_AREA(wa_, 5120);  // AH20251106 In use = 4240. Let's be save (+~1k) for LVGL GUI development
   thread_t* thread_ = nullptr;
 
   bool configured_ = false;
@@ -35,6 +35,8 @@ class SaboCoverUIController {
   void UpdateStates();  // Update UI state based on system state
 
   SaboCoverUIDisplay* display_ = nullptr;  // Pointer to the Display driver
+
+  // static SaboCoverUIController* instance_;  // Singleton instance for callback access
 
   enum class BootStepState { WAIT, RUNNING, ERROR, DONE };
   struct BootStep {
@@ -65,6 +67,13 @@ class SaboCoverUIController {
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();
+
+  // Settings persistence (thread-safe)
+  xbot::driver::ui::sabo::settings::LCDSettings pending_lcd_settings_;
+  volatile bool lcd_settings_pending_save_ = false;
+
+ public:
+  void RequestLCDSettingsSave(const xbot::driver::ui::sabo::settings::LCDSettings& settings);
 };
 
 }  // namespace xbot::driver::ui
