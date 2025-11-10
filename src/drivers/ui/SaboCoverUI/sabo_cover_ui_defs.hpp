@@ -82,6 +82,12 @@ enum class ButtonID {
   _LAST = S2_HOME
 };
 
+// Helper array for iterating all valid buttons (excluding gap at value 7)
+inline constexpr ButtonID ALL_BUTTONS[] = {ButtonID::UP,   ButtonID::DOWN,    ButtonID::LEFT,      ButtonID::RIGHT,
+                                           ButtonID::OK,   ButtonID::PLAY,    ButtonID::S1_SELECT, ButtonID::MENU,
+                                           ButtonID::BACK, ButtonID::S2_AUTO, ButtonID::S2_MOW,    ButtonID::S2_HOME};
+inline constexpr size_t NUM_BUTTONS = sizeof(ALL_BUTTONS) / sizeof(ALL_BUTTONS[0]);  // = 12
+
 /**
  * @brief Convert ButtonID to human-readable string
  */

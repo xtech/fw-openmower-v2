@@ -143,9 +143,15 @@ void SaboCoverUIController::ThreadFunc() {
     uint32_t now = chVTGetSystemTimeX();
     if (TIME_I2MS(now - last_button_check) >= 100) {  // Check buttons every 100ms
       last_button_check = now;
-      for (int btn = static_cast<int>(ButtonID::_FIRST); btn <= static_cast<int>(ButtonID::_LAST); ++btn) {
-        ButtonID button_id = static_cast<ButtonID>(btn);
-        if (cabo_->IsButtonPressed(button_id)) {
+
+      // Iterate over all valid buttons using the companion array
+      for (const auto& button_id : ALL_BUTTONS) {
+        size_t btn_index = static_cast<size_t>(button_id);
+        bool is_pressed = cabo_->IsButtonPressed(button_id);
+
+        // Only trigger on rising edge (button was not pressed before, but is pressed now)
+        if (is_pressed && !button_states_[btn_index]) {
+          button_states_[btn_index] = true;
           ULOG_INFO("Sabo CoverUI Button [%s] pressed", ButtonIDToString(button_id));
 
           // Let the active screen handle the button first
@@ -154,6 +160,9 @@ void SaboCoverUIController::ThreadFunc() {
           }
 
           // If display_ (and thus also screens) didn't handle buttons, global button logic could also apply here
+        } else if (!is_pressed && button_states_[btn_index]) {
+          // Button released - reset state
+          button_states_[btn_index] = false;
         }
       }
     }

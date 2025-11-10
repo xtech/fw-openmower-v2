@@ -5,6 +5,8 @@
 #ifndef OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
 #define OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
 
+#include <etl/array.h>
+
 #include "ch.h"
 #include "sabo_cover_ui_cabo_driver_v01.hpp"
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
@@ -23,7 +25,7 @@ class SaboCoverUIController {
   bool IsButtonPressed(const ButtonID btn) const;  // Debounced safe check if a specific button is pressed
 
  private:
-  THD_WORKING_AREA(wa_, 5120);  // AH20251106 In use = 4240. Let's be save (+~1k) for LVGL GUI development
+  THD_WORKING_AREA(wa_, 5120);  // AH20251110 In use = 4384. Let's be save (+~1k) for LVGL GUI development
   thread_t* thread_ = nullptr;
 
   bool configured_ = false;
@@ -33,6 +35,9 @@ class SaboCoverUIController {
   void UpdateStates();  // Update UI state based on system state
 
   SaboCoverUIDisplay* display_ = nullptr;  // Pointer to the Display driver
+
+  // Button debouncing state - array indexed by ButtonID value (has gap at index 7)
+  etl::array<bool, static_cast<size_t>(ButtonID::_LAST) + 1> button_states_{};
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();

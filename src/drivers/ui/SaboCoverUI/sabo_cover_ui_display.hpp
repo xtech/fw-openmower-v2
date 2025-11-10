@@ -23,9 +23,9 @@
 
 #include "../lvgl/sabo/sabo_defs.hpp"
 #include "../lvgl/sabo/sabo_input_device_keypad.hpp"
+#include "../lvgl/sabo/sabo_menu_main.hpp"
 #include "../lvgl/sabo/sabo_screen_boot.hpp"
 #include "../lvgl/sabo/sabo_screen_main.hpp"
-#include "../lvgl/sabo/sabo_screen_menu.hpp"
 #include "../lvgl/sabo/sabo_screen_settings.hpp"
 #include "../lvgl/screen_base.hpp"
 #include "ch.h"
@@ -125,6 +125,9 @@ class SaboCoverUIDisplay {
   }
 
   void ShowSettingsScreen() {
+    // If menu is open, hide it immediately (without animation) before switching screens
+    SafeDelete(menu_main_);
+
     if (active_screen_) {
       active_screen_->Deactivate();
       active_screen_->Hide();
@@ -137,11 +140,14 @@ class SaboCoverUIDisplay {
   }
 
   void CloseSettingsScreen() {
+    // Clean up menu if it's open (it might be attached to Settings screen)
+    SafeDelete(menu_main_);
+
     if (screen_settings_) {
       lcd_settings_ = screen_settings_->GetSettings();
-      delete screen_settings_;
-      screen_settings_ = nullptr;
+      // Switch to main screen BEFORE deleting settings screen to avoid deleting the active LVGL screen
       ShowMainScreen();
+      SafeDelete(screen_settings_);
     }
 
     // Clear group
@@ -151,50 +157,61 @@ class SaboCoverUIDisplay {
   }
 
   void ShowMenu() {
-    if (!screen_menu_) {
-      screen_menu_ = new SaboScreenMenu();
-      // Create menu as overlay on the ACTIVE screen
-      if (active_screen_ && active_screen_->GetLvScreen()) {
-        screen_menu_->CreateOverlay(active_screen_->GetLvScreen());
-      } else {
-        ULOG_ERROR("No active screen for menu!");
-        return;
-      }
-
-      // Set up menu item callbacks
-      screen_menu_->SetMenuItemCallback(
-          SaboScreenMenu::MenuItem::SETTINGS,
-          [](lv_event_t* e) {
-            auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
-            display->HideMenu();
-            display->ShowSettingsScreen();
-          },
-          this);
+    // Don't create a new menu if one is still animating out
+    if (menu_main_ && menu_main_->GetAnimationState() == SaboMenuMain::AnimationState::SLIDING_OUT) {
+      ULOG_DEBUG("Menu still sliding out, ignoring ShowMenu()");
+      return;
     }
+
+    // Delete old menu if exists (cleanup from previous hide)
+    SafeDelete(menu_main_);
+
+    menu_main_ = new SaboMenuMain();
+
+    // Set callback to delete menu after it closes
+    menu_main_->SetClosedCallback(OnMenuClosed, this);
+
+    // Create menu as overlay on the ACTIVE screen
+    if (active_screen_ && active_screen_->GetLvScreen()) {
+      menu_main_->CreateOverlay(active_screen_->GetLvScreen());
+    } else {
+      ULOG_ERROR("No active screen for menu!");
+      return;
+    }
+
+    // Set up menu item callbacks
+    menu_main_->SetMenuItemCallback(
+        SaboMenuMain::MenuItem::SETTINGS,
+        [](lv_event_t* e) {
+          auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
+          // Don't call HideMenu() here - ShowSettingsScreen() will handle menu cleanup
+          display->ShowSettingsScreen();
+        },
+        this);
 
     // Clear group to prevent underlying screen from receiving input
     if (input_group_) {
       lv_group_remove_all_objs(input_group_);
       // Add only menu items to group
-      screen_menu_->AddToGroup(input_group_);
+      menu_main_->AddToGroup(input_group_);
     }
 
-    screen_menu_->SlideIn();
+    menu_main_->SlideIn();
   }
 
   void HideMenu() {
-    if (screen_menu_) {
-      screen_menu_->SlideOut();
-
-      // Delete menu to free heap memory
-      delete screen_menu_;
-      screen_menu_ = nullptr;
+    if (menu_main_) {
+      menu_main_->SlideOut();
+      // Menu will be deleted in OnMenuClosed callback after animation completes
 
       // Clear group and restore underlying screen's focus
       if (input_group_) {
         lv_group_remove_all_objs(input_group_);
-        // TODO: If active screen has focusable items, add them back here
-        // For now, main screen has no focusable items, so we just clear
+
+        // Restore focus to active screen if it has focusable items
+        if (active_screen_) {
+          active_screen_->Activate(input_group_);
+        }
       }
     }
   }
@@ -254,8 +271,19 @@ class SaboCoverUIDisplay {
     // If screen didn't handle it, global button logic here
     switch (button_id) {
       case ButtonID::MENU:
-        if (active_screen_->GetScreenId() == ScreenId::MAIN) {
-          ShowMenu();
+        // Allow menu on all screens except BOOT
+        if (active_screen_->GetScreenId() != ScreenId::BOOT) {
+          // Toggle menu: if open, close it; if closed, open it
+          if (menu_main_ && (menu_main_->GetAnimationState() == SaboMenuMain::AnimationState::VISIBLE ||
+                             menu_main_->GetAnimationState() == SaboMenuMain::AnimationState::SLIDING_IN)) {
+            // Closing menu - save settings if we're on settings screen
+            if (active_screen_->GetScreenId() == ScreenId::SETTINGS && screen_settings_) {
+              screen_settings_->SaveSettings();
+            }
+            HideMenu();
+          } else {
+            ShowMenu();
+          }
           return true;  // Handled
         }
         break;
@@ -287,7 +315,7 @@ class SaboCoverUIDisplay {
   SaboScreenBoot* screen_boot_ = nullptr;
   SaboScreenMain* screen_main_ = nullptr;
   SaboScreenSettings* screen_settings_ = nullptr;
-  SaboScreenMenu* screen_menu_ = nullptr;
+  SaboMenuMain* menu_main_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
 
   const ButtonCheckCallback& button_check_callback_;  // Button check callback delegate (const ref)
@@ -295,6 +323,19 @@ class SaboCoverUIDisplay {
   // Input device (owned by display)
   SaboInputDeviceKeypad keypad_device_{button_check_callback_};  // Static allocation
   lv_group_t* input_group_ = nullptr;
+
+  /**
+   * @brief Helper template to safely delete and nullify a pointer
+   * @tparam T The type of the pointer
+   * @param ptr Reference to the pointer to delete
+   */
+  template <typename T>
+  void SafeDelete(T*& ptr) {
+    if (ptr) {
+      delete ptr;
+      ptr = nullptr;
+    }
+  }
 
   /**
    * @brief Helper template to create a screen if it doesn't exist
@@ -314,11 +355,16 @@ class SaboCoverUIDisplay {
     if (!context) return;
     auto* display = static_cast<SaboCoverUIDisplay*>(context);
 
-    if (display->screen_boot_) {
-      delete display->screen_boot_;
-      display->screen_boot_ = nullptr;
-    }
+    display->SafeDelete(display->screen_boot_);
     display->ShowMainScreen();
+  }
+
+  // Static callback for menu closed
+  static void OnMenuClosed(void* context) {
+    if (!context) return;
+    auto* display = static_cast<SaboCoverUIDisplay*>(context);
+
+    display->SafeDelete(display->menu_main_);
   }
 };
 }  // namespace xbot::driver::ui
