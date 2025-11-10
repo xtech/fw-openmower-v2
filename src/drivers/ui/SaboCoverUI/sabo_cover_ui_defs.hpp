@@ -19,6 +19,7 @@
 
 #include "../../../filesystem/versioned_struct.hpp"
 #include "ch.h"
+#include "hal.h"
 
 namespace xbot::driver::ui::sabo {
 

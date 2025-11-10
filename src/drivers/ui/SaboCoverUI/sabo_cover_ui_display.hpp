@@ -21,8 +21,6 @@
 #include <lvgl.h>
 #include <ulog.h>
 
-#include <cstring>
-
 #include "../lvgl/sabo/sabo_defs.hpp"
 #include "../lvgl/sabo/sabo_input_device_keypad.hpp"
 #include "../lvgl/sabo/sabo_screen_boot.hpp"
@@ -31,7 +29,6 @@
 #include "../lvgl/sabo/sabo_screen_settings.hpp"
 #include "../lvgl/screen_base.hpp"
 #include "ch.h"
-#include "sabo_cover_ui_cabo_driver_base.hpp"
 #include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
 
@@ -47,7 +44,7 @@ using ButtonCheckCallback = etl::delegate<bool(ButtonID)>;
 
 class SaboCoverUIDisplay {
  public:
-  explicit SaboCoverUIDisplay(LCDCfg lcd_cfg, ButtonCheckCallback button_check_callback = ButtonCheckCallback())
+  explicit SaboCoverUIDisplay(LCDCfg lcd_cfg, const ButtonCheckCallback& button_check_callback = ButtonCheckCallback())
       : lcd_cfg_(lcd_cfg), button_check_callback_(button_check_callback) {
     // Load LCD settings
     if (!settings::LCDSettings::Load(lcd_settings_)) {
@@ -65,7 +62,7 @@ class SaboCoverUIDisplay {
     // Initialize and start the LCD driver
     if (!DriverUC1698::Instance(&lcd_cfg_).Init()) {
       ULOG_ERROR("SaboCoverUIDisplayDriverUC1698 initialization failed!");
-      return true;  // We shouldn't fail here for those without a connected display
+      return true;  // Continue anyway - there might be CoverUI boards which don't have an LCD
     }
 
     // Init LVGL, CBs, buffer, display driver, ...
@@ -89,13 +86,13 @@ class SaboCoverUIDisplay {
     lv_display_set_flush_wait_cb(lvgl_display_, DriverUC1698::LVGLFlushWaitCB);
     lv_display_set_buffers(lvgl_display_, draw_buf1, NULL, sizeof(draw_buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    // Initialize input device (AFTER LVGL is initialized!)
+    // Initialize input device
     if (!keypad_device_.Init()) {
       ULOG_ERROR("Keypad input device initialization failed!");
       // Keypad device remains initialized but won't work properly
     } else {
-      default_group_ = lv_group_create();
-      keypad_device_.SetGroup(default_group_);
+      input_group_ = lv_group_create();
+      keypad_device_.SetGroup(input_group_);
     }
 
     return true;
@@ -104,33 +101,52 @@ class SaboCoverUIDisplay {
   void Start() {
     DriverUC1698::Instance().Start();
 
-    // ShowBootScreen();
-    ShowMainScreen();
-  }
-
-  void SetBootStatus(const etl::string_view& text, int progress) {
-    if (screen_boot_) screen_boot_->SetBootStatus(text, progress);
+    // Disable boot screen here for faster testing
+    ShowBootScreen();
+    // ShowMainScreen();
   }
 
   void ShowBootScreen() {
     if (!screen_boot_) {
       screen_boot_ = new SaboScreenBoot();
       screen_boot_->Create();
+
+      // Set completion callback to transition to main screen
+      screen_boot_->SetCompletionCallback(OnBootComplete, this);
     }
     active_screen_ = screen_boot_;
     screen_boot_->Show();
   }
 
   void ShowMainScreen() {
-    if (!screen_main_) {
-      screen_main_ = new SaboScreenMain();
-      screen_main_->Create();
-    }
+    GetOrCreateScreen(screen_main_);
     active_screen_ = screen_main_;
     screen_main_->Show();
-    if (screen_boot_) {
-      delete screen_boot_;
-      screen_boot_ = nullptr;
+  }
+
+  void ShowSettingsScreen() {
+    if (active_screen_) {
+      active_screen_->Deactivate();
+      active_screen_->Hide();
+    }
+
+    GetOrCreateScreen(screen_settings_);
+    active_screen_ = screen_settings_;
+    screen_settings_->Show();
+    screen_settings_->Activate(input_group_);
+  }
+
+  void CloseSettingsScreen() {
+    if (screen_settings_) {
+      lcd_settings_ = screen_settings_->GetSettings();
+      delete screen_settings_;
+      screen_settings_ = nullptr;
+      ShowMainScreen();
+    }
+
+    // Clear group
+    if (input_group_) {
+      lv_group_remove_all_objs(input_group_);
     }
   }
 
@@ -157,10 +173,10 @@ class SaboCoverUIDisplay {
     }
 
     // Clear group to prevent underlying screen from receiving input
-    if (default_group_) {
-      lv_group_remove_all_objs(default_group_);
+    if (input_group_) {
+      lv_group_remove_all_objs(input_group_);
       // Add only menu items to group
-      screen_menu_->AddToGroup(default_group_);
+      screen_menu_->AddToGroup(input_group_);
     }
 
     screen_menu_->SlideIn();
@@ -170,43 +186,16 @@ class SaboCoverUIDisplay {
     if (screen_menu_) {
       screen_menu_->SlideOut();
 
+      // Delete menu to free heap memory
+      delete screen_menu_;
+      screen_menu_ = nullptr;
+
       // Clear group and restore underlying screen's focus
-      if (default_group_) {
-        lv_group_remove_all_objs(default_group_);
+      if (input_group_) {
+        lv_group_remove_all_objs(input_group_);
         // TODO: If active screen has focusable items, add them back here
         // For now, main screen has no focusable items, so we just clear
       }
-    }
-  }
-
-  void ShowSettingsScreen() {
-    if (active_screen_) {
-      active_screen_->Deactivate();
-      active_screen_->Hide();
-      // TODO: Delete?!
-    }
-
-    if (!screen_settings_) {
-      screen_settings_ = new SaboScreenSettings();
-      screen_settings_->Create();
-    }
-
-    active_screen_ = screen_settings_;
-    screen_settings_->Show();
-    screen_settings_->Activate(default_group_);
-  }
-
-  void CloseSettingsScreen() {
-    if (screen_settings_) {
-      lcd_settings_ = screen_settings_->GetSettings();
-      delete screen_settings_;
-      screen_settings_ = nullptr;
-      ShowMainScreen();
-    }
-
-    // Clear group
-    if (default_group_) {
-      lv_group_remove_all_objs(default_group_);
     }
   }
 
@@ -272,7 +261,9 @@ class SaboCoverUIDisplay {
         break;
       case ButtonID::BACK:
         if (active_screen_->GetScreenId() == ScreenId::SETTINGS) {
-          screen_settings_->SaveSettings();
+          if (screen_settings_) {
+            screen_settings_->SaveSettings();
+          }
           CloseSettingsScreen();
           return true;  // Handled
         } else if (active_screen_->GetScreenId() != ScreenId::BOOT) {
@@ -284,25 +275,6 @@ class SaboCoverUIDisplay {
       default: break;
     }
     return false;  // Not handled
-  }
-
-  SaboScreenBase* GetActiveScreen() const {
-    return active_screen_;
-  }
-
-  SaboScreenBoot* GetBootScreen() const {
-    return screen_boot_;
-  }
-
-  /**
-   * @brief Check if menu is currently visible
-   * @return true if menu is visible or sliding in/out
-   */
-  bool IsMenuVisible() const {
-    if (!screen_menu_) return false;
-    auto state = screen_menu_->GetAnimationState();
-    return state == SaboScreenMenu::AnimationState::VISIBLE || state == SaboScreenMenu::AnimationState::SLIDING_IN ||
-           state == SaboScreenMenu::AnimationState::SLIDING_OUT;
   }
 
  private:
@@ -317,13 +289,37 @@ class SaboCoverUIDisplay {
   SaboScreenSettings* screen_settings_ = nullptr;
   SaboScreenMenu* screen_menu_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
-  SaboScreenBase* screen_before_menu_ = nullptr;  // Remember screen before menu opened
 
-  ButtonCheckCallback button_check_callback_;  // Button check callback delegate
+  const ButtonCheckCallback& button_check_callback_;  // Button check callback delegate (const ref)
 
   // Input device (owned by display)
   SaboInputDeviceKeypad keypad_device_{button_check_callback_};  // Static allocation
-  lv_group_t* default_group_ = nullptr;
+  lv_group_t* input_group_ = nullptr;
+
+  /**
+   * @brief Helper template to create a screen if it doesn't exist
+   * @tparam ScreenT The screen type (e.g., SaboScreenMain, SaboScreenSettings, ...)
+   * @param screen_ptr Reference to the screen pointer member variable
+   */
+  template <typename ScreenT>
+  void GetOrCreateScreen(ScreenT*& screen_ptr) {
+    if (!screen_ptr) {
+      screen_ptr = new ScreenT();
+      screen_ptr->Create();
+    }
+  }
+
+  // Static callback for boot completion
+  static void OnBootComplete(void* context) {
+    if (!context) return;
+    auto* display = static_cast<SaboCoverUIDisplay*>(context);
+
+    if (display->screen_boot_) {
+      delete display->screen_boot_;
+      display->screen_boot_ = nullptr;
+    }
+    display->ShowMainScreen();
+  }
 };
 }  // namespace xbot::driver::ui
 

@@ -5,8 +5,6 @@
 #ifndef OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
 #define OPENMOWER_SABO_COVER_UI_CONTROLLER_HPP
 
-#include <etl/array.h>
-
 #include "ch.h"
 #include "sabo_cover_ui_cabo_driver_v01.hpp"
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
@@ -36,44 +34,8 @@ class SaboCoverUIController {
 
   SaboCoverUIDisplay* display_ = nullptr;  // Pointer to the Display driver
 
-  // static SaboCoverUIController* instance_;  // Singleton instance for callback access
-
-  enum class BootStepState { WAIT, RUNNING, ERROR, DONE };
-  struct BootStep {
-    const char* name;
-    bool (*test_func)();
-    BootStepState state = BootStepState::WAIT;
-    systime_t last_action_time = 0;
-  };
-  static constexpr size_t BOOT_STEP_COUNT_ = 5;
-  etl::array<SaboCoverUIController::BootStep, BOOT_STEP_COUNT_> boot_steps_ = {{
-      {"Motion Sensor", &TestIMU},
-      {"Charger", &TestCharger},
-      {"Left ESC", &TestLeftESC},
-      {"Right ESC", &TestRightESC},
-      {"Mower ESC", &TestMowerESC},
-  }};
-  size_t current_boot_step_ = 0;
-  static constexpr size_t BOOT_STEP_RETRIES = 3;
-  size_t boot_step_retry_count_ = 0;
-
-  void HandleBootSequence();
-
-  static bool TestIMU();
-  static bool TestCharger();
-  static bool TestLeftESC();
-  static bool TestRightESC();
-  static bool TestMowerESC();
-
   static void ThreadHelper(void* instance);
   void ThreadFunc();
-
-  // Settings persistence (thread-safe)
-  xbot::driver::ui::sabo::settings::LCDSettings pending_lcd_settings_;
-  volatile bool lcd_settings_pending_save_ = false;
-
- public:
-  void RequestLCDSettingsSave(const xbot::driver::ui::sabo::settings::LCDSettings& settings);
 };
 
 }  // namespace xbot::driver::ui

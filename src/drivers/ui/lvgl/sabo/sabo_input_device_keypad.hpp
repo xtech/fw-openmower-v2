@@ -39,7 +39,7 @@ class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonID> {
  public:
   using ButtonCheckCallback = etl::delegate<bool(ButtonID)>;
 
-  explicit SaboInputDeviceKeypad(ButtonCheckCallback callback = ButtonCheckCallback())
+  explicit SaboInputDeviceKeypad(const ButtonCheckCallback& callback = ButtonCheckCallback())
       : button_check_callback_(callback) {
   }
 
@@ -113,8 +113,8 @@ class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonID> {
   }
 
  private:
-  ButtonCheckCallback button_check_callback_;  // Button check callback delegate
-  uint32_t last_key_ = 0;                      // Track last pressed key for release event
+  const ButtonCheckCallback button_check_callback_;  // Button check callback delegate
+  uint32_t last_key_ = 0;                            // Track last pressed key for release event
 };
 
 }  // namespace xbot::driver::ui
