@@ -130,17 +130,23 @@ void SaboCoverUIController::ThreadFunc() {
   }
 
   while (true) {
+    static uint32_t last_button_check = 0;
+    static uint32_t last_display_tick = 0;
+    uint32_t now = chVTGetSystemTimeX();
+
     cabo_->Tick();
     UpdateStates();
 
     if (cabo_->IsReady() && display_) {
-      display_->Tick();
+      // 30ms tick for display is quite enough and will save resources
+      if (TIME_I2MS(now - last_display_tick) >= 30) {
+        last_display_tick = now;
+        display_->Tick();
+      }
       if (cabo_->IsAnyButtonPressed()) display_->WakeUp();
     }
 
     // ----- Button Handling -----
-    static uint32_t last_button_check = 0;
-    uint32_t now = chVTGetSystemTimeX();
     if (TIME_I2MS(now - last_button_check) >= 100) {  // Check buttons every 100ms
       last_button_check = now;
 

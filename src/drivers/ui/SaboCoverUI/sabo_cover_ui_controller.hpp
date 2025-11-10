@@ -25,7 +25,7 @@ class SaboCoverUIController {
   bool IsButtonPressed(const ButtonID btn) const;  // Debounced safe check if a specific button is pressed
 
  private:
-  THD_WORKING_AREA(wa_, 5120);  // AH20251110 In use = 4384. Let's be save (+~1k) for LVGL GUI development
+  THD_WORKING_AREA(wa_, 5120);  // AH20251110 In use = 4416. Let's be save (+~1k) for LVGL GUI development
   thread_t* thread_ = nullptr;
 
   bool configured_ = false;
