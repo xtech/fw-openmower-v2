@@ -1,6 +1,20 @@
-//
-// Created by clemens on 27.05.25.
-//
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2025 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/**
+ * @file file.hpp
+ * @brief File handling utilities for LittleFS
+ * @author Clemens
+ * @date 2025-05-27
+ * @maintainer Apehaenger <joerg@ebeling.ws>
+ * @modified 2025-11-06
+ */
 
 #ifndef FILE_HPP
 #define FILE_HPP
@@ -53,9 +67,22 @@ class File {
     return lfs_file_seek(&lfs, &file_, off, whence);
   }
 
+  int size() {
+    return lfs_file_size(&lfs, &file_);
+  }
+
   [[nodiscard]] bool isOpen() const {
     return is_open;
   }
+
+  /**
+   * @brief Create parent directories for a path (like mkdir -p)
+   * @param path Absolute file or directory path. If it's a file path (contains extension),
+   *             only the parent directories are created. If it's a directory path,
+   *             the full path is created (e.g. "/cfg/sabo/lcd.bin" creates "/cfg/sabo")
+   * @return LFS_ERR_OK on success, or LFS error code on failure
+   */
+  int mkdirp(const char* path);
 
  private:
   lfs_file_t file_{};

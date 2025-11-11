@@ -43,8 +43,9 @@ class SaboRobot : public MowerRobot {
 
   // ----- Some driver Test* functions used by Boot-Screen -----
 
-  CHARGER_STATUS GetChargerStatus() {
-    return charger_.getChargerStatus();
+  bool TestCharger() {
+    const CHARGER_STATUS status = charger_.getChargerStatus();
+    return status != CHARGER_STATUS::FAULT && status != CHARGER_STATUS::COMMS_ERROR;
   }
 
   template <typename EscDriver>
