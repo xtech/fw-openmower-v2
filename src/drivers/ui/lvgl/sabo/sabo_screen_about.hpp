@@ -33,14 +33,14 @@ namespace xbot::driver::ui::lvgl::sabo {
 
 class SaboScreenAbout : public ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID> {
  public:
-  SaboScreenAbout() : ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID>(sabo::ScreenId::MAIN) {
+  SaboScreenAbout() : ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID>(sabo::ScreenId::ABOUT) {
   }
 
   void Create(lv_color_t bg_color = lv_color_white()) override {
     ScreenBase::Create(bg_color);
 
     status_label_ = lv_label_create(screen_);
-    lv_label_set_text(status_label_, "ToDo: Main Screen\n\nPress any key for test");
+    lv_label_set_text(status_label_, "ToDo: About Screen\n\nPress any key for test");
     lv_obj_set_style_text_color(status_label_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(status_label_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
@@ -56,7 +56,7 @@ class SaboScreenAbout : public ScreenBase<ScreenId, xbot::driver::ui::sabo::Butt
     // Example button handling
     switch (button_id) {
       case ButtonID::OK:
-        ULOG_INFO("Main screen: OK button pressed");
+        ULOG_INFO("About screen: OK button pressed");
         if (status_label_) {
           lv_label_set_text(status_label_, "OK pressed!");
         }
