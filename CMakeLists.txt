@@ -15,6 +15,8 @@ set(CMAKE_PROJECT_NAME openmower)
 # Include toolchain file
 include("cmake/gcc-arm-none-eabi.cmake")
 
+# Include git version script
+include("cmake/GetGitVersion.cmake")
 
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -23,6 +25,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 # Core project settings
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
+
+# Generate git version header file
+set(GENERATED_INCLUDE_DIR ${CMAKE_BINARY_DIR}/generated)
+file(MAKE_DIRECTORY ${GENERATED_INCLUDE_DIR})
+get_git_version(${GENERATED_INCLUDE_DIR})
+
 # Enable CMake support for ASM and C languages
 enable_language(C CXX ASM)
 
@@ -33,6 +41,9 @@ set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
         CXX_STANDARD_REQUIRED ON
         CXX_EXTENSIONS ON
 )
+
+# Add generated include directory for git_version.h
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${GENERATED_INCLUDE_DIR})
 
 target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
 

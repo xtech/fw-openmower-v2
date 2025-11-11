@@ -1,0 +1,30 @@
+/*
+ * Auto-generated file - contains git version and build date information
+ * Generated at build time by CMake
+ * DO NOT EDIT MANUALLY
+ */
+
+#ifndef GIT_VERSION_H_
+#define GIT_VERSION_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief Git commit hash (short form, 7 characters)
+ * May include "-dirty" suffix if repository had uncommitted changes at build time
+ */
+#define BUILD_GIT_HASH "@GIT_HASH@"
+
+/**
+ * @brief Build date and time in ISO 8601 format (UTC)
+ * Format: YYYY-MM-DD HH:MM:SS UTC
+ */
+#define BUILD_DATE "@BUILD_DATE@"
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // GIT_VERSION_H_
