@@ -105,6 +105,7 @@ class SaboCoverUIDisplay {
     // Disable boot screen here for faster testing
     ShowBootScreen();
     // ShowMainScreen();
+    // ShowAboutScreen();
   }
 
   void ShowBootScreen() {
@@ -170,6 +171,22 @@ class SaboCoverUIDisplay {
     active_screen_ = screen_about_;
     screen_about_->Show();
     screen_about_->Activate(input_group_);
+  }
+
+  void CloseAboutScreen() {
+    // Clean up menu if it's open (it might be attached to About screen)
+    SafeDelete(menu_main_);
+
+    if (screen_about_) {
+      // Switch to main screen BEFORE deleting about screen to avoid deleting the active LVGL screen
+      ShowMainScreen();
+      SafeDelete(screen_about_);
+    }
+
+    // Clear group
+    if (input_group_) {
+      lv_group_remove_all_objs(input_group_);
+    }
   }
 
   void ShowMenu() {
@@ -287,8 +304,8 @@ class SaboCoverUIDisplay {
   bool OnButtonPress(xbot::driver::ui::sabo::ButtonID button_id) {
     if (!active_screen_) return false;
 
-    // Let the active screen handle the button first
-    if (active_screen_->OnButtonPress(button_id)) {
+    // If main menu isn't open, let the active screen handle the button first
+    if (!menu_main_ && active_screen_->OnButtonPress(button_id)) {
       return true;  // Handled by screen
     }
 
@@ -317,6 +334,9 @@ class SaboCoverUIDisplay {
             screen_settings_->SaveSettings();
           }
           CloseSettingsScreen();
+          return true;  // Handled
+        } else if (active_screen_->GetScreenId() == ScreenId::ABOUT) {
+          CloseAboutScreen();
           return true;  // Handled
         } else if (active_screen_->GetScreenId() != ScreenId::BOOT) {
           // BACK from other screens hides menu
