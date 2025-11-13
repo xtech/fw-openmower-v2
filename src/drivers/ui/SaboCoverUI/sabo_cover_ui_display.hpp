@@ -27,6 +27,7 @@
 #include "../lvgl/sabo/sabo_screen_about.hpp"
 #include "../lvgl/sabo/sabo_screen_boot.hpp"
 #include "../lvgl/sabo/sabo_screen_main.hpp"
+#include "../lvgl/sabo/sabo_screen_sensors.hpp"
 #include "../lvgl/sabo/sabo_screen_settings.hpp"
 #include "../lvgl/screen_base.hpp"
 #include "ch.h"
@@ -106,6 +107,7 @@ class SaboCoverUIDisplay {
     ShowBootScreen();
     // ShowMainScreen();
     //  ShowAboutScreen();
+    // ShowSensorsScreen();
   }
 
   void ShowBootScreen() {
@@ -189,6 +191,37 @@ class SaboCoverUIDisplay {
     }
   }
 
+  void ShowSensorsScreen() {
+    // If menu is open, hide it immediately (without animation) before switching screens
+    SafeDelete(menu_main_);
+
+    if (active_screen_) {
+      active_screen_->Deactivate();
+      active_screen_->Hide();
+    }
+
+    GetOrCreateScreen(screen_sensors_);
+    active_screen_ = screen_sensors_;
+    screen_sensors_->Show();
+    screen_sensors_->Activate(input_group_);
+  }
+
+  void CloseSensorsScreen() {
+    // Clean up menu if it's open (it might be attached to Sensors screen)
+    SafeDelete(menu_main_);
+
+    if (screen_sensors_) {
+      // Switch to main screen BEFORE deleting sensors screen to avoid deleting the active LVGL screen
+      ShowMainScreen();
+      SafeDelete(screen_sensors_);
+    }
+
+    // Clear group
+    if (input_group_) {
+      lv_group_remove_all_objs(input_group_);
+    }
+  }
+
   void ShowMenu() {
     // Don't create a new menu if one is still animating out
     if (menu_main_ && menu_main_->GetAnimationState() == SaboMenuMain::AnimationState::SLIDING_OUT) {
@@ -213,6 +246,14 @@ class SaboCoverUIDisplay {
     }
 
     // Set up menu item callbacks
+    menu_main_->SetMenuItemCallback(
+        SaboMenuMain::MenuItem::STATUS,
+        [](lv_event_t* e) {
+          auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
+          // Don't call HideMenu() here - ShowSensorsScreen() will handle menu cleanup
+          display->ShowSensorsScreen();
+        },
+        this);
     menu_main_->SetMenuItemCallback(
         SaboMenuMain::MenuItem::SETTINGS,
         [](lv_event_t* e) {
@@ -338,6 +379,9 @@ class SaboCoverUIDisplay {
         } else if (active_screen_->GetScreenId() == ScreenId::ABOUT) {
           CloseAboutScreen();
           return true;  // Handled
+        } else if (active_screen_->GetScreenId() == ScreenId::SENSORS) {
+          CloseSensorsScreen();
+          return true;  // Handled
         } else if (active_screen_->GetScreenId() != ScreenId::BOOT) {
           // BACK from other screens hides menu
           HideMenu();
@@ -360,6 +404,7 @@ class SaboCoverUIDisplay {
   SaboScreenMain* screen_main_ = nullptr;
   SaboScreenAbout* screen_about_ = nullptr;
   SaboScreenSettings* screen_settings_ = nullptr;
+  SaboScreenSensors* screen_sensors_ = nullptr;
   SaboMenuMain* menu_main_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
 

@@ -112,7 +112,7 @@ class SaboMenuMain {
 
     // Create menu items (starting after separator)
     CreateMenuItem(MenuItem::CMD, "Command", 35);
-    CreateMenuItem(MenuItem::STATUS, "Status", 60);
+    CreateMenuItem(MenuItem::STATUS, "Sensors", 60);
     CreateMenuItem(MenuItem::SETTINGS, "Settings", 85);
     CreateMenuItem(MenuItem::ABOUT, "About", 110);
 
