@@ -61,6 +61,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 file(GLOB LVGL_ASSETS_SRC
     "src/drivers/ui/lvgl/assets/*.c"
     "src/drivers/ui/lvgl/assets/Orbitron/*.c"
+    "src/drivers/ui/lvgl/assets/fontawesome-free-7.1.0-desktop/*.c"
 )
 
 # Add sources to executable

@@ -1,0 +1,155 @@
+/*******************************************************************************
+ * Size: 14 px
+ * Bpp: 1
+ * Opts: --font otfs/Font Awesome 7 Free-Solid-900.otf --size 14 --bpp 1 --format lvgl -r
+ *0xf544,0xf5e1,0xf071,0xf601,0xf244,0xf243,0xf242,0xf241,0xf240,0xf5e7 -o font_awesome_14.c --lv-font-name
+ *font_awesome_14
+ ******************************************************************************/
+
+#ifdef LV_LVGL_H_INCLUDE_SIMPLE
+#include "lvgl.h"
+#else
+#include "lvgl/lvgl.h"
+#endif
+
+#ifndef FONT_AWESOME_14
+#define FONT_AWESOME_14 1
+#endif
+
+#if FONT_AWESOME_14
+
+/*-----------------
+ *    BITMAPS
+ *----------------*/
+
+/*Store the image of the glyphs*/
+static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
+    /* U+F071 "" */
+    0x3, 0x0, 0xc, 0x0, 0x78, 0x3, 0xf0, 0xc, 0xc0, 0x73, 0x81, 0xce, 0xf, 0x3c, 0x3f, 0xf1, 0xf3, 0xe7, 0xcf, 0xbf,
+    0xff, 0xff, 0xfc,
+
+    /* U+F240 "" */
+    0x7f, 0xfe, 0x7f, 0xff, 0xb0, 0x0, 0xd8, 0x0, 0x6d, 0xff, 0xb6, 0xff, 0xdf, 0x7f, 0xef, 0xbf, 0xf6, 0xc0, 0x3, 0x7f,
+    0xff, 0x9f, 0xff, 0x80,
+
+    /* U+F241 "" */
+    0x7f, 0xfe, 0x7f, 0xff, 0xb0, 0x0, 0xd8, 0x0, 0x6d, 0xfe, 0x36, 0xff, 0x1f, 0x7f, 0x8f, 0xbf, 0xc6, 0xc0, 0x3, 0x7f,
+    0xff, 0x9f, 0xff, 0x80,
+
+    /* U+F242 "" */
+    0x7f, 0xfe, 0x7f, 0xff, 0xb0, 0x0, 0xd8, 0x0, 0x6d, 0xf0, 0x36, 0xf8, 0x1f, 0x7c, 0xf, 0xbe, 0x6, 0xc0, 0x3, 0x7f,
+    0xff, 0x9f, 0xff, 0x80,
+
+    /* U+F243 "" */
+    0x7f, 0xfe, 0x7f, 0xff, 0xb0, 0x0, 0xd8, 0x0, 0x6d, 0xc0, 0x36, 0xe0, 0x1f, 0x70, 0xf, 0xb8, 0x6, 0xc0, 0x3, 0x7f,
+    0xff, 0x9f, 0xff, 0x80,
+
+    /* U+F244 "" */
+    0x7f, 0xfe, 0x7f, 0xff, 0xb0, 0x0, 0xd8, 0x0, 0x6c, 0x0, 0x3e, 0x0, 0x1f, 0x0, 0xf, 0x80, 0x6, 0xc0, 0x3, 0x7f,
+    0xff, 0x9f, 0xff, 0x80,
+
+    /* U+F544 "" */
+    0x0, 0xc0, 0x0, 0x30, 0x0, 0x7f, 0x0, 0x7f, 0xf0, 0x1f, 0xfe, 0x7, 0xff, 0x8d, 0x8c, 0xef, 0x67, 0x3b, 0xdf, 0xfe,
+    0xf7, 0xff, 0xb1, 0x12, 0x60, 0x64, 0x98, 0x1f, 0xfe, 0x3, 0xff, 0x0,
+
+    /* U+F5E1 "" */
+    0x4, 0x0, 0x24, 0x80, 0x11, 0x80, 0x0, 0x40, 0xe1, 0xfc, 0x1, 0xbe, 0x13, 0x3, 0x37, 0x83, 0xf, 0xfb, 0xc, 0xff,
+    0xf, 0xff, 0xc, 0xf9, 0x8, 0x1f, 0x0, 0x7, 0x0, 0x6,
+
+    /* U+F5E7 "" */
+    0x7f, 0x3, 0xfe, 0xf, 0xb9, 0xb9, 0xef, 0xe1, 0xbf, 0xce, 0xfe, 0xf9, 0xbf, 0xe6, 0xff, 0xdb, 0xff, 0x6f, 0xfb,
+    0x3f, 0xe0, 0xff, 0x80,
+
+    /* U+F601 "" */
+    0x1, 0x0, 0x7, 0x0, 0x3f, 0x80, 0xc3, 0x83, 0x1, 0x86, 0x71, 0x19, 0xf3, 0x73, 0xe7, 0x67, 0xcc, 0x47, 0x10, 0xc0,
+    0x60, 0xc1, 0x80, 0xfe, 0x0, 0x70, 0x0, 0x40, 0x0};
+
+/*---------------------
+ *  GLYPH DESCRIPTION
+ *--------------------*/
+
+static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
+    {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */,
+    {.bitmap_index = 0, .adv_w = 224, .box_w = 14, .box_h = 13, .ofs_x = 0, .ofs_y = -1},
+    {.bitmap_index = 23, .adv_w = 280, .box_w = 17, .box_h = 11, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 47, .adv_w = 280, .box_w = 17, .box_h = 11, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 71, .adv_w = 280, .box_w = 17, .box_h = 11, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 95, .adv_w = 280, .box_w = 17, .box_h = 11, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 119, .adv_w = 280, .box_w = 17, .box_h = 11, .ofs_x = 1, .ofs_y = -1},
+    {.bitmap_index = 143, .adv_w = 280, .box_w = 18, .box_h = 14, .ofs_x = 0, .ofs_y = -1},
+    {.bitmap_index = 175, .adv_w = 280, .box_w = 16, .box_h = 15, .ofs_x = 0, .ofs_y = -2},
+    {.bitmap_index = 205, .adv_w = 252, .box_w = 14, .box_h = 13, .ofs_x = 1, .ofs_y = -1},
+    {.bitmap_index = 228, .adv_w = 252, .box_w = 15, .box_h = 15, .ofs_x = 0, .ofs_y = -2}};
+
+/*---------------------
+ *  CHARACTER MAPPING
+ *--------------------*/
+
+static const uint16_t unicode_list_0[] = {0x0, 0x1cf, 0x1d0, 0x1d1, 0x1d2, 0x1d3, 0x4d3, 0x570, 0x576, 0x590};
+
+/*Collect the unicode lists and glyph_id offsets*/
+static const lv_font_fmt_txt_cmap_t cmaps[] = {{.range_start = 61553,
+                                                .range_length = 1425,
+                                                .glyph_id_start = 1,
+                                                .unicode_list = unicode_list_0,
+                                                .glyph_id_ofs_list = NULL,
+                                                .list_length = 10,
+                                                .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY}};
+
+/*--------------------
+ *  ALL CUSTOM DATA
+ *--------------------*/
+
+#if LVGL_VERSION_MAJOR == 8
+/*Store all the custom data of the font*/
+static lv_font_fmt_txt_glyph_cache_t cache;
+#endif
+
+#if LVGL_VERSION_MAJOR >= 8
+static const lv_font_fmt_txt_dsc_t font_dsc = {
+#else
+static lv_font_fmt_txt_dsc_t font_dsc = {
+#endif
+    .glyph_bitmap = glyph_bitmap,
+    .glyph_dsc = glyph_dsc,
+    .cmaps = cmaps,
+    .kern_dsc = NULL,
+    .kern_scale = 0,
+    .cmap_num = 1,
+    .bpp = 1,
+    .kern_classes = 0,
+    .bitmap_format = 0,
+#if LVGL_VERSION_MAJOR == 8
+    .cache = &cache
+#endif
+};
+
+/*-----------------
+ *  PUBLIC FONT
+ *----------------*/
+
+/*Initialize a public general font descriptor*/
+#if LVGL_VERSION_MAJOR >= 8
+const lv_font_t font_awesome_14 = {
+#else
+lv_font_t font_awesome_14 = {
+#endif
+    .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt, /*Function pointer to get glyph's data*/
+    .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt, /*Function pointer to get glyph's bitmap*/
+    .line_height = 15,                              /*The maximum line height required by the font*/
+    .base_line = 2,                                 /*Baseline measured from the bottom of the line*/
+#if !(LVGL_VERSION_MAJOR == 6 && LVGL_VERSION_MINOR == 0)
+    .subpx = LV_FONT_SUBPX_NONE,
+#endif
+#if LV_VERSION_CHECK(7, 4, 0) || LVGL_VERSION_MAJOR >= 8
+    .underline_position = 0,
+    .underline_thickness = 0,
+#endif
+    .dsc = &font_dsc, /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
+#if LV_VERSION_CHECK(8, 2, 0) || LVGL_VERSION_MAJOR >= 9
+    .fallback = NULL,
+#endif
+    .user_data = NULL,
+};
+
+#endif /*#if FONT_AWESOME_14*/

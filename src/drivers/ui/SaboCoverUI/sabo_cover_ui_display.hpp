@@ -105,7 +105,7 @@ class SaboCoverUIDisplay {
     // Disable boot screen here for faster testing
     ShowBootScreen();
     // ShowMainScreen();
-    // ShowAboutScreen();
+    //  ShowAboutScreen();
   }
 
   void ShowBootScreen() {
