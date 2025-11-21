@@ -30,6 +30,14 @@ class SaboCoverUICaboDriverBase {
   bool IsButtonPressed(ButtonID btn) const;  // Check if a specific button is pressed
   bool IsAnyButtonPressed() const;           // Check if any button is pressed
 
+  /**
+   * @brief Get all button states as a standardized bitmask
+   * @return Bitmask where bit N is set (1) if button N is pressed, 0 if not pressed
+   * Handles conversion from Series-I/II specific button mapping to standardized format
+   * For button IDs see xbot::driver::ui::sabo::ButtonID enum
+   */
+  uint16_t GetButtonsMask() const;
+
   bool IsReady() const;  // True if CoverUI detected, boot anim played and ready to serve requests
 
   void SetLED(LEDID id, LEDMode mode);  // Set state of a single LED

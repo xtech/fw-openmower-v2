@@ -123,6 +123,11 @@ bool SaboCoverUIController::IsButtonPressed(const ButtonID button) const {
   return cabo_->IsButtonPressed(button);
 }
 
+uint16_t SaboCoverUIController::GetButtonsMask() const {
+  if (!cabo_ || !cabo_->IsReady()) return 0;
+  return cabo_->GetButtonsMask();
+}
+
 void SaboCoverUIController::ThreadFunc() {
   if (display_) {
     display_->Start();

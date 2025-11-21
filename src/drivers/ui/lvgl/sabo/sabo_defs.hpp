@@ -3,7 +3,7 @@
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-enum class ScreenId { BOOT, MAIN, MENU, CMD, SENSORS, SETTINGS, ABOUT };
+enum class ScreenId { BOOT, MAIN, MENU, CMD, INPUTS, SETTINGS, ABOUT };
 
 }  // namespace xbot::driver::ui::lvgl::sabo
 

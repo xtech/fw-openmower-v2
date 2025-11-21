@@ -56,7 +56,7 @@ class InputService : public InputServiceBase {
   ServiceSchedule tick_schedule_{*this, 200'000,
                                  XBOT_FUNCTION_FOR_METHOD(InputService, &InputService::SendStatus, this)};
 
-  THD_WORKING_AREA(wa, 2500){};
+  THD_WORKING_AREA(wa, 3072){};
 };
 
 #endif  // INPUT_SERVICE_HPP

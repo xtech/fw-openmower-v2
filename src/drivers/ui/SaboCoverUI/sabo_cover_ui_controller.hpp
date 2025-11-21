@@ -11,9 +11,11 @@
 #include "sabo_cover_ui_cabo_driver_v01.hpp"
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
 #include "sabo_cover_ui_defs.hpp"
-#include "sabo_cover_ui_display.hpp"
 
 namespace xbot::driver::ui {
+
+// Forward declaration to avoid circular include
+class SaboCoverUIDisplay;
 
 using namespace xbot::driver::ui::sabo;
 
@@ -23,6 +25,7 @@ class SaboCoverUIController {
   void Start();                               // Starts the controller thread
 
   bool IsButtonPressed(const ButtonID btn) const;  // Debounced safe check if a specific button is pressed
+  uint16_t GetButtonsMask() const;                 // Returns bitmask of current button states
 
  private:
   THD_WORKING_AREA(wa_, 5120);  // AH20251110 In use = 4416. Let's be save (+~1k) for LVGL GUI development

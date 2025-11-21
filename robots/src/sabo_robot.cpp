@@ -8,6 +8,7 @@ void SaboRobot::InitPlatform() {
   InitMotors();
   charger_.setI2C(&I2CD1);
   power_service.SetDriver(&charger_);
+  input_service.RegisterInputDriver("sabo", &sabo_input_driver_);
 
   // CoverUI
   CoverUICfg cui_cfg;

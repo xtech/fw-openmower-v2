@@ -18,10 +18,8 @@
 #include "../screen_base.hpp"
 #include "../widget_textbar.hpp"
 #include "ch.h"
+#include "globals.hpp"
 #include "sabo_defs.hpp"
-
-// Forward declaration
-class SaboRobot;
 
 namespace xbot::driver::ui::lvgl::sabo {
 

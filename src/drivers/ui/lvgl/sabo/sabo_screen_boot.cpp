@@ -18,7 +18,6 @@
 
 #include <etl/string.h>
 
-#include "../../../../globals.hpp"
 #include "../../../../robots/include/sabo_robot.hpp"
 #include "chprintf.h"
 #include "services.hpp"

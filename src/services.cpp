@@ -3,6 +3,7 @@
 #include <service_ids.h>
 
 #include "drivers/input/gpio_input_driver.hpp"
+#include "drivers/input/sabo_input_driver.hpp"
 #ifdef DEBUG_BUILD
 #include "drivers/input/simulated_input_driver.hpp"
 #endif
@@ -23,7 +24,9 @@ void StartServices() {
   }
 
   if (robot->NeedsService(xbot::service_ids::INPUT)) {
+#ifndef ROBOT_PLATFORM_Sabo
     input_service.RegisterInputDriver("gpio", new GpioInputDriver{});
+#endif
 #ifdef DEBUG_BUILD
     input_service.RegisterInputDriver("simulated", new SimulatedInputDriver{});
 #endif

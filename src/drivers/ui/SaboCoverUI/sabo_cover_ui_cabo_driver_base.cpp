@@ -131,6 +131,20 @@ bool SaboCoverUICaboDriverBase::IsAnyButtonPressed() const {
   return (btn_stable_raw_mask_ & series_->AllButtonsMask()) != series_->AllButtonsMask();  // low-active
 }
 
+uint16_t SaboCoverUICaboDriverBase::GetButtonsMask() const {
+  if (!series_) return 0;  // No buttons pressed if driver not ready
+
+  uint16_t standardized_mask = 0;
+  // Convert each button from series-specific format to standardized format
+  for (const auto& button_id : ALL_BUTTONS) {
+    auto series_bit = series_->MapButtonIDToMask(button_id);
+    if (series_bit != 0 && (btn_stable_raw_mask_ & series_bit) == 0) {  // low-active: 0 = pressed
+      standardized_mask |= (1 << static_cast<uint16_t>(button_id));
+    }
+  }
+  return standardized_mask;  // 1 = pressed, 0 = not pressed
+}
+
 bool SaboCoverUICaboDriverBase::IsReady() const {
   return state_ == DriverState::READY;
 }

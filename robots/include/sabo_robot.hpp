@@ -2,6 +2,7 @@
 #define SABO_ROBOT_HPP
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/input/sabo_input_driver.hpp>
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
 
 #include "robot.hpp"
@@ -67,9 +68,35 @@ class SaboRobot : public MowerRobot {
     return TestESC(mower_motor_driver_);
   }
 
+  // CoverUI button access for SaboInputDriver
+  bool IsButtonPressed(const ButtonID button) const {
+    return cover_ui_.IsButtonPressed(button);
+  }
+  uint16_t GetCoverUIButtonsMask() const {
+    return cover_ui_.GetButtonsMask();
+  }
+
+  // GPIO sensor access for UI and other components
+  bool GetSensorState(xbot::driver::input::SaboInputDriver::SensorId sensor_id) {
+    return sabo_input_driver_.GetSensorState(sensor_id);
+  }
+
+  uint16_t GetSensorHeartbeatFrequency() const {
+    return sabo_input_driver_.GetHeartbeatFrequency();
+  }
+
+  /**
+   * @brief Enable/disable button blocking for InputScreen testing
+   * @param block true to block all buttons, false to allow normal operation
+   */
+  void SetBlockButtons(bool block) {
+    sabo_input_driver_.SetBlockButtons(block);
+  }
+
  private:
   BQ2576 charger_{};
   SaboCoverUIController cover_ui_{};
+  SaboInputDriver sabo_input_driver_{};
 };
 
 #endif  // SABO_ROBOT_HPP

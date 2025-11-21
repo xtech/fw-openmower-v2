@@ -105,12 +105,14 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Input driver
         src/drivers/input/input_driver.cpp
         src/drivers/input/gpio_input_driver.cpp
+        src/drivers/input/sabo_input_driver.cpp
         src/drivers/input/worx_input_driver.cpp
         $<$<CONFIG:Debug>:src/drivers/input/simulated_input_driver.cpp>
         # Sabo driver
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_display_driver_uc1698.cpp
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_display.cpp
         src/drivers/ui/lvgl/sabo/sabo_screen_boot.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp
