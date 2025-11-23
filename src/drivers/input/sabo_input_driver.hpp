@@ -29,6 +29,7 @@
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_defs.hpp>
 
 #include "input_driver.hpp"
+#include "sabo_input_types.hpp"
 #include "services.hpp"
 
 namespace xbot::driver::input {
@@ -42,23 +43,12 @@ class SaboInputDriver : public InputDriver {
   using InputDriver::InputDriver;
 
  public:
-  // GPIO Sensor indices
-  enum class SensorId : uint8_t {
-    LIFT_FL = 0,
-    LIFT_FR = 1,
-    STOP_TOP = 2,
-    STOP_REAR = 3,
-  };
-
   explicit SaboInputDriver();
-
-  bool OnStart() override;
-  void OnStop() override;
 
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
 
-  bool GetSensorState(SensorId sensor_id);
+  bool GetSensorState(sabo::SensorId sensor_id);
 
   uint16_t GetHeartbeatFrequency() const {
     // Convert count per interval to Hz (frequency)
@@ -105,6 +95,9 @@ class SaboInputDriver : public InputDriver {
   static void HeartbeatTimerCallback(virtual_timer_t* vtp, void* arg);
 
   void Tick();
+
+  ServiceSchedule tick_schedule_{input_service, 20'000,
+                                 XBOT_FUNCTION_FOR_METHOD(SaboInputDriver, &SaboInputDriver::Tick, this)};
 };
 
 }  // namespace xbot::driver::input

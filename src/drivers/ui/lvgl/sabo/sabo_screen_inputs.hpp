@@ -21,6 +21,7 @@
 #include <ulog.h>
 
 #include <drivers/input/sabo_input_driver.hpp>
+#include <drivers/input/sabo_input_types.hpp>
 
 #include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../screen_base.hpp"
@@ -36,6 +37,7 @@ LV_FONT_DECLARE(orbitron_12);
 }
 
 using namespace xbot::driver::input;
+using namespace xbot::driver::input::sabo;
 using namespace xbot::driver::ui::sabo;
 
 namespace xbot::driver::ui::lvgl::sabo {
@@ -46,7 +48,10 @@ class SaboScreenInputs : public ScreenBase<ScreenId, ButtonID> {
   }
 
   ~SaboScreenInputs() {
-    // chEvtUnregister(&mower_events, &event_listener_);
+    if (robot) {
+      auto* sabo_robot = static_cast<SaboRobot*>(robot);
+      sabo_robot->SetBlockButtons(false);
+    }
   }
 
   void Create(lv_color_t bg_color = lv_color_white()) override {
@@ -155,16 +160,16 @@ class SaboScreenInputs : public ScreenBase<ScreenId, ButtonID> {
 
  private:
   struct SensorWidget {
-    SaboInputDriver::SensorId sensor_id;
+    SensorId sensor_id;
     WidgetSensor* widget = nullptr;
   };
 
   // Sensor mapping: index matches SensorId enum values (0-3)
   SensorWidget sensors_[4] = {
-      {SaboInputDriver::SensorId::LIFT_FL, nullptr},
-      {SaboInputDriver::SensorId::LIFT_FR, nullptr},
-      {SaboInputDriver::SensorId::STOP_TOP, nullptr},
-      {SaboInputDriver::SensorId::STOP_REAR, nullptr},
+      {SensorId::LIFT_FL, nullptr},
+      {SensorId::LIFT_FR, nullptr},
+      {SensorId::STOP_TOP, nullptr},
+      {SensorId::STOP_REAR, nullptr},
   };
 
   event_listener_t event_listener_{};

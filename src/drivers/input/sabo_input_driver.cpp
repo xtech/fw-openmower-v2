@@ -12,11 +12,14 @@
 #include <ulog.h>
 
 #include <globals.hpp>
+#include <json_stream.hpp>
 #include <robots/include/sabo_robot.hpp>
+
+#include "sabo_input_types.hpp"
 
 namespace xbot::driver::input {
 
-// Input SaboInputDriver::inputs_[SaboInputDriver::NUM_TOTAL_INPUTS];
+using namespace sabo;
 
 // Static member definition
 volatile uint16_t SaboInputDriver::heartbeat_counter_{0};
@@ -65,7 +68,7 @@ SaboInputDriver::SaboInputDriver() {
   chVTSetContinuous(&heartbeat_timer_, HEARTBEAT_CHECK_INTERVAL, HeartbeatTimerCallback, this);
 }
 
-bool SaboInputDriver::GetSensorState(SensorId sensor_id) {
+bool SaboInputDriver::GetSensorState(sabo::SensorId sensor_id) {
   uint8_t idx = static_cast<uint8_t>(sensor_id);
 
   // Handle regular GPIO sensors (LIFT_FL, LIFT_FR, STOP_TOP)
@@ -75,7 +78,7 @@ bool SaboInputDriver::GetSensorState(SensorId sensor_id) {
   }
 
   // Handle STOP_REAR heartbeat sensor
-  if (sensor_id == SensorId::STOP_REAR) {
+  if (sensor_id == sabo::SensorId::STOP_REAR) {
     // Heartbeat pulse stop when pressed (button pressed = no pulses)
     return (heartbeat_last_ < heartbeat_min_);
   }
@@ -83,89 +86,29 @@ bool SaboInputDriver::GetSensorState(SensorId sensor_id) {
   return false;  // Invalid sensor index
 }
 
-bool SaboInputDriver::OnStart() {
-  // Create Input objects for each GPIO sensor
-  /*ULOG_INFO("SaboInputDriver: Initializing %u sensors", sensors_.size());
-  ULOG_INFO("SaboInputDriver: sensors_ size = %u, NUM_GPIO_SENSORS = %u", sensors_.size(), NUM_GPIO_SENSORS);
-  for (uint8_t i = 0; i < sensors_.size(); ++i) {
-    const auto& sensor = sensors_[i];
-    inputs_[i].idx = i;
-    inputs_[i].gpio.line = sensor.line;
-    inputs_[i].invert = sensor.invert;
-    AddInput(&inputs_[i]);
-    ULOG_INFO("SaboInputDriver: Added sensor [%u] %s", i, INPUTID_STRINGS[i]);
-  }*/
-
-  // Create Input objects for each CoverUI button
-  /*using xbot::driver::ui::sabo::ALL_BUTTONS;
-  using xbot::driver::ui::sabo::NUM_BUTTONS;
-  ULOG_INFO("SaboInputDriver: Initializing %u buttons", NUM_BUTTONS);
-  for (uint8_t btn_idx = 0; btn_idx < NUM_BUTTONS; ++btn_idx) {
-    auto* input = new Input();
-    input->idx = static_cast<uint8_t>(sensors_.size()) + btn_idx;  // Button indices start after sensors
-    input->invert = false;                                         // Buttons are handled by CoverUI debouncing
-
-    AddInput(input);
-    auto button_id = static_cast<InputId>(input->idx);
-    ULOG_INFO("SaboInputDriver: Added button [%u] %s", input->idx, SaboInputDriver::InputIdToString(button_id));
-  }*/
-  return true;
-}
-
-void SaboInputDriver::OnStop() {
-  // Disable heartbeat EXTI
-  palDisableLineEvent(heartbeat_line_);
-
-  ClearInputs();
-  sensors_ = etl::array_view<const SaboGpioSensor>();
-}
-
 void SaboInputDriver::Tick() {
-  // Read GPIO sensor states and update Input objects
-  /*for (auto& input : Inputs()) {
-    if (input.idx >= sensors_.size()) {
-      // This is a button input (handled below)
-      continue;
-    }
+  uint16_t buttons_mask = 0;
 
-    const auto& sensor = sensors_[input.idx];
-    bool new_state = ReadGpioSensor(sensor.line, sensor.invert);
-
-    // Debug: Log sensor state changes
-    if (new_state != input.IsActive()) {
-      auto sensor_id = static_cast<InputId>(input.idx);
-      ULOG_INFO("SaboInputDriver: Sensor[%u] (%s) -> %s", input.idx, InputIdToString(sensor_id),
-                new_state ? "ACTIVE" : "INACTIVE");
-    }
-
-    input.Update(new_state);
-  }*/
-
-  // TODO: Use block_buttons_
-
-  // Read CoverUI button states
-  /*if (robot != nullptr) {
+  if (robot != nullptr) {
     auto* sabo_robot = static_cast<SaboRobot*>(robot);
-    uint16_t buttons_mask = sabo_robot->GetCoverUIButtonsMask();
+    buttons_mask = sabo_robot->GetCoverUIButtonsMask();
+  }
 
-    using xbot::driver::ui::sabo::ALL_BUTTONS;
-    using xbot::driver::ui::sabo::NUM_BUTTONS;
-
-    for (uint8_t btn_idx = 0; btn_idx < NUM_BUTTONS; ++btn_idx) {
-      auto button_id = ALL_BUTTONS[btn_idx];
-      uint8_t input_idx = sensors_.size() + btn_idx;
-
-      // Find the corresponding Input object
-      for (auto& input : Inputs()) {
-        if (input.idx == input_idx) {
-          // Extract bit from button mask (button_id is the bit position)
-          bool button_pressed = (buttons_mask & (1 << static_cast<uint8_t>(button_id))) != 0;
-          input.Update(button_pressed);
-          break;
-        }
+  for (auto& input : Inputs()) {
+    switch (input.sabo.type) {
+      case Type::SENSOR: {
+        bool sensor_state = GetSensorState(input.sabo.id.sensor_id);
+        input.Update(sensor_state);
+        break;
       }
+      case Type::BUTTON:
+        if (!block_buttons_) {
+          bool button_pressed = (buttons_mask & (1 << static_cast<uint8_t>(input.sabo.id.button_id)));
+          input.Update(button_pressed);
+        }
+        break;
     }
-  }*/
+  }
 }
 
 void SaboInputDriver::HeartbeatISR(void* arg) {
@@ -186,16 +129,62 @@ void SaboInputDriver::HeartbeatTimerCallback(virtual_timer_t* vtp, void* arg) {
   // Note: No logging here - timer callback runs in ISR context
 }
 
+static const etl::flat_map<etl::string<6>, Type, 2> INPUT_TYPES = {
+    {"sensor", Type::SENSOR},
+    {"button", Type::BUTTON},
+};
+
+static const etl::flat_map<etl::string<9>, SensorId, 4> SENSOR_IDS = {
+    {"lift_fl", SensorId::LIFT_FL},
+    {"lift_fr", SensorId::LIFT_FR},
+    {"stop_top", SensorId::STOP_TOP},
+    {"stop_rear", SensorId::STOP_REAR},
+};
+
+static const etl::flat_map<etl::string<6>, ButtonID, 12> BUTTON_IDS = {
+    {"up", ButtonID::UP},     {"down", ButtonID::DOWN},    {"left", ButtonID::LEFT},        {"right", ButtonID::RIGHT},
+    {"ok", ButtonID::OK},     {"play", ButtonID::PLAY},    {"select", ButtonID::S1_SELECT}, {"menu", ButtonID::MENU},
+    {"back", ButtonID::BACK}, {"auto", ButtonID::S2_AUTO}, {"mow", ButtonID::S2_MOW},       {"home", ButtonID::S2_HOME},
+};
+
 bool SaboInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {
-  (void)jsp;
-  (void)type;
-  (void)input;
-
-  if (strcmp(key, "name") == 0) {
-    // For now, we just log a warning that the name parameter is ignored
-    ULOG_WARNING("SaboInputDriver: 'name' parameter is ignored (hardcoded in firmware)");
+  if (strcmp(key, "type") == 0) {
+    JsonExpectType(STRING);
+    decltype(INPUT_TYPES)::key_type input_type{jsp->data.str.buff};
+    auto type_it = INPUT_TYPES.find(input_type);
+    if (type_it == INPUT_TYPES.end()) {
+      ULOG_ERROR("Unknown Sabo input type \"%s\"", input_type.c_str());
+      return false;
+    }
+    input.sabo.type = type_it->second;
     return true;
+  } else if (strcmp(key, "id") == 0) {
+    JsonExpectType(STRING);
+    switch (input.sabo.type) {
+      case Type::SENSOR: {
+        decltype(SENSOR_IDS)::key_type sensor_id{jsp->data.str.buff};
+        auto sensor_it = SENSOR_IDS.find(sensor_id);
+        if (sensor_it == SENSOR_IDS.end()) {
+          ULOG_ERROR("Unknown Sabo sensor ID \"%s\"", sensor_id.c_str());
+          return false;
+        }
+        input.sabo.id.sensor_id = sensor_it->second;
+        return true;
+      }
+      case Type::BUTTON: {
+        decltype(BUTTON_IDS)::key_type button_id{jsp->data.str.buff};
+        auto button_it = BUTTON_IDS.find(button_id);
+        if (button_it == BUTTON_IDS.end()) {
+          ULOG_ERROR("Unknown Sabo button ID \"%s\"", button_id.c_str());
+          return false;
+        }
+        input.sabo.id.button_id = button_it->second;
+        return true;
+      }
+      default: ULOG_ERROR("Sabo input type not set before ID"); return false;
+    }
+    return false;
   }
 
   ULOG_ERROR("SaboInputDriver: Unknown config key '%s'", key);

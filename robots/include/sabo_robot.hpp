@@ -3,6 +3,7 @@
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/input/sabo_input_driver.hpp>
+#include <drivers/input/sabo_input_types.hpp>
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
 
 #include "robot.hpp"
@@ -77,7 +78,7 @@ class SaboRobot : public MowerRobot {
   }
 
   // GPIO sensor access for UI and other components
-  bool GetSensorState(xbot::driver::input::SaboInputDriver::SensorId sensor_id) {
+  bool GetSensorState(xbot::driver::input::sabo::SensorId sensor_id) {
     return sabo_input_driver_.GetSensorState(sensor_id);
   }
 
