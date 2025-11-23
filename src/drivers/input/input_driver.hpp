@@ -6,10 +6,10 @@
 #include <hal.h>
 #include <lwjson/lwjson.h>
 
-#include <drivers/ui/SaboCoverUI/sabo_cover_ui_defs.hpp>
 #include <xbot-service/portable/system.hpp>
 
-#include "sabo_input_types.hpp"
+#include "drivers/ui/SaboCoverUI/sabo_cover_ui_defs.hpp"
+#include "robots/include/sabo_common.hpp"
 
 namespace xbot::driver::input {
 struct Input {
@@ -31,10 +31,10 @@ struct Input {
     } worx;
 
     struct {
-      sabo::Type type;
+      xbot::driver::sabo::types::InputType type;
 
       union {
-        sabo::SensorId sensor_id;
+        xbot::driver::sabo::types::SensorId sensor_id;
         xbot::driver::ui::sabo::ButtonID button_id;
       } id;
     } sabo;

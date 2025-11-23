@@ -26,10 +26,9 @@
 #include <hal.h>
 
 #include <atomic>
-#include <drivers/ui/SaboCoverUI/sabo_cover_ui_defs.hpp>
 
+#include "drivers/ui/SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "input_driver.hpp"
-#include "sabo_input_types.hpp"
 #include "services.hpp"
 
 namespace xbot::driver::input {
@@ -48,7 +47,7 @@ class SaboInputDriver : public InputDriver {
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
 
-  bool GetSensorState(sabo::SensorId sensor_id);
+  bool GetSensorState(xbot::driver::sabo::types::SensorId sensor_id);
 
   uint16_t GetHeartbeatFrequency() const {
     // Convert count per interval to Hz (frequency)

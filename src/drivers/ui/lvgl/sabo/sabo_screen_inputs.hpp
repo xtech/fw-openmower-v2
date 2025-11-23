@@ -21,7 +21,7 @@
 #include <ulog.h>
 
 #include <drivers/input/sabo_input_driver.hpp>
-#include <drivers/input/sabo_input_types.hpp>
+#include <robots/include/sabo_common.hpp>
 
 #include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../screen_base.hpp"
@@ -37,8 +37,8 @@ LV_FONT_DECLARE(orbitron_12);
 }
 
 using namespace xbot::driver::input;
-using namespace xbot::driver::input::sabo;
 using namespace xbot::driver::ui::sabo;
+using namespace xbot::driver::sabo::types;
 
 namespace xbot::driver::ui::lvgl::sabo {
 

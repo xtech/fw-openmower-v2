@@ -3,6 +3,25 @@
 #include <services.hpp>
 
 using namespace xbot::driver::ui::sabo;
+using namespace xbot::driver::sabo;
+
+SaboRobot::SaboRobot()
+    : hardware_config([]() -> config::HardwareConfig {
+        // Hardware detection logic - must be in initializer list because hardware_config is const
+        types::HardwareVersion version;
+
+        if (carrier_board_info.version_major == 0) {
+          switch (carrier_board_info.version_minor) {
+            case 1: version = types::HardwareVersion::V0_1; break;
+            case 2: version = types::HardwareVersion::V0_2; break;
+            case 3: version = types::HardwareVersion::V0_3; break;
+          }
+        }
+
+        const auto index = static_cast<uint8_t>(version);
+        return config::HARDWARE_CONFIGS[index];
+      }()) {
+}
 
 void SaboRobot::InitPlatform() {
   InitMotors();

@@ -3,16 +3,23 @@
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/input/sabo_input_driver.hpp>
-#include <drivers/input/sabo_input_types.hpp>
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
+#include <globals.hpp>
 
 #include "robot.hpp"
+#include "sabo_common.hpp"
 
 using namespace xbot::driver::ui;
 using namespace xbot::driver::motor;
+using namespace xbot::driver::sabo;
 
 class SaboRobot : public MowerRobot {
  public:
+  // Hardware configuration, detected and initialized in constructor initializer list
+  const config::HardwareConfig hardware_config;
+
+  SaboRobot();
+
   void InitPlatform() override;
   bool IsHardwareSupported() override;
 
@@ -78,7 +85,7 @@ class SaboRobot : public MowerRobot {
   }
 
   // GPIO sensor access for UI and other components
-  bool GetSensorState(xbot::driver::input::sabo::SensorId sensor_id) {
+  bool GetSensorState(types::SensorId sensor_id) {
     return sabo_input_driver_.GetSensorState(sensor_id);
   }
 
