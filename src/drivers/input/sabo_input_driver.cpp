@@ -11,6 +11,7 @@
 
 #include <ulog.h>
 
+#include <cstdint>
 #include <globals.hpp>
 #include <json_stream.hpp>
 #include <robots/include/sabo_common.hpp>
@@ -23,14 +24,38 @@ using namespace xbot::driver::sabo::types;
 // Static member definition
 volatile uint16_t SaboInputDriver::heartbeat_counter_{0};
 
-SaboInputDriver::SaboInputDriver() {
-  // Initialize sensor definitions based on hardware configuration
-  // This will be set when robot is assigned in Tick()
-  sensors_ = etl::array_view<const SaboGpioSensor>();
+// Static lookup tables for input configuration
+static const etl::flat_map<etl::string<6>, types::InputType, 2> INPUT_TYPES = {
+    {"sensor", types::InputType::SENSOR},
+    {"button", types::InputType::BUTTON},
+};
 
+static const etl::flat_map<etl::string<9>, types::SensorId, 4> SENSOR_IDS = {
+    {"lift_fl", types::SensorId::LIFT_FL},
+    {"lift_fr", types::SensorId::LIFT_FR},
+    {"stop_top", types::SensorId::STOP_TOP},
+    {"stop_rear", types::SensorId::STOP_REAR},
+};
+
+static const etl::flat_map<etl::string<6>, types::ButtonId, 12> BUTTON_IDS = {
+    {"up", types::ButtonId::UP},
+    {"down", types::ButtonId::DOWN},
+    {"left", types::ButtonId::LEFT},
+    {"right", types::ButtonId::RIGHT},
+    {"ok", types::ButtonId::OK},
+    {"play", types::ButtonId::PLAY},
+    {"select", types::ButtonId::S1_SELECT},
+    {"menu", types::ButtonId::MENU},
+    {"back", types::ButtonId::BACK},
+    {"auto", types::ButtonId::S2_AUTO},
+    {"mow", types::ButtonId::S2_MOW},
+    {"home", types::ButtonId::S2_HOME},
+};
+
+SaboInputDriver::SaboInputDriver(const config::HardwareConfig& hardware_config) : hardware_config(hardware_config) {
   // Setup GPIO for regular sensors
-  for (size_t i = 0; i < sensors_.size(); ++i) {
-    palSetLineMode(sensors_[i].line, PAL_MODE_INPUT);
+  for (const auto& sensor : hardware_config.sensors) {
+    palSetLineMode(sensor.line, PAL_MODE_INPUT);
   }
 
   // Setup EXTI for heartbeat sensor (STOP_REAR)
@@ -49,8 +74,8 @@ bool SaboInputDriver::GetSensorState(SensorId sensor_id) {
   uint8_t idx = static_cast<uint8_t>(sensor_id);
 
   // Handle regular GPIO sensors (LIFT_FL, LIFT_FR, STOP_TOP)
-  if (idx < sensors_.size()) {
-    const auto& sensor = sensors_[idx];
+  if (idx < hardware_config.sensors.size()) {
+    const auto& sensor = hardware_config.sensors[idx];
     return (palReadLine(sensor.line) == PAL_HIGH) ^ sensor.invert;
   }
 
@@ -69,24 +94,6 @@ void SaboInputDriver::Tick() {
   if (robot != nullptr) {
     auto* sabo_robot = static_cast<SaboRobot*>(robot);
     buttons_mask = sabo_robot->GetCoverUIButtonsMask();
-
-    // Initialize sensors from hardware configuration if not already done
-    if (sensors_.empty()) {
-      const auto& config = sabo_robot->hardware_config;
-
-      // Convert hardware config sensors to SaboGpioSensor format
-      static SaboGpioSensor converted_sensors[3];
-      for (size_t i = 0; i < config.sensors.size() && i < 3; ++i) {
-        converted_sensors[i] = {.line = config.sensors[i].line, .invert = config.sensors[i].invert};
-      }
-
-      sensors_ = etl::array_view<const SaboGpioSensor>(converted_sensors, config.sensors.size());
-
-      // Setup GPIO for regular sensors
-      for (size_t i = 0; i < sensors_.size(); ++i) {
-        palSetLineMode(sensors_[i].line, PAL_MODE_INPUT);
-      }
-    }
   }
 
   for (auto& input : Inputs()) {
@@ -123,24 +130,6 @@ void SaboInputDriver::HeartbeatTimerCallback(virtual_timer_t* vtp, void* arg) {
 
   // Note: No logging here - timer callback runs in ISR context
 }
-
-static const etl::flat_map<etl::string<6>, InputType, 2> INPUT_TYPES = {
-    {"sensor", InputType::SENSOR},
-    {"button", InputType::BUTTON},
-};
-
-static const etl::flat_map<etl::string<9>, SensorId, 4> SENSOR_IDS = {
-    {"lift_fl", SensorId::LIFT_FL},
-    {"lift_fr", SensorId::LIFT_FR},
-    {"stop_top", SensorId::STOP_TOP},
-    {"stop_rear", SensorId::STOP_REAR},
-};
-
-static const etl::flat_map<etl::string<6>, ButtonId, 12> BUTTON_IDS = {
-    {"up", ButtonId::UP},     {"down", ButtonId::DOWN},    {"left", ButtonId::LEFT},        {"right", ButtonId::RIGHT},
-    {"ok", ButtonId::OK},     {"play", ButtonId::PLAY},    {"select", ButtonId::S1_SELECT}, {"menu", ButtonId::MENU},
-    {"back", ButtonId::BACK}, {"auto", ButtonId::S2_AUTO}, {"mow", ButtonId::S2_MOW},       {"home", ButtonId::S2_HOME},
-};
 
 bool SaboInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {

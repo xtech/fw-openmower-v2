@@ -26,11 +26,15 @@
 #include <hal.h>
 
 #include <atomic>
+#include <cstdint>
+#include <robots/include/sabo_common.hpp>
 
 #include "input_driver.hpp"
 #include "services.hpp"
 
 namespace xbot::driver::input {
+
+using namespace xbot::driver::sabo;
 
 /**
  * @brief Input driver for Sabo robot GPIO sensors
@@ -41,7 +45,10 @@ class SaboInputDriver : public InputDriver {
   using InputDriver::InputDriver;
 
  public:
-  explicit SaboInputDriver();
+  // Hardware configuration reference
+  const config::HardwareConfig& hardware_config;
+
+  explicit SaboInputDriver(const config::HardwareConfig& hardware_config);
 
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
@@ -63,18 +70,6 @@ class SaboInputDriver : public InputDriver {
   }
 
  private:
-  // Sensor configuration for normal hall sensors
-  struct SaboGpioSensor {
-    ioline_t line;        // GPIO line
-    bool invert = false;  // true = sensor active on LOW, false = sensor active on HIGH
-  };
-
-  // Static Input objects for all inputs (sensors and buttons)
-  // static Input inputs_[NUM_TOTAL_INPUTS];
-
-  // Current sensor configuration
-  etl::array_view<const SaboGpioSensor> sensors_;
-
   // Heartbeat sensor (STOP_REAR) - monitored via EXTI
   const ioline_t heartbeat_line_ = LINE_GPIO10;
   const uint16_t heartbeat_min_ = 10;           // Minimum heartbeats per tick cycle = 10 = 50Hz (@200ms interval)

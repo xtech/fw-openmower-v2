@@ -1,6 +1,7 @@
 #ifndef SABO_ROBOT_HPP
 #define SABO_ROBOT_HPP
 
+#include <cstdint>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/input/sabo_input_driver.hpp>
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
@@ -103,8 +104,8 @@ class SaboRobot : public MowerRobot {
 
  private:
   BQ2576 charger_{};
-  SaboCoverUIController cover_ui_;
-  SaboInputDriver sabo_input_driver_{};
+  SaboCoverUIController cover_ui_{hardware_config};
+  SaboInputDriver sabo_input_driver_{hardware_config};
 };
 
 #endif  // SABO_ROBOT_HPP

@@ -4,8 +4,7 @@
 
 using namespace xbot::driver::sabo;
 
-SaboRobot::SaboRobot()
-    : hardware_config(GetHardwareConfig(GetHardwareVersion(carrier_board_info))), cover_ui_(hardware_config) {
+SaboRobot::SaboRobot() : hardware_config(GetHardwareConfig(GetHardwareVersion(carrier_board_info))) {
 }
 
 void SaboRobot::InitPlatform() {
