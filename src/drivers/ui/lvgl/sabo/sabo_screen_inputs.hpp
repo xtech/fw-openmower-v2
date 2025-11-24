@@ -28,7 +28,6 @@
 #include "../widget_sensor.hpp"
 #include "globals.hpp"
 #include "robots/include/sabo_robot.hpp"
-#include "sabo_defs.hpp"
 #include "services.hpp"
 
 extern "C" {

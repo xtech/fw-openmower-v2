@@ -19,17 +19,18 @@
 #include "../widget_textbar.hpp"
 #include "ch.h"
 #include "globals.hpp"
-#include "sabo_defs.hpp"
+#include "robots/include/sabo_common.hpp"
 
 namespace xbot::driver::ui::lvgl::sabo {
 
 using namespace xbot::driver::ui::sabo;
+using namespace xbot::driver::sabo;
 
 // Boot test callback function pointer type
 using BootTestCallback = bool (*)();
 using BootCompletionCallback = void (*)(void* context);
 
-class SaboScreenBoot : public ScreenBase<ScreenId, ButtonID> {
+class SaboScreenBoot : public ScreenBase<types::ScreenId, ButtonID> {
  public:
   SaboScreenBoot();
   ~SaboScreenBoot();

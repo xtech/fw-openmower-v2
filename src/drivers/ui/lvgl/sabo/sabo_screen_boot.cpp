@@ -31,7 +31,9 @@ LV_FONT_DECLARE(orbitron_12);
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-SaboScreenBoot::SaboScreenBoot() : ScreenBase<ScreenId, ButtonID>(ScreenId::BOOT) {
+using namespace xbot::driver::sabo;
+
+SaboScreenBoot::SaboScreenBoot() : ScreenBase<types::ScreenId, ButtonID>(types::ScreenId::BOOT) {
   // Initialize boot steps with hardware tests
   boot_steps_ = {{
       {"Motion Sensor", []() -> bool { return imu_service.IsFound(); }},

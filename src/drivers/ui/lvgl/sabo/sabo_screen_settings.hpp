@@ -23,7 +23,6 @@
 #include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../../SaboCoverUI/sabo_cover_ui_display_driver_uc1698.hpp"
 #include "../screen_base.hpp"
-#include "sabo_defs.hpp"
 
 extern "C" {
 LV_FONT_DECLARE(orbitron_12);

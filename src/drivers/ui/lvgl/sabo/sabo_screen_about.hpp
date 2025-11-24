@@ -25,7 +25,6 @@
 #include "../screen_base.hpp"
 #include "git_version.h"
 #include "globals.hpp"
-#include "sabo_defs.hpp"
 
 extern "C" {
 LV_FONT_DECLARE(orbitron_12);
@@ -34,9 +33,10 @@ LV_FONT_DECLARE(orbitron_16b);
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-class SaboScreenAbout : public ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID> {
+using namespace xbot::driver::ui::sabo;
+class SaboScreenAbout : public ScreenBase<types::ScreenId, xbot::driver::ui::sabo::ButtonID> {
  public:
-  SaboScreenAbout() : ScreenBase<ScreenId, xbot::driver::ui::sabo::ButtonID>(sabo::ScreenId::ABOUT) {
+  SaboScreenAbout() : ScreenBase<types::ScreenId, xbot::driver::ui::sabo::ButtonID>(types::ScreenId::ABOUT) {
   }
 
   ~SaboScreenAbout() {

@@ -21,7 +21,6 @@
 #include <lvgl.h>
 #include <ulog.h>
 
-#include "../lvgl/sabo/sabo_defs.hpp"
 #include "../lvgl/sabo/sabo_input_device_keypad.hpp"
 #include "../lvgl/sabo/sabo_menu_main.hpp"
 #include "../lvgl/sabo/sabo_screen_about.hpp"

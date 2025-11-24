@@ -30,7 +30,6 @@
 #include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../screen_base.hpp"
 #include "../widget_icon.hpp"
-#include "sabo_defs.hpp"
 
 extern "C" {
 LV_FONT_DECLARE(orbitron_12);
