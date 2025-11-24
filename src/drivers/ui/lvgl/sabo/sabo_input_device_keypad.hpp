@@ -17,7 +17,6 @@
 #ifndef SABO_INPUT_DEVICE_KEYPAD_HPP_
 #define SABO_INPUT_DEVICE_KEYPAD_HPP_
 
-#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../input_device_base.hpp"
 #include "robots/include/sabo_common.hpp"
 

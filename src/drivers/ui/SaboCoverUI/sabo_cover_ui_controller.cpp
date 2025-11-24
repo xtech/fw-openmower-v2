@@ -25,7 +25,6 @@
 
 namespace xbot::driver::ui {
 
-using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::sabo::types;
 
 SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardware_config) {

@@ -14,7 +14,6 @@
 #include <etl/string_view.h>
 #include <lvgl.h>
 
-#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../screen_base.hpp"
 #include "../widget_textbar.hpp"
 #include "ch.h"
@@ -23,7 +22,6 @@
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::sabo::types;
 
 // Boot test callback function pointer type

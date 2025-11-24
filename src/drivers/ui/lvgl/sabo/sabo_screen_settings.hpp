@@ -20,7 +20,6 @@
 #include <lvgl.h>
 #include <ulog.h>
 
-#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../../SaboCoverUI/sabo_cover_ui_display_driver_uc1698.hpp"
 #include "../screen_base.hpp"
 
@@ -31,16 +30,14 @@ LV_FONT_DECLARE(orbitron_16b);
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-using namespace xbot::driver::ui::sabo;
-using namespace xbot::driver::ui::sabo::settings;
-using namespace xbot::driver::sabo::types;
+using namespace xbot::driver::sabo;
 using DriverUC1698 = SaboCoverUIDisplayDriverUC1698;
 
 class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
  public:
   SaboScreenSettings() : ScreenBase<ScreenId, ButtonId>(ScreenId::SETTINGS) {
-    if (!xbot::driver::filesystem::VersionedStruct<LCDSettings>::Load(settings_)) {
-      ULOG_WARNING("Failed loading settings from %s, using default settings", LCDSettings::PATH);
+    if (!xbot::driver::filesystem::VersionedStruct<settings::LCDSettings>::Load(settings_)) {
+      ULOG_WARNING("Failed loading settings from %s, using default settings", settings::LCDSettings::PATH);
     }
   }
 
@@ -67,7 +64,7 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
 
     // Separator line
     lv_obj_t* separator = lv_obj_create(screen_);
-    lv_obj_set_size(separator, display::LCD_WIDTH, 1);
+    lv_obj_set_size(separator, defs::LCD_WIDTH, 1);
     lv_obj_set_pos(separator, 0, 20);
     lv_obj_set_style_bg_color(separator, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_border_width(separator, 0, LV_PART_MAIN);
@@ -133,7 +130,7 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
             if (!self) return;
             auto temp_comp = static_cast<TempCompensation>(lv_dropdown_get_selected(self->temp_selector_));
             self->settings_.temp_compensation = temp_comp;
-            DriverUC1698::Instance().SetTemperatureCompensation(static_cast<TempCompensation>(temp_comp));
+            DriverUC1698::Instance().SetTemperatureCompensation(static_cast<types::TempCompensation>(temp_comp));
           }
         },
         LV_EVENT_VALUE_CHANGED, this);
@@ -192,16 +189,16 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
     ScreenBase::Deactivate();
   }
 
-  LCDSettings& GetSettings() {
+  settings::LCDSettings& GetSettings() {
     return settings_;
   }
 
   bool SaveSettings() {
-    return LCDSettings::Save(settings_);
+    return settings::LCDSettings::Save(settings_);
   }
 
  private:
-  LCDSettings settings_;
+  settings::LCDSettings settings_;
 
   // UI elements
   lv_obj_t* contrast_slider_ = nullptr;

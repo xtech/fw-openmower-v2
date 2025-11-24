@@ -11,7 +11,6 @@
 #include "robots/include/sabo_common.hpp"
 #include "sabo_cover_ui_cabo_driver_v01.hpp"
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
-#include "sabo_cover_ui_defs.hpp"
 
 namespace xbot::driver::ui {
 
@@ -19,7 +18,6 @@ namespace xbot::driver::ui {
 class SaboCoverUIDisplay;
 
 using namespace xbot::driver::sabo;
-using namespace xbot::driver::ui::sabo;
 
 class SaboCoverUIController {
  public:

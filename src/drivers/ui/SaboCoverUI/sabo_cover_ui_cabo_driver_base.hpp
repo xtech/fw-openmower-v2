@@ -8,7 +8,6 @@
 #include "ch.h"
 #include "hal.h"
 #include "robots/include/sabo_common.hpp"
-#include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_series_interface.hpp"
 
 namespace xbot::driver::ui {
@@ -36,7 +35,7 @@ class SaboCoverUICaboDriverBase {
    * @brief Get all button states as a standardized bitmask
    * @return Bitmask where bit N is set (1) if button N is pressed, 0 if not pressed
    * Handles conversion from Series-I/II specific button mapping to standardized format
-   * For button IDs see xbot::driver::ui::sabo::ButtonID enum
+   * For button IDs see xbot::driver::sabo::types::ButtonID enum
    */
   uint16_t GetButtonsMask() const;
 

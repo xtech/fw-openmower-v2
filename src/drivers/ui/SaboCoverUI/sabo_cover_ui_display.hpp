@@ -31,12 +31,10 @@
 #include "../lvgl/screen_base.hpp"
 #include "ch.h"
 #include "robots/include/sabo_common.hpp"
-#include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
 
 namespace xbot::driver::ui {
 
-using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::ui::lvgl;
 using namespace xbot::driver::ui::lvgl::sabo;
 using namespace xbot::driver::sabo::types;

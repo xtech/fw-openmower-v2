@@ -2,7 +2,6 @@
 
 #include <services.hpp>
 
-using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::sabo;
 
 SaboRobot::SaboRobot()

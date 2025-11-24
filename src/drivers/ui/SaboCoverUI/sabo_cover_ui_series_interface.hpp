@@ -7,7 +7,6 @@
 
 #include "ch.h"
 #include "hal.h"
-#include "sabo_cover_ui_defs.hpp"
 
 namespace xbot::driver::ui {
 

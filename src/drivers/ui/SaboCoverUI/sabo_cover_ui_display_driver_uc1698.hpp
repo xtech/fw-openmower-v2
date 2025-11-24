@@ -39,9 +39,10 @@
 #include <lvgl.h>
 
 #include "robots/include/sabo_common.hpp"
-#include "sabo_cover_ui_defs.hpp"
 
 namespace xbot::driver::ui {
+
+using namespace xbot::driver::sabo;
 
 class SaboCoverUIDisplayDriverUC1698 {
  public:
@@ -60,9 +61,8 @@ class SaboCoverUIDisplayDriverUC1698 {
 
   void Start();  // Start UC1698 own thread (required for async SPI)
 
-  void SetVBiasPotentiometer(uint8_t data);  // [10] Set VBias Potentiometer (Contrast: 0-255)
-  void SetTemperatureCompensation(
-      xbot::driver::ui::sabo::settings::TempCompensation tc);  // [5] Set Temperature Compensation
+  void SetVBiasPotentiometer(uint8_t data);                     // [10] Set VBias Potentiometer (Contrast: 0-255)
+  void SetTemperatureCompensation(types::TempCompensation tc);  // [5] Set Temperature Compensation
   void SetDisplayEnable(bool on);  // [17] Set Display Enable: Green Enh. Mode off, Gray Shade, Active
 
   bool IsDisplayEnabled() const {  // LCD active (or sleeping)
@@ -85,9 +85,7 @@ class SaboCoverUIDisplayDriverUC1698 {
   EVENTSOURCE_DECL(event_source_);
 
   // With UC1698u RRRR-GGGG-BBBB, 4k-color mode, we send 2 pixels per byte (3 bytes per sextet)
-  static constexpr size_t buffer_size_ = xbot::driver::ui::sabo::display::LCD_WIDTH *
-                                         xbot::driver::ui::sabo::display::LCD_HEIGHT /
-                                         xbot::driver::ui::sabo::display::BUFFER_FRACTION / 2;
+  static constexpr size_t buffer_size_ = defs::LCD_WIDTH * defs::LCD_HEIGHT / defs::BUFFER_FRACTION / 2;
   struct AsyncFlush {
     lv_area_t area;  // Area in buffer
     uint8_t buffer[buffer_size_];
@@ -98,8 +96,8 @@ class SaboCoverUIDisplayDriverUC1698 {
   const xbot::driver::sabo::config::Lcd lcd_cfg_;
   SPIConfig spi_config_;
 
-  bool display_enabled_ = false;                                // Sleep mode of UC1698
-  xbot::driver::ui::sabo::settings::LCDSettings lcd_settings_;  // Loaded settings from file (or defaults)
+  bool display_enabled_ = false;        // Sleep mode of UC1698
+  settings::LCDSettings lcd_settings_;  // Loaded settings from file (or defaults)
 
   volatile TransferState transfer_state_ = TransferState::IDLE;
 

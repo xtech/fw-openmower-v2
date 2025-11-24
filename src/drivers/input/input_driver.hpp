@@ -8,7 +8,6 @@
 
 #include <xbot-service/portable/system.hpp>
 
-#include "drivers/ui/SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "robots/include/sabo_common.hpp"
 
 namespace xbot::driver::input {

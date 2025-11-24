@@ -19,8 +19,6 @@
 
 #include <lvgl.h>
 
-#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
-
 extern "C" {
 LV_FONT_DECLARE(orbitron_12);
 LV_FONT_DECLARE(orbitron_16b);
@@ -28,7 +26,7 @@ LV_FONT_DECLARE(orbitron_16b);
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-using namespace xbot::driver::ui::sabo::display;  // For LCD_WIDTH, LCD_HEIGHT
+using namespace xbot::driver::sabo::defs;  // For LCD_WIDTH, LCD_HEIGHT
 
 /**
  * @brief Main menu overlay - slides in from the right side

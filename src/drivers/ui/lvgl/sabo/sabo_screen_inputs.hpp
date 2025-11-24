@@ -23,7 +23,6 @@
 #include <drivers/input/sabo_input_driver.hpp>
 #include <robots/include/sabo_common.hpp>
 
-#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../screen_base.hpp"
 #include "../widget_sensor.hpp"
 #include "globals.hpp"
@@ -36,7 +35,6 @@ LV_FONT_DECLARE(orbitron_12);
 }
 
 using namespace xbot::driver::input;
-using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::sabo::defs;
 using namespace xbot::driver::sabo::types;
 

@@ -27,7 +27,6 @@
 
 #include <atomic>
 
-#include "drivers/ui/SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "input_driver.hpp"
 #include "services.hpp"
 

@@ -21,10 +21,10 @@
 #include <ulog.h>
 
 #include "../../SaboCoverUI/sabo_cover_ui_controller.hpp"
-#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../screen_base.hpp"
 #include "git_version.h"
 #include "globals.hpp"
+#include "robots/include/sabo_common.hpp"
 
 extern "C" {
 LV_FONT_DECLARE(orbitron_12);
@@ -63,14 +63,14 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
 
     // Separator line (stays at top, NOT scrollable)
     lv_obj_t* separator = lv_obj_create(screen_);
-    lv_obj_set_size(separator, display::LCD_WIDTH, 1);
+    lv_obj_set_size(separator, defs::LCD_WIDTH, 1);
     lv_obj_set_pos(separator, 0, 25);
     lv_obj_set_style_bg_color(separator, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_border_width(separator, 0, LV_PART_MAIN);
 
     // Scrollable content container
     lv_obj_t* content_container = lv_obj_create(screen_);
-    lv_obj_set_size(content_container, display::LCD_WIDTH, display::LCD_HEIGHT - 30);
+    lv_obj_set_size(content_container, defs::LCD_WIDTH, defs::LCD_HEIGHT - 30);
     lv_obj_set_pos(content_container, 0, 30);
     lv_obj_add_flag(content_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(content_container, LV_SCROLLBAR_MODE_AUTO);

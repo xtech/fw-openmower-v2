@@ -34,8 +34,6 @@
 
 #include <ulog.h>
 
-#include "sabo_cover_ui_defs.hpp"
-
 namespace xbot::driver::ui {
 
 bool SaboCoverUIDisplayDriverUC1698::Init() {
@@ -84,7 +82,7 @@ bool SaboCoverUIDisplayDriverUC1698::Init() {
 
 void SaboCoverUIDisplayDriverUC1698::Start() {
   // Load LCD settings from file (or use defaults)
-  if (!xbot::driver::ui::sabo::settings::LCDSettings::Load(lcd_settings_)) {
+  if (!settings::LCDSettings::Load(lcd_settings_)) {
     ULOG_WARNING("LCD settings file not found, using defaults");
   }
 
@@ -120,7 +118,7 @@ void SaboCoverUIDisplayDriverUC1698::SetVBiasPotentiometer(uint8_t data) {
 }
 
 // [5] Set Temperature Compensation
-void SaboCoverUIDisplayDriverUC1698::SetTemperatureCompensation(xbot::driver::ui::sabo::settings::TempCompensation tc) {
+void SaboCoverUIDisplayDriverUC1698::SetTemperatureCompensation(types::TempCompensation tc) {
   SendCommand(0b00100100 | static_cast<uint8_t>(tc));
 }
 

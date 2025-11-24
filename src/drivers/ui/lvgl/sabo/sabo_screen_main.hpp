@@ -27,17 +27,15 @@
 #include <ulog.h>
 
 #include "../../SaboCoverUI/sabo_cover_ui_controller.hpp"
-#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../screen_base.hpp"
 #include "../widget_icon.hpp"
+#include "robots/include/sabo_common.hpp"
 
 extern "C" {
 LV_FONT_DECLARE(orbitron_12);
 }
 
 namespace xbot::driver::ui::lvgl::sabo {
-
-using namespace xbot::driver::ui::sabo;
 
 class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
  public:
@@ -59,7 +57,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     // - Progressbars for battery %, charge current
     // - GPS quality indicator
     content_area_ = lv_obj_create(screen_);
-    lv_obj_set_size(content_area_, display::LCD_WIDTH, display::LCD_HEIGHT - TOPBAR_HEIGHT - BOTTOMBAR_HEIGHT);
+    lv_obj_set_size(content_area_, defs::LCD_WIDTH, defs::LCD_HEIGHT - TOPBAR_HEIGHT - BOTTOMBAR_HEIGHT);
     lv_obj_set_pos(content_area_, 0, TOPBAR_HEIGHT);
     lv_obj_set_style_bg_color(content_area_, bg_color, LV_PART_MAIN);
     lv_obj_set_style_border_width(content_area_, 0, LV_PART_MAIN);
@@ -110,7 +108,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   void CreateTopbar() {
     // Create topbar container with black background and checkerboard pattern
     topbar_ = lv_obj_create(screen_);
-    lv_obj_set_size(topbar_, display::LCD_WIDTH, TOPBAR_HEIGHT);
+    lv_obj_set_size(topbar_, defs::LCD_WIDTH, TOPBAR_HEIGHT);
     lv_obj_set_pos(topbar_, 0, 0);
     lv_obj_set_style_bg_color(topbar_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_border_width(topbar_, 0, LV_PART_MAIN);
@@ -152,8 +150,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   void CreateBottombar() {
     // Create bottombar container with black background
     bottombar_ = lv_obj_create(screen_);
-    lv_obj_set_size(bottombar_, display::LCD_WIDTH, BOTTOMBAR_HEIGHT);
-    lv_obj_set_pos(bottombar_, 0, display::LCD_HEIGHT - BOTTOMBAR_HEIGHT);
+    lv_obj_set_size(bottombar_, defs::LCD_WIDTH, BOTTOMBAR_HEIGHT);
+    lv_obj_set_pos(bottombar_, 0, defs::LCD_HEIGHT - BOTTOMBAR_HEIGHT);
     lv_obj_set_style_bg_color(bottombar_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_border_width(bottombar_, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(bottombar_, 1, LV_PART_MAIN);
