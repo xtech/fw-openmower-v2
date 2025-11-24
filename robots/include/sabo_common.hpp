@@ -196,7 +196,7 @@ struct LCDSettings : public xbot::driver::filesystem::VersionedStruct<xbot::driv
   VERSIONED_STRUCT_FIELDS(1);  // Version 1 - automatically defines VERSION constant and version field
   static constexpr const char* PATH = "/cfg/sabo/lcd.bin";
 
-  uint8_t contrast = 100;                                                       // LCD contrast (0-255)
+  uint8_t contrast = 80;                                                        // LCD contrast (0-255)
   types::TempCompensation temp_compensation = types::TempCompensation::MEDIUM;  // Temperature compensation
   uint8_t auto_sleep_minutes = 5;                                               // Auto-sleep timeout (1-20 minutes)
 };
