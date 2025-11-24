@@ -18,7 +18,8 @@
 
 namespace xbot::driver::ui {
 
-SaboCoverUIDisplay::SaboCoverUIDisplay(LCDCfg lcd_cfg, const ButtonCheckCallback& button_check_callback)
+SaboCoverUIDisplay::SaboCoverUIDisplay(const xbot::driver::sabo::config::Lcd* lcd_cfg,
+                                       const ButtonCheckCallback& button_check_callback)
     : lcd_cfg_(lcd_cfg), button_check_callback_(button_check_callback), keypad_device_(button_check_callback) {
   // Load LCD settings
   if (!settings::LCDSettings::Load(lcd_settings_)) {
@@ -28,13 +29,13 @@ SaboCoverUIDisplay::SaboCoverUIDisplay(LCDCfg lcd_cfg, const ButtonCheckCallback
 
 bool SaboCoverUIDisplay::Init() {
   // Backlight
-  if (lcd_cfg_.pins.backlight != PAL_NOLINE) {
-    palSetLineMode(lcd_cfg_.pins.backlight, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(lcd_cfg_.pins.backlight, PAL_LOW);
+  if (lcd_cfg_->pins.backlight != PAL_NOLINE) {
+    palSetLineMode(lcd_cfg_->pins.backlight, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+    palWriteLine(lcd_cfg_->pins.backlight, PAL_LOW);
   }
 
   // Initialize and start the LCD driver
-  if (!DriverUC1698::Instance(&lcd_cfg_).Init()) {
+  if (!DriverUC1698::Instance(lcd_cfg_).Init()) {
     ULOG_ERROR("SaboCoverUIDisplayDriverUC1698 initialization failed!");
     return true;  // Continue anyway - there might be CoverUI boards which don't have an LCD
   }
@@ -287,8 +288,8 @@ void SaboCoverUIDisplay::Tick() {
   // Backlight & LCD Timeout
   if (chVTTimeElapsedSinceX(last_activity_) > timeout) {
     // Backlight off
-    if (palReadLine(lcd_cfg_.pins.backlight) == PAL_HIGH) {
-      palWriteLine(lcd_cfg_.pins.backlight, PAL_LOW);
+    if (palReadLine(lcd_cfg_->pins.backlight) == PAL_HIGH) {
+      palWriteLine(lcd_cfg_->pins.backlight, PAL_LOW);
     }
     // LCD off
     if (lvgl_display_ && DriverUC1698::Instance().IsDisplayEnabled()) {
@@ -306,7 +307,7 @@ void SaboCoverUIDisplay::WakeUp() {
   }
 
   // Backlight on
-  palWriteLine(lcd_cfg_.pins.backlight, PAL_HIGH);
+  palWriteLine(lcd_cfg_->pins.backlight, PAL_HIGH);
   last_activity_ = chVTGetSystemTimeX();
 }
 

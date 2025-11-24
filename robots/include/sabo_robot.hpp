@@ -103,7 +103,7 @@ class SaboRobot : public MowerRobot {
 
  private:
   BQ2576 charger_{};
-  SaboCoverUIController cover_ui_{};
+  SaboCoverUIController cover_ui_;
   SaboInputDriver sabo_input_driver_{};
 };
 

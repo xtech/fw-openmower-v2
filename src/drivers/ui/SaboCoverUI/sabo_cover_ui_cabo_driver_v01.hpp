@@ -13,14 +13,15 @@ namespace xbot::driver::ui {
 // Sabo CoverUI Driver for Hardware v0.1
 class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
  public:
-  explicit SaboCoverUICaboDriverV01(CaboCfg cabo_cfg) : SaboCoverUICaboDriverBase(cabo_cfg) {
+  explicit SaboCoverUICaboDriverV01(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
+      : SaboCoverUICaboDriverBase(cover_ui_cfg) {
   }
 
   bool Init() override {
     if (!SaboCoverUICaboDriverBase::Init()) return false;
 
     // HW v0.1 has an HEF4794BT OE driver which inverts the signal. Newer boards will not have this driver anymore.
-    palWriteLine(cabo_cfg_.pins.oe, PAL_LOW);
+    palWriteLine(cover_ui_cfg_->pins.oe, PAL_LOW);
 
     spi_config_ = {
         .circular = false,
@@ -47,17 +48,17 @@ class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
     uint8_t rx_data;
 
     // SPI transfer LEDs+ButtonRow and read button for previously set row
-    spiAcquireBus(cabo_cfg_.spi.instance);
+    spiAcquireBus(cover_ui_cfg_->spi.instance);
 
-    spiStart(cabo_cfg_.spi.instance, &spi_config_);
+    spiStart(cover_ui_cfg_->spi.instance, &spi_config_);
     // Enable HC165 shifting, but this will also set HEF4794BT latch open! = low-glowing LEDs
-    palWriteLine(cabo_cfg_.pins.latch_load, PAL_HIGH);
-    palWriteLine(cabo_cfg_.pins.btn_cs, PAL_LOW);
-    spiExchange(cabo_cfg_.spi.instance, 1, &tx_data, &rx_data);  // Full duplex send and receive
-    palWriteLine(cabo_cfg_.pins.btn_cs, PAL_HIGH);
-    palWriteLine(cabo_cfg_.pins.latch_load, PAL_LOW);  // Close HEF4794BT latch (and /PL of HC165)
+    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_HIGH);
+    palWriteLine(cover_ui_cfg_->pins.btn_cs, PAL_LOW);
+    spiExchange(cover_ui_cfg_->spi.instance, 1, &tx_data, &rx_data);  // Full duplex send and receive
+    palWriteLine(cover_ui_cfg_->pins.btn_cs, PAL_HIGH);
+    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);  // Close HEF4794BT latch (and /PL of HC165)
 
-    spiReleaseBus(cabo_cfg_.spi.instance);
+    spiReleaseBus(cover_ui_cfg_->spi.instance);
 
     // Buffer / Shift & buffer depending on current row, as well as advance to next row
     // FIXME: Use now DebounceRawButtons()

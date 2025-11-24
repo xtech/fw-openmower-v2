@@ -8,6 +8,7 @@
 #include <etl/array.h>
 
 #include "ch.h"
+#include "robots/include/sabo_common.hpp"
 #include "sabo_cover_ui_cabo_driver_v01.hpp"
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
 #include "sabo_cover_ui_defs.hpp"
@@ -17,12 +18,14 @@ namespace xbot::driver::ui {
 // Forward declaration to avoid circular include
 class SaboCoverUIDisplay;
 
+using namespace xbot::driver::sabo;
 using namespace xbot::driver::ui::sabo;
 
 class SaboCoverUIController {
  public:
-  void Configure(const CoverUICfg& cui_cfg);  // Configure the controller, select and initialize the driver
-  void Start();                               // Starts the controller thread
+  explicit SaboCoverUIController(const config::HardwareConfig& hardware_config);
+
+  void Start();
 
   bool IsButtonPressed(const ButtonID btn) const;  // Debounced safe check if a specific button is pressed
   uint16_t GetButtonsMask() const;                 // Returns bitmask of current button states
@@ -30,8 +33,6 @@ class SaboCoverUIController {
  private:
   THD_WORKING_AREA(wa_, 5120);  // AH20251110 In use = 4416. Let's be save (+~1k) for LVGL GUI development
   thread_t* thread_ = nullptr;
-
-  bool configured_ = false;
 
   SaboCoverUICaboDriverBase* cabo_ = nullptr;  // Pointer to the Carrierboard driver
 

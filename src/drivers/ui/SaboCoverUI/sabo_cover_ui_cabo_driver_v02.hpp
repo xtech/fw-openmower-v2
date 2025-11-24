@@ -22,7 +22,8 @@ namespace xbot::driver::ui {
 // Sabo CoverUI Driver for Hardware v0.2
 class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
  public:
-  explicit SaboCoverUICaboDriverV02(CaboCfg cabo_cfg) : SaboCoverUICaboDriverBase(cabo_cfg) {
+  explicit SaboCoverUICaboDriverV02(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
+      : SaboCoverUICaboDriverBase(cover_ui_cfg) {
   }
 
   // clang-format off
@@ -52,7 +53,7 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
 
     // Cabo HC165 /CS is superfluous because of combined HC595 RCLK and HC165 SH/PL
     // and the resulting Send+Receive cycle requirement
-    palWriteLine(cabo_cfg_.pins.inp_cs, PAL_LOW);
+    palWriteLine(cover_ui_cfg_->pins.inp_cs, PAL_LOW);
 
     spi_config_ = {
         .circular = false,
@@ -111,15 +112,15 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
    * @param tx_data
    */
   void Series2LatchSR(uint8_t tx_data) {
-    spiAcquireBus(cabo_cfg_.spi.instance);
+    spiAcquireBus(cover_ui_cfg_->spi.instance);
 
-    spiStart(cabo_cfg_.spi.instance, &spi_config_);
-    spiSend(cabo_cfg_.spi.instance, 1, &tx_data);  // Send tx_data to HEF4794
-    palWriteLine(UI_S2_LATCH, PAL_HIGH);           // Latch HEF4794
+    spiStart(cover_ui_cfg_->spi.instance, &spi_config_);
+    spiSend(cover_ui_cfg_->spi.instance, 1, &tx_data);  // Send tx_data to HEF4794
+    palWriteLine(UI_S2_LATCH, PAL_HIGH);                // Latch HEF4794
     chThdSleepMicroseconds(1);
     palWriteLine(UI_S2_LATCH, PAL_LOW);  // Close HEF4794 latch
 
-    spiReleaseBus(cabo_cfg_.spi.instance);
+    spiReleaseBus(cover_ui_cfg_->spi.instance);
   }
 
   /**
@@ -129,22 +130,22 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
   void LatchLoadSR() {
     assert(sr_load_size_ <= sizeof(sr_load_buf_));
 
-    spiAcquireBus(cabo_cfg_.spi.instance);
+    spiAcquireBus(cover_ui_cfg_->spi.instance);
 
-    spiStart(cabo_cfg_.spi.instance, &spi_config_);
-    palWriteLine(cabo_cfg_.pins.latch_load, PAL_LOW);           // HC165 /PL (parallel load) pulse, also blocks shifting
+    spiStart(cover_ui_cfg_->spi.instance, &spi_config_);
+    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);      // HC165 /PL (parallel load) pulse, also blocks shifting
     if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_LOW);  // S2- /PL
     chThdSleepMicroseconds(1);
-    spiSend(cabo_cfg_.spi.instance, 1, &cabo_sr_ctrl_mask_);  // Send data to HC595
+    spiSend(cover_ui_cfg_->spi.instance, 1, &cabo_sr_ctrl_mask_);  // Send data to HC595
     chThdSleepMicroseconds(1);
-    palWriteLine(cabo_cfg_.pins.latch_load, PAL_HIGH);           // HC165 shift enable & latch HC595 (RCLK rising edge)
+    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_HIGH);      // HC165 shift enable & latch HC595 (RCLK rising edge)
     if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_HIGH);  // S2- HC165 shift enable
     chThdSleepMicroseconds(1);
-    spiReceive(cabo_cfg_.spi.instance, sr_load_size_, sr_load_buf_);
-    palWriteLine(cabo_cfg_.pins.latch_load, PAL_LOW);           // Need to block HC165 shifting again
+    spiReceive(cover_ui_cfg_->spi.instance, sr_load_size_, sr_load_buf_);
+    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);      // Need to block HC165 shifting again
     if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_LOW);  // S2- /PL
 
-    spiReleaseBus(cabo_cfg_.spi.instance);
+    spiReleaseBus(cover_ui_cfg_->spi.instance);
 
     // Extract Cabo's sr_inp_mask_ out of the received bytes, which may differ dependent of the connected CoverUI
     // Series. If a Series-II is connected it shift its own HC165 byte first.

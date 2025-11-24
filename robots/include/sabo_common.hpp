@@ -21,6 +21,7 @@
 #include <hal.h>
 
 #include <cstdint>
+#include <globals.hpp>
 
 namespace xbot::driver::sabo {
 
@@ -157,6 +158,25 @@ inline constexpr size_t NUM_BUTTONS = sizeof(ALL_BUTTONS) / sizeof(ALL_BUTTONS[0
 static_assert(static_cast<uint8_t>(types::HardwareVersion::V0_3) + 1 ==
                   sizeof(config::HARDWARE_CONFIGS) / sizeof(config::HARDWARE_CONFIGS[0]),
               "HardwareVersion enum count must match HARDWARE_CONFIGS array size");
+
+inline types::HardwareVersion GetHardwareVersion(const struct carrier_board_info& board_info) {
+  types::HardwareVersion version = types::HardwareVersion::V0_3;  // Default fallback
+
+  if (board_info.version_major == 0) {
+    switch (board_info.version_minor) {
+      case 1: version = types::HardwareVersion::V0_1; break;
+      case 2: version = types::HardwareVersion::V0_2; break;
+      case 3: version = types::HardwareVersion::V0_3; break;
+    }
+  }
+  return version;
+}
+
+// Factory function to get hardware configuration based on version
+inline const config::HardwareConfig& GetHardwareConfig(types::HardwareVersion version) {
+  const auto index = static_cast<uint8_t>(version);
+  return config::HARDWARE_CONFIGS[index];
+}
 
 }  // namespace xbot::driver::sabo
 

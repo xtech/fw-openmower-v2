@@ -9,30 +9,31 @@ namespace xbot::driver::ui {
 
 bool SaboCoverUICaboDriverBase::Init() {
   // Init SPI pins
-  if (cabo_cfg_.spi.instance != nullptr) {
-    palSetLineMode(cabo_cfg_.spi.pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
-    palSetLineMode(cabo_cfg_.spi.pins.miso, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-    palSetLineMode(cabo_cfg_.spi.pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
-    if (cabo_cfg_.spi.pins.cs != PAL_NOLINE) {
-      palSetLineMode(cabo_cfg_.spi.pins.cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-      palWriteLine(cabo_cfg_.spi.pins.cs, PAL_HIGH);
+  if (cover_ui_cfg_->spi.instance != nullptr) {
+    palSetLineMode(cover_ui_cfg_->spi.pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
+    palSetLineMode(cover_ui_cfg_->spi.pins.miso,
+                   PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+    palSetLineMode(cover_ui_cfg_->spi.pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
+    if (cover_ui_cfg_->spi.pins.cs != PAL_NOLINE) {
+      palSetLineMode(cover_ui_cfg_->spi.pins.cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+      palWriteLine(cover_ui_cfg_->spi.pins.cs, PAL_HIGH);
     }
   }
 
   // Init Cabo's shift register control pins
-  palSetLineMode(cabo_cfg_.pins.latch_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-  palWriteLine(cabo_cfg_.pins.latch_load, PAL_LOW);  // HC595 RCLK/PL (parallel load)
-  if (cabo_cfg_.pins.oe != PAL_NOLINE) {
-    palSetLineMode(cabo_cfg_.pins.oe, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cabo_cfg_.pins.oe, PAL_HIGH);  // /OE (output enable = no)
+  palSetLineMode(cover_ui_cfg_->pins.latch_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+  palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);  // HC595 RCLK/PL (parallel load)
+  if (cover_ui_cfg_->pins.oe != PAL_NOLINE) {
+    palSetLineMode(cover_ui_cfg_->pins.oe, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+    palWriteLine(cover_ui_cfg_->pins.oe, PAL_HIGH);  // /OE (output enable = no)
   }
-  if (cabo_cfg_.pins.btn_cs != PAL_NOLINE) {
-    palSetLineMode(cabo_cfg_.pins.btn_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cabo_cfg_.pins.btn_cs, PAL_HIGH);  // /CS (chip select = no)
+  if (cover_ui_cfg_->pins.btn_cs != PAL_NOLINE) {
+    palSetLineMode(cover_ui_cfg_->pins.btn_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+    palWriteLine(cover_ui_cfg_->pins.btn_cs, PAL_HIGH);  // /CS (chip select = no)
   }
-  if (cabo_cfg_.pins.inp_cs != PAL_NOLINE) {
-    palSetLineMode(cabo_cfg_.pins.inp_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cabo_cfg_.pins.inp_cs, PAL_HIGH);  // /CS (chip select = no)
+  if (cover_ui_cfg_->pins.inp_cs != PAL_NOLINE) {
+    palSetLineMode(cover_ui_cfg_->pins.inp_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+    palWriteLine(cover_ui_cfg_->pins.inp_cs, PAL_HIGH);  // /CS (chip select = no)
   }
 
   return true;

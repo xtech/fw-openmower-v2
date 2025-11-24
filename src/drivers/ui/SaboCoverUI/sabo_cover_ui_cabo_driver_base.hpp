@@ -7,16 +7,16 @@
 
 #include "ch.h"
 #include "hal.h"
+#include "robots/include/sabo_common.hpp"
 #include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_series_interface.hpp"
 
 namespace xbot::driver::ui {
 
-using namespace sabo;
-
 class SaboCoverUICaboDriverBase {
  public:
-  explicit SaboCoverUICaboDriverBase(CaboCfg cabo_cfg) : cabo_cfg_(cabo_cfg){};
+  explicit SaboCoverUICaboDriverBase(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
+      : cover_ui_cfg_(cover_ui_cfg){};
 
   // 6 * 10ms(tick) / 2(alternating button rows) = 30ms debounce time
   // Series-I has no alternating button rows, so it will debounce in 60ms (who cares)
@@ -47,7 +47,7 @@ class SaboCoverUICaboDriverBase {
   void DebounceRawButtons(uint16_t raw_buttons);
 
  protected:
-  CaboCfg cabo_cfg_;
+  const xbot::driver::sabo::config::CoverUi* cover_ui_cfg_;
   SPIConfig spi_config_;
   SaboCoverUISeriesInterface* series_ = nullptr;  // Series-I/II specific driver
 

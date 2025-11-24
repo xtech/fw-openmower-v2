@@ -38,20 +38,17 @@
 #include <hal.h>
 #include <lvgl.h>
 
+#include "robots/include/sabo_common.hpp"
 #include "sabo_cover_ui_defs.hpp"
 
 namespace xbot::driver::ui {
 
-using namespace sabo;
-using namespace sabo::display;
-using namespace sabo::settings;
-
 class SaboCoverUIDisplayDriverUC1698 {
  public:
-  static SaboCoverUIDisplayDriverUC1698& Instance(const LCDCfg* lcd_cfg = nullptr) {
+  static SaboCoverUIDisplayDriverUC1698& Instance(const xbot::driver::sabo::config::Lcd* lcd_cfg = nullptr) {
     static bool initialized = false;
-    chDbgAssert(lcd_cfg != nullptr || initialized, "First call to Instance() must provide LCDCfg!");
-    static SaboCoverUIDisplayDriverUC1698 instance_placeholder{lcd_cfg ? *lcd_cfg : LCDCfg{}};
+    chDbgAssert(lcd_cfg != nullptr || initialized, "First call to Instance() must provide config::Lcd!");
+    static SaboCoverUIDisplayDriverUC1698 instance_placeholder{lcd_cfg ? *lcd_cfg : xbot::driver::sabo::config::Lcd{}};
     initialized = true;
     return instance_placeholder;
   }
@@ -63,8 +60,9 @@ class SaboCoverUIDisplayDriverUC1698 {
 
   void Start();  // Start UC1698 own thread (required for async SPI)
 
-  void SetVBiasPotentiometer(uint8_t data);              // [10] Set VBias Potentiometer (Contrast: 0-255)
-  void SetTemperatureCompensation(TempCompensation tc);  // [5] Set Temperature Compensation
+  void SetVBiasPotentiometer(uint8_t data);  // [10] Set VBias Potentiometer (Contrast: 0-255)
+  void SetTemperatureCompensation(
+      xbot::driver::ui::sabo::settings::TempCompensation tc);  // [5] Set Temperature Compensation
   void SetDisplayEnable(bool on);  // [17] Set Display Enable: Green Enh. Mode off, Gray Shade, Active
 
   bool IsDisplayEnabled() const {  // LCD active (or sleeping)
@@ -77,7 +75,7 @@ class SaboCoverUIDisplayDriverUC1698 {
   static void SPIDataCB(SPIDriver* spip);
 
  private:
-  SaboCoverUIDisplayDriverUC1698(const LCDCfg& lcd_cfg) : lcd_cfg_(lcd_cfg) {
+  SaboCoverUIDisplayDriverUC1698(const xbot::driver::sabo::config::Lcd& lcd_cfg) : lcd_cfg_(lcd_cfg) {
   }
 
   THD_WORKING_AREA(wa_, 640);  // AH20251106 In use = 320
@@ -87,7 +85,9 @@ class SaboCoverUIDisplayDriverUC1698 {
   EVENTSOURCE_DECL(event_source_);
 
   // With UC1698u RRRR-GGGG-BBBB, 4k-color mode, we send 2 pixels per byte (3 bytes per sextet)
-  static constexpr size_t buffer_size_ = LCD_WIDTH * LCD_HEIGHT / BUFFER_FRACTION / 2;
+  static constexpr size_t buffer_size_ = xbot::driver::ui::sabo::display::LCD_WIDTH *
+                                         xbot::driver::ui::sabo::display::LCD_HEIGHT /
+                                         xbot::driver::ui::sabo::display::BUFFER_FRACTION / 2;
   struct AsyncFlush {
     lv_area_t area;  // Area in buffer
     uint8_t buffer[buffer_size_];
@@ -95,11 +95,11 @@ class SaboCoverUIDisplayDriverUC1698 {
   };
   AsyncFlush pending_flush_;
 
-  LCDCfg lcd_cfg_;
+  const xbot::driver::sabo::config::Lcd lcd_cfg_;
   SPIConfig spi_config_;
 
-  bool display_enabled_ = false;  // Sleep mode of UC1698
-  LCDSettings lcd_settings_;      // Loaded settings from file (or defaults)
+  bool display_enabled_ = false;                                // Sleep mode of UC1698
+  xbot::driver::ui::sabo::settings::LCDSettings lcd_settings_;  // Loaded settings from file (or defaults)
 
   volatile TransferState transfer_state_ = TransferState::IDLE;
 

@@ -31,6 +31,7 @@
 #include "../lvgl/sabo/sabo_screen_settings.hpp"
 #include "../lvgl/screen_base.hpp"
 #include "ch.h"
+#include "robots/include/sabo_common.hpp"
 #include "sabo_cover_ui_defs.hpp"
 #include "sabo_cover_ui_display_driver_uc1698.hpp"
 
@@ -39,6 +40,7 @@ namespace xbot::driver::ui {
 using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::ui::lvgl;
 using namespace xbot::driver::ui::lvgl::sabo;
+using namespace xbot::driver::sabo;
 
 using DriverUC1698 = SaboCoverUIDisplayDriverUC1698;
 using SaboScreenBase = ScreenBase<ScreenId, ButtonID>;
@@ -51,7 +53,8 @@ using ButtonCheckCallback = etl::delegate<bool(ButtonID)>;
  */
 class SaboCoverUIDisplay {
  public:
-  explicit SaboCoverUIDisplay(LCDCfg lcd_cfg, const ButtonCheckCallback& button_check_callback = ButtonCheckCallback());
+  explicit SaboCoverUIDisplay(const config::Lcd* lcd_cfg,
+                              const ButtonCheckCallback& button_check_callback = ButtonCheckCallback());
 
   bool Init();
   void Start();
@@ -70,7 +73,7 @@ class SaboCoverUIDisplay {
   bool OnButtonPress(xbot::driver::ui::sabo::ButtonID button_id);
 
  private:
-  LCDCfg lcd_cfg_;
+  const config::Lcd* lcd_cfg_;
   lv_display_t* lvgl_display_ = nullptr;
   settings::LCDSettings lcd_settings_;
 

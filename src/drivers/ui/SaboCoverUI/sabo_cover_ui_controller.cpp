@@ -26,24 +26,30 @@
 namespace xbot::driver::ui {
 
 using namespace xbot::driver::ui::sabo;
+using namespace xbot::driver::sabo;
 
-void SaboCoverUIController::Configure(const CoverUICfg& cui_cfg) {
-  // Select the CoverUI driver based on the carrier board version and/or CoverUI Series
-  if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor == 1) {
-    // Mobo v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
-    static SaboCoverUICaboDriverV01 driver_v01(cui_cfg.cabo_cfg);
-    cabo_ = &driver_v01;
-  } else {
-    // Mobo v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
-    static SaboCoverUICaboDriverV02 driver_v02(cui_cfg.cabo_cfg);
-    cabo_ = &driver_v02;
+SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardware_config) {
+  // Select the CoverUI driver based on the hardware configuration
+  if (hardware_config.cover_ui != nullptr) {
+    // Select driver based on hardware version
+    if (GetHardwareVersion(carrier_board_info) == types::HardwareVersion::V0_1) {
+      // Mobo v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
+      static SaboCoverUICaboDriverV01 driver_v01(hardware_config.cover_ui);
+      cabo_ = &driver_v01;
+    } else {
+      // Mobo v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
+      static SaboCoverUICaboDriverV02 driver_v02(hardware_config.cover_ui);
+      cabo_ = &driver_v02;
+    }
+  }
+
+  // Initialize display if available
+  if (hardware_config.lcd != nullptr) {
     static SaboCoverUIDisplay display(
-        cui_cfg.lcd_cfg,
+        hardware_config.lcd,
         etl::delegate<bool(ButtonID)>::create<SaboCoverUIController, &SaboCoverUIController::IsButtonPressed>(*this));
     display_ = &display;
   }
-
-  configured_ = true;
 }
 
 void SaboCoverUIController::Start() {
@@ -52,8 +58,8 @@ void SaboCoverUIController::Start() {
     return;
   }
 
-  if (!configured_) {
-    ULOG_ERROR("Sabo CoverUI Controller not configured!");
+  if (cabo_ == nullptr) {
+    ULOG_ERROR("Sabo CoverUI Driver not set!");
     return;
   }
 
