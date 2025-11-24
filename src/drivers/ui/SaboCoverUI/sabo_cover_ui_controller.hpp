@@ -27,7 +27,7 @@ class SaboCoverUIController {
 
   void Start();
 
-  bool IsButtonPressed(const ButtonID btn) const;  // Debounced safe check if a specific button is pressed
+  bool IsButtonPressed(const ButtonId btn) const;  // Debounced safe check if a specific button is pressed
   uint16_t GetButtonsMask() const;                 // Returns bitmask of current button states
 
  private:
@@ -40,8 +40,8 @@ class SaboCoverUIController {
 
   SaboCoverUIDisplay* display_ = nullptr;  // Pointer to the Display driver
 
-  // Button debouncing state - array indexed by ButtonID value (has gap at index 7)
-  etl::array<bool, static_cast<size_t>(ButtonID::_LAST) + 1> button_states_{};
+  // Button debouncing state
+  etl::array<bool, defs::NUM_BUTTONS> button_states_{};
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();

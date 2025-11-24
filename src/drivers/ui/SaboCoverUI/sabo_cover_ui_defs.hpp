@@ -23,7 +23,7 @@
 
 namespace xbot::driver::ui::sabo {
 
-struct SPICfg {
+/*struct SPICfg {
   SPIDriver* instance = nullptr;  // SPI-Instance like &SPID1
   struct {
     ioline_t sck = PAL_NOLINE;   // Clock (SCK/CLK)
@@ -51,21 +51,16 @@ struct LCDCfg {
     ioline_t rst = PAL_NOLINE;  // Reset (/RST)
     ioline_t backlight = PAL_NOLINE;
   } pins;
-};
-
-struct CoverUICfg {
-  CaboCfg cabo_cfg;  // SPI and control pins for the CoverUI (LEDs, Buttons, Display
-  LCDCfg lcd_cfg;    // SPI and control pins for the CoverUI LCD (Chip Select, Data/Command, Reset)
-};
+};*/
 
 // Same bit order as in CoverUI Series-II (HEF4794BT). Series-I driver need to map the bits
-enum class LEDID : uint8_t { AUTO = 0, MOWING, HOME, PLAY_GN, PLAY_RD };
-enum class LEDMode { OFF, ON, BLINK_SLOW, BLINK_FAST };
+// enum class LEDID : uint8_t { AUTO = 0, MOWING, HOME, PLAY_GN, PLAY_RD };
+// enum class LEDMode { OFF, ON, BLINK_SLOW, BLINK_FAST };
 
-enum class SeriesType { Series1, Series2 };
+// enum class SeriesType { Series1, Series2 };
 
 // Same bit order as in CoverUI Series-II (74HC165, Row 0+1). Series-I driver need to translate the bits
-enum class ButtonID {
+/*enum class ButtonID {
   UP = 0,
   DOWN,
   LEFT,
@@ -85,13 +80,13 @@ enum class ButtonID {
 // Helper array for iterating all valid buttons (excluding gap at value 7)
 inline constexpr ButtonID ALL_BUTTONS[] = {ButtonID::UP,   ButtonID::DOWN,    ButtonID::LEFT,      ButtonID::RIGHT,
                                            ButtonID::OK,   ButtonID::PLAY,    ButtonID::S1_SELECT, ButtonID::MENU,
-                                           ButtonID::BACK, ButtonID::S2_AUTO, ButtonID::S2_MOW,    ButtonID::S2_HOME};
-inline constexpr size_t NUM_BUTTONS = sizeof(ALL_BUTTONS) / sizeof(ALL_BUTTONS[0]);  // = 12
+                                           ButtonID::BACK, ButtonID::S2_AUTO, ButtonID::S2_MOW,    ButtonID::S2_HOME};*/
+// inline constexpr size_t NUM_BUTTONS = sizeof(ALL_BUTTONS) / sizeof(ALL_BUTTONS[0]);  // = 12
 
 /**
  * @brief Convert ButtonID to human-readable string
  */
-inline const char* ButtonIDToString(ButtonID id) {
+/*inline const char* ButtonIDToString(ButtonID id) {
   switch (id) {
     case ButtonID::UP: return "Up";
     case ButtonID::DOWN: return "Down";
@@ -107,7 +102,7 @@ inline const char* ButtonIDToString(ButtonID id) {
     case ButtonID::S2_HOME: return "Home (S2)";
     default: return "Unknown";
   }
-}
+}*/
 
 namespace display {
 constexpr uint16_t LCD_WIDTH = 240;  // ATTENTION: LVGL I1 mode requires a multiple of 8 width

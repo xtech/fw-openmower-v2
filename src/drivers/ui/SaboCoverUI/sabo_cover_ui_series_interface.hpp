@@ -11,7 +11,7 @@
 
 namespace xbot::driver::ui {
 
-using namespace sabo;
+using namespace xbot::driver::sabo::types;
 
 class SaboCoverUISeriesInterface {
  public:
@@ -26,10 +26,10 @@ class SaboCoverUISeriesInterface {
   virtual uint16_t ProcessButtonCol(const uint8_t cur_col_data) = 0;
 
   // Map ButtonID to a corresponding bitmask of the connected CoverUI Series type
-  virtual uint16_t MapButtonIDToMask(const ButtonID id) const = 0;
+  virtual uint16_t MapButtonIDToMask(const ButtonId id) const = 0;
   virtual uint16_t AllButtonsMask() const = 0;
 
-  virtual uint8_t MapLEDIDToMask(const LEDID id) const = 0;
+  virtual uint8_t MapLedIdToMask(const LedId id) const = 0;
 };
 
 }  // namespace xbot::driver::ui

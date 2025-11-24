@@ -26,7 +26,7 @@
 namespace xbot::driver::ui {
 
 using namespace xbot::driver::ui::sabo;
-using namespace xbot::driver::sabo;
+using namespace xbot::driver::sabo::types;
 
 SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardware_config) {
   // Select the CoverUI driver based on the hardware configuration
@@ -47,7 +47,7 @@ SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardw
   if (hardware_config.lcd != nullptr) {
     static SaboCoverUIDisplay display(
         hardware_config.lcd,
-        etl::delegate<bool(ButtonID)>::create<SaboCoverUIController, &SaboCoverUIController::IsButtonPressed>(*this));
+        etl::delegate<bool(ButtonId)>::create<SaboCoverUIController, &SaboCoverUIController::IsButtonPressed>(*this));
     display_ = &display;
   }
 }
@@ -98,33 +98,33 @@ void SaboCoverUIController::UpdateStates() {
   // Start LEDs
   // For identification purposes, Red-Start-LED get handled exclusively with high priority before Green-Start-LED
   if (emergency_service.GetEmergency()) {
-    cabo_->SetLED(LEDID::PLAY_RD, LEDMode::BLINK_FAST);  // Emergency
-    cabo_->SetLED(LEDID::PLAY_GN, LEDMode::OFF);
+    cabo_->SetLed(LedId::PLAY_RD, LedMode::BLINK_FAST);  // Emergency
+    cabo_->SetLed(LedId::PLAY_GN, LedMode::OFF);
     /* FIXME: Add/Enable once mower_ui_service is working
   } else if (high_level_state ==
              MowerUiService::HighLevelState::MODE_UNKNOWN) { // Waiting for ROS
     cabo_->SetLED(LEDID::PLAY_RD, LEDMode::BLINK_SLOW);              */
-    cabo_->SetLED(LEDID::PLAY_GN, LEDMode::OFF);
+    cabo_->SetLed(LedId::PLAY_GN, LedMode::OFF);
   } else {
-    cabo_->SetLED(LEDID::PLAY_RD, LEDMode::OFF);
+    cabo_->SetLed(LedId::PLAY_RD, LedMode::OFF);
 
     // Green-Start-LED
     if (power_service.GetAdapterVolts() > 26.0f) {    // Docked
       if (power_service.GetBatteryVolts() < 20.0f) {  // No (or dead) battery
-        cabo_->SetLED(LEDID::PLAY_GN, LEDMode::BLINK_FAST);
+        cabo_->SetLed(LedId::PLAY_GN, LedMode::BLINK_FAST);
       } else if (power_service.GetChargeCurrent() > 0.1f) {  // Battery charging
-        cabo_->SetLED(LEDID::PLAY_GN, LEDMode::BLINK_SLOW);
+        cabo_->SetLed(LedId::PLAY_GN, LedMode::BLINK_SLOW);
       } else {  // Battery charged
-        cabo_->SetLED(LEDID::PLAY_GN, LEDMode::ON);
+        cabo_->SetLed(LedId::PLAY_GN, LedMode::ON);
       }
     } else {
       // TODO: Handle high level states like "Mowing" or "Area Recording"
-      cabo_->SetLED(LEDID::PLAY_GN, LEDMode::OFF);
+      cabo_->SetLed(LedId::PLAY_GN, LedMode::OFF);
     }
   }
 }
 
-bool SaboCoverUIController::IsButtonPressed(const ButtonID button) const {
+bool SaboCoverUIController::IsButtonPressed(const ButtonId button) const {
   if (!cabo_->IsReady()) return false;
   return cabo_->IsButtonPressed(button);
 }
@@ -162,14 +162,14 @@ void SaboCoverUIController::ThreadFunc() {
       last_button_check = now;
 
       // Iterate over all valid buttons using the companion array
-      for (const auto& button_id : ALL_BUTTONS) {
-        size_t btn_index = static_cast<size_t>(button_id);
+      for (size_t i = 0; i < defs::NUM_BUTTONS; ++i) {
+        const auto& button_id = defs::ALL_BUTTONS[i];
         bool is_pressed = cabo_->IsButtonPressed(button_id);
 
         // Only trigger on rising edge (button was not pressed before, but is pressed now)
-        if (is_pressed && !button_states_[btn_index]) {
-          button_states_[btn_index] = true;
-          ULOG_INFO("Sabo CoverUI Button [%s] pressed", ButtonIDToString(button_id));
+        if (is_pressed && !button_states_[i]) {
+          button_states_[i] = true;
+          ULOG_INFO("Sabo CoverUI Button [%s] pressed", ButtonIdToString(button_id));
 
           // Let the active screen handle the button first
           if (display_->OnButtonPress(button_id)) {
@@ -177,9 +177,9 @@ void SaboCoverUIController::ThreadFunc() {
           }
 
           // If display_ (and thus also screens) didn't handle buttons, global button logic could also apply here
-        } else if (!is_pressed && button_states_[btn_index]) {
+        } else if (!is_pressed && button_states_[i]) {
           // Button released - reset state
-          button_states_[btn_index] = false;
+          button_states_[i] = false;
         }
       }
     }

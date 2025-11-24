@@ -30,6 +30,8 @@ namespace types {
 // Hardware versions are "as of" versions
 enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2, V0_3 };
 
+enum class SeriesType { Series1, Series2 };
+
 enum class InputType : uint8_t { SENSOR, BUTTON };
 
 enum class SensorId : uint8_t { LIFT_FL, LIFT_FR, STOP_TOP, STOP_REAR };
@@ -176,6 +178,27 @@ inline types::HardwareVersion GetHardwareVersion(const struct carrier_board_info
 inline const config::HardwareConfig& GetHardwareConfig(types::HardwareVersion version) {
   const auto index = static_cast<uint8_t>(version);
   return config::HARDWARE_CONFIGS[index];
+}
+
+/**
+ * @brief Convert ButtonID to human-readable string
+ */
+inline const char* ButtonIdToString(types::ButtonId id) {
+  switch (id) {
+    case types::ButtonId::UP: return "Up";
+    case types::ButtonId::DOWN: return "Down";
+    case types::ButtonId::LEFT: return "Left";
+    case types::ButtonId::RIGHT: return "Right";
+    case types::ButtonId::OK: return "OK";
+    case types::ButtonId::PLAY: return "Play";
+    case types::ButtonId::S1_SELECT: return "Select (S1)";
+    case types::ButtonId::MENU: return "Menu";
+    case types::ButtonId::BACK: return "Back";
+    case types::ButtonId::S2_AUTO: return "Auto (S2)";
+    case types::ButtonId::S2_MOW: return "Mow (S2)";
+    case types::ButtonId::S2_HOME: return "Home (S2)";
+    default: return "Unknown";
+  }
 }
 
 }  // namespace xbot::driver::sabo

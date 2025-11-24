@@ -37,13 +37,14 @@ LV_FONT_DECLARE(orbitron_12);
 
 using namespace xbot::driver::input;
 using namespace xbot::driver::ui::sabo;
+using namespace xbot::driver::sabo::defs;
 using namespace xbot::driver::sabo::types;
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-class SaboScreenInputs : public ScreenBase<ScreenId, ButtonID> {
+class SaboScreenInputs : public ScreenBase<ScreenId, ButtonId> {
  public:
-  SaboScreenInputs() : ScreenBase<ScreenId, ButtonID>(ScreenId::INPUTS) {
+  SaboScreenInputs() : ScreenBase<ScreenId, ButtonId>(ScreenId::INPUTS) {
   }
 
   ~SaboScreenInputs() {
@@ -145,9 +146,9 @@ class SaboScreenInputs : public ScreenBase<ScreenId, ButtonID> {
         const char* pressed_button = "?";  // Default for no button pressed
 
         // Loop through ALL_BUTTONS array and check each button
-        for (auto button_id : xbot::driver::ui::sabo::ALL_BUTTONS) {
+        for (auto button_id : ALL_BUTTONS) {
           if (sabo_robot->IsButtonPressed(button_id)) {
-            pressed_button = xbot::driver::ui::sabo::ButtonIDToString(button_id);
+            pressed_button = ButtonIdToString(button_id);
             break;  // Show only the first pressed button
           }
         }

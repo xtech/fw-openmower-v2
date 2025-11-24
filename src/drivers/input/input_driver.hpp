@@ -35,7 +35,7 @@ struct Input {
 
       union {
         xbot::driver::sabo::types::SensorId sensor_id;
-        xbot::driver::ui::sabo::ButtonID button_id;
+        xbot::driver::sabo::types::ButtonId button_id;
       } id;
     } sabo;
   };

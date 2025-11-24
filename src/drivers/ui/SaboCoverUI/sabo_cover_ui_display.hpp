@@ -39,11 +39,11 @@ namespace xbot::driver::ui {
 using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::ui::lvgl;
 using namespace xbot::driver::ui::lvgl::sabo;
-using namespace xbot::driver::sabo;
+using namespace xbot::driver::sabo::types;
 
 using DriverUC1698 = SaboCoverUIDisplayDriverUC1698;
-using SaboScreenBase = ScreenBase<ScreenId, ButtonID>;
-using ButtonCheckCallback = etl::delegate<bool(ButtonID)>;
+using SaboScreenBase = ScreenBase<ScreenId, ButtonId>;
+using ButtonCheckCallback = etl::delegate<bool(ButtonId)>;
 
 /**
  * @brief Main display controller for Sabo Cover UI
@@ -69,7 +69,7 @@ class SaboCoverUIDisplay {
   void HideMenu();
   void Tick();
   void WakeUp();
-  bool OnButtonPress(xbot::driver::ui::sabo::ButtonID button_id);
+  bool OnButtonPress(ButtonId button_id);
 
  private:
   const config::Lcd* lcd_cfg_;

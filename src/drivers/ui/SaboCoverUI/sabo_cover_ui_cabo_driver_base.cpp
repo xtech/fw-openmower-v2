@@ -39,8 +39,8 @@ bool SaboCoverUICaboDriverBase::Init() {
   return true;
 }
 
-void SaboCoverUICaboDriverBase::SetLED(LEDID id, LEDMode mode) {
-  const uint8_t bit = MapLEDIDToMask(id);
+void SaboCoverUICaboDriverBase::SetLed(LedId id, LedMode mode) {
+  const uint8_t bit = MapLedIdToMask(id);
 
   // Clear existing state
   leds_.on_mask &= ~bit;
@@ -49,36 +49,36 @@ void SaboCoverUICaboDriverBase::SetLED(LEDID id, LEDMode mode) {
 
   // Set new state
   switch (mode) {
-    case LEDMode::ON: leds_.on_mask |= bit; break;
-    case LEDMode::BLINK_SLOW: leds_.slow_blink_mask |= bit; break;
-    case LEDMode::BLINK_FAST: leds_.fast_blink_mask |= bit; break;
-    case LEDMode::OFF:
+    case LedMode::ON: leds_.on_mask |= bit; break;
+    case LedMode::BLINK_SLOW: leds_.slow_blink_mask |= bit; break;
+    case LedMode::BLINK_FAST: leds_.fast_blink_mask |= bit; break;
+    case LedMode::OFF:
     default: break;
   }
 }
 
 void SaboCoverUICaboDriverBase::PowerOnAnimation() {
   // All on
-  for (int i = 0; i < 5; ++i) SetLED(static_cast<LEDID>(i), LEDMode::ON);
+  for (int i = 0; i < 5; ++i) SetLed(static_cast<LedId>(i), LedMode::ON);
   ProcessLedStates();
   LatchLoad();
   chThdSleepMilliseconds(500);
 
   // All off
-  for (int i = 0; i < 5; ++i) SetLED(static_cast<LEDID>(i), LEDMode::OFF);
+  for (int i = 0; i < 5; ++i) SetLed(static_cast<LedId>(i), LedMode::OFF);
   ProcessLedStates();
   LatchLoad();
   chThdSleepMilliseconds(800);
 
   // Knight Rider
   for (int i = 0; i <= 5; i++) {
-    for (int j = 0; j < 5; ++j) SetLED(static_cast<LEDID>(j), (j < i) ? LEDMode::ON : LEDMode::OFF);
+    for (int j = 0; j < 5; ++j) SetLed(static_cast<LedId>(j), (j < i) ? LedMode::ON : LedMode::OFF);
     ProcessLedStates();
     LatchLoad();
     chThdSleepMilliseconds(100);
   }
   for (int i = 4; i >= 0; i--) {
-    for (int j = 0; j < 5; ++j) SetLED(static_cast<LEDID>(j), (j < i) ? LEDMode::ON : LEDMode::OFF);
+    for (int j = 0; j < 5; ++j) SetLed(static_cast<LedId>(j), (j < i) ? LedMode::ON : LedMode::OFF);
     ProcessLedStates();
     LatchLoad();
     chThdSleepMilliseconds(100);
@@ -120,7 +120,7 @@ void SaboCoverUICaboDriverBase::DebounceRawButtons(uint16_t raw_buttons) {
   btn_last_raw_mask_ = raw_buttons;
 }
 
-bool SaboCoverUICaboDriverBase::IsButtonPressed(ButtonID btn) const {
+bool SaboCoverUICaboDriverBase::IsButtonPressed(ButtonId btn) const {
   if (!series_) return false;
   auto btn_mask = series_->MapButtonIDToMask(btn);
   if (btn_mask == 0) return false;                                       // Unknown button ID = "not pressed"
@@ -137,7 +137,7 @@ uint16_t SaboCoverUICaboDriverBase::GetButtonsMask() const {
 
   uint16_t standardized_mask = 0;
   // Convert each button from series-specific format to standardized format
-  for (const auto& button_id : ALL_BUTTONS) {
+  for (const auto& button_id : defs::ALL_BUTTONS) {
     auto series_bit = series_->MapButtonIDToMask(button_id);
     if (series_bit != 0 && (btn_stable_raw_mask_ & series_bit) == 0) {  // low-active: 0 = pressed
       standardized_mask |= (1 << static_cast<uint16_t>(button_id));

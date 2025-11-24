@@ -24,13 +24,13 @@
 namespace xbot::driver::ui::lvgl::sabo {
 
 using namespace xbot::driver::ui::sabo;
-using namespace xbot::driver::sabo;
+using namespace xbot::driver::sabo::types;
 
 // Boot test callback function pointer type
 using BootTestCallback = bool (*)();
 using BootCompletionCallback = void (*)(void* context);
 
-class SaboScreenBoot : public ScreenBase<types::ScreenId, ButtonID> {
+class SaboScreenBoot : public ScreenBase<ScreenId, ButtonId> {
  public:
   SaboScreenBoot();
   ~SaboScreenBoot();

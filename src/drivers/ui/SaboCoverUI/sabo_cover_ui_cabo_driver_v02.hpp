@@ -19,6 +19,8 @@
 
 namespace xbot::driver::ui {
 
+using namespace xbot::driver::sabo::types;
+
 // Sabo CoverUI Driver for Hardware v0.2
 class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
  public:
@@ -102,8 +104,8 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
   // Cabo's HC165 input mask
   uint16_t sr_inp_mask_ = 0xFFFF;  // All inputs are high (inactive)
 
-  uint8_t MapLEDIDToMask(LEDID id) const override {
-    return series_ ? series_->MapLEDIDToMask(id) : 0;
+  uint8_t MapLedIdToMask(LedId id) const override {
+    return series_ ? series_->MapLedIdToMask(id) : 0;
   };
 
   /**

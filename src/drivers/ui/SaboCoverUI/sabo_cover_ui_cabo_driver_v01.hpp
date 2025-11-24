@@ -10,6 +10,8 @@
 
 namespace xbot::driver::ui {
 
+using namespace xbot::driver::sabo::types;
+
 // Sabo CoverUI Driver for Hardware v0.1
 class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
  public:
@@ -73,8 +75,8 @@ class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
     return &series2_driver;
   }
 
-  uint8_t MapLEDIDToMask(LEDID id) const override {
-    return series_ ? series_->MapLEDIDToMask(id) : 0;
+  uint8_t MapLedIdToMask(LedId id) const override {
+    return series_ ? series_->MapLedIdToMask(id) : 0;
   };
 };
 

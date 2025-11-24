@@ -13,6 +13,8 @@
 
 namespace xbot::driver::ui {
 
+using namespace xbot::driver::sabo;
+
 class SaboCoverUICaboDriverBase {
  public:
   explicit SaboCoverUICaboDriverBase(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
@@ -27,7 +29,7 @@ class SaboCoverUICaboDriverBase {
   virtual void PowerOnAnimation();  // KIT like anim
   virtual void Tick();              // Call this function every 1ms to update LEDs, read and debounce buttons, ...
 
-  bool IsButtonPressed(ButtonID btn) const;  // Check if a specific button is pressed
+  bool IsButtonPressed(ButtonId btn) const;  // Check if a specific button is pressed
   bool IsAnyButtonPressed() const;           // Check if any button is pressed
 
   /**
@@ -40,7 +42,7 @@ class SaboCoverUICaboDriverBase {
 
   bool IsReady() const;  // True if CoverUI detected, boot anim played and ready to serve requests
 
-  void SetLED(LEDID id, LEDMode mode);  // Set state of a single LED
+  void SetLed(LedId id, LedMode mode);  // Set state of a single LED
 
   // Debounce all raw buttons at once in one quick XOR operation
   // This Method needs to be called by driver implementation once it read the buttons
@@ -72,7 +74,7 @@ class SaboCoverUICaboDriverBase {
   uint8_t current_led_mask_ = 0;  // Series specific current LEDs, with applied LED modes, high-active
 
   virtual SaboCoverUISeriesInterface* GetSeriesDriver() = 0;  // Get the CoverUI Series driver, if connected
-  virtual uint8_t MapLEDIDToMask(LEDID id) const = 0;
+  virtual uint8_t MapLedIdToMask(LedId id) const = 0;
 
   void ProcessLedStates();  // Process the different LED modes (on, blink, ...)
 

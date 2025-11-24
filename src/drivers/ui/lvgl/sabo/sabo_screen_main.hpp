@@ -39,9 +39,9 @@ namespace xbot::driver::ui::lvgl::sabo {
 
 using namespace xbot::driver::ui::sabo;
 
-class SaboScreenMain : public ScreenBase<ScreenId, ButtonID> {
+class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
  public:
-  SaboScreenMain() : ScreenBase<ScreenId, ButtonID>(ScreenId::MAIN) {
+  SaboScreenMain() : ScreenBase<ScreenId, ButtonId>(ScreenId::MAIN) {
   }
 
   ~SaboScreenMain() {

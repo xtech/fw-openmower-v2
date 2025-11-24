@@ -77,7 +77,7 @@ class SaboRobot : public MowerRobot {
   }
 
   // CoverUI button access for SaboInputDriver
-  bool IsButtonPressed(const ButtonID button) const {
+  bool IsButtonPressed(const ButtonId button) const {
     return cover_ui_.IsButtonPressed(button);
   }
   uint16_t GetCoverUIButtonsMask() const {

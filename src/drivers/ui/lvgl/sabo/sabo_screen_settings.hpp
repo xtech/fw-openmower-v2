@@ -33,11 +33,12 @@ namespace xbot::driver::ui::lvgl::sabo {
 
 using namespace xbot::driver::ui::sabo;
 using namespace xbot::driver::ui::sabo::settings;
+using namespace xbot::driver::sabo::types;
 using DriverUC1698 = SaboCoverUIDisplayDriverUC1698;
 
-class SaboScreenSettings : public ScreenBase<ScreenId, ButtonID> {
+class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
  public:
-  SaboScreenSettings() : ScreenBase<ScreenId, ButtonID>(ScreenId::SETTINGS) {
+  SaboScreenSettings() : ScreenBase<ScreenId, ButtonId>(ScreenId::SETTINGS) {
     if (!xbot::driver::filesystem::VersionedStruct<LCDSettings>::Load(settings_)) {
       ULOG_WARNING("Failed loading settings from %s, using default settings", LCDSettings::PATH);
     }

@@ -19,10 +19,11 @@
 
 #include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../input_device_base.hpp"
+#include "robots/include/sabo_common.hpp"
 
 namespace xbot::driver::ui {
 
-using namespace xbot::driver::ui::sabo;
+using namespace xbot::driver::sabo::types;
 
 /**
  * @brief Keypad input device for Sabo Cover UI
@@ -35,9 +36,9 @@ using namespace xbot::driver::ui::sabo;
  * - OK → LV_KEY_ENTER (activate focused item)
  * - BACK → LV_KEY_ESC (cancel/back)
  */
-class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonID> {
+class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonId> {
  public:
-  using ButtonCheckCallback = etl::delegate<bool(ButtonID)>;
+  using ButtonCheckCallback = etl::delegate<bool(ButtonId)>;
 
   explicit SaboInputDeviceKeypad(const ButtonCheckCallback& callback = ButtonCheckCallback())
       : button_check_callback_(callback) {
@@ -65,42 +66,42 @@ class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonID> {
     // Check for pressed buttons and map to LVGL keys
     // Priority order: UP, DOWN, LEFT, RIGHT, OK, BACK
 
-    if (button_check_callback_(ButtonID::UP)) {
+    if (button_check_callback_(ButtonId::UP)) {
       data->key = LV_KEY_PREV;  // Navigate to previous item in group
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_PREV;
       return;
     }
 
-    if (button_check_callback_(ButtonID::DOWN)) {
+    if (button_check_callback_(ButtonId::DOWN)) {
       data->key = LV_KEY_NEXT;  // Navigate to next item in group
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_NEXT;
       return;
     }
 
-    if (button_check_callback_(ButtonID::LEFT)) {
+    if (button_check_callback_(ButtonId::LEFT)) {
       data->key = LV_KEY_LEFT;  // Edit focused widget
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_LEFT;
       return;
     }
 
-    if (button_check_callback_(ButtonID::RIGHT)) {
+    if (button_check_callback_(ButtonId::RIGHT)) {
       data->key = LV_KEY_RIGHT;  // Edit focused widget
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_RIGHT;
       return;
     }
 
-    if (button_check_callback_(ButtonID::OK)) {
+    if (button_check_callback_(ButtonId::OK)) {
       data->key = LV_KEY_ENTER;
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_ENTER;
       return;
     }
 
-    if (button_check_callback_(ButtonID::BACK)) {
+    if (button_check_callback_(ButtonId::BACK)) {
       data->key = LV_KEY_ESC;
       data->state = LV_INDEV_STATE_PRESSED;
       last_key_ = LV_KEY_ESC;

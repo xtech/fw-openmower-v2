@@ -136,19 +136,10 @@ static const etl::flat_map<etl::string<9>, SensorId, 4> SENSOR_IDS = {
     {"stop_rear", SensorId::STOP_REAR},
 };
 
-static const etl::flat_map<etl::string<6>, xbot::driver::ui::sabo::ButtonID, 12> BUTTON_IDS = {
-    {"up", xbot::driver::ui::sabo::ButtonID::UP},
-    {"down", xbot::driver::ui::sabo::ButtonID::DOWN},
-    {"left", xbot::driver::ui::sabo::ButtonID::LEFT},
-    {"right", xbot::driver::ui::sabo::ButtonID::RIGHT},
-    {"ok", xbot::driver::ui::sabo::ButtonID::OK},
-    {"play", xbot::driver::ui::sabo::ButtonID::PLAY},
-    {"select", xbot::driver::ui::sabo::ButtonID::S1_SELECT},
-    {"menu", xbot::driver::ui::sabo::ButtonID::MENU},
-    {"back", xbot::driver::ui::sabo::ButtonID::BACK},
-    {"auto", xbot::driver::ui::sabo::ButtonID::S2_AUTO},
-    {"mow", xbot::driver::ui::sabo::ButtonID::S2_MOW},
-    {"home", xbot::driver::ui::sabo::ButtonID::S2_HOME},
+static const etl::flat_map<etl::string<6>, ButtonId, 12> BUTTON_IDS = {
+    {"up", ButtonId::UP},     {"down", ButtonId::DOWN},    {"left", ButtonId::LEFT},        {"right", ButtonId::RIGHT},
+    {"ok", ButtonId::OK},     {"play", ButtonId::PLAY},    {"select", ButtonId::S1_SELECT}, {"menu", ButtonId::MENU},
+    {"back", ButtonId::BACK}, {"auto", ButtonId::S2_AUTO}, {"mow", ButtonId::S2_MOW},       {"home", ButtonId::S2_HOME},
 };
 
 bool SaboInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,

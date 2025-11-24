@@ -311,7 +311,7 @@ void SaboCoverUIDisplay::WakeUp() {
   last_activity_ = chVTGetSystemTimeX();
 }
 
-bool SaboCoverUIDisplay::OnButtonPress(xbot::driver::ui::sabo::ButtonID button_id) {
+bool SaboCoverUIDisplay::OnButtonPress(ButtonId button_id) {
   if (!active_screen_) return false;
 
   // If main menu isn't open, let the active screen handle the button first
@@ -321,7 +321,7 @@ bool SaboCoverUIDisplay::OnButtonPress(xbot::driver::ui::sabo::ButtonID button_i
 
   // If screen didn't handle it, global button logic here
   switch (button_id) {
-    case ButtonID::MENU:
+    case ButtonId::MENU:
       // Allow menu on all screens except BOOT
       if (active_screen_->GetScreenId() != ScreenId::BOOT) {
         // Toggle menu: if open, close it; if closed, open it
@@ -338,7 +338,7 @@ bool SaboCoverUIDisplay::OnButtonPress(xbot::driver::ui::sabo::ButtonID button_i
         return true;  // Handled
       }
       break;
-    case ButtonID::BACK:
+    case ButtonId::BACK:
       if (active_screen_->GetScreenId() == ScreenId::SETTINGS) {
         if (screen_settings_) {
           screen_settings_->SaveSettings();

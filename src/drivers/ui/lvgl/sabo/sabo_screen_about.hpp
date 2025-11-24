@@ -33,10 +33,11 @@ LV_FONT_DECLARE(orbitron_16b);
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-using namespace xbot::driver::ui::sabo;
-class SaboScreenAbout : public ScreenBase<types::ScreenId, xbot::driver::ui::sabo::ButtonID> {
+using namespace xbot::driver::sabo::types;
+
+class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
  public:
-  SaboScreenAbout() : ScreenBase<types::ScreenId, xbot::driver::ui::sabo::ButtonID>(types::ScreenId::ABOUT) {
+  SaboScreenAbout() : ScreenBase<ScreenId, ButtonId>(ScreenId::ABOUT) {
   }
 
   ~SaboScreenAbout() {
@@ -184,16 +185,14 @@ class SaboScreenAbout : public ScreenBase<types::ScreenId, xbot::driver::ui::sab
    * This is called by the display controller when a button is pressed
    * Only receives input when the group is active (menu is closed)
    */
-  bool OnButtonPress(xbot::driver::ui::sabo::ButtonID button_id) override {
-    using ButtonID = xbot::driver::ui::sabo::ButtonID;
-
+  bool OnButtonPress(ButtonId button_id) override {
     if (!content_container_) {
       return false;
     }
 
     switch (button_id) {
-      case ButtonID::UP: lv_obj_scroll_by_bounded(content_container_, 0, 20, LV_ANIM_OFF); return true;
-      case ButtonID::DOWN: lv_obj_scroll_by_bounded(content_container_, 0, -20, LV_ANIM_OFF); return true;
+      case ButtonId::UP: lv_obj_scroll_by_bounded(content_container_, 0, 20, LV_ANIM_OFF); return true;
+      case ButtonId::DOWN: lv_obj_scroll_by_bounded(content_container_, 0, -20, LV_ANIM_OFF); return true;
       default: return false;
     }
   }

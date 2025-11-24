@@ -11,6 +11,8 @@
 
 namespace xbot::driver::ui {
 
+using namespace xbot::driver::sabo::types;
+
 /** CoverUI Series-I driver for Carrierboard v0.2.
  *
  * Yes, we need a separate driver for CoverUI Series-I for each Carrierboard implementation, because CoverUI Series-I is
@@ -54,17 +56,17 @@ class SaboCoverUISeries1V02 : public SaboCoverUISeriesInterface {
   };
 
   // Series-I individual mapping
-  uint16_t MapButtonIDToMask(const ButtonID id) const override {
+  uint16_t MapButtonIDToMask(const ButtonId id) const override {
     switch (id) {
-      case ButtonID::UP: return INP_MASK_BTN_UP_L;
-      case ButtonID::DOWN: return INP_MASK_BTN_DOWN_L;
-      case ButtonID::LEFT: return INP_MASK_BTN_LEFT_L;
-      case ButtonID::RIGHT: return INP_MASK_BTN_RIGHT_L;
-      case ButtonID::OK: return INP_MASK_BTN_OK_L;
-      case ButtonID::PLAY: return INP_MASK_BTN_PLAY_L;
-      case ButtonID::MENU: return INP_MASK_BTN_MENUE_L;
-      case ButtonID::BACK: return INP_MASK_BTN_BACK_L;
-      case ButtonID::S1_SELECT: return INP_MASK_BTN_SELECT_L;
+      case ButtonId::UP: return INP_MASK_BTN_UP_L;
+      case ButtonId::DOWN: return INP_MASK_BTN_DOWN_L;
+      case ButtonId::LEFT: return INP_MASK_BTN_LEFT_L;
+      case ButtonId::RIGHT: return INP_MASK_BTN_RIGHT_L;
+      case ButtonId::OK: return INP_MASK_BTN_OK_L;
+      case ButtonId::PLAY: return INP_MASK_BTN_PLAY_L;
+      case ButtonId::MENU: return INP_MASK_BTN_MENUE_L;
+      case ButtonId::BACK: return INP_MASK_BTN_BACK_L;
+      case ButtonId::S1_SELECT: return INP_MASK_BTN_SELECT_L;
       default: return 0;  // Doesn't exists for Series-I
     }
   }
@@ -74,13 +76,13 @@ class SaboCoverUISeries1V02 : public SaboCoverUISeriesInterface {
   };
 
  protected:
-  uint8_t MapLEDIDToMask(const LEDID id) const override {
+  uint8_t MapLedIdToMask(const LedId id) const override {
     switch (id) {
-      case LEDID::AUTO: return SR_MASK_LED_AUTO_L;
-      case LEDID::HOME: return SR_MASK_LED_HOME_L;
-      case LEDID::PLAY_RD: return SR_MASK_LED_PLAY_RD_L;
-      case LEDID::MOWING: return SR_MASK_LED_MOW_L;
-      case LEDID::PLAY_GN: return SR_MASK_LED_PLAY_GN_L;
+      case LedId::AUTO: return SR_MASK_LED_AUTO_L;
+      case LedId::HOME: return SR_MASK_LED_HOME_L;
+      case LedId::PLAY_RD: return SR_MASK_LED_PLAY_RD_L;
+      case LedId::MOWING: return SR_MASK_LED_MOW_L;
+      case LedId::PLAY_GN: return SR_MASK_LED_PLAY_GN_L;
       default: return 0;
     }
   }
