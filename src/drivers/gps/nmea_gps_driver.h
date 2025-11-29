@@ -7,6 +7,11 @@
 
 namespace xbot::driver::gps {
 class NmeaGpsDriver : public GpsDriver {
+ public:
+  ProtocolType GetProtocolType() const override {
+    return ProtocolType::NMEA;
+  }
+
  protected:
   void ResetParserState() override;
 

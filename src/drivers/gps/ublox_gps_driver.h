@@ -13,6 +13,11 @@
 
 namespace xbot::driver::gps {
 class UbxGpsDriver : public GpsDriver {
+ public:
+  ProtocolType GetProtocolType() const override {
+    return ProtocolType::UBX;
+  }
+
  protected:
   void ResetParserState() override;
 
@@ -21,29 +26,29 @@ class UbxGpsDriver : public GpsDriver {
    * Send a packet to the GPS. This will add a header and a checksum, but the
    * space is assumed to already be allocated
    */
-  bool SendPacket(uint8_t *data, size_t size);
+  bool SendPacket(uint8_t* data, size_t size);
 
   /**
    * Parses the rx buffer and looks for valid ubx messages
    */
-  size_t ProcessBytes(const uint8_t *buffer, size_t len) override;
+  size_t ProcessBytes(const uint8_t* buffer, size_t len) override;
 
   /**
    * Gets called with a valid ubx frame and switches to the handle_xxx functions
    */
-  void ProcessUbxPacket(const uint8_t *data, const size_t &size);
+  void ProcessUbxPacket(const uint8_t* data, const size_t& size);
 
   /**
    * Validate a frame, return true on valid checksum
    */
-  bool ValidateChecksum(const uint8_t *packet, size_t size);
+  bool ValidateChecksum(const uint8_t* packet, size_t size);
 
   /**
    * calculates the checksum for a packet
    */
-  void CalculateChecksum(const uint8_t *packet, size_t size, uint8_t &ck_a, uint8_t &ck_b);
+  void CalculateChecksum(const uint8_t* packet, size_t size, uint8_t& ck_a, uint8_t& ck_b);
 
-  void HandleNavPvt(const UbxNavPvt *msg);
+  void HandleNavPvt(const UbxNavPvt* msg);
 
   uint8_t gbuffer_[512]{};
   size_t gbuffer_fill = 0;

@@ -10,47 +10,67 @@
 
 #include "debug/debug_udp_interface.hpp"
 
+bool GpsService::LoadAndStartGpsDriver(ProtocolType protocol_type, uint8_t uart, uint32_t baudrate) {
+  // Get the requested UART port (if 0 is specified, ask the robot.cpp for the default port)
+  UARTDriver* uart_driver = uart == 0 ? robot->GPS_GetUartPort() : GetUARTDriverByIndex(uart);
+  if (uart_driver == nullptr) {
+    char msg[100]{};
+    snprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", uart);
+    ULOG_ARG_ERROR(&service_id_, msg);
+    return false;
+  }
+
+  if (protocol_type == ProtocolType::UBX) {
+    gps_driver_ = new UbxGpsDriver();
+  } else {
+    gps_driver_ = new NmeaGpsDriver();
+  }
+
+  gps_driver_->SetStateCallback(
+      etl::delegate<void(const GpsDriver::GpsState&)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
+
+  gps_driver_->StartDriver(uart_driver, baudrate);
+  debug_interface_.SetDriver(gps_driver_);
+  debug_interface_.Start();
+
+  used_port_index_ = uart;
+
+  return true;
+}
+
 bool GpsService::OnStart() {
   using namespace xbot::driver::gps;
 
-  if (gps_driver_ == nullptr) {
-    // Get the requested UART port (if 0 is specified, ask the robot.cpp for the default port)
-    UARTDriver* uart_driver = Uart.value == 0 ? robot->GPS_GetUartPort() : GetUARTDriverByIndex(Uart.value);
-    if (uart_driver == nullptr) {
-      char msg[100]{};
-      snprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", Uart.value);
-      ULOG_ARG_ERROR(&service_id_, msg);
-      return false;
-    }
+  ULOG_ARG_INFO(&service_id_, "GpsService::OnStart()");
 
-    // We don't have a gps driver running yet, so create one.
-    if (Protocol.value == ProtocolType::UBX) {
-      gps_driver_ = new UbxGpsDriver();
+  // Check if we need to reconfigure the driver (protocol, port, or baudrate changed) due to a already existing driver
+  if (gps_driver_ != nullptr) {
+    if (gps_driver_->GetProtocolType() != Protocol.value || used_port_index_ != Uart.value ||
+        gps_driver_->GetUartBaudrate() != Baudrate.value) {
+      ULOG_ARG_INFO(&service_id_, "GPS configuration change detected - reconfiguring");
+      debug_interface_.Stop();    // Stop the debug interface first (before stopping UART in the driver)
+      gps_driver_->StopDriver();  // Stop and delete the old driver
+      delete gps_driver_;
+      gps_driver_ = nullptr;
+      debug_interface_.SetDriver(nullptr);
     } else {
-      gps_driver_ = new NmeaGpsDriver();
-    }
-
-    gps_driver_->SetStateCallback(
-        etl::delegate<void(const GpsDriver::GpsState&)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
-
-    gps_driver_->StartDriver(uart_driver, Baudrate.value);
-    debug_interface_.SetDriver(gps_driver_);
-    debug_interface_.Start();
-    // Keep track of the protocol type we used to initialize the driver
-    used_protocol_type_ = Protocol.value;
-    used_port_index_ = Uart.value;
-  } else {
-    // We already have the driver, if the protocol has changed, restart the board
-    // (since we cannot stop the driver)
-    if (used_protocol_type_ != Protocol.value || used_port_index_ != Uart.value) {
-      ULOG_ARG_WARNING(&service_id_, "GPS protocol or port change detected - restarting");
-      NVIC_SystemReset();
+      // Driver still has correct configuration, no reconfiguration needed
+      return true;
     }
   }
+
+  if (gps_driver_ == nullptr) {
+    // We don't have a gps driver running yet, so create one.
+    return LoadAndStartGpsDriver(Protocol.value, Uart.value, Baudrate.value);
+  }
+
   return true;
 }
 
 void GpsService::OnRTCMChanged(const uint8_t* new_value, uint32_t length) {
+  // Update NTRIP timestamp when RTCM data is received
+  last_ntrip_time_ = chVTGetSystemTimeX();
+
   gps_driver_->SendRTCM(new_value, length);
 }
 
