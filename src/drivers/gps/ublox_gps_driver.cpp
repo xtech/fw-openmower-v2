@@ -212,6 +212,9 @@ void UbxGpsDriver::HandleNavPvt(const UbxNavPvt *msg) {
   gps_state_.vel_n = msg->velN / 1000.0;
   gps_state_.vel_u = -msg->velD / 1000.0;
 
+  // Number of satellites used in the solution
+  gps_state_.num_sv = msg->numSV;
+
   double headAcc = (msg->headAcc / 100000.0) * (M_PI / 180.0);
 
   double hedVeh = msg->headVeh / 100000.0;

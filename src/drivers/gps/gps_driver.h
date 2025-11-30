@@ -16,12 +16,9 @@
 namespace xbot::driver::gps {
 class GpsDriver : public DebuggableDriver {
  public:
-  void RawDataInput(uint8_t* data, size_t size) override;
+  void RawDataInput(uint8_t *data, size_t size) override;
 
-  ~GpsDriver() override {
-    // Ensure driver is stopped before destruction
-    if (!stopped_) StopDriver();
-  }
+  ~GpsDriver() override = default;
 
   /*
    * The final GPS state we're interested in.
@@ -62,20 +59,19 @@ class GpsDriver : public DebuggableDriver {
 
   enum Level { VERBOSE, INFO, WARN, ERROR };
 
-  typedef etl::delegate<void(const GpsState& new_state)> StateCallback;
+  typedef etl::delegate<void(const GpsState &new_state)> StateCallback;
 
  public:
-  bool StartDriver(UARTDriver* uart, uint32_t baudrate);
-  void StopDriver();
-  void SetStateCallback(const GpsDriver::StateCallback& function);
+  bool StartDriver(UARTDriver *uart, uint32_t baudrate);
+  void SetStateCallback(const GpsDriver::StateCallback &function);
 
-  void SendRTCM(const uint8_t* data, size_t size);
+  void SendRTCM(const uint8_t *data, size_t size);
 
   /**
    * @brief Get current GPS state
    * @return Current GPS state
    */
-  const GpsState& GetGpsState() const {
+  const GpsState &GetGpsState() const {
     return gps_state_;
   }
 
@@ -88,7 +84,7 @@ class GpsDriver : public DebuggableDriver {
   }
 
   virtual ProtocolType GetProtocolType() const = 0;
-  UARTDriver* GetUartDriver() const {
+  UARTDriver *GetUartDriver() const {
     return uart_;
   }
 
@@ -107,17 +103,17 @@ class GpsDriver : public DebuggableDriver {
    * Send a message to the GPS. This will just output to the serial port
    * directly
    */
-  bool send_raw(const void* data, size_t size);
+  bool send_raw(const void *data, size_t size);
 
   // Called on serial reconnect
   virtual void ResetParserState() = 0;
 
-  virtual size_t ProcessBytes(const uint8_t* buffer, size_t len) = 0;
+  virtual size_t ProcessBytes(const uint8_t *buffer, size_t len) = 0;
 
  private:
   // Extend the config struct by a pointer to this instance, so that we can access it in callbacks.
   struct UARTConfigEx : UARTConfig {
-    GpsDriver* context;
+    GpsDriver *context;
   };
 
   static constexpr size_t RECV_BUFFER_SIZE = 512;
@@ -127,21 +123,21 @@ class GpsDriver : public DebuggableDriver {
   uint8_t recv_buffer1_[RECV_BUFFER_SIZE]{};
   uint8_t recv_buffer2_[RECV_BUFFER_SIZE]{};
   // We start by receiving into recv_buffer1, so processing_buffer is the 2 (but empty)
-  uint8_t* volatile processing_buffer_ = recv_buffer2_;
+  uint8_t *volatile processing_buffer_ = recv_buffer2_;
   volatile size_t processing_buffer_len_ = 0;
 
-  UARTDriver* uart_{};
+  UARTDriver *uart_{};
   UARTConfigEx uart_config_{};
 
   THD_WORKING_AREA(thd_wa_, 1024){};
-  thread_t* processing_thread_ = nullptr;
+  thread_t *processing_thread_ = nullptr;
   // This is reset by the receiving ISR and set by the thread to signal if it's safe to process more data.
   volatile bool processing_done_ = true;
   bool stopped_ = true;
 
   void threadFunc();
 
-  static void threadHelper(void* instance);
+  static void threadHelper(void *instance);
 };
 }  // namespace xbot::driver::gps
 

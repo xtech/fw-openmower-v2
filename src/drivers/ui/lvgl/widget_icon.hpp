@@ -52,7 +52,11 @@ class WidgetIcon {
     ROS,
     EMERGENCY_WHEEL_LIFT,
     EMERGENCY_GENERIC,
-    GPS,
+    NO_RTK_FIX,
+    RTK_FIX,
+    SATELLITE,
+    BULLSEYE,
+    DOWNLOAD,
     BATTERY_EMPTY,
     BATTERY_QUARTER,
     BATTERY_HALF,
@@ -71,7 +75,11 @@ class WidgetIcon {
       {"\xEF\x95\x84"},  // ROS - Robot (U+F544)
       {"\xEF\x97\xA1"},  // EMERGENCY_WHEEL_LIFT - Car burst (U+F5E1)
       {"\xEF\x81\xB1"},  // EMERGENCY_GENERIC - Exclamation triangle (U+F071)
-      {"\xEF\x98\x81"},  // GPS - Location crosshairs (U+F601)
+      {"\xEF\x81\x9B"},  // NO_RTK_FIX - Location crosshairs with slash (U+F05B)
+      {"\xEF\x98\x81"},  // RTK_FIX - location-crosshairs (U+F601)
+      {"\xEF\x9E\xBF"},  // SATELLITE - Satellite (U+F7BF)
+      {"\xEF\x85\x80"},  // BULLSEYE - Bullseye (U+F140)
+      {"\xEF\x80\x99"},  // ARROWS_ROTATE - Download (U+F019)
       {"\xEF\x89\x84"},  // BATTERY_EMPTY - Battery 0% (U+F244)
       {"\xEF\x89\x83"},  // BATTERY_QUARTER - Battery 25% (U+F243)
       {"\xEF\x89\x82"},  // BATTERY_HALF - Battery 50% (U+F242)
@@ -176,6 +184,28 @@ class WidgetIcon {
     }
 
     state_ = new_state;
+  }
+
+  /**
+   * @brief Change the displayed icon
+   * @param new_icon New icon to display
+   *
+   * Updates the icon while preserving the current state (ON/OFF/BLINK).
+   * Useful for dynamic icon changes based on status.
+   */
+  void SetIcon(Icon new_icon) {
+    lv_label_set_text_static(label_, ICONS[static_cast<int>(new_icon)].utf8);
+  }
+
+  /**
+   * @brief Change the displayed icon with custom symbol string
+   * @param icon_symbol Font Awesome icon symbol string
+   *
+   * Updates the icon while preserving the current state.
+   * For custom icons not in the predefined Icon enum.
+   */
+  void SetIcon(const char* icon_symbol) {
+    lv_label_set_text_static(label_, icon_symbol);
   }
 
  private:

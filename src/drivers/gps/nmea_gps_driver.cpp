@@ -7,7 +7,7 @@ namespace xbot::driver::gps {
 /**
  * parses the buffer and returns how many more bytes to read
  */
-size_t NmeaGpsDriver::ProcessBytes(const uint8_t* buffer, size_t len) {
+size_t NmeaGpsDriver::ProcessBytes(const uint8_t *buffer, size_t len) {
   static int invocations = 0;
   static int success = 0;
   static int error = 0;
@@ -15,7 +15,7 @@ size_t NmeaGpsDriver::ProcessBytes(const uint8_t* buffer, size_t len) {
   while (len > 0) {
     // If we have no partial line yet, look for the first dollar symbol, ignoring everything before it.
     if (line_len == 0) {
-      const uint8_t* dollar = (const uint8_t*)memchr(buffer, '$', len);
+      const uint8_t *dollar = (const uint8_t *)memchr(buffer, '$', len);
       if (dollar != nullptr) {
         len -= dollar - buffer;
         buffer = dollar;
@@ -26,7 +26,7 @@ size_t NmeaGpsDriver::ProcessBytes(const uint8_t* buffer, size_t len) {
 
     // We have the start of the line now. Either it's in line[0] or in *buffer.
     // Search for the end of the line.
-    const uint8_t* newline = (const uint8_t*)memchr(buffer, '\n', len);
+    const uint8_t *newline = (const uint8_t *)memchr(buffer, '\n', len);
     if (newline != nullptr) {
       size_t bytes_to_take = newline - buffer + 1;
       if (line_len + bytes_to_take + 1 <= sizeof(line)) {
@@ -70,7 +70,7 @@ void NmeaGpsDriver::UpdateGpsStateValidity() {
   }
 }
 
-bool NmeaGpsDriver::ProcessLine(const char* line) {
+bool NmeaGpsDriver::ProcessLine(const char *line) {
   switch (minmea_sentence_id(line, true)) {
     case MINMEA_SENTENCE_GGA: {
       struct minmea_sentence_gga gga;

@@ -19,9 +19,9 @@ class NmeaGpsDriver : public GpsDriver {
   /**
    * Parses the rx buffer and looks for valid NMEA sentences
    */
-  size_t ProcessBytes(const uint8_t* buffer, size_t len) override;
+  size_t ProcessBytes(const uint8_t *buffer, size_t len) override;
 
-  bool ProcessLine(const char* line);
+  bool ProcessLine(const char *line);
   void UpdateGpsStateValidity();
 
   char line[512]{};

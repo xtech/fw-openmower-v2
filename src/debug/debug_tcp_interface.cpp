@@ -8,7 +8,7 @@
 
 #include "lwip/sockets.h"
 
-DebugTCPInterface::DebugTCPInterface(uint16_t listen_port, DebuggableDriver* driver) {
+DebugTCPInterface::DebugTCPInterface(uint16_t listen_port, DebuggableDriver *driver) {
   chDbgAssert(listen_port > 0, "port invalid");
   listen_port_ = listen_port;
   driver_ = driver;
@@ -17,21 +17,9 @@ DebugTCPInterface::DebugTCPInterface(uint16_t listen_port, DebuggableDriver* dri
 void DebugTCPInterface::Start() {
   chDbgAssert(driver_ != nullptr, "invalid driver");
   driver_->SetRawDataCallback(
-      etl::delegate<void(const uint8_t*, size_t)>::create<DebugTCPInterface, &DebugTCPInterface::OnRawDriverData>(
+      etl::delegate<void(const uint8_t *, size_t)>::create<DebugTCPInterface, &DebugTCPInterface::OnRawDriverData>(
           *this));
-  thread_ = chThdCreateStatic(waThread, sizeof(waThread), NORMALPRIO, &ThreadFuncHelper, this);
-}
-
-void DebugTCPInterface::Stop() {
-  if (thread_ != nullptr) {
-    // Terminate the thread using ChibiOS' proper mechanism
-    chThdTerminate(thread_);
-
-    // Wait for the thread to actually exit - essential for registry cleanup
-    chThdWait(thread_);
-
-    thread_ = nullptr;
-  }
+  chThdCreateStatic(waThread, sizeof(waThread), NORMALPRIO, &ThreadFuncHelper, this);
 }
 
 void DebugTCPInterface::ThreadFunc() {
@@ -49,7 +37,7 @@ void DebugTCPInterface::ThreadFunc() {
   server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
   server_addr.sin_port = htons(listen_port_);
 
-  if (bind(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+  if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     lwip_close(sockfd);
     return;
   }
@@ -60,7 +48,7 @@ void DebugTCPInterface::ThreadFunc() {
     return;
   }
 
-  while (!chThdShouldTerminateX()) {
+  while (1) {
     // Keep the client socket in a global variable so that the callback can use it
     int incoming = accept(sockfd, nullptr, nullptr);
     if (incoming < 0) {
@@ -95,12 +83,9 @@ void DebugTCPInterface::ThreadFunc() {
 
     close(incoming);
   }
-
-  // Cleanup
-  lwip_close(sockfd);
 }
 
-void DebugTCPInterface::OnRawDriverData(const uint8_t* data, size_t size) {
+void DebugTCPInterface::OnRawDriverData(const uint8_t *data, size_t size) {
   chMtxLock(&socket_mutex_);
   if (current_client_socket_ >= 0) {
     write(current_client_socket_, data, size);
@@ -108,9 +93,9 @@ void DebugTCPInterface::OnRawDriverData(const uint8_t* data, size_t size) {
   chMtxUnlock(&socket_mutex_);
 }
 
-void DebugTCPInterface::ThreadFuncHelper(void* instance) {
-  static_cast<DebugTCPInterface*>(instance)->ThreadFunc();
+void DebugTCPInterface::ThreadFuncHelper(void *instance) {
+  static_cast<DebugTCPInterface *>(instance)->ThreadFunc();
 }
-void DebugTCPInterface::SetDriver(DebuggableDriver* driver) {
+void DebugTCPInterface::SetDriver(DebuggableDriver *driver) {
   this->driver_ = driver;
 }

@@ -13,13 +13,17 @@ OUTPUT_FONT_NAME="font_awesome_${FONT_SIZE}"
 # 0xf544 = robot -> ROS
 # 0xf5e1 = car-burst -> Wheel-Lift Emergency
 # 0xf071 = exclamation-triangle -> General Emergency
-# 0xf601 = location-crosshairs -> GPS
+# 0xf601 = location-crosshairs -> GPS RTK-FIX Symbol in Topbar
 # 0xf244 = battery-empty -> Battery empty
 # 0xf243 = battery-quarter -> Battery 1/4
 # 0xf242 = battery-half -> Battery 1/2
 # 0xf241 = battery-three-quarters -> Battery 3/4
 # 0xf240 = battery-full -> Battery full
 # 0xf5e7 = charging-station -> Docking
+# 0xf7bf = satellite -> Satellites in use
+# 0xf019 = download -> Last NTRIP data received
+# 0xf140 = bullseye -> GPS mode
+# 0xf05b = crosshairs -> GPS accuracy
 lv_font_conv --font "$INPUT_FONT" --size $FONT_SIZE --bpp 1 --format lvgl \
--r "0xf544,0xf5e1,0xf071,0xf601,0xf244,0xf243,0xf242,0xf241,0xf240,0xf5e7" \
+-r "0xf544,0xf5e1,0xf071,0xf601,0xf244,0xf243,0xf242,0xf241,0xf240,0xf5e7,0xf7bf,0xf019,0xf140,0xf05b" \
 -o "${OUTPUT_FONT_NAME}.c" --lv-font-name "${OUTPUT_FONT_NAME}"

@@ -7,16 +7,15 @@
 #include <etl/algorithm.h>
 
 #include <cmath>
-#include <cstring>
 
 namespace xbot::driver::gps {
 
-void GpsDriver::RawDataInput(uint8_t* data, size_t size) {
+void GpsDriver::RawDataInput(uint8_t *data, size_t size) {
   if (!IsRawMode()) return;
   send_raw(data, size);
 }
 
-bool GpsDriver::StartDriver(UARTDriver* uart, uint32_t baudrate) {
+bool GpsDriver::StartDriver(UARTDriver *uart, uint32_t baudrate) {
   chDbgAssert(stopped_, "don't start the driver twice");
   chDbgAssert(uart != nullptr, "need to provide a driver");
   if (!stopped_) {
@@ -31,20 +30,20 @@ bool GpsDriver::StartDriver(UARTDriver* uart, uint32_t baudrate) {
     return false;
   }
 
-  uart_config_.rxend_cb = [](UARTDriver* uartp) {
+  uart_config_.rxend_cb = [](UARTDriver *uartp) {
     chSysLockFromISR();
-    GpsDriver* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
+    GpsDriver *instance = reinterpret_cast<const UARTConfigEx *>(uartp->config)->context;
     chDbgAssert(instance != nullptr, "instance cannot be null!");
     if (!instance->processing_done_) {
       // This is bad, processing is too slow to keep up with updates!
       // We just read into the same buffer again
-      uint8_t* next_recv_buffer =
+      uint8_t *next_recv_buffer =
           (instance->processing_buffer_ == instance->recv_buffer1_) ? instance->recv_buffer2_ : instance->recv_buffer1_;
       uartStartReceiveI(uartp, RECV_BUFFER_SIZE, next_recv_buffer);
     } else {
       // Swap buffers and read into the next one
       // Get the pointer to the receiving buffer (it's not the processing buffer)
-      uint8_t* next_recv_buffer = instance->processing_buffer_;
+      uint8_t *next_recv_buffer = instance->processing_buffer_;
       uartStartReceiveI(uartp, RECV_BUFFER_SIZE, next_recv_buffer);
       instance->processing_buffer_ =
           (instance->processing_buffer_ == instance->recv_buffer1_) ? instance->recv_buffer2_ : instance->recv_buffer1_;
@@ -68,11 +67,11 @@ bool GpsDriver::StartDriver(UARTDriver* uart, uint32_t baudrate) {
   return true;
 }
 
-void GpsDriver::SetStateCallback(const GpsDriver::StateCallback& function) {
+void GpsDriver::SetStateCallback(const GpsDriver::StateCallback &function) {
   state_callback_ = function;
 }
 
-bool GpsDriver::send_raw(const void* data, size_t size) {
+bool GpsDriver::send_raw(const void *data, size_t size) {
   chMtxLock(&mutex_);
   uartSendFullTimeout(uart_, &size, data, TIME_INFINITE);
   chMtxUnlock(&mutex_);
@@ -81,7 +80,7 @@ bool GpsDriver::send_raw(const void* data, size_t size) {
 
 void GpsDriver::threadFunc() {
   uint32_t last_ndtr = 0;
-  while (!chThdShouldTerminateX()) {
+  while (!stopped_) {
     // Wait for data to arrive
     bool timeout = chEvtWaitAnyTimeout(ALL_EVENTS, TIME_MS2I(RECV_TIMEOUT_MILLIS)) == 0;
     if (timeout) {
@@ -108,7 +107,7 @@ void GpsDriver::threadFunc() {
           // we ignore this buffer, but carry on as usual
           processing_buffer_len_ = 0;
         }
-        uint8_t* next_recv_buffer = processing_buffer_;
+        uint8_t *next_recv_buffer = processing_buffer_;
         uartStartReceiveI(uart_, RECV_BUFFER_SIZE, next_recv_buffer);
         processing_buffer_ = (processing_buffer_ == recv_buffer1_) ? recv_buffer2_ : recv_buffer1_;
         processing_done_ = false;
@@ -126,21 +125,14 @@ void GpsDriver::threadFunc() {
     processing_buffer_len_ = 0;
     processing_done_ = true;
   }
-
-  // Thread cleanup: Stop UART and disable ISR callbacks
-  if (uart_ != nullptr) {
-    uart_config_.rxend_cb = nullptr;
-    uartStop(uart_);
-    uart_ = nullptr;
-  }
 }
 
-void GpsDriver::threadHelper(void* instance) {
-  auto* gps_interface = static_cast<GpsDriver*>(instance);
+void GpsDriver::threadHelper(void *instance) {
+  auto *gps_interface = static_cast<GpsDriver *>(instance);
   gps_interface->threadFunc();
 }
 
-void GpsDriver::SendRTCM(const uint8_t* data, size_t size) {
+void GpsDriver::SendRTCM(const uint8_t *data, size_t size) {
   send_raw(data, size);
 }
 
@@ -148,22 +140,5 @@ void GpsDriver::TriggerStateCallback() {
   if (state_callback_) {
     state_callback_(gps_state_);
   }
-}
-
-void GpsDriver::StopDriver() {
-  if (stopped_) {
-    return;  // Already stopped
-  }
-
-  // Terminate the thread
-  if (processing_thread_ != nullptr) {
-    chThdTerminate(processing_thread_);
-
-    // Wait for the thread to actually exit
-    chThdWait(processing_thread_);
-
-    processing_thread_ = nullptr;
-  }
-  stopped_ = true;
 }
 }  // namespace xbot::driver::gps

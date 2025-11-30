@@ -1,8 +1,11 @@
 #include "../include/sabo_robot.hpp"
 
+#include <drivers/gps/nmea_gps_driver.h>
+
 #include <services.hpp>
 
 using namespace xbot::driver::sabo;
+using namespace xbot::driver::gps;
 
 SaboRobot::SaboRobot() : hardware_config(GetHardwareConfig(GetHardwareVersion(carrier_board_info))) {
 }
@@ -13,6 +16,9 @@ void SaboRobot::InitPlatform() {
   power_service.SetDriver(&charger_);
   input_service.RegisterInputDriver("sabo", &sabo_input_driver_);
   cover_ui_.Start();
+
+  // Initialize GPS driver for immediate availability (without waiting for ROS configuration)
+  gps_service.LoadAndStartGpsDriver(ProtocolType::NMEA, 0, 921600);
 }
 
 bool SaboRobot::IsHardwareSupported() {
