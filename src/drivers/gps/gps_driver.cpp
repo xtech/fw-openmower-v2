@@ -21,7 +21,6 @@ bool GpsDriver::StartDriver(UARTDriver *uart, uint32_t baudrate) {
   if (!stopped_) {
     return false;
   }
-
   this->uart_ = uart;
   uart_config_.speed = baudrate;
   uart_config_.context = this;
