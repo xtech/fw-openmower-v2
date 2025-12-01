@@ -24,13 +24,7 @@ void PowerService::tick() {
   // Send the sensor values
   StartTransaction();
   if (charger_configured_) {
-    const char* status_text;
-    if (charger_status == CHARGER_STATUS::COMMS_ERROR) {
-      // FIXME: Is it true that COMM_ERROR shall send UNKNOWN status?
-      status_text = ChargerDriver::statusToString(CHARGER_STATUS::UNKNOWN);
-    } else {
-      status_text = ChargerDriver::statusToString(charger_status);
-    }
+    const char* status_text = ChargerDriver::statusToString(charger_status);
     SendChargingStatus(status_text, strlen(status_text));
   } else {
     SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));

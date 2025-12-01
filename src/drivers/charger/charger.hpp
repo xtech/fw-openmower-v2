@@ -13,7 +13,7 @@ class ChargerDriver {
 
  public:
   enum class CHARGER_STATUS : uint8_t {
-    NOT_CHARGING,
+    NOT_CHARGING = 0,
     TRICKLE,
     PRE_CHARGE,
     CC,
