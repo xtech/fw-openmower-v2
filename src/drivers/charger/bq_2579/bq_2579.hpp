@@ -7,6 +7,8 @@
 
 #include <drivers/charger/charger.hpp>
 
+using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
+
 class BQ2579 : public ChargerDriver {
  public:
   ~BQ2579() override;
