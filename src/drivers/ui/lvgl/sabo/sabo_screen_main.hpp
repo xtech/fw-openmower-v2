@@ -13,16 +13,17 @@
  *
  * The main screen displays:
  * - Topbar: Fixed status icons (ROS, emergencies, GPS, battery, docked, ...)
- * - Content area: Progressbars and other dynamic content (future expansion)
+ * - Content area: Progressbars and other dynamic content
  * - Robot state indicator: Idle, Mowing, Pause, Area Recording, Emergency (future)
  *
  * @author Apehaenger <joerg@ebeling.ws>
- * @date 2025-11-12
+ * @date 2025-11-30
  */
 
 #ifndef LVGL_SABO_SCREEN_MAIN_HPP_
 #define LVGL_SABO_SCREEN_MAIN_HPP_
 
+#include <chprintf.h>
 #include <lvgl.h>
 #include <ulog.h>
 
@@ -31,6 +32,7 @@
 #include "../widget_icon.hpp"
 #include "../widget_textbar.hpp"
 #include "robots/include/sabo_common.hpp"
+#include "robots/include/sabo_robot.hpp"
 #include "services.hpp"
 
 extern "C" {
@@ -44,12 +46,10 @@ using GpsState = xbot::driver::gps::GpsDriver::GpsState;
 class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
  public:
   SaboScreenMain() : ScreenBase<ScreenId, ButtonId>(ScreenId::MAIN) {
+    if (robot != nullptr) sabo_robot_ = static_cast<SaboRobot*>(robot);
   }
 
-  ~SaboScreenMain() {
-    // WidgetIcon objects clean up their own LVGL objects
-    // No explicit cleanup needed here
-  }
+  ~SaboScreenMain() = default;
 
   void Create(lv_color_t bg_color = lv_color_white()) override {
     ScreenBase::Create(bg_color);
@@ -103,6 +103,40 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     accuracy_bar_ =
         new WidgetTextBar(screen_, "N/A", LV_ALIGN_TOP_LEFT, 20, y - 1, defs::LCD_WIDTH - 20, 18, &orbitron_12);
 
+    // Battery Voltage
+    y += 32;
+    // Icon
+    WidgetIcon* icon_battery_voltage_ =
+        new WidgetIcon(WidgetIcon::Icon::BATTERY_VOLTAGE, screen_, LV_ALIGN_TOP_LEFT, 0, y, lv_color_black());
+    icon_battery_voltage_->SetState(WidgetIcon::State::ON);
+    // Bar
+    battery_voltage_bar_ =
+        new WidgetTextBar(screen_, "N/A", LV_ALIGN_TOP_LEFT, 20, y - 1, defs::LCD_WIDTH - 20, 18, &orbitron_12);
+
+    // Charge Current
+    y += 22;
+    // Icon
+    icon_charge_current_ =
+        new WidgetIcon(WidgetIcon::Icon::CHARGE_CURRENT, screen_, LV_ALIGN_TOP_LEFT, 0, y, lv_color_black());
+    icon_charge_current_->SetState(WidgetIcon::State::ON);
+    // Bar
+    charge_current_bar_ =
+        new WidgetTextBar(screen_, "N/A", LV_ALIGN_TOP_LEFT, 20, y - 1, defs::LCD_WIDTH - 20, 18, &orbitron_12);
+
+    // Adapter Voltage (bottom left) and Charger Status (bottom right) labels below charge current bar
+    y += 20;
+    adapter_voltage_label_ = lv_label_create(screen_);
+    lv_label_set_text_static(adapter_voltage_label_, "");
+    lv_obj_set_style_text_color(adapter_voltage_label_, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(adapter_voltage_label_, &orbitron_12, LV_PART_MAIN);
+    lv_obj_align(adapter_voltage_label_, LV_ALIGN_TOP_LEFT, 0, y);
+
+    charger_status_label_ = lv_label_create(screen_);
+    lv_label_set_text_static(charger_status_label_, "");
+    lv_obj_set_style_text_color(charger_status_label_, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(charger_status_label_, &orbitron_12, LV_PART_MAIN);
+    lv_obj_align(charger_status_label_, LV_ALIGN_TOP_RIGHT, 0, y);
+
     // Create bottombar for robot state (will be updated by Ticker widget later)
     CreateBottombar();
   }
@@ -113,9 +147,12 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
    */
   void Tick() override {
     UpdateGpsWidgets();
+    UpdatePowerWidgets();
   }
 
  private:
+  SaboRobot* sabo_robot_ = nullptr;
+
   static constexpr lv_coord_t TOPBAR_HEIGHT = 19;     ///< Height of the top status bar
   static constexpr lv_coord_t BOTTOMBAR_HEIGHT = 16;  ///< Height of the bottom robot state bar
 
@@ -135,6 +172,32 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   lv_obj_t* sats_value_ = nullptr;
   lv_obj_t* gps_mode_value_ = nullptr;
   lv_obj_t* ntrip_value_ = nullptr;
+
+  // Power display widgets
+  WidgetIcon* icon_charge_current_ = nullptr;
+  WidgetTextBar* battery_voltage_bar_ = nullptr;
+  WidgetTextBar* charge_current_bar_ = nullptr;
+  lv_obj_t* adapter_voltage_label_ = nullptr;
+  lv_obj_t* charger_status_label_ = nullptr;
+  bool last_is_docked_ = false;  // Track docked state to show/hide dock-relevant widgets
+
+  /**
+   * @brief Calculate percentage from value within min/max range
+   * @tparam T Numeric type (int, float, double, etc.)
+   * @param value Current value
+   * @param min Minimum value (0%)
+   * @param max Maximum value (100%)
+   * @param invert If true, inverts the percentage (max=0%, min=100%)
+   * @return Percentage (0-100)
+   */
+  template <typename T>
+  [[nodiscard]] int32_t GetPercent(T value, T min, T max, bool invert = false) {
+    if (value <= min) return invert ? 100 : 0;
+    if (value >= max) return invert ? 0 : 100;
+
+    int32_t percent = static_cast<int32_t>((value - min) * 100 / (max - min));
+    return invert ? 100 - percent : percent;
+  }
 
   /**
    * @brief Create the fixed topbar with status icons
@@ -225,24 +288,11 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     icon_gps_->SetState(gps_icon_state);
 
     // Update accuracy progress bar with intuitive percentage bar but m text display
-    double accuracy = gps_state.position_h_accuracy;
-    double accuracy_for_bar = accuracy;
-    if (accuracy_for_bar < 0.01) accuracy_for_bar = 0.01;  // Clamp to minimum (1cm) for bar
-    if (accuracy_for_bar > 1.00) accuracy_for_bar = 1.00;  // Clamp to maximum (1m) for bar
-
-    // Convert accuracy to progress value (0.01m = 100%, 1.00m = 0%)
-    // Intuitive: full bar = best accuracy, empty bar = worst accuracy
-    int32_t progress = static_cast<int32_t>((1.00 - accuracy_for_bar) / 0.99 * 100.0);
-
-    // Display percentage bar with m text (2 decimal places)
-    int32_t accuracy_m_int = static_cast<int32_t>(accuracy * 100.0);  // Convert to cm for integer math
-    int32_t meters = accuracy_m_int / 100;
-    int32_t centimeters = accuracy_m_int % 100;
-
-    // Format the text manually since SetValueFormatted only accepts one value
+    float accuracy = gps_state.position_h_accuracy;
+    auto acc_percent = GetPercent(accuracy, 0.01f, 1.00f, true);
     static char accuracy_text[16];
-    lv_snprintf(accuracy_text, sizeof(accuracy_text), "%d.%02d m", meters, centimeters);
-    accuracy_bar_->SetValue(progress, accuracy_text);
+    chsnprintf(accuracy_text, sizeof(accuracy_text), "%.2f m", accuracy);
+    accuracy_bar_->SetValue(acc_percent, accuracy_text);
 
     // Update NTRIP status
     uint32_t seconds_since_rtcm = gps_service.GetSecondsSinceLastRtcmPacket();
@@ -267,6 +317,94 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   }
 
   /**
+   * @brief Update power display widgets with current power data
+   * Updates battery voltage bar, charge current bar, and topbar icons (docked, battery state)
+   */
+  void UpdatePowerWidgets() {
+    if (sabo_robot_ == nullptr) return;
+
+    // Read current power state from power service
+    float battery_volts = power_service.GetBatteryVolts();
+    float adapter_volts = power_service.GetAdapterVolts();
+    float charge_current = power_service.GetChargeCurrent();
+
+    // Determine docked status (adapter voltage indicates connection)
+    bool is_docked = adapter_volts > 10.0f;
+
+    // Battery voltage bar
+    auto battery_percent = GetPercent(battery_volts, sabo_robot_->Power_GetAbsoluteMinVoltage(),
+                                      sabo_robot_->Power_GetDefaultBatteryFullVoltage());
+    static char battery_text[16];
+    chsnprintf(battery_text, sizeof(battery_text), "%.1f V", battery_volts);
+    battery_voltage_bar_->SetValue(battery_percent, battery_text);
+
+    // Update docked related widgets
+    if (is_docked) {
+      // Charge current bar
+      auto charge_percent = GetPercent(charge_current, 0.0f, sabo_robot_->Power_GetDefaultChargeCurrent());
+      static char charge_text[16];
+      chsnprintf(charge_text, sizeof(charge_text), "%.2f A", charge_current);
+      charge_current_bar_->SetValue(charge_percent, charge_text);
+
+      // Enable docked relevant widgets
+      icon_charge_current_->SetState(WidgetIcon::State::ON);
+      charge_current_bar_->Show();
+      lv_obj_clear_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
+
+      last_is_docked_ = true;
+    } else {
+      // When not docked, show 0% charge bar
+      charge_current_bar_->SetValue(0, "0.00 A");
+
+      // Hide docked relevant widgets
+      icon_charge_current_->SetState(WidgetIcon::State::OFF);
+      charge_current_bar_->Hide();
+      lv_obj_add_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
+
+      last_is_docked_ = false;
+    }
+
+    // Adapter voltage label (bottom left)
+    static char adapter_text[16];
+    chsnprintf(adapter_text, sizeof(adapter_text), "%.1f V", adapter_volts);
+    lv_label_set_text(adapter_voltage_label_, adapter_text);
+
+    // Update Charger Status Label (bottom right) with actual charger status
+    lv_label_set_text(charger_status_label_, ChargerDriver::statusToString(power_service.GetChargerStatus()));
+
+    // Update Topbar Icons
+    if (is_docked) {
+      icon_docked_->SetState(WidgetIcon::State::ON);
+    } else {
+      icon_docked_->SetState(WidgetIcon::State::OFF);
+    }
+
+    // Battery icon with 4 states based on battery percentage
+    WidgetIcon::Icon battery_icon = WidgetIcon::Icon::BATTERY_FULL;
+    WidgetIcon::State battery_state = WidgetIcon::State::ON;
+
+    if (battery_percent <= 0) {
+      battery_icon = WidgetIcon::Icon::BATTERY_EMPTY;
+      battery_state = WidgetIcon::State::BLINK;  // Blink when critically low
+    } else if (battery_percent <= 25) {
+      battery_icon = WidgetIcon::Icon::BATTERY_EMPTY;
+    } else if (battery_percent <= 50) {
+      battery_icon = WidgetIcon::Icon::BATTERY_QUARTER;
+    } else if (battery_percent <= 75) {
+      battery_icon = WidgetIcon::Icon::BATTERY_HALF;
+    } else if (battery_percent < 100) {
+      battery_icon = WidgetIcon::Icon::BATTERY_THREE_QUARTER;
+    } else {
+      battery_icon = WidgetIcon::Icon::BATTERY_FULL;
+    }
+
+    icon_battery_->SetIcon(battery_icon);
+    icon_battery_->SetState(battery_state);
+  }
+
+  /**
    * @brief Create the fixed bottombar for robot state display
    *
    * Layout:
@@ -283,9 +421,9 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     lv_obj_set_style_border_width(bottombar_, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(bottombar_, 1, LV_PART_MAIN);
 
-    // Placeholder for robot state (will be replaced by Ticker widget)
+    // Placeholder for robot state
     lv_obj_t* state_label = lv_label_create(bottombar_);
-    lv_label_set_text_static(state_label, "IDLE");
+    lv_label_set_text_static(state_label, "TODO: Robot State");
     lv_obj_set_style_text_color(state_label, lv_color_white(), LV_PART_MAIN);
     lv_obj_set_style_text_font(state_label, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(state_label, LV_ALIGN_CENTER, 0, 0);

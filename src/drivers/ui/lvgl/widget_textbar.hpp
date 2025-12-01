@@ -104,6 +104,14 @@ class WidgetTextBar {
     lv_bar_set_range(bar_, min, max);
   }
 
+  void Hide() {
+    if (bar_) lv_obj_add_flag(bar_, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  void Show() {
+    if (bar_) lv_obj_clear_flag(bar_, LV_OBJ_FLAG_HIDDEN);
+  }
+
  private:
   lv_obj_t* bar_ = nullptr;
   lv_style_t bar_style_bg_, bar_style_indic_;

@@ -62,7 +62,9 @@ class WidgetIcon {
     BATTERY_HALF,
     BATTERY_THREE_QUARTER,
     BATTERY_FULL,
-    DOCKED
+    DOCKED,
+    BATTERY_VOLTAGE,
+    CHARGE_CURRENT,
   };
 
   enum class State : uint8_t { ON, OFF, BLINK };
@@ -85,7 +87,9 @@ class WidgetIcon {
       {"\xEF\x89\x82"},  // BATTERY_HALF - Battery 50% (U+F242)
       {"\xEF\x89\x81"},  // BATTERY_THREE_QUARTER - Battery 75% (U+F241)
       {"\xEF\x89\x80"},  // BATTERY_FULL - Battery 100% (U+F240)
-      {"\xEF\x97\xA7"}   // DOCKED - Charging station (U+F5E7)
+      {"\xEF\x97\xA7"},  // DOCKED - Charging station (U+F5E7)
+      {"\xEF\x97\x9F"},  // BATTERY_VOLTAGE - Car battery (U+F5DF)
+      {"\xEF\x82\x8B"}   // CHARGE_CURRENT - Arrow right from bracket (U+F08B)
   };
 
   /**
