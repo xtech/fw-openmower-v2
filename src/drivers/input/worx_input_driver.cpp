@@ -1,42 +1,51 @@
 #include "worx_input_driver.hpp"
 
 #include <etl/crc16_genibus.h>
-#include <etl/flat_map.h>
-#include <etl/string.h>
 #include <ulog.h>
 
+#include <crc_lookup_map.hpp>
 #include <json_stream.hpp>
 
 #define IS_BIT_SET(x, bit) ((x & (1 << bit)) != 0)
 
 namespace xbot::driver::input {
 
-static const etl::flat_map<etl::string<13>, uint8_t, 8> INPUT_BITS = {
+#pragma pack(push, 1)
+namespace {
+struct InputParams {
+  uint16_t crc;
+  uint8_t bit;
+};
+}  // namespace
+#pragma pack(pop)
+
+static constexpr InputParams available_inputs[] = {
     // Keys
-    {"start", 1},
-    {"home", 2},
-    {"back", 3},
+    {crc16("start"), 1},
+    {crc16("home"), 2},
+    {crc16("back"), 3},
 
     // Halls
-    {"battery_cover", 9},
-    {"stop1", 10},
-    {"trapped1", 12},
-    {"trapped2", 13},
-    {"stop2", 15},
+    {crc16("battery_cover"), 9},
+    {crc16("stop1"), 10},
+    {crc16("trapped1"), 12},
+    {crc16("trapped2"), 13},
+    {crc16("stop2"), 15},
 };
+
+static_assert(HasUniqueCrcs(available_inputs), "CRC16 values are not unique");
 
 bool WorxInputDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                          Input& input) {
   if (strcmp(key, "id") == 0) {
     JsonExpectType(STRING);
-    decltype(INPUT_BITS)::key_type input_id{jsp->data.str.buff};
-    auto bit_it = INPUT_BITS.find(input_id);
-    if (bit_it == INPUT_BITS.end()) {
-      ULOG_ERROR("Unknown Worx input ID \"%s\"", input_id.c_str());
-      return false;
+    const auto* id = jsp->data.str.buff;
+    if (auto* params = LookupByName(id, available_inputs)) {
+      input.worx.bit = params->bit;
+      return true;
     }
-    input.worx.bit = bit_it->second;
-    return true;
+    ULOG_ERROR("Unknown ID \"%s\"", id);
+    return false;
   }
   ULOG_ERROR("Unknown attribute \"%s\"", key);
   return false;

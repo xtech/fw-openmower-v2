@@ -1,7 +1,6 @@
 #ifndef GPIO_INPUT_DRIVER_HPP
 #define GPIO_INPUT_DRIVER_HPP
 
-#include <etl/vector.h>
 #include <hal.h>
 
 #include "input_driver.hpp"

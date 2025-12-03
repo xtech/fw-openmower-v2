@@ -2,8 +2,12 @@
 #define SABO_ROBOT_HPP
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
 
 #include "robot.hpp"
+
+using namespace xbot::driver::ui;
+using namespace xbot::driver::motor;
 
 class SaboRobot : public MowerRobot {
  public:
@@ -37,8 +41,34 @@ class SaboRobot : public MowerRobot {
     return 7.0f * 3.0;
   }
 
+  // ----- Some driver Test* functions used by Boot-Screen -----
+
+  CHARGER_STATUS GetChargerStatus() {
+    return charger_.getChargerStatus();
+  }
+
+  template <typename EscDriver>
+  bool TestESC(EscDriver& motor_driver) {
+    if (!motor_driver.IsStarted()) return false;
+    if (motor_driver.GetLatestState().status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED) {
+      motor_driver.RequestStatus();
+      chThdSleepMilliseconds(100);  // give it a chance to respond
+    }
+    return motor_driver.GetLatestState().status == MotorDriver::ESCState::ESCStatus::ESC_STATUS_OK;
+  }
+  bool TestLeftESC() {
+    return TestESC(left_motor_driver_);
+  }
+  bool TestRightESC() {
+    return TestESC(right_motor_driver_);
+  }
+  bool TestMowerESC() {
+    return TestESC(mower_motor_driver_);
+  }
+
  private:
   BQ2576 charger_{};
+  SaboCoverUIController cover_ui_{};
 };
 
 #endif  // SABO_ROBOT_HPP

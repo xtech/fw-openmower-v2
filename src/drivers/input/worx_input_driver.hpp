@@ -1,7 +1,6 @@
 #ifndef WORX_INPUT_DRIVER_HPP
 #define WORX_INPUT_DRIVER_HPP
 
-#include <etl/vector.h>
 #include <hal.h>
 
 #include <services.hpp>
