@@ -65,9 +65,11 @@ class WidgetIcon {
     DOCKED,
     BATTERY_VOLTAGE,
     CHARGE_CURRENT,
+    HAND_STOP,
+    TIMEOUT
   };
 
-  enum class State : uint8_t { ON, OFF, BLINK };
+  enum class State : uint8_t { UNDEF, OFF, ON, BLINK };
 
   /**
    * @brief Font Awesome 7 Icons enumeration
@@ -89,7 +91,9 @@ class WidgetIcon {
       {"\xEF\x89\x80"},  // BATTERY_FULL - Battery 100% (U+F240)
       {"\xEF\x97\xA7"},  // DOCKED - Charging station (U+F5E7)
       {"\xEF\x97\x9F"},  // BATTERY_VOLTAGE - Car battery (U+F5DF)
-      {"\xEF\x82\x8B"}   // CHARGE_CURRENT - Arrow right from bracket (U+F08B)
+      {"\xEF\x82\x8B"},  // CHARGE_CURRENT - Arrow right from bracket (U+F08B)
+      {"\xEF\x89\x96"},  // HAND_STOP - Hand stop (U+F06A)
+      {"\xEF\x89\x93"}   // TIMEOUT - Hourglass (U+F251)
   };
 
   /**
@@ -99,14 +103,15 @@ class WidgetIcon {
    * @param align Optional LVGL alignment constant (e.g., LV_ALIGN_TOP_LEFT)
    * @param x_offset Offset from alignment point in x direction (default 0)
    * @param y_offset Offset from alignment point in y direction (default 0)
-   * @param color Text color of the icon (default white)
+   * @param state Initial state of the icon (default OFF)
+   * @param color Text color of the icon (default black)
    *
-   * Icon is created with Font Awesome font, white text color, center aligned.
+   * Icon is created with Font Awesome font, black text color, center aligned.
    * Positioning is applied using standard LVGL alignment constants.
    */
   WidgetIcon(Icon icon, lv_obj_t* parent, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t x_offset = 0,
-             lv_coord_t y_offset = 0, lv_color_t color = lv_color_white())
-      : WidgetIcon(ICONS[static_cast<int>(icon)].utf8, parent, align, x_offset, y_offset, color) {
+             lv_coord_t y_offset = 0, State state = State::OFF, lv_color_t color = lv_color_black())
+      : WidgetIcon(ICONS[static_cast<int>(icon)].utf8, parent, align, x_offset, y_offset, state, color) {
   }
 
   /**
@@ -116,14 +121,15 @@ class WidgetIcon {
    * @param align Optional LVGL alignment constant (e.g., LV_ALIGN_TOP_LEFT)
    * @param x_offset Offset from alignment point in x direction (default 0)
    * @param y_offset Offset from alignment point in y direction (default 0)
-   * @param color Text color of the icon (default white)
+   * @param state Initial state of the icon (default OFF)
+   * @param color Text color of the icon (default black)
    *
-   * Icon is created with Font Awesome font, white text color, center aligned.
+   * Icon is created with Font Awesome font, black text color, center aligned.
    * Positioning is applied using standard LVGL alignment constants.
    */
   WidgetIcon(const char* icon_symbol, lv_obj_t* parent, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t x_offset = 0,
-             lv_coord_t y_offset = 0, lv_color_t color = lv_color_white())
-      : state_(State::OFF), label_(nullptr) {
+             lv_coord_t y_offset = 0, State state = State::OFF, lv_color_t color = lv_color_black())
+      : label_(nullptr) {
     // Create label for icon display
     label_ = lv_label_create(parent);
     lv_label_set_text_static(label_, icon_symbol);
@@ -138,8 +144,8 @@ class WidgetIcon {
       lv_obj_align(label_, align, x_offset, y_offset);
     }
 
-    // Start in OFF state (hidden)
-    lv_obj_add_flag(label_, LV_OBJ_FLAG_HIDDEN);
+    // Set initial state
+    SetState(state);
   }
 
   /**
@@ -176,6 +182,7 @@ class WidgetIcon {
         break;
 
       case State::OFF:
+      case State::UNDEF:
         // Stop animation and hide icon
         lv_anim_del(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
         lv_obj_add_flag(label_, LV_OBJ_FLAG_HIDDEN);
@@ -212,8 +219,22 @@ class WidgetIcon {
     lv_label_set_text_static(label_, icon_symbol);
   }
 
+  /**
+   * @brief Set alignment of the icon
+   * @param align LVGL alignment constant (e.g., LV_ALIGN_TOP_LEFT)
+   * @param x_offset Offset from alignment point in x direction
+   * @param y_offset Offset from alignment point in y direction
+   *
+   * Changes the position of the icon relative to its parent.
+   */
+  void SetAlign(lv_align_t align, lv_coord_t x_offset = 0, lv_coord_t y_offset = 0) {
+    if (label_ != nullptr) {
+      lv_obj_align(label_, align, x_offset, y_offset);
+    }
+  }
+
  private:
-  State state_;
+  State state_ = State::UNDEF;
   lv_obj_t* label_ = nullptr;
   lv_anim_t animation_;
 

@@ -79,8 +79,8 @@ void SaboCoverUIDisplay::Start() {
   // Disable boot screen here for faster testing
   ShowBootScreen();
   // ShowMainScreen();
-  // ShowAboutScreen();
-  // ShowInputsScreen();
+  //  ShowAboutScreen();
+  //  ShowInputsScreen();
 }
 
 void SaboCoverUIDisplay::ShowBootScreen() {
@@ -280,11 +280,6 @@ void SaboCoverUIDisplay::Tick() {
   // Calculate timeout from settings (convert minutes to system time)
   const systime_t timeout = TIME_S2I(lcd_settings_.auto_sleep_minutes * 60);
 
-  // Call active screen's Tick method for screen-specific updates
-  if (active_screen_) {
-    active_screen_->Tick();
-  }
-
   // Backlight & LCD Timeout
   if (chVTTimeElapsedSinceX(last_activity_) > timeout) {
     // Backlight off
@@ -295,6 +290,9 @@ void SaboCoverUIDisplay::Tick() {
     if (lvgl_display_ && DriverUC1698::Instance().IsDisplayEnabled()) {
       DriverUC1698::Instance().SetDisplayEnable(false);
     }
+  } else if (active_screen_) {
+    // Call active screen's Tick method for screen-specific updates
+    active_screen_->Tick();
   }
 
   lv_timer_handler();

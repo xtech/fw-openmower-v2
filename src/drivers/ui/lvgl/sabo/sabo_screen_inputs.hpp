@@ -179,39 +179,6 @@ class SaboScreenInputs : public ScreenBase<ScreenId, ButtonId> {
   WidgetSensor* sensor_handle_ = nullptr;
   lv_obj_t* heartbeat_value_ = nullptr;
   lv_obj_t* btn_test_value_ = nullptr;
-
-  /**
-   * @brief Update sensor display based on current input states
-   * Called when INPUTS_CHANGED event is received
-   */
-  void UpdateSensorDisplay() {
-    // Update all sensors based on InputService state
-    /*uint64_t active_mask = input_service.GetActiveInputsMask();
-
-    // Sensor 0: Front left wheel lift
-    if (sensor_front_left_) {
-      bool active = (active_mask >> 0) & 1;
-      sensor_front_left_->SetState(active ? WidgetSensor::State::TRIGGERED : WidgetSensor::State::IDLE);
-    }
-
-    // Sensor 1: Front right wheel lift
-    if (sensor_front_right_) {
-      bool active = (active_mask >> 1) & 1;
-      sensor_front_right_->SetState(active ? WidgetSensor::State::TRIGGERED : WidgetSensor::State::IDLE);
-    }
-
-    // Sensor 2: Top stop button
-    if (sensor_stop_) {
-      bool active = (active_mask >> 2) & 1;
-      sensor_stop_->SetState(active ? WidgetSensor::State::TRIGGERED : WidgetSensor::State::IDLE);
-    }
-
-    // Sensor 3: Back-handle stop
-    if (sensor_handle_) {
-      bool active = (active_mask >> 3) & 1;
-      sensor_handle_->SetState(active ? WidgetSensor::State::TRIGGERED : WidgetSensor::State::IDLE);
-    }*/
-  }
 };
 
 }  // namespace xbot::driver::ui::lvgl::sabo

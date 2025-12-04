@@ -94,7 +94,7 @@ void SaboCoverUIDisplayDriverUC1698::Start() {
 
 void SaboCoverUIDisplayDriverUC1698::InitController() {
   // Directly after reset set Booster, Regulator, and Power Control in that order
-  SendCommand(0b00101000 | 0b0);  // [6] Set Power Control, Booster: 0=LCD<=13nF, 1=13nF<LCD<=22nF
+  SendCommand(0b00101000 | 0b1);  // [6] Set Power Control, Booster: 0=LCD<=13nF, 1=13nF<LCD<=22nF
   chThdSleepMilliseconds(10);
   SendCommand(0b00101000 | 0b10);  // [6] Set Power Control, VReg: Internal Vlcd(*10)
   chThdSleepMilliseconds(100);     // Give charge pump some time to stabilize

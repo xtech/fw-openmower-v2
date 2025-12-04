@@ -96,7 +96,7 @@ void SaboCoverUIController::UpdateStates() {
 
   // Start LEDs
   // For identification purposes, Red-Start-LED get handled exclusively with high priority before Green-Start-LED
-  if (emergency_service.GetEmergency()) {
+  if (emergency_service.GetEmergencyReasons() != 0) {
     cabo_->SetLed(LedId::PLAY_RD, LedMode::BLINK_FAST);  // Emergency
     cabo_->SetLed(LedId::PLAY_GN, LedMode::OFF);
     /* FIXME: Add/Enable once mower_ui_service is working

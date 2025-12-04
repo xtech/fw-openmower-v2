@@ -64,9 +64,9 @@ void EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {
   SendStatus();
 }
 
-bool EmergencyService::GetEmergency() {
+uint16_t EmergencyService::GetEmergencyReasons() {
   Lock lk{&mtx_};
-  return reasons_ != 0;
+  return reasons_;
 }
 
 void EmergencyService::SendStatus() {
