@@ -90,7 +90,7 @@ void SaboCoverUIDisplayDriverUC1698::Start() {
 
   thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO, ThreadHelper, this);
 #ifdef USE_SEGGER_SYSTEMVIEW
-  processing_thread_->name = "SaboCoverUIDisplayDriverUC1698";
+  thread_->name = "SaboCoverUIDisplayDriverUC1698";
 #endif
 }
 
