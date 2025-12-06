@@ -32,6 +32,10 @@ class InputService : public InputServiceBase {
 
   etl::pair<uint16_t, uint32_t> GetEmergencyReasons(uint32_t now);
 
+  uint32_t GetPressDelay(bool long_press = false) {
+    return long_press ? LongPressTime.value : DebounceTime.value;
+  }
+
  private:
   MUTEX_DECL(mutex_);
 

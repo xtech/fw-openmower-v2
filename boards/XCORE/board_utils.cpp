@@ -1,6 +1,7 @@
 #include "board_utils.hpp"
 
 #include <etl/crc16_genibus.h>
+#include <etl/string.h>
 
 #pragma pack(push, 1)
 struct LineParams {
@@ -11,7 +12,7 @@ struct LineParams {
 #pragma pack(pop)
 
 constexpr uint16_t crc16(const char* str) {
-  return etl::crc16_genibus(str, str + strlen(str)).value();
+  return etl::crc16_genibus(str, str + etl::strlen(str)).value();
 }
 
 constexpr uint32_t ports[] = {GPIOA_BASE, GPIOB_BASE, GPIOC_BASE, GPIOD_BASE,

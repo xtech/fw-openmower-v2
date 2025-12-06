@@ -81,7 +81,7 @@ void SaboCoverUIController::Start() {
 
   thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO, ThreadHelper, this);
 #ifdef USE_SEGGER_SYSTEMVIEW
-  processing_thread_->name = "SaboCoverUIController";
+  thread_->name = "SaboCoverUIController";
 #endif
 }
 
