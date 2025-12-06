@@ -49,6 +49,7 @@ class WidgetIcon {
   };
 
   enum class Icon : uint8_t {
+    UNDEF,
     ROS,
     EMERGENCY_WHEEL_LIFT,
     EMERGENCY_GENERIC,
@@ -76,6 +77,7 @@ class WidgetIcon {
    * Maps icon names to their Icon definitions
    */
   static constexpr IconDef ICONS[] = {
+      {"\xEF\x80\xC8"},  // UNDEF - Square (U+F0C8)
       {"\xEF\x95\x84"},  // ROS - Robot (U+F544)
       {"\xEF\x97\xA1"},  // EMERGENCY_WHEEL_LIFT - Car burst (U+F5E1)
       {"\xEF\x81\xB1"},  // EMERGENCY_GENERIC - Exclamation triangle (U+F071)
@@ -205,7 +207,11 @@ class WidgetIcon {
    * Useful for dynamic icon changes based on status.
    */
   void SetIcon(Icon new_icon) {
+    static Icon last_icon = Icon::UNDEF;
+
+    if (new_icon == last_icon) return;
     lv_label_set_text_static(label_, ICONS[static_cast<int>(new_icon)].utf8);
+    last_icon = new_icon;
   }
 
   /**

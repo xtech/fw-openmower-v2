@@ -83,7 +83,7 @@ class SaboScreenBoot : public ScreenBase<ScreenId, ButtonId> {
 
   void SetBootStatusText(const etl::string_view& text, int progress) {
     if (status_bar_) {
-      status_bar_->SetValue(progress, text.data());
+      status_bar_->SetValues(progress, text.data());
     }
   }
 

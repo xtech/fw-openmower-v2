@@ -18,6 +18,7 @@
 
 #include <ulog.h>
 
+#include <cstdint>
 #include <globals.hpp>
 #include <services.hpp>
 
@@ -139,11 +140,19 @@ void SaboCoverUIController::ThreadFunc() {
     display_->WakeUp();
   }
 
-  while (true) {
-    static uint32_t last_button_check = 0;
-    static uint32_t last_display_tick = 0;
-    uint32_t now = chVTGetSystemTimeX();
+  // Next wakeup time for a more precise 10ms loop interval
+  systime_t next_wakeup;
 
+  static systime_t last_button_check = 0;
+  static systime_t last_display_tick = 0;
+
+  while (true) {
+    // Set next wakeup time to absolute current time + 10ms
+    next_wakeup = chVTGetSystemTimeX() + TIME_MS2I(10);
+
+    const systime_t now = chVTGetSystemTimeX();
+
+    // Update CABO driver
     cabo_->Tick();
     UpdateStates();
 
@@ -183,8 +192,11 @@ void SaboCoverUIController::ThreadFunc() {
       }
     }
 
-    // Sleep max. 10ms for reliable button debouncing
-    chThdSleep(TIME_MS2I(10));
+    // chThdSleepUntil is not past save
+    if (chVTGetSystemTimeX() + TIME_US2I(10) < next_wakeup) {
+      // Sleep until next 10ms interval
+      chThdSleepUntil(next_wakeup);
+    }
   }
 }
 

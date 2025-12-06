@@ -50,7 +50,14 @@ class WidgetTextBar {
    */
   void SetFont(const lv_font_t* font) {
     font_ = font;
-    if (bar_) lv_obj_invalidate(bar_);
+  }
+
+  void SetValuesOnBarChange(int32_t value, const char* custom_text = nullptr, lv_anim_enable_t anim = LV_ANIM_OFF) {
+    if (!bar_) return;
+    if (value == lv_bar_get_value(bar_)) return;
+
+    lv_bar_set_value(bar_, value, anim);
+    SetText(custom_text);
   }
 
   /**
@@ -58,14 +65,20 @@ class WidgetTextBar {
    * @param value New value within the set range
    * @param custom_text Optional custom text (nullptr to use format string)
    */
-  void SetValue(int32_t value, const char* custom_text = nullptr) {
+  void SetValues(int32_t value, const char* custom_text = nullptr, lv_anim_enable_t anim = LV_ANIM_ON) {
     if (!bar_) return;
 
-    lv_bar_set_value(bar_, value, LV_ANIM_ON);
+    lv_bar_set_value(bar_, value, anim);
 
     if (custom_text) {
       SetText(custom_text);
+      lv_obj_invalidate(bar_);
     }
+  }
+
+  int32_t GetValue() {
+    if (!bar_) return 0;
+    return lv_bar_get_value(bar_);
   }
 
   /**
@@ -75,7 +88,6 @@ class WidgetTextBar {
   void SetText(const char* text) {
     if (!bar_ || !text) return;
     lv_strlcpy(text_buffer_, text, sizeof(text_buffer_));
-    lv_obj_invalidate(bar_);  // Trigger redraw
   }
 
   /**
@@ -91,7 +103,7 @@ class WidgetTextBar {
     static char formatted_buffer[64];
     lv_snprintf(formatted_buffer, sizeof(formatted_buffer), format, format_value);
 
-    SetValue(value, formatted_buffer);
+    SetValues(value, formatted_buffer);
   }
 
   /**
@@ -109,7 +121,7 @@ class WidgetTextBar {
   }
 
   void Show() {
-    if (bar_) lv_obj_clear_flag(bar_, LV_OBJ_FLAG_HIDDEN);
+    if (bar_) lv_obj_remove_flag(bar_, LV_OBJ_FLAG_HIDDEN);
   }
 
  private:
