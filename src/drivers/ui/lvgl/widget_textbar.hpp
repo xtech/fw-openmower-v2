@@ -8,6 +8,12 @@
 #ifndef LVGL_WIDGET_TEXTBAR_HPP_
 #define LVGL_WIDGET_TEXTBAR_HPP_
 
+// clang-format off
+#include <ch.h>   // Includes chconf.h which defines CHPRINTF_USE_FLOAT
+#include <hal.h>  // Defines BaseSequentialStream
+#include <chprintf.h>
+// clang-format on
+
 #include <lvgl.h>
 
 namespace xbot::driver::ui::lvgl {
@@ -101,7 +107,7 @@ class WidgetTextBar {
 
     // Format the text with simple sprintf
     static char formatted_buffer[64];
-    lv_snprintf(formatted_buffer, sizeof(formatted_buffer), format, format_value);
+    chsnprintf(formatted_buffer, sizeof(formatted_buffer), format, format_value);
 
     SetValues(value, formatted_buffer);
   }
@@ -160,7 +166,7 @@ class WidgetTextBar {
     if (strchr(text_data, '%') != nullptr) {
       // It's a format string - use bar value
       int32_t bar_value = lv_bar_get_value(obj);
-      lv_snprintf(buf, BUFFER_SIZE, text_data, bar_value);
+      chsnprintf(buf, BUFFER_SIZE, text_data, bar_value);
     } else {
       // It's plain text - use as is
       lv_strlcpy(buf, text_data, BUFFER_SIZE);
@@ -211,14 +217,6 @@ class WidgetTextBar {
     // Get layer for drawing
     lv_layer_t* layer = lv_event_get_layer(e);
     lv_draw_label(layer, &label_dsc, &txt_area);
-  }
-
-  /**
-   * @brief Get current progress bar value
-   * @return Current value
-   */
-  int32_t GetValue() const {
-    return bar_ ? lv_bar_get_value(bar_) : 0;
   }
 };
 

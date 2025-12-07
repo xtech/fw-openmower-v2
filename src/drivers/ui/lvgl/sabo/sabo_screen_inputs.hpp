@@ -17,6 +17,7 @@
 #ifndef LVGL_SABO_SCREEN_INPUTS_HPP_
 #define LVGL_SABO_SCREEN_INPUTS_HPP_
 
+#include <chprintf.h>
 #include <lvgl.h>
 #include <ulog.h>
 
@@ -135,7 +136,7 @@ class SaboScreenInputs : public ScreenBase<ScreenId, ButtonId> {
       if (heartbeat_value_) {
         uint16_t heartbeat_frequency = sabo_robot->GetSensorHeartbeatFrequency();
         static char heartbeat_text[20];
-        snprintf(heartbeat_text, sizeof(heartbeat_text), "%u Hz", heartbeat_frequency);
+        chsnprintf(heartbeat_text, sizeof(heartbeat_text), "%u Hz", heartbeat_frequency);
         lv_label_set_text(heartbeat_value_, heartbeat_text);
       }
 

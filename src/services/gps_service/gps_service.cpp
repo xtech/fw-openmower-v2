@@ -1,5 +1,6 @@
 #include "gps_service.hpp"
 
+#include <chprintf.h>
 #include <drivers/gps/nmea_gps_driver.h>
 #include <drivers/gps/ublox_gps_driver.h>
 #include <ulog.h>
@@ -15,7 +16,7 @@ bool GpsService::LoadAndStartGpsDriver(ProtocolType protocol_type, uint8_t uart,
   UARTDriver *uart_driver = uart == 0 ? robot->GPS_GetUartPort() : GetUARTDriverByIndex(uart);
   if (uart_driver == nullptr) {
     char msg[100]{};
-    snprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", uart);
+    chsnprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", uart);
     ULOG_ARG_ERROR(&service_id_, msg);
     return false;
   }

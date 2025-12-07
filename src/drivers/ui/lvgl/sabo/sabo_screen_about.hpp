@@ -17,6 +17,7 @@
 #ifndef LVGL_SABO_SCREEN_ABOUT_HPP_
 #define LVGL_SABO_SCREEN_ABOUT_HPP_
 
+#include <chprintf.h>
 #include <lvgl.h>
 #include <ulog.h>
 
@@ -92,10 +93,10 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
 
     // Firmware Section - Details
     char fw_text[256];
-    snprintf(fw_text, sizeof(fw_text),
-             "- Built: %s\n"
-             "- Git: %s",
-             BUILD_DATE, BUILD_GIT_HASH);
+    chsnprintf(fw_text, sizeof(fw_text),
+               "- Built: %s\n"
+               "- Git: %s",
+               BUILD_DATE, BUILD_GIT_HASH);
     lv_obj_t* fw_label = lv_label_create(content_container);
     lv_label_set_text(fw_label, fw_text);
     lv_obj_set_style_text_color(fw_label, lv_color_black(), LV_PART_MAIN);
@@ -116,12 +117,12 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
 
     // Hardware Section - Details
     char hw_text[256];
-    snprintf(hw_text, sizeof(hw_text),
-             "- %s v%d.%d.%d\n"
-             "- %s v%d.%d.%d",
-             carrier_board_info.board_id, carrier_board_info.version_major, carrier_board_info.version_minor,
-             carrier_board_info.version_patch, board_info.board_id, board_info.version_major, board_info.version_minor,
-             board_info.version_patch);
+    chsnprintf(hw_text, sizeof(hw_text),
+               "- %s v%d.%d.%d\n"
+               "- %s v%d.%d.%d",
+               carrier_board_info.board_id, carrier_board_info.version_major, carrier_board_info.version_minor,
+               carrier_board_info.version_patch, board_info.board_id, board_info.version_major,
+               board_info.version_minor, board_info.version_patch);
     lv_obj_t* hw_label = lv_label_create(content_container);
     lv_label_set_text(hw_label, hw_text);
     lv_obj_set_style_text_color(hw_label, lv_color_black(), LV_PART_MAIN);
@@ -142,10 +143,10 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
 
     // Credits Section - Details
     char credits_text[256];
-    snprintf(credits_text, sizeof(credits_text),
-             "x-tech and the\n"
-             "OpenMower Contributors\n"
-             "https://github.com/xtech/\nfw-openmower-v2");
+    chsnprintf(credits_text, sizeof(credits_text),
+               "x-tech and the\n"
+               "OpenMower Contributors\n"
+               "https://github.com/xtech/\nfw-openmower-v2");
     lv_obj_t* credits_label = lv_label_create(content_container);
     lv_label_set_text(credits_label, credits_text);
     lv_obj_set_style_text_color(credits_label, lv_color_black(), LV_PART_MAIN);
