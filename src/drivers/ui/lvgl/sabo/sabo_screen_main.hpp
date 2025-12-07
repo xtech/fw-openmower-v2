@@ -431,7 +431,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     // Static variables for caching and change detection
     static float last_adapter_volts = -1.0f;
     static float last_charge_current = -1.0f;
-    static bool last_is_docked = false;
+    static bool last_is_docked = true;
     static CHARGER_STATUS last_charger_status = CHARGER_STATUS::UNKNOWN;
 
     // Get current values with reduced precision (0.1V / 0.01A resolution)
