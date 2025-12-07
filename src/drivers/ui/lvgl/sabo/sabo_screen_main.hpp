@@ -416,7 +416,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       static char battery_text[16];
       // Integer formatting is faster than float formatting
       const int battery_volts_int = static_cast<int>(battery_volts * 10);
-      chsnprintf(battery_text, sizeof(battery_text), "%d.%dV", battery_volts_int / 10, battery_volts_int % 10);
+      chsnprintf(battery_text, sizeof(battery_text), "%d.%d V", battery_volts_int / 10, battery_volts_int % 10);
       battery_voltage_bar_->SetValuesOnBarChange(battery_percent, battery_text);
       last_battery_volts = battery_volts;
     }
@@ -463,7 +463,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     if (adapter_volts != last_adapter_volts) {
       static char adapter_text[16];
       const int adapter_volts_int = static_cast<int>(adapter_volts * 10);
-      chsnprintf(adapter_text, sizeof(adapter_text), "%d.%dV", adapter_volts_int / 10, adapter_volts_int % 10);
+      chsnprintf(adapter_text, sizeof(adapter_text), "%d.%d V", adapter_volts_int / 10, adapter_volts_int % 10);
       lv_label_set_text(adapter_voltage_label_, adapter_text);
       last_adapter_volts = adapter_volts;
     }
@@ -472,8 +472,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     if (is_docked && charge_current != last_charge_current) {
       static char charge_text[16];
       const int charge_current_int = static_cast<int>(charge_current * 100);
-      chsnprintf(charge_text, sizeof(charge_text), "%d.%02dA", charge_current_int / 100, charge_current_int % 100);
-      const auto charge_percent = GetPercent(charge_current, 0.0f, 10.0f, false);  // 0-10A range
+      chsnprintf(charge_text, sizeof(charge_text), "%d.%02d A", charge_current_int / 100, charge_current_int % 100);
+      const auto charge_percent = GetPercent(charge_current, 0.0f, sabo_robot_->Power_GetDefaultChargeCurrent());
       charge_current_bar_->SetValuesOnBarChange(charge_percent, charge_text);
       last_charge_current = charge_current;
     }
