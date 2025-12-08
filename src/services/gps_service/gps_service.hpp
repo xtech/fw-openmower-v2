@@ -19,18 +19,10 @@ class GpsService : public GpsServiceBase {
   explicit GpsService(const uint16_t service_id) : GpsServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  /**
-   * @brief Get current GPS state for display purposes
-   * @return Current GPS state
-   */
   const GpsDriver::GpsState& GetGpsState() const {
     return gps_driver_ ? gps_driver_->GetGpsState() : empty_gps_state_;
   }
 
-  /**
-   * @brief Check if GPS state is valid
-   * @return true if GPS state is valid
-   */
   bool IsGpsStateValid() const {
     return gps_driver_ ? gps_driver_->IsGpsStateValid() : false;
   }
@@ -39,17 +31,10 @@ class GpsService : public GpsServiceBase {
    * @brief Get seconds since last RTCM packet was received
    * @return Seconds since last RTCM packet, 0 if no data received yet
    */
-  uint32_t GetSecondsSinceLastRtcmPacket() const {
-    if (last_ntrip_time_ == 0) {
-      return 0;  // No RTCM data received yet
-    }
-
-    systime_t current_time = chVTGetSystemTimeX();
-    return TIME_I2S(current_time - last_ntrip_time_);
-  }
+  uint32_t GetSecondsSinceLastRtcmPacket() const;
 
   /**
-   * @brief (pre)- Load and start GPS driver instance (for pre-initialized drivers)
+   * @brief Load and start GPS driver instance.
    * Allows initializing the GPS driver before service OnStart(), enabling
    * immediate GPS functionality without waiting for ROS configuration.
    */

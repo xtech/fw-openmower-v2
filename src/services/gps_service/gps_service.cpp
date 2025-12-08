@@ -13,7 +13,7 @@
 
 bool GpsService::LoadAndStartGpsDriver(ProtocolType protocol_type, uint8_t uart, uint32_t baudrate) {
   // Get the requested UART port (if 0 is specified, ask the robot.cpp for the default port)
-  UARTDriver *uart_driver = uart == 0 ? robot->GPS_GetUartPort() : GetUARTDriverByIndex(uart);
+  UARTDriver* uart_driver = uart == 0 ? robot->GPS_GetUartPort() : GetUARTDriverByIndex(uart);
   if (uart_driver == nullptr) {
     char msg[100]{};
     chsnprintf(msg, sizeof(msg), "Could not open UART. Check the provided uart_index: %i", uart);
@@ -29,7 +29,7 @@ bool GpsService::LoadAndStartGpsDriver(ProtocolType protocol_type, uint8_t uart,
   }
 
   gps_driver_->SetStateCallback(
-      etl::delegate<void(const GpsDriver::GpsState &)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
+      etl::delegate<void(const GpsDriver::GpsState&)>::create<GpsService, &GpsService::GpsStateCallback>(*this));
 
   gps_driver_->StartDriver(uart_driver, baudrate);
   debug_interface_.SetDriver(gps_driver_);
@@ -60,14 +60,14 @@ bool GpsService::OnStart() {
   return true;
 }
 
-void GpsService::OnRTCMChanged(const uint8_t *new_value, uint32_t length) {
+void GpsService::OnRTCMChanged(const uint8_t* new_value, uint32_t length) {
   // Update NTRIP timestamp when RTCM data is received
   last_ntrip_time_ = chVTGetSystemTimeX();
 
   gps_driver_->SendRTCM(new_value, length);
 }
 
-void GpsService::GpsStateCallback(const GpsDriver::GpsState &state) {
+void GpsService::GpsStateCallback(const GpsDriver::GpsState& state) {
   StartTransaction();
   double position[3] = {state.pos_lat, state.pos_lon, state.pos_height};
   SendPosition(position, 3);
@@ -81,4 +81,11 @@ void GpsService::GpsStateCallback(const GpsDriver::GpsState &state) {
   double vel[3] = {state.vel_e, state.vel_n, state.vel_u};
   SendMotionVectorENU(vel, 3);
   CommitTransaction();
+}
+
+uint32_t GpsService::GetSecondsSinceLastRtcmPacket() const {
+  if (last_ntrip_time_ == 0) {
+    return 0;  // No RTCM data received yet
+  }
+  return TIME_I2S(chVTGetSystemTimeX() - last_ntrip_time_);
 }

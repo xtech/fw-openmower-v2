@@ -590,10 +590,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     // Create scrolling label
     state_label_ = lv_label_create(screen_);  // Doesn't work with state_container_ as parent. Whyever :-/
-    lv_label_set_text(state_label_, "STATE: ToDo");
+    lv_label_set_text(state_label_, "Robot State");
     lv_obj_set_style_text_color(state_label_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(state_label_, &orbitron_16b, LV_PART_MAIN);
-    lv_obj_align(state_label_, LV_ALIGN_BOTTOM_MID, 0, -2);
+    lv_obj_align(state_label_, LV_ALIGN_BOTTOM_MID, defs::LCD_WIDTH / 4, -2);
     lv_label_set_long_mode(state_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(state_label_, defs::LCD_WIDTH - 6);
   }
