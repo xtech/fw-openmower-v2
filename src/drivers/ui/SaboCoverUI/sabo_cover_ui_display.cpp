@@ -79,8 +79,6 @@ void SaboCoverUIDisplay::Start() {
   // Disable boot screen here for faster testing
   ShowBootScreen();
   // ShowMainScreen();
-  //  ShowAboutScreen();
-  //  ShowInputsScreen();
 }
 
 void SaboCoverUIDisplay::ShowBootScreen() {
