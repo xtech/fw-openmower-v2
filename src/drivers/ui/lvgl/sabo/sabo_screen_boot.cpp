@@ -41,6 +41,7 @@ SaboScreenBoot::SaboScreenBoot() : ScreenBase<ScreenId, ButtonId>(ScreenId::BOOT
       {"Left ESC", []() -> bool { return static_cast<SaboRobot*>(robot)->TestLeftESC(); }},
       {"Right ESC", []() -> bool { return static_cast<SaboRobot*>(robot)->TestRightESC(); }},
       {"Mower ESC", []() -> bool { return static_cast<SaboRobot*>(robot)->TestMowerESC(); }},
+      {"GNSS", []() -> bool { return gps_service.IsGpsStateValid(); }},
   }};
   current_boot_step_ = 0;
   boot_step_retry_count_ = 0;
