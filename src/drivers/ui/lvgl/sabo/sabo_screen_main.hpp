@@ -23,7 +23,11 @@
 #ifndef LVGL_SABO_SCREEN_MAIN_HPP_
 #define LVGL_SABO_SCREEN_MAIN_HPP_
 
+// clang-format off
+#include <ch.h>   // Includes chconf.h which defines CHPRINTF_USE_FLOAT
+#include <hal.h>  // Defines BaseSequentialStream
 #include <chprintf.h>
+// clang-format on
 #include <lvgl.h>
 #include <ulog.h>
 
@@ -33,7 +37,6 @@
 #include "../screen_base.hpp"
 #include "../widget_icon.hpp"
 #include "../widget_textbar.hpp"
-#include "ch.h"
 #include "robots/include/sabo_common.hpp"
 #include "robots/include/sabo_robot.hpp"
 #include "services.hpp"
@@ -57,6 +60,22 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     // Unregister from emergency change events
     chEvtUnregister(&mower_events, &emergency_event_listener_);
 
+    // Delete dynamically allocated WidgetIcon objects
+    delete icon_satellite_;
+    delete icon_download_;
+    delete icon_gps_mode_;
+    delete icon_bullseye_;
+    delete icon_battery_voltage_;
+    delete icon_charge_current_;
+    delete icon_battery_;
+    delete icon_docked_;
+
+    // Delete WidgetTextBar objects
+    delete accuracy_bar_;
+    delete battery_voltage_bar_;
+    delete charge_current_bar_;
+
+    // Delete emergency icons
     for (auto& [type, icon] : emergency_icons_) {
       if (icon) delete icon;
     }
@@ -75,7 +94,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     int32_t y = 24;
 
     // Satellites in use icon
-    new WidgetIcon(WidgetIcon::Icon::SATELLITE, screen_, LV_ALIGN_TOP_LEFT, 0, y - 2, WidgetIcon::State::ON);
+    icon_satellite_ =
+        new WidgetIcon(WidgetIcon::Icon::SATELLITE, screen_, LV_ALIGN_TOP_LEFT, 0, y - 2, WidgetIcon::State::ON);
     sats_value_ = lv_label_create(screen_);
     lv_label_set_text_static(sats_value_, "0");
     lv_obj_set_style_text_color(sats_value_, lv_color_black(), LV_PART_MAIN);
@@ -83,7 +103,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     lv_obj_align(sats_value_, LV_ALIGN_TOP_LEFT, 17, y);
 
     // NTRIP actuality icon
-    new WidgetIcon(WidgetIcon::Icon::DOWNLOAD, screen_, LV_ALIGN_TOP_MID, -55, y - 2, WidgetIcon::State::ON);
+    icon_download_ =
+        new WidgetIcon(WidgetIcon::Icon::DOWNLOAD, screen_, LV_ALIGN_TOP_MID, -55, y - 2, WidgetIcon::State::ON);
     ntrip_value_ = lv_label_create(screen_);
     lv_label_set_text_static(ntrip_value_, "N/A");
     lv_obj_set_style_text_color(ntrip_value_, lv_color_black(), LV_PART_MAIN);
@@ -101,13 +122,15 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     // GPS Accuracy
     y += 18;
-    new WidgetIcon(WidgetIcon::Icon::BULLSEYE, screen_, LV_ALIGN_TOP_LEFT, 0, y, WidgetIcon::State::ON);
+    icon_bullseye_ =
+        new WidgetIcon(WidgetIcon::Icon::BULLSEYE, screen_, LV_ALIGN_TOP_LEFT, 0, y, WidgetIcon::State::ON);
     accuracy_bar_ =
         new WidgetTextBar(screen_, "N/A", LV_ALIGN_TOP_LEFT, 20, y - 1, defs::LCD_WIDTH - 20, 18, &orbitron_12);
 
     // Battery Voltage
     y += 32;
-    new WidgetIcon(WidgetIcon::Icon::BATTERY_VOLTAGE, screen_, LV_ALIGN_TOP_LEFT, 0, y, WidgetIcon::State::ON);
+    icon_battery_voltage_ =
+        new WidgetIcon(WidgetIcon::Icon::BATTERY_VOLTAGE, screen_, LV_ALIGN_TOP_LEFT, 0, y, WidgetIcon::State::ON);
     battery_voltage_bar_ =
         new WidgetTextBar(screen_, "N/A", LV_ALIGN_TOP_LEFT, 20, y - 1, defs::LCD_WIDTH - 20, 18, &orbitron_12);
 
@@ -187,22 +210,29 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   uint16_t last_emergency_reasons_ = 0;
 
   // GPS display widgets
+  WidgetIcon* icon_satellite_ = nullptr;
+  WidgetIcon* icon_download_ = nullptr;
   WidgetIcon* icon_gps_mode_ = nullptr;
+  WidgetIcon* icon_bullseye_ = nullptr;
   WidgetTextBar* accuracy_bar_ = nullptr;
   lv_obj_t* sats_value_ = nullptr;
   lv_obj_t* gps_mode_value_ = nullptr;
   lv_obj_t* ntrip_value_ = nullptr;
 
   // Power display widgets
+  WidgetIcon* icon_battery_voltage_ = nullptr;
   WidgetIcon* icon_charge_current_ = nullptr;
   WidgetTextBar* battery_voltage_bar_ = nullptr;
   WidgetTextBar* charge_current_bar_ = nullptr;
   lv_obj_t* adapter_voltage_label_ = nullptr;
   lv_obj_t* charger_status_label_ = nullptr;
-  bool last_is_docked_ = false;  // Track docked state to show/hide dock-relevant widgets
 
   // Robot state label
   lv_obj_t* state_label_ = nullptr;
+
+  // Shared text buffer for formatting (used by all update methods)
+  static constexpr size_t SHARED_TEXT_BUFFER_SIZE = 32;
+  char shared_text_buffer_[SHARED_TEXT_BUFFER_SIZE];
 
   /**
    * @brief Calculate percentage from value within min/max range
@@ -262,7 +292,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
                                    WidgetIcon::State::ON, lv_color_white());
 
     // Right side: Docking icon
-    icon_docked_ = new WidgetIcon(WidgetIcon::Icon::DOCKED, topbar_, LV_ALIGN_TOP_RIGHT, -3, 0, WidgetIcon::State::OFF,
+    icon_docked_ = new WidgetIcon(WidgetIcon::Icon::DOCKED, topbar_, LV_ALIGN_TOP_RIGHT, -3, 0, WidgetIcon::State::ON,
                                   lv_color_white());
   }
 
@@ -358,12 +388,11 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     static float last_accuracy = -1.0f;
     float accuracy = std::round(gps_state.position_h_accuracy * 100.0f) / 100.0f;
     if (accuracy != last_accuracy) {
-      static char accuracy_text[16];
       // Integer formatting is faster than float formatting
       const int accuracy_int = static_cast<int>(accuracy * 100);
-      chsnprintf(accuracy_text, sizeof(accuracy_text), "%d.%02d m", accuracy_int / 100, accuracy_int % 100);
+      chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%d.%02d m", accuracy_int / 100, accuracy_int % 100);
       const auto acc_percent = GetPercent(accuracy, 0.01f, 1.00f, true);
-      accuracy_bar_->SetValues(acc_percent, accuracy_text);
+      accuracy_bar_->SetValues(acc_percent, shared_text_buffer_);
       last_accuracy = accuracy;
     }
   }
@@ -413,11 +442,11 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     // Update battery voltage label only if changed (0.1V resolution)
     if (battery_volts != last_battery_volts) {
-      static char battery_text[16];
       // Integer formatting is faster than float formatting
       const int battery_volts_int = static_cast<int>(battery_volts * 10);
-      chsnprintf(battery_text, sizeof(battery_text), "%d.%d V", battery_volts_int / 10, battery_volts_int % 10);
-      battery_voltage_bar_->SetValuesOnBarChange(battery_percent, battery_text);
+      chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%d.%d V", battery_volts_int / 10,
+                 battery_volts_int % 10);
+      battery_voltage_bar_->SetValuesOnBarChange(battery_percent, shared_text_buffer_);
       last_battery_volts = battery_volts;
     }
   }
@@ -447,8 +476,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       if (is_docked) {
         icon_charge_current_->SetState(WidgetIcon::State::ON);
         charge_current_bar_->Show();
-        lv_obj_clear_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
       } else {
         icon_charge_current_->SetState(WidgetIcon::State::OFF);
         charge_current_bar_->Hide();
@@ -461,20 +490,20 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     // Update adapter voltage label only if changed (0.1V resolution)
     if (adapter_volts != last_adapter_volts) {
-      static char adapter_text[16];
       const int adapter_volts_int = static_cast<int>(adapter_volts * 10);
-      chsnprintf(adapter_text, sizeof(adapter_text), "%d.%d V", adapter_volts_int / 10, adapter_volts_int % 10);
-      lv_label_set_text(adapter_voltage_label_, adapter_text);
+      chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%d.%d V", adapter_volts_int / 10,
+                 adapter_volts_int % 10);
+      lv_label_set_text(adapter_voltage_label_, shared_text_buffer_);
       last_adapter_volts = adapter_volts;
     }
 
     // Update charge current only if docked AND changed (0.01A resolution)
     if (is_docked && charge_current != last_charge_current) {
-      static char charge_text[16];
       const int charge_current_int = static_cast<int>(charge_current * 100);
-      chsnprintf(charge_text, sizeof(charge_text), "%d.%02d A", charge_current_int / 100, charge_current_int % 100);
+      chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%d.%02d A", charge_current_int / 100,
+                 charge_current_int % 100);
       const auto charge_percent = GetPercent(charge_current, 0.0f, sabo_robot_->Power_GetDefaultChargeCurrent());
-      charge_current_bar_->SetValuesOnBarChange(charge_percent, charge_text);
+      charge_current_bar_->SetValuesOnBarChange(charge_percent, shared_text_buffer_);
       last_charge_current = charge_current;
     }
 
@@ -483,9 +512,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       lv_label_set_text(charger_status_label_, ChargerDriver::statusToString(charger_status));
       last_charger_status = charger_status;
     }
-
-    // Update last_is_docked_ for external use
-    last_is_docked_ = is_docked;
   }
 
   /**

@@ -17,7 +17,11 @@
 #ifndef LVGL_SABO_SCREEN_ABOUT_HPP_
 #define LVGL_SABO_SCREEN_ABOUT_HPP_
 
+// clang-format off
+#include <ch.h>   // Includes chconf.h which defines CHPRINTF_USE_FLOAT
+#include <hal.h>  // Defines BaseSequentialStream
 #include <chprintf.h>
+// clang-format on
 #include <lvgl.h>
 #include <ulog.h>
 

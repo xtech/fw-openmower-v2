@@ -29,7 +29,7 @@ class SaboCoverUIController {
   uint16_t GetButtonsMask() const;                 // Returns bitmask of current button states
 
  private:
-  THD_WORKING_AREA(wa_, 5120);  // AH20251110 In use = 4416. Let's be save (+~1k) for LVGL GUI development
+  THD_WORKING_AREA(wa_, 5120);  // AH20251207 In use = 4416. Let's be save (+~1k) for LVGL GUI development
   thread_t* thread_ = nullptr;
 
   SaboCoverUICaboDriverBase* cabo_ = nullptr;  // Pointer to the Carrierboard driver
