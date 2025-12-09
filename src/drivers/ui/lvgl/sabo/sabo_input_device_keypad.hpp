@@ -62,49 +62,23 @@ class SaboInputDeviceKeypad : public lvgl::InputDeviceBase<ButtonId> {
       return;
     }
 
-    // Check for pressed buttons and map to LVGL keys
-    // Priority order: UP, DOWN, LEFT, RIGHT, OK, BACK
+    // Button mapping with priority order
+    static constexpr etl::array<etl::pair<ButtonId, uint32_t>, 6> button_map = {{
+        {ButtonId::UP, LV_KEY_PREV},
+        {ButtonId::DOWN, LV_KEY_NEXT},
+        {ButtonId::LEFT, LV_KEY_LEFT},
+        {ButtonId::RIGHT, LV_KEY_RIGHT},
+        {ButtonId::OK, LV_KEY_ENTER},
+        {ButtonId::BACK, LV_KEY_ESC},
+    }};
 
-    if (button_check_callback_(ButtonId::UP)) {
-      data->key = LV_KEY_PREV;  // Navigate to previous item in group
-      data->state = LV_INDEV_STATE_PRESSED;
-      last_key_ = LV_KEY_PREV;
-      return;
-    }
-
-    if (button_check_callback_(ButtonId::DOWN)) {
-      data->key = LV_KEY_NEXT;  // Navigate to next item in group
-      data->state = LV_INDEV_STATE_PRESSED;
-      last_key_ = LV_KEY_NEXT;
-      return;
-    }
-
-    if (button_check_callback_(ButtonId::LEFT)) {
-      data->key = LV_KEY_LEFT;  // Edit focused widget
-      data->state = LV_INDEV_STATE_PRESSED;
-      last_key_ = LV_KEY_LEFT;
-      return;
-    }
-
-    if (button_check_callback_(ButtonId::RIGHT)) {
-      data->key = LV_KEY_RIGHT;  // Edit focused widget
-      data->state = LV_INDEV_STATE_PRESSED;
-      last_key_ = LV_KEY_RIGHT;
-      return;
-    }
-
-    if (button_check_callback_(ButtonId::OK)) {
-      data->key = LV_KEY_ENTER;
-      data->state = LV_INDEV_STATE_PRESSED;
-      last_key_ = LV_KEY_ENTER;
-      return;
-    }
-
-    if (button_check_callback_(ButtonId::BACK)) {
-      data->key = LV_KEY_ESC;
-      data->state = LV_INDEV_STATE_PRESSED;
-      last_key_ = LV_KEY_ESC;
-      return;
+    for (const auto& mapping : button_map) {
+      if (button_check_callback_(mapping.first)) {
+        data->key = mapping.second;
+        data->state = LV_INDEV_STATE_PRESSED;
+        last_key_ = mapping.second;
+        return;
+      }
     }
 
     // No button pressed - report last key as released
