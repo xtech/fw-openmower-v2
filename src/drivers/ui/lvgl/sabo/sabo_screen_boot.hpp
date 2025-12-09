@@ -50,6 +50,11 @@ class SaboScreenBoot : public ScreenBase<ScreenId, ButtonId> {
    */
   void Tick() override;
 
+  /**
+   * @brief Handle button press to skip error wait time
+   */
+  bool OnButtonPress(ButtonId button_id) override;
+
  private:
   // LVGL objects
   lv_obj_t* mower_ = nullptr;
@@ -63,7 +68,7 @@ class SaboScreenBoot : public ScreenBase<ScreenId, ButtonId> {
   AnimationState animation_state_ = AnimationState::NONE;
 
   // Boot sequence related
-  static constexpr size_t BOOT_STEP_COUNT_ = 6;
+  static constexpr size_t BOOT_STEP_COUNT_ = 5;
   static constexpr size_t BOOT_STEP_RETRIES_ = 3;
 
   struct BootStep {

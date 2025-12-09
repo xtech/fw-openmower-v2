@@ -41,7 +41,6 @@ SaboScreenBoot::SaboScreenBoot() : ScreenBase<ScreenId, ButtonId>(ScreenId::BOOT
       {"Left ESC", []() -> bool { return static_cast<SaboRobot*>(robot)->TestLeftESC(); }},
       {"Right ESC", []() -> bool { return static_cast<SaboRobot*>(robot)->TestRightESC(); }},
       {"Mower ESC", []() -> bool { return static_cast<SaboRobot*>(robot)->TestMowerESC(); }},
-      {"GNSS", []() -> bool { return gps_service.IsGpsStateValid(); }},
   }};
   current_boot_step_ = 0;
   boot_step_retry_count_ = 0;
@@ -160,6 +159,20 @@ void SaboScreenBoot::StartWheelAnimation() {
   wheel_anim_ = lv_anim_start(&anim);
 }
 
+bool SaboScreenBoot::OnButtonPress(ButtonId button_id) {
+  (void)button_id;  // Parameter not used, we skip on any button press
+  if (current_boot_step_ < BOOT_STEP_COUNT_) {
+    BootStep& step = boot_steps_[current_boot_step_];
+    if (step.state == BootStep::State::ERROR) {
+      step.state = BootStep::State::DONE;
+      current_boot_step_++;
+      boot_step_retry_count_ = 0;
+      return true;  // Button handled
+    }
+  }
+  return false;  // Not handled, pass to default handling
+}
+
 void SaboScreenBoot::Tick() {
   // All boot steps done...
   if (current_boot_step_ >= BOOT_STEP_COUNT_) {
@@ -196,7 +209,7 @@ void SaboScreenBoot::Tick() {
           boot_step_retry_count_++;
           if (boot_step_retry_count_ < BOOT_STEP_RETRIES_) {
             etl::string<48> fail_msg;
-            chsnprintf(fail_msg.data(), fail_msg.max_size(), "%s (%d/%d)", step.name, boot_step_retry_count_,
+            chsnprintf(fail_msg.data(), fail_msg.max_size(), "%s failure %d/%d", step.name, boot_step_retry_count_,
                        BOOT_STEP_RETRIES_);
             SetBootStatusText(fail_msg, (current_boot_step_ * 100) / BOOT_STEP_COUNT_);
             step.last_action_time = now;
