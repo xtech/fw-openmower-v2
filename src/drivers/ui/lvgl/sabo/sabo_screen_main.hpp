@@ -48,6 +48,7 @@ LV_FONT_DECLARE(orbitron_16b);
 
 namespace xbot::driver::ui::lvgl::sabo {
 
+using namespace xbot::driver::sabo::types;
 using GpsState = xbot::driver::gps::GpsDriver::GpsState;
 
 class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
@@ -183,8 +184,18 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     // Do always Emergency check
     eventflags_t flags = chEvtGetAndClearFlags(&emergency_event_listener_);
-    if (flags & MowerEvents::EMERGENCY_CHANGED) {
+    if (flags & (MowerEvents::EMERGENCY_CHANGED)) {
       UpdateEmergencyWidgets();
+    } else {
+      // Get SaboInputDriver sensors for changes directly, for pre-ROS as well as pre-Emergency display
+      if (sabo_robot_ != nullptr) {
+        uint8_t current_bits = sabo_robot_->GetSensorBits();
+
+        if (current_bits != last_sensor_bits_) {
+          last_sensor_bits_ = current_bits;
+          UpdateEmergencyWidgets();
+        }
+      }
     }
 
     update_phase = (update_phase + 1) % 5;  // Cycle through 5 phases
@@ -208,6 +219,9 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   etl::flat_map<EmergencyIconType, WidgetIcon*, 5> emergency_icons_;
   event_listener_t emergency_event_listener_;
   uint16_t last_emergency_reasons_ = 0;
+
+  // SaboInputDriver sensor state tracking
+  uint8_t last_sensor_bits_ = 0;
 
   // GPS display widgets
   WidgetIcon* icon_satellite_ = nullptr;
@@ -524,25 +538,39 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
   /**
    * @brief Update emergency display widgets based on current emergency state
-   * Called when emergency state changes (MowerEvents::EMERGENCY_CHANGED)
+   * Called when emergency state changes (MowerEvents::EMERGENCY_CHANGED), or
+   * when input state changes
    */
   void UpdateEmergencyWidgets() {
     static uint16_t triggered_emergency_reasons_ = 0;
-    uint16_t current_reasons = emergency_service.GetEmergencyReasons();
+    static uint16_t last_sensor_reasons_ = 0;
+    uint16_t service_reasons = emergency_service.GetEmergencyReasons();
+    uint16_t display_reasons = 0;
 
     // Track initially triggered emergency reasons
-    if (last_emergency_reasons_ == 0 && current_reasons != 0) {
-      triggered_emergency_reasons_ = current_reasons;
-    } else if (current_reasons == 0) {
+    if (last_emergency_reasons_ == 0 && service_reasons != 0) {
+      triggered_emergency_reasons_ = service_reasons;
+    } else if (service_reasons == 0) {
       triggered_emergency_reasons_ = 0;
     }
 
-    if (current_reasons == last_emergency_reasons_) {
+    // SaboInputDriver sensor states as emergency reasons using cached bits
+    if (last_sensor_bits_ &
+        ((1 << static_cast<uint8_t>(SensorId::STOP_TOP)) | (1 << static_cast<uint8_t>(SensorId::STOP_REAR)))) {
+      display_reasons |= EmergencyReason::STOP;
+    }
+    if (last_sensor_bits_ &
+        ((1 << static_cast<uint8_t>(SensorId::LIFT_FL)) | (1 << static_cast<uint8_t>(SensorId::LIFT_FR)))) {
+      display_reasons |= EmergencyReason::LIFT;
+    }
+
+    if (service_reasons == last_emergency_reasons_ && display_reasons == last_sensor_reasons_) {
       return;
     }
-    last_emergency_reasons_ = current_reasons;
+    last_emergency_reasons_ = service_reasons;
+    last_sensor_reasons_ = display_reasons;
 
-    uint16_t display_reasons = current_reasons | triggered_emergency_reasons_;
+    display_reasons |= service_reasons | triggered_emergency_reasons_;
     for (auto& [type, icon] : emergency_icons_) {
       if (icon != nullptr) {
         WidgetIcon::State new_state = WidgetIcon::State::OFF;
@@ -562,7 +590,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
               new_state = WidgetIcon::State::BLINK;
             break;
           case EmergencyIconType::TIMEOUT_HL:
-            if (current_reasons & EmergencyReason::TIMEOUT_HIGH_LEVEL)
+            if (service_reasons & EmergencyReason::TIMEOUT_HIGH_LEVEL)
               new_state = WidgetIcon::State::BLINK;
             else
               new_state = WidgetIcon::State::ON;

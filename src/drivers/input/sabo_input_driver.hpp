@@ -55,6 +55,12 @@ class SaboInputDriver : public InputDriver {
 
   bool GetSensorState(xbot::driver::sabo::types::SensorId sensor_id);
 
+  /**
+   * @brief Get a bitmask of all sensor states
+   * @return 8-bit mask where bits correspond to SensorId enum
+   */
+  uint8_t GetSensorBits();
+
   uint16_t GetHeartbeatFrequency() const {
     // Convert count per interval to Hz (frequency)
     uint32_t interval_ms = TIME_I2MS(HEARTBEAT_CHECK_INTERVAL);

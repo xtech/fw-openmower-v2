@@ -88,6 +88,18 @@ bool SaboInputDriver::GetSensorState(SensorId sensor_id) {
   return false;  // Invalid sensor index
 }
 
+uint8_t SaboInputDriver::GetSensorBits() {
+  uint8_t bits = 0;
+  size_t bit_index = 0;
+  for (const auto& entry : SENSOR_IDS) {
+    if (GetSensorState(entry.second)) {
+      bits |= static_cast<uint8_t>(1u << bit_index);
+    }
+    ++bit_index;
+  }
+  return bits;
+}
+
 void SaboInputDriver::Tick() {
   uint16_t buttons_mask = 0;
 

@@ -90,6 +90,10 @@ class SaboRobot : public MowerRobot {
     return sabo_input_driver_.GetSensorState(sensor_id);
   }
 
+  uint8_t GetSensorBits() {
+    return sabo_input_driver_.GetSensorBits();
+  }
+
   uint16_t GetSensorHeartbeatFrequency() const {
     return sabo_input_driver_.GetHeartbeatFrequency();
   }
