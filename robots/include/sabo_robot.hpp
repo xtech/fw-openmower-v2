@@ -1,22 +1,32 @@
 #ifndef SABO_ROBOT_HPP
 #define SABO_ROBOT_HPP
 
+#include <cstdint>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/input/sabo_input_driver.hpp>
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
+#include <globals.hpp>
 
 #include "robot.hpp"
+#include "sabo_common.hpp"
 
 using namespace xbot::driver::ui;
 using namespace xbot::driver::motor;
+using namespace xbot::driver::sabo;
 
 class SaboRobot : public MowerRobot {
  public:
+  // Hardware configuration, detected and initialized in constructor initializer list
+  const config::HardwareConfig hardware_config;
+
+  SaboRobot();
+
   void InitPlatform() override;
   bool IsHardwareSupported() override;
 
   UARTDriver* GPS_GetUartPort() override {
 #ifndef STM32_UART_USE_USART6
-#error STM32_SERIAL_USE_UART6 must be enabled for the Sabo build to work
+#error STM32_UART_USE_USART6 must be enabled for the Sabo build to work
 #endif
     return &UARTD6;
   }
@@ -67,9 +77,39 @@ class SaboRobot : public MowerRobot {
     return TestESC(mower_motor_driver_);
   }
 
+  // CoverUI button access for SaboInputDriver
+  bool IsButtonPressed(const ButtonId button) const {
+    return cover_ui_.IsButtonPressed(button);
+  }
+  uint16_t GetCoverUIButtonsMask() const {
+    return cover_ui_.GetButtonsMask();
+  }
+
+  // GPIO sensor access for UI and other components
+  bool GetSensorState(types::SensorId sensor_id) {
+    return sabo_input_driver_.GetSensorState(sensor_id);
+  }
+
+  uint8_t GetSensorBits() {
+    return sabo_input_driver_.GetSensorBits();
+  }
+
+  uint16_t GetSensorHeartbeatFrequency() const {
+    return sabo_input_driver_.GetHeartbeatFrequency();
+  }
+
+  /**
+   * @brief Enable/disable button blocking for InputScreen testing
+   * @param block true to block all buttons, false to allow normal operation
+   */
+  void SetBlockButtons(bool block) {
+    sabo_input_driver_.SetBlockButtons(block);
+  }
+
  private:
   BQ2576 charger_{};
-  SaboCoverUIController cover_ui_{};
+  SaboCoverUIController cover_ui_{hardware_config};
+  SaboInputDriver sabo_input_driver_{hardware_config};
 };
 
 #endif  // SABO_ROBOT_HPP

@@ -20,7 +20,6 @@
 //    ]
 //}
 // and select it in your CMake extension settings.
-
 {
     "version": "0.2.0",
     "configurations": [
@@ -60,6 +59,28 @@
             "breakAfterReset": false,
             // Uncomment to break in main before debugging
             // "runToEntryPoint": "main",
+        },
+        {
+            "name": "Cortex-Debug (JLink)",
+            "type": "cortex-debug",
+            "cwd": "${workspaceFolder}",
+            "request": "launch",
+            "servertype": "jlink",
+            "device": "STM32H723ZG",
+            "interface": "SWD",
+            "jlinkPath": "/opt/SEGGER/JLink/JLinkGDBServer",
+            "gdbPath": "gdb-multiarch",
+            "executable": "${command:cmake.launchTargetPath}",
+            "svdFile": "${workspaceFolder}/cfg/STM32H723.svd",
+            "preLaunchTask": "CMake: build",
+            // Uncomment to break in main before debugging
+            //"runToEntryPoint": "main",
+            "breakAfterReset": false,
+            "showDevDebugOutput": true,
+            "preLaunchCommands": [
+                "monitor halt",
+                "monitor reset"
+            ]
         },
     ],
     "inputs": [

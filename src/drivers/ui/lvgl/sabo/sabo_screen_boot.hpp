@@ -14,24 +14,21 @@
 #include <etl/string_view.h>
 #include <lvgl.h>
 
-#include "../../SaboCoverUI/sabo_cover_ui_defs.hpp"
 #include "../screen_base.hpp"
 #include "../widget_textbar.hpp"
 #include "ch.h"
-#include "sabo_defs.hpp"
-
-// Forward declaration
-class SaboRobot;
+#include "globals.hpp"
+#include "robots/include/sabo_common.hpp"
 
 namespace xbot::driver::ui::lvgl::sabo {
 
-using namespace xbot::driver::ui::sabo;
+using namespace xbot::driver::sabo::types;
 
 // Boot test callback function pointer type
 using BootTestCallback = bool (*)();
 using BootCompletionCallback = void (*)(void* context);
 
-class SaboScreenBoot : public ScreenBase<ScreenId, ButtonID> {
+class SaboScreenBoot : public ScreenBase<ScreenId, ButtonId> {
  public:
   SaboScreenBoot();
   ~SaboScreenBoot();
@@ -52,6 +49,11 @@ class SaboScreenBoot : public ScreenBase<ScreenId, ButtonID> {
    * @brief Override Tick to handle boot sequence state machine
    */
   void Tick() override;
+
+  /**
+   * @brief Handle button press to skip error wait time
+   */
+  bool OnButtonPress(ButtonId button_id) override;
 
  private:
   // LVGL objects
@@ -86,7 +88,7 @@ class SaboScreenBoot : public ScreenBase<ScreenId, ButtonID> {
 
   void SetBootStatusText(const etl::string_view& text, int progress) {
     if (status_bar_) {
-      status_bar_->SetValue(progress, text.data());
+      status_bar_->SetValues(progress, text.data());
     }
   }
 

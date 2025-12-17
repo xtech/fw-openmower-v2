@@ -11,6 +11,8 @@
 
 namespace xbot::driver::ui {
 
+using namespace xbot::driver::sabo::types;
+
 // Series-II driver
 class SaboCoverUISeries2 : public SaboCoverUISeriesInterface {
  public:
@@ -34,7 +36,7 @@ class SaboCoverUISeries2 : public SaboCoverUISeriesInterface {
   };
 
   // Series-II = 1:1 Mapping
-  uint16_t MapButtonIDToMask(const ButtonID id) const override {
+  uint16_t MapButtonIDToMask(const ButtonId id) const override {
     return (1 << uint16_t(id));
   }
 
@@ -46,7 +48,7 @@ class SaboCoverUISeries2 : public SaboCoverUISeriesInterface {
   uint8_t current_button_row_ = 0;  // Alternating button rows
   uint16_t cur_btn_mask = 0;        // Current button mask, high-active
 
-  uint8_t MapLEDIDToMask(const LEDID id) const override {
+  uint8_t MapLedIdToMask(const LedId id) const override {
     //  ENUM value matches LEDs bit position (for Series-II)
     return (1 << uint8_t(id)) & 0b11111;  // Safety mask to only use the connected LEDs
   }

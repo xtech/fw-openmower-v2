@@ -8,27 +8,29 @@
 #include <etl/array.h>
 
 #include "ch.h"
+#include "robots/include/sabo_common.hpp"
 #include "sabo_cover_ui_cabo_driver_v01.hpp"
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
-#include "sabo_cover_ui_defs.hpp"
-#include "sabo_cover_ui_display.hpp"
 
 namespace xbot::driver::ui {
 
-using namespace xbot::driver::ui::sabo;
+// Forward declaration to avoid circular include
+class SaboCoverUIDisplay;
+
+using namespace xbot::driver::sabo;
 
 class SaboCoverUIController {
  public:
-  void Configure(const CoverUICfg& cui_cfg);  // Configure the controller, select and initialize the driver
-  void Start();                               // Starts the controller thread
+  explicit SaboCoverUIController(const config::HardwareConfig& hardware_config);
 
-  bool IsButtonPressed(const ButtonID btn) const;  // Debounced safe check if a specific button is pressed
+  void Start();
+
+  bool IsButtonPressed(const ButtonId btn) const;  // Debounced safe check if a specific button is pressed
+  uint16_t GetButtonsMask() const;                 // Returns bitmask of current button states
 
  private:
-  THD_WORKING_AREA(wa_, 5120);  // AH20251110 In use = 4416. Let's be save (+~1k) for LVGL GUI development
+  THD_WORKING_AREA(wa_, 5120);  // AH20251207 In use = 4416. Let's be save (+~1k) for LVGL GUI development
   thread_t* thread_ = nullptr;
-
-  bool configured_ = false;
 
   SaboCoverUICaboDriverBase* cabo_ = nullptr;  // Pointer to the Carrierboard driver
 
@@ -36,8 +38,8 @@ class SaboCoverUIController {
 
   SaboCoverUIDisplay* display_ = nullptr;  // Pointer to the Display driver
 
-  // Button debouncing state - array indexed by ButtonID value (has gap at index 7)
-  etl::array<bool, static_cast<size_t>(ButtonID::_LAST) + 1> button_states_{};
+  // Button debouncing state
+  etl::array<bool, defs::NUM_BUTTONS> button_states_{};
 
   static void ThreadHelper(void* instance);
   void ThreadFunc();

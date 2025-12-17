@@ -10,6 +10,8 @@
 
 #include "hal.h"
 
+using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
+
 class BQ2576 : public ChargerDriver {
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x6B;

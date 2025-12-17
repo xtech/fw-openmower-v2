@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 12 px
  * Bpp: 1
- * Opts: --bpp 1 --size 12 --no-compress --stride 1 --align 1 --font Orbitron-VariableFont_wght.ttf --range 32-127
+ * Opts: --bpp 1 --size 12 --no-compress --stride 1 --align 1 --font Orbitron-VariableFont_wght_MOD.ttf --range 32-127
  *--format lvgl -o orbitron_12.c
  ******************************************************************************/
 
@@ -140,7 +140,7 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0xff, 0xc0, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1, 0x0, 0xff, 0x80,
 
     /* U+0044 "D" */
-    0xff, 0xc0, 0x60, 0x30, 0x18, 0xc, 0x6, 0x3, 0x1, 0xff, 0x80,
+    0xff, 0x40, 0xe0, 0x30, 0x18, 0xc, 0x6, 0x3, 0x3, 0xff, 0x0,
 
     /* U+0045 "E" */
     0xff, 0x80, 0x80, 0x80, 0xfe, 0x80, 0x80, 0x80, 0xff,

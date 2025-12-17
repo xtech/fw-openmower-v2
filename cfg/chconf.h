@@ -886,6 +886,11 @@ extern volatile uint32_t last_idle_tick;
 #define CH_CFG_THREAD_EXIT_HOOK _CH_CFG_THREAD_EXIT_HOOK
 #endif
 
+/**
+ * @brief Float (%f) support for chprintf
+ */
+#define CHPRINTF_USE_FLOAT TRUE
+
 #endif  /* CHCONF_H */
 
 /** @} */

@@ -12,6 +12,7 @@
 #include <xbot-service/Lock.hpp>
 
 using namespace xbot::service;
+using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
 
 class PowerService : public PowerServiceBase {
  public:
@@ -40,24 +41,18 @@ class PowerService : public PowerServiceBase {
     return battery_percent;
   }
 
+  [[nodiscard]] CHARGER_STATUS GetChargerStatus() {
+    xbot::service::Lock lk{&mtx_};
+    return charger_status;
+  }
+
  protected:
   bool OnStart() override;
 
  private:
   MUTEX_DECL(mtx_);
 
-  static constexpr auto CHARGE_STATUS_ERROR_STR = "Error";
-  static constexpr auto CHARGE_STATUS_FAULT_STR = "Error (Fault)";
   static constexpr auto CHARGE_STATUS_NOT_FOUND_STR = "Charger Not Found";
-  static constexpr auto CHARGE_STATUS_COMMS_ERROR_STR = "Charger Comms Error";
-  static constexpr auto CHARGE_STATUS_NOT_CHARGING_STR = "Not Charging";
-  static constexpr auto CHARGE_STATUS_PRE_CHARGE_STR = "Pre Charge";
-  static constexpr auto CHARGE_STATUS_TRICKLE_STR = "Trickle Charge";
-  static constexpr auto CHARGE_STATUS_CC_STR = "Fast Charge (CC)";
-  static constexpr auto CHARGE_STATUS_CV_STR = "Taper Charge (CV)";
-  static constexpr auto CHARGE_STATUS_TOP_OFF_STR = "Top Off";
-  static constexpr auto CHARGE_STATUS_DONE_STR = "Done";
-  static constexpr auto CHARGE_STATUS_UNKNOWN_STR = "Unknown State";
 
   void tick();
   void charger_tick();

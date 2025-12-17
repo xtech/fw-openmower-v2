@@ -9,6 +9,7 @@
 
 #include <debug/debuggable_driver.hpp>
 
+#include "GpsServiceBase.hpp"
 #include "ch.h"
 #include "hal.h"
 
@@ -51,6 +52,9 @@ class GpsDriver : public DebuggableDriver {
 
     FixType fix_type;
     RTKType rtk_type;
+
+    // Number of satellites used in solution
+    uint8_t num_sv;
   };
 
   enum Level { VERBOSE, INFO, WARN, ERROR };
@@ -62,6 +66,31 @@ class GpsDriver : public DebuggableDriver {
   void SetStateCallback(const GpsDriver::StateCallback &function);
 
   void SendRTCM(const uint8_t *data, size_t size);
+
+  /**
+   * @brief Get current GPS state
+   * @return Current GPS state
+   */
+  const GpsState &GetGpsState() const {
+    return gps_state_;
+  }
+
+  /**
+   * @brief Check if GPS state is valid
+   * @return true if GPS state is valid
+   */
+  bool IsGpsStateValid() const {
+    return gps_state_valid_;
+  }
+
+  virtual ProtocolType GetProtocolType() const = 0;
+  UARTDriver *GetUartDriver() const {
+    return uart_;
+  }
+
+  uint32_t GetUartBaudrate() const {
+    return uart_config_.speed;
+  }
 
  protected:
   StateCallback state_callback_{};

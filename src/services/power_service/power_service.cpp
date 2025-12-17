@@ -24,29 +24,8 @@ void PowerService::tick() {
   // Send the sensor values
   StartTransaction();
   if (charger_configured_) {
-    switch (charger_status) {
-      case CHARGER_STATUS::NOT_CHARGING:
-        SendChargingStatus(CHARGE_STATUS_NOT_CHARGING_STR, strlen(CHARGE_STATUS_NOT_CHARGING_STR));
-        break;
-      case CHARGER_STATUS::TRICKLE:
-        SendChargingStatus(CHARGE_STATUS_TRICKLE_STR, strlen(CHARGE_STATUS_TRICKLE_STR));
-        break;
-      case CHARGER_STATUS::PRE_CHARGE:
-        SendChargingStatus(CHARGE_STATUS_PRE_CHARGE_STR, strlen(CHARGE_STATUS_PRE_CHARGE_STR));
-        break;
-      case CHARGER_STATUS::CC: SendChargingStatus(CHARGE_STATUS_CC_STR, strlen(CHARGE_STATUS_CC_STR)); break;
-      case CHARGER_STATUS::CV: SendChargingStatus(CHARGE_STATUS_CV_STR, strlen(CHARGE_STATUS_CV_STR)); break;
-      case CHARGER_STATUS::TOP_OFF:
-        SendChargingStatus(CHARGE_STATUS_TOP_OFF_STR, strlen(CHARGE_STATUS_TOP_OFF_STR));
-        break;
-      case CHARGER_STATUS::DONE: SendChargingStatus(CHARGE_STATUS_DONE_STR, strlen(CHARGE_STATUS_DONE_STR)); break;
-      case CHARGER_STATUS::FAULT: SendChargingStatus(CHARGE_STATUS_FAULT_STR, strlen(CHARGE_STATUS_FAULT_STR)); break;
-      case CHARGER_STATUS::COMMS_ERROR:
-      case CHARGER_STATUS::UNKNOWN:
-        SendChargingStatus(CHARGE_STATUS_UNKNOWN_STR, strlen(CHARGE_STATUS_UNKNOWN_STR));
-        break;
-      default: SendChargingStatus(CHARGE_STATUS_ERROR_STR, strlen(CHARGE_STATUS_ERROR_STR)); break;
-    }
+    const char* status_text = ChargerDriver::statusToString(charger_status);
+    SendChargingStatus(status_text, strlen(status_text));
   } else {
     SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
   }

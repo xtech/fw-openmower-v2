@@ -21,7 +21,7 @@ class EmergencyService : public EmergencyServiceBase {
   explicit EmergencyService(uint16_t service_id) : EmergencyServiceBase(service_id, wa, sizeof(wa)) {
   }
 
-  bool GetEmergency();
+  uint16_t GetEmergencyReasons();
   uint32_t CheckInputs(uint32_t now);
 
  protected:

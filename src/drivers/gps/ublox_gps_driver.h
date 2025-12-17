@@ -13,6 +13,11 @@
 
 namespace xbot::driver::gps {
 class UbxGpsDriver : public GpsDriver {
+ public:
+  ProtocolType GetProtocolType() const override {
+    return ProtocolType::UBX;
+  }
+
  protected:
   void ResetParserState() override;
 

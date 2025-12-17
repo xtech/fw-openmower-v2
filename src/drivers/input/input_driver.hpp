@@ -8,6 +8,8 @@
 
 #include <xbot-service/portable/system.hpp>
 
+#include "robots/include/sabo_common.hpp"
+
 namespace xbot::driver::input {
 struct Input {
   enum { VIRTUAL = 255 };
@@ -26,6 +28,15 @@ struct Input {
     struct {
       uint8_t bit;
     } worx;
+
+    struct {
+      xbot::driver::sabo::types::InputType type;
+
+      union {
+        xbot::driver::sabo::types::SensorId sensor_id;
+        xbot::driver::sabo::types::ButtonId button_id;
+      } id;
+    } sabo;
   };
 
   // State

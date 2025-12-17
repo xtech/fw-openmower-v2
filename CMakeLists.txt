@@ -15,6 +15,8 @@ set(CMAKE_PROJECT_NAME openmower)
 # Include toolchain file
 include("cmake/gcc-arm-none-eabi.cmake")
 
+# Include git version script
+include("cmake/GetGitVersion.cmake")
 
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -23,6 +25,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 # Core project settings
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
+
+# Generate git version header file
+set(GENERATED_INCLUDE_DIR ${CMAKE_BINARY_DIR}/generated)
+file(MAKE_DIRECTORY ${GENERATED_INCLUDE_DIR})
+get_git_version(${GENERATED_INCLUDE_DIR})
+
 # Enable CMake support for ASM and C languages
 enable_language(C CXX ASM)
 
@@ -33,6 +41,9 @@ set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
         CXX_STANDARD_REQUIRED ON
         CXX_EXTENSIONS ON
 )
+
+# Add generated include directory for git_version.h
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${GENERATED_INCLUDE_DIR})
 
 target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
 
@@ -50,6 +61,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 file(GLOB LVGL_ASSETS_SRC
     "src/drivers/ui/lvgl/assets/*.c"
     "src/drivers/ui/lvgl/assets/Orbitron/*.c"
+    "src/drivers/ui/lvgl/assets/fontawesome-free-7.1.0-desktop/*.c"
 )
 
 # Add sources to executable
@@ -93,12 +105,14 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Input driver
         src/drivers/input/input_driver.cpp
         src/drivers/input/gpio_input_driver.cpp
+        src/drivers/input/sabo_input_driver.cpp
         src/drivers/input/worx_input_driver.cpp
-        $<$<CONFIG:Debug>:src/drivers/input/simulated_input_driver.cpp>
+        $<$<BOOL:${DEBUG_BUILD}>:src/drivers/input/simulated_input_driver.cpp>
         # Sabo driver
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_display_driver_uc1698.cpp
+        src/drivers/ui/SaboCoverUI/sabo_cover_ui_display.cpp
         src/drivers/ui/lvgl/sabo/sabo_screen_boot.cpp
         # Raw driver debug interface
         src/debug/debug_tcp_interface.cpp

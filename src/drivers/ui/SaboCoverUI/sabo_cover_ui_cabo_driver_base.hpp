@@ -7,16 +7,17 @@
 
 #include "ch.h"
 #include "hal.h"
-#include "sabo_cover_ui_defs.hpp"
+#include "robots/include/sabo_common.hpp"
 #include "sabo_cover_ui_series_interface.hpp"
 
 namespace xbot::driver::ui {
 
-using namespace sabo;
+using namespace xbot::driver::sabo;
 
 class SaboCoverUICaboDriverBase {
  public:
-  explicit SaboCoverUICaboDriverBase(CaboCfg cabo_cfg) : cabo_cfg_(cabo_cfg){};
+  explicit SaboCoverUICaboDriverBase(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
+      : cover_ui_cfg_(cover_ui_cfg){};
 
   // 6 * 10ms(tick) / 2(alternating button rows) = 30ms debounce time
   // Series-I has no alternating button rows, so it will debounce in 60ms (who cares)
@@ -27,19 +28,27 @@ class SaboCoverUICaboDriverBase {
   virtual void PowerOnAnimation();  // KIT like anim
   virtual void Tick();              // Call this function every 1ms to update LEDs, read and debounce buttons, ...
 
-  bool IsButtonPressed(ButtonID btn) const;  // Check if a specific button is pressed
+  bool IsButtonPressed(ButtonId btn) const;  // Check if a specific button is pressed
   bool IsAnyButtonPressed() const;           // Check if any button is pressed
+
+  /**
+   * @brief Get all button states as a standardized bitmask
+   * @return Bitmask where bit N is set (1) if button N is pressed, 0 if not pressed
+   * Handles conversion from Series-I/II specific button mapping to standardized format
+   * For button IDs see xbot::driver::sabo::types::ButtonID enum
+   */
+  uint16_t GetButtonsMask() const;
 
   bool IsReady() const;  // True if CoverUI detected, boot anim played and ready to serve requests
 
-  void SetLED(LEDID id, LEDMode mode);  // Set state of a single LED
+  void SetLed(LedId id, LedMode mode);  // Set state of a single LED
 
   // Debounce all raw buttons at once in one quick XOR operation
   // This Method needs to be called by driver implementation once it read the buttons
   void DebounceRawButtons(uint16_t raw_buttons);
 
  protected:
-  CaboCfg cabo_cfg_;
+  const xbot::driver::sabo::config::CoverUi* cover_ui_cfg_;
   SPIConfig spi_config_;
   SaboCoverUISeriesInterface* series_ = nullptr;  // Series-I/II specific driver
 
@@ -64,7 +73,7 @@ class SaboCoverUICaboDriverBase {
   uint8_t current_led_mask_ = 0;  // Series specific current LEDs, with applied LED modes, high-active
 
   virtual SaboCoverUISeriesInterface* GetSeriesDriver() = 0;  // Get the CoverUI Series driver, if connected
-  virtual uint8_t MapLEDIDToMask(LEDID id) const = 0;
+  virtual uint8_t MapLedIdToMask(LedId id) const = 0;
 
   void ProcessLedStates();  // Process the different LED modes (on, blink, ...)
 

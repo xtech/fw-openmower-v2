@@ -23,7 +23,9 @@ void StartServices() {
   }
 
   if (robot->NeedsService(xbot::service_ids::INPUT)) {
+#ifndef ROBOT_PLATFORM_Sabo
     input_service.RegisterInputDriver("gpio", new GpioInputDriver{});
+#endif
 #ifdef DEBUG_BUILD
     input_service.RegisterInputDriver("simulated", new SimulatedInputDriver{});
 #endif

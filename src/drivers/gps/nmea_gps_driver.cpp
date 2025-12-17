@@ -90,6 +90,9 @@ bool NmeaGpsDriver::ProcessLine(const char *line) {
       }
       fix_quality = gga.fix_quality;
 
+      // Set number of satellites used from GGA message
+      gps_state_.num_sv = gga.satellites_tracked;
+
       UpdateGpsStateValidity();
       TriggerStateCallback();
       return true;

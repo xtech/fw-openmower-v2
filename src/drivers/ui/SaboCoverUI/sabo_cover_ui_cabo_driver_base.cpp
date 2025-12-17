@@ -9,37 +9,38 @@ namespace xbot::driver::ui {
 
 bool SaboCoverUICaboDriverBase::Init() {
   // Init SPI pins
-  if (cabo_cfg_.spi.instance != nullptr) {
-    palSetLineMode(cabo_cfg_.spi.pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
-    palSetLineMode(cabo_cfg_.spi.pins.miso, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-    palSetLineMode(cabo_cfg_.spi.pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
-    if (cabo_cfg_.spi.pins.cs != PAL_NOLINE) {
-      palSetLineMode(cabo_cfg_.spi.pins.cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-      palWriteLine(cabo_cfg_.spi.pins.cs, PAL_HIGH);
+  if (cover_ui_cfg_->spi.instance != nullptr) {
+    palSetLineMode(cover_ui_cfg_->spi.pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
+    palSetLineMode(cover_ui_cfg_->spi.pins.miso,
+                   PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+    palSetLineMode(cover_ui_cfg_->spi.pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
+    if (cover_ui_cfg_->spi.pins.cs != PAL_NOLINE) {
+      palSetLineMode(cover_ui_cfg_->spi.pins.cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+      palWriteLine(cover_ui_cfg_->spi.pins.cs, PAL_HIGH);
     }
   }
 
   // Init Cabo's shift register control pins
-  palSetLineMode(cabo_cfg_.pins.latch_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-  palWriteLine(cabo_cfg_.pins.latch_load, PAL_LOW);  // HC595 RCLK/PL (parallel load)
-  if (cabo_cfg_.pins.oe != PAL_NOLINE) {
-    palSetLineMode(cabo_cfg_.pins.oe, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cabo_cfg_.pins.oe, PAL_HIGH);  // /OE (output enable = no)
+  palSetLineMode(cover_ui_cfg_->pins.latch_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+  palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);  // HC595 RCLK/PL (parallel load)
+  if (cover_ui_cfg_->pins.oe != PAL_NOLINE) {
+    palSetLineMode(cover_ui_cfg_->pins.oe, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+    palWriteLine(cover_ui_cfg_->pins.oe, PAL_HIGH);  // /OE (output enable = no)
   }
-  if (cabo_cfg_.pins.btn_cs != PAL_NOLINE) {
-    palSetLineMode(cabo_cfg_.pins.btn_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cabo_cfg_.pins.btn_cs, PAL_HIGH);  // /CS (chip select = no)
+  if (cover_ui_cfg_->pins.btn_cs != PAL_NOLINE) {
+    palSetLineMode(cover_ui_cfg_->pins.btn_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+    palWriteLine(cover_ui_cfg_->pins.btn_cs, PAL_HIGH);  // /CS (chip select = no)
   }
-  if (cabo_cfg_.pins.inp_cs != PAL_NOLINE) {
-    palSetLineMode(cabo_cfg_.pins.inp_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cabo_cfg_.pins.inp_cs, PAL_HIGH);  // /CS (chip select = no)
+  if (cover_ui_cfg_->pins.inp_cs != PAL_NOLINE) {
+    palSetLineMode(cover_ui_cfg_->pins.inp_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+    palWriteLine(cover_ui_cfg_->pins.inp_cs, PAL_HIGH);  // /CS (chip select = no)
   }
 
   return true;
 }
 
-void SaboCoverUICaboDriverBase::SetLED(LEDID id, LEDMode mode) {
-  const uint8_t bit = MapLEDIDToMask(id);
+void SaboCoverUICaboDriverBase::SetLed(LedId id, LedMode mode) {
+  const uint8_t bit = MapLedIdToMask(id);
 
   // Clear existing state
   leds_.on_mask &= ~bit;
@@ -48,36 +49,36 @@ void SaboCoverUICaboDriverBase::SetLED(LEDID id, LEDMode mode) {
 
   // Set new state
   switch (mode) {
-    case LEDMode::ON: leds_.on_mask |= bit; break;
-    case LEDMode::BLINK_SLOW: leds_.slow_blink_mask |= bit; break;
-    case LEDMode::BLINK_FAST: leds_.fast_blink_mask |= bit; break;
-    case LEDMode::OFF:
+    case LedMode::ON: leds_.on_mask |= bit; break;
+    case LedMode::BLINK_SLOW: leds_.slow_blink_mask |= bit; break;
+    case LedMode::BLINK_FAST: leds_.fast_blink_mask |= bit; break;
+    case LedMode::OFF:
     default: break;
   }
 }
 
 void SaboCoverUICaboDriverBase::PowerOnAnimation() {
   // All on
-  for (int i = 0; i < 5; ++i) SetLED(static_cast<LEDID>(i), LEDMode::ON);
+  for (int i = 0; i < 5; ++i) SetLed(static_cast<LedId>(i), LedMode::ON);
   ProcessLedStates();
   LatchLoad();
   chThdSleepMilliseconds(500);
 
   // All off
-  for (int i = 0; i < 5; ++i) SetLED(static_cast<LEDID>(i), LEDMode::OFF);
+  for (int i = 0; i < 5; ++i) SetLed(static_cast<LedId>(i), LedMode::OFF);
   ProcessLedStates();
   LatchLoad();
   chThdSleepMilliseconds(800);
 
   // Knight Rider
   for (int i = 0; i <= 5; i++) {
-    for (int j = 0; j < 5; ++j) SetLED(static_cast<LEDID>(j), (j < i) ? LEDMode::ON : LEDMode::OFF);
+    for (int j = 0; j < 5; ++j) SetLed(static_cast<LedId>(j), (j < i) ? LedMode::ON : LedMode::OFF);
     ProcessLedStates();
     LatchLoad();
     chThdSleepMilliseconds(100);
   }
   for (int i = 4; i >= 0; i--) {
-    for (int j = 0; j < 5; ++j) SetLED(static_cast<LEDID>(j), (j < i) ? LEDMode::ON : LEDMode::OFF);
+    for (int j = 0; j < 5; ++j) SetLed(static_cast<LedId>(j), (j < i) ? LedMode::ON : LedMode::OFF);
     ProcessLedStates();
     LatchLoad();
     chThdSleepMilliseconds(100);
@@ -119,7 +120,7 @@ void SaboCoverUICaboDriverBase::DebounceRawButtons(uint16_t raw_buttons) {
   btn_last_raw_mask_ = raw_buttons;
 }
 
-bool SaboCoverUICaboDriverBase::IsButtonPressed(ButtonID btn) const {
+bool SaboCoverUICaboDriverBase::IsButtonPressed(ButtonId btn) const {
   if (!series_) return false;
   auto btn_mask = series_->MapButtonIDToMask(btn);
   if (btn_mask == 0) return false;                                       // Unknown button ID = "not pressed"
@@ -129,6 +130,20 @@ bool SaboCoverUICaboDriverBase::IsButtonPressed(ButtonID btn) const {
 bool SaboCoverUICaboDriverBase::IsAnyButtonPressed() const {
   if (!series_) return false;
   return (btn_stable_raw_mask_ & series_->AllButtonsMask()) != series_->AllButtonsMask();  // low-active
+}
+
+uint16_t SaboCoverUICaboDriverBase::GetButtonsMask() const {
+  if (!series_) return 0;  // No buttons pressed if driver not ready
+
+  uint16_t standardized_mask = 0;
+  // Convert each button from series-specific format to standardized format
+  for (const auto& button_id : defs::ALL_BUTTONS) {
+    auto series_bit = series_->MapButtonIDToMask(button_id);
+    if (series_bit != 0 && (btn_stable_raw_mask_ & series_bit) == 0) {  // low-active: 0 = pressed
+      standardized_mask |= (1 << static_cast<uint16_t>(button_id));
+    }
+  }
+  return standardized_mask;  // 1 = pressed, 0 = not pressed
 }
 
 bool SaboCoverUICaboDriverBase::IsReady() const {
