@@ -2,6 +2,7 @@
 #define SABO_ROBOT_HPP
 
 #include <cstdint>
+#include <drivers/bms/sabo_bms_driver.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/input/sabo_input_driver.hpp>
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
@@ -13,6 +14,7 @@
 using namespace xbot::driver::ui;
 using namespace xbot::driver::motor;
 using namespace xbot::driver::sabo;
+using namespace xbot::driver::bms;
 
 class SaboRobot : public MowerRobot {
  public:
@@ -106,10 +108,18 @@ class SaboRobot : public MowerRobot {
     sabo_input_driver_.SetBlockButtons(block);
   }
 
+  // BMS debug access
+  void DumpBms() {
+    if (hardware_config.bms != nullptr) {
+      bms_.DumpDevice();
+    }
+  }
+
  private:
   BQ2576 charger_{};
   SaboCoverUIController cover_ui_{hardware_config};
   SaboInputDriver sabo_input_driver_{hardware_config};
+  SaboBmsDriver bms_{hardware_config.bms};
 };
 
 #endif  // SABO_ROBOT_HPP

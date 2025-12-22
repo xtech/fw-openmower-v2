@@ -62,11 +62,6 @@ void SaboCoverUIController::Start() {
     ULOG_ERROR("Sabo CoverUI Driver not set!");
     return;
   }
-
-  if (cabo_ == nullptr) {
-    ULOG_ERROR("Sabo CoverUI Driver not set!");
-    return;
-  }
   if (!cabo_->Init()) {
     ULOG_ERROR("Sabo CoverUI Driver initialization failed!");
     return;

@@ -14,6 +14,10 @@ void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
 }
 
+void PowerService::SetDriver(BmsDriver* bms_driver) {
+  bms_ = bms_driver;
+}
+
 bool PowerService::OnStart() {
   charger_configured_ = false;
   return true;
@@ -44,6 +48,13 @@ void PowerService::tick() {
   SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
   CommitTransaction();
 }
+
+void PowerService::drivers_tick() {
+  charger_tick();
+
+  if (bms_ != nullptr) bms_->Tick();
+}
+
 void PowerService::charger_tick() {
   if (charger_ == nullptr) {
     ULOG_ARG_ERROR(&service_id_, "Charger is null!");

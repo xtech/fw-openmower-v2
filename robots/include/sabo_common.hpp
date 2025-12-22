@@ -107,6 +107,10 @@ struct Lcd {
   } pins;
 };
 
+struct Bms {
+  I2CDriver* i2c;
+};
+
 // Individual hardware configurations
 inline const Sensor SENSORS_V0_1[] = {
     {LINE_GPIO13},  // LIFT_FL
@@ -120,6 +124,10 @@ inline const Sensor SENSORS_V0_3[] = {
     {LINE_GPIO11, true},  // STOP_TOP
 };
 
+#ifndef STM32_SPI_USE_SPI1
+#error STM32_SPI_USE_SPI1 must be enabled for CoverUI support
+#endif
+
 inline const CoverUi COVER_UI_V0_1 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
                                       .pins = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1, PAL_NOLINE}};
 
@@ -129,11 +137,18 @@ inline const CoverUi COVER_UI_V0_2 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_
 inline const Lcd LCD_V0_2 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, LINE_GPIO5}},
                              .pins = {LINE_AGPIO4, LINE_UART7_TX, LINE_GPIO3}};
 
+#ifndef STM32_SPI_USE_SPI2
+#error STM32_SPI_USE_SPI2 must be enabled for BMS support
+#endif
+
+inline const Bms BMS_V0_2 = {.i2c = &I2CD2};
+
 // Hardware configuration references
 struct HardwareConfig {
   etl::array_view<const Sensor> sensors;
   const CoverUi* cover_ui;
   const Lcd* lcd;
+  const Bms* bms;
 };
 
 // Hardware version to configuration array which need to be in sync with HardwareVersion enum
@@ -143,18 +158,21 @@ inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
         .sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
         .cover_ui = &COVER_UI_V0_1,
         .lcd = nullptr,  // No LCD for V0_1
+        .bms = nullptr,  // No BMS for V0_1
     },
     // V0_2
     {
         .sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
         .cover_ui = &COVER_UI_V0_2,
         .lcd = &LCD_V0_2,
+        .bms = &BMS_V0_2,
     },
     // V0_3
     {
         .sensors = etl::array_view<const Sensor>(SENSORS_V0_3),
         .cover_ui = &COVER_UI_V0_2,
         .lcd = &LCD_V0_2,
+        .bms = nullptr,  // No BMS for V0_3 yet
     },
 };
 }  // namespace config
