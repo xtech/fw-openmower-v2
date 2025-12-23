@@ -17,47 +17,70 @@
 #include "sabo_bms_driver.hpp"
 
 #include <ch.h>
+#include <ctype.h>
 #include <ulog.h>
 
 #include <cstdio>
 #include <cstring>
 
+#include "sbs_debug.hpp"
+
+#ifdef USE_SEGGER_RTT
+extern "C" {
+#include <SEGGER_RTT_streams.h>
+}
+#endif
+
 namespace xbot::driver::bms {
 
 namespace {
 
-// Convert civil date to days since Unix epoch (1970-01-01), proleptic Gregorian calendar.
-// Based on a well-known algorithm by Howard Hinnant.
-static int64_t DaysFromCivil(int32_t y, uint32_t m, uint32_t d) {
-  y -= (m <= 2);
-  const int32_t era = (y >= 0 ? y : y - 399) / 400;
-  const uint32_t yoe = (uint32_t)(y - era * 400);                                 // [0, 399]
-  const uint32_t doy = (153 * (m + (m > 2 ? (uint32_t)-3 : 9)) + 2) / 5 + d - 1;  // [0, 365]
-  const uint32_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;                     // [0, 146096]
-  return (int64_t)era * 146097 + (int64_t)doe - 719468;                           // 719468 = days to 1970-01-01
+static void BmsPrintLine(const char* line) {
+  if (line == nullptr) {
+    return;
+  }
+#ifdef USE_SEGGER_RTT
+  constexpr unsigned kRttUpIndex = 0;
+  (void)SEGGER_RTT_Write(kRttUpIndex, line, ::strlen(line));
+#else
+  ULOG_INFO("%s", line);
+#endif
 }
 
-static bool SbsMfgDateRawToEpochDays(uint16_t raw, uint16_t& out_days) {
-  const uint32_t day = raw & 0x1FU;
-  const uint32_t month = (raw >> 5) & 0x0FU;
-  const uint32_t year = 1980U + ((raw >> 9) & 0x7FU);
+static void PrintLineCb(void* /*ctx*/, const char* line) {
+  BmsPrintLine(line);
+}
 
-  if (year < 1970U || year > 2107U) return false;
-  if (month < 1U || month > 12U) return false;
-  if (day < 1U || day > 31U) return false;
-
-  const int64_t days = DaysFromCivil((int32_t)year, month, day);
-  if (days < 0 || days > 0xFFFF) return false;
-  out_days = (uint16_t)days;
-  return true;
+static uint32_t GetI2cErrorsCb(void* ctx) {
+  auto* i2c = static_cast<I2CDriver*>(ctx);
+  if (i2c == nullptr) return 0;
+  return i2cGetErrors(i2c);
 }
 
 }  // namespace
 
-// Define static member variable
-uint8_t SaboBmsDriver::rx_buffer_[SaboBmsDriver::READ_BUFFER_SIZE];
+SaboBmsDriver::SaboBmsDriver(const Bms* bms_cfg)
+    : bms_cfg_(bms_cfg),
+      sbs_(SbsProtocol::ReadByteFn::create<SaboBmsDriver, &SaboBmsDriver::SbsReadByte>(*this),
+           SbsProtocol::ReadWordFn::create<SaboBmsDriver, &SaboBmsDriver::SbsReadWord>(*this),
+           SbsProtocol::ReadInt16Fn::create<SaboBmsDriver, &SaboBmsDriver::SbsReadInt16>(*this),
+           SbsProtocol::ReadBlockFn::create<SaboBmsDriver, &SaboBmsDriver::SbsReadBlock>(*this)) {
+}
 
-SaboBmsDriver::SaboBmsDriver(const Bms* bms_cfg) : bms_cfg_(bms_cfg) {
+msg_t SaboBmsDriver::SbsReadByte(uint8_t cmd, uint8_t& out) {
+  return ReadRegister(cmd, out);
+}
+
+msg_t SaboBmsDriver::SbsReadWord(uint8_t cmd, uint16_t& out) {
+  return ReadRegister(cmd, out);
+}
+
+msg_t SaboBmsDriver::SbsReadInt16(uint8_t cmd, int16_t& out) {
+  return ReadRegister(cmd, out);
+}
+
+msg_t SaboBmsDriver::SbsReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity, size_t& out_len) {
+  return ReadBlock(cmd, data, data_capacity, out_len);
 }
 
 bool SaboBmsDriver::Init() {
@@ -81,156 +104,207 @@ void SaboBmsDriver::Tick() {
   if (!configured_ || (!present_ && !check_cnt)) return;
 
   if (!present_) {
+    present_ = probe();
     check_cnt--;
+    if (!present_) {
+      ULOG_INFO("BMS probe failed at I2C addr 0x%02X (%d tries left)", (unsigned)DEVICE_ADDRESS, (unsigned)check_cnt);
+      return;
+    } else {
+      size_t len = 0;
 
-    size_t len = 0;
+      // Read some static generic data which will not change during runtime
 
-    // Read some static generic data which will not change during runtime and use that also as presence probe
-    // ManufacturerName (0x20) block
-    if (ReadBlock(0x20, reinterpret_cast<uint8_t*>(data_.mfr_name), sizeof(data_.mfr_name), len) == MSG_OK)
-      present_ = true;
+      // ManufacturerName (0x20) block
+      sbs_.ReadBlock(SbsProtocol::Command::ManufacturerName, reinterpret_cast<uint8_t*>(data_.mfr_name),
+                     sizeof(data_.mfr_name), len);
+      rtrim(data_.mfr_name);
 
-    // DeviceName (0x21) block
-    if (ReadBlock(0x21, reinterpret_cast<uint8_t*>(data_.dev_name), sizeof(data_.dev_name), len) == MSG_OK)
-      present_ = true;
+      // DeviceName (0x21) block
+      sbs_.ReadBlock(SbsProtocol::Command::DeviceName, reinterpret_cast<uint8_t*>(data_.dev_name),
+                     sizeof(data_.dev_name), len);
+      rtrim(data_.dev_name);
 
-    // DeviceChemistry (0x22) block
-    if (ReadBlock(0x22, reinterpret_cast<uint8_t*>(data_.dev_chemistry), sizeof(data_.dev_chemistry), len) == MSG_OK)
-      present_ = true;
+      // DeviceChemistry (0x22) block
+      sbs_.ReadBlock(SbsProtocol::Command::DeviceChemistry, reinterpret_cast<uint8_t*>(data_.dev_chemistry),
+                     sizeof(data_.dev_chemistry), len);
+      rtrim(data_.dev_chemistry);
 
-    uint16_t tmp_uint16;
+      uint16_t tmp_uint16 = 0;
 
-    // ManufacturerDate (0x1B) word
-    if (ReadRegister(0x1B, tmp_uint16) == MSG_OK) {
-      uint16_t days = 0;
-      if (SbsMfgDateRawToEpochDays(tmp_uint16, days)) {
-        data_.mfr_date = days;
+      // ManufacturerDate (0x1B) word
+      if (sbs_.ReadWord(SbsProtocol::Command::ManufacturerDate, tmp_uint16) == MSG_OK) {
+        uint16_t days = 0;
+        if (SbsProtocol::ManufacturerDateRawToEpochDays(tmp_uint16, days)) {
+          data_.mfr_date = days;
+        }
       }
-      present_ = true;
-    }
 
-    // SerialNumber (0x1C) word
-    if (ReadRegister(0x1C, tmp_uint16) == MSG_OK) {
-      data_.serial_number = tmp_uint16;
-      present_ = true;
-    }
+      // SerialNumber (0x1C) word
+      if (sbs_.ReadWord(SbsProtocol::Command::SerialNumber, tmp_uint16) == MSG_OK) {
+        data_.serial_number = tmp_uint16;
+      }
 
-  } else {
-    asm volatile("nop");
+      // DesignCapacity (0x18) word
+      if (sbs_.ReadWord(SbsProtocol::Command::DesignCapacity, tmp_uint16) == MSG_OK) {
+        data_.design_capacity_mah = tmp_uint16;
+      }
+
+      // DesignVoltage (0x19) word
+      if (sbs_.ReadWord(SbsProtocol::Command::DesignVoltage, tmp_uint16) == MSG_OK) {
+        data_.design_voltage_mv = tmp_uint16;
+      }
+
+      ULOG_INFO("BMS '%s, %s, %s, S/N %u' found at I2C addr 0x%02X", data_.mfr_name, data_.dev_name,
+                data_.dev_chemistry, (unsigned)data_.serial_number, (unsigned)DEVICE_ADDRESS);
+    }
   }
 
-  //(void)Poll();
+  // Read dynamic data (update only when value is >0 / !=0)
+  uint16_t u16 = 0;
+  int16_t i16 = 0;
+
+  // Voltage (0x09) word: mV
+  if (sbs_.ReadWord(SbsProtocol::Command::Voltage, u16) == MSG_OK && u16 > 0U) {
+    data_.pack_voltage_mv = u16;
+  }
+
+  // Current (0x0A) word: pack-specific scaling (10 mA/LSB observed)
+  if (sbs_.ReadInt16(SbsProtocol::Command::Current, i16) == MSG_OK && i16 != 0) {
+    data_.pack_current_ma = ScaleCurrentRawToMilliA(i16);
+  }
+
+  // Temperature (0x08) word: 0.1 Kelvin
+  if (ReadRegister(0x08, u16) == MSG_OK && u16 > 0U) {
+    data_.temperature_centi_c = (int32_t)u16 * 10 - 27315;
+  }
+
+  // Relative SoC (0x0D) word: percent
+  if (ReadRegister(0x0D, u16) == MSG_OK && u16 > 0U) {
+    data_.rel_soc_percent = u16;
+  }
+
+  // RemainingCapacity (0x0F) word: mAh
+  if (ReadRegister(0x0F, u16) == MSG_OK && u16 > 0U) {
+    data_.remaining_capacity_mah = u16;
+  }
+
+  // FullChargeCapacity (0x10) word: mAh
+  if (ReadRegister(0x10, u16) == MSG_OK && u16 > 0U) {
+    data_.full_charge_capacity_mah = u16;
+  }
+
+  // BatteryStatus (0x16) word
+  if (ReadRegister(0x16, u16) == MSG_OK && u16 > 0U) {
+    data_.battery_status = u16;
+  }
+
+  // CycleCount (0x17) word
+  if (ReadRegister(0x17, u16) == MSG_OK && u16 > 0U) {
+    data_.cycle_count = u16;
+  }
+
+  // Per-cell voltages: vendor-specific 0x3C..0x42, mV
+  for (uint8_t i = 0; i < 7U; i++) {
+    const uint8_t cmd = (uint8_t)(0x3CU + i);
+    uint16_t mv = 0;
+    if (ReadRegister(cmd, mv) == MSG_OK && mv > 0U) {
+      data_.cell_mv[i] = mv;
+    }
+  }
+}
+
+bool SaboBmsDriver::probe() {
+  if (!configured_ || bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr) return false;
+
+  msg_t msg = MSG_RESET;
+
+  // Voltage (0x09) word
+  uint16_t battery_voltage = 0;
+  msg = sbs_.ReadWord(SbsProtocol::Command::Voltage, battery_voltage);
+  if (msg == MSG_OK && battery_voltage > 0) {
+    return true;
+  }
+
+  // BatteryStatus (0x16) word
+  uint16_t battery_status = 0;
+  msg = sbs_.ReadWord(SbsProtocol::Command::BatteryStatus, battery_status);
+  if (msg == MSG_OK && battery_status != 0x00) {
+    return true;
+  }
+
+  return false;
 }
 
 bool SaboBmsDriver::DumpDevice() {
-  return debug::DumpDevice(*this);
-}
-
-bool SaboBmsDriver::ReadPackVoltageMilliV(uint16_t& out_mv) {
-  return ReadSbsVoltageMilliV(0x09, out_mv);
-}
-
-bool SaboBmsDriver::ReadPackCurrentMilliA(int16_t& out_ma) {
-  return ReadSbsCurrentMilliA(0x0A, out_ma);
-}
-
-bool SaboBmsDriver::ReadTemperatureCentiC(int32_t& out_centi_c) {
-  return ReadSbsTemperatureCentiC(0x08, out_centi_c);
-}
-
-bool SaboBmsDriver::ReadRelativeSoCPercent(uint16_t& out_percent) {
-  return ReadRegister(0x0D, out_percent) == MSG_OK;
-}
-
-bool SaboBmsDriver::ReadRemainingCapacityMilliAh(uint16_t& out_mah) {
-  return ReadSbsCapacityMilliAh(0x0F, out_mah);
-}
-
-bool SaboBmsDriver::ReadFullChargeCapacityMilliAh(uint16_t& out_mah) {
-  return ReadSbsCapacityMilliAh(0x10, out_mah);
-}
-
-bool SaboBmsDriver::ReadCycleCount(uint16_t& out_cycles) {
-  return ReadRegister(0x17, out_cycles) == MSG_OK;
-}
-
-bool SaboBmsDriver::ReadCellVoltagesMilliV(uint16_t out_mv[7]) {
-  if (out_mv == nullptr) return false;
-
-  bool any_ok = false;
-  for (uint8_t i = 0; i < 7U; i++) {
-    uint16_t mv = 0;
-    const msg_t msg = ReadRegister((uint8_t)(0x3CU + i), mv);
-    const bool ok = (msg == MSG_OK);
-    out_mv[i] = ok ? mv : 0U;
-    any_ok = any_ok || ok;
-  }
-
-  return any_ok;
-}
-
-bool SaboBmsDriver::Poll() {
-  if (!present_) return false;
-  if (bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr) return false;
-
-  // Reset validity flags; keep last values only if re-read succeeds.
-  snapshot_ = DynamicSnapshot{};
-
-  bool any_ok = false;
-
-  struct WordReg {
-    uint8_t cmd;
-    uint16_t* dst;
-    bool* valid;
-  };
-
-  // One loop for the simple word registers.
-  WordReg regs[] = {
-      {0x09, &snapshot_.pack_voltage_mv, &snapshot_.valid_pack_voltage},
-      {0x0D, &snapshot_.rel_soc_percent, &snapshot_.valid_rel_soc},
-      {0x0F, &snapshot_.remaining_capacity_mah, &snapshot_.valid_remaining_capacity},
-      {0x10, &snapshot_.full_charge_capacity_mah, &snapshot_.valid_full_charge_capacity},
-      {0x17, &snapshot_.cycle_count, &snapshot_.valid_cycle_count},
-  };
-
-  for (size_t i = 0; i < (sizeof(regs) / sizeof(regs[0])); i++) {
-    uint16_t v = 0;
-    const bool ok = (ReadRegister(regs[i].cmd, v) == MSG_OK);
-    *regs[i].valid = ok;
-    *regs[i].dst = ok ? v : 0U;
-    any_ok = any_ok || ok;
-  }
-
-  // Special decodes: temperature + current.
-  {
-    uint16_t raw = 0;
-    const bool ok = (ReadRegister(0x08, raw) == MSG_OK);
-    snapshot_.valid_temperature = ok;
-    snapshot_.temperature_centi_c = ok ? ((int32_t)raw * 10 - 27315) : 0;
-    any_ok = any_ok || ok;
+  if (bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr) {
+    return false;
   }
 
   {
-    uint16_t raw_u = 0;
-    const bool ok = (ReadRegister(0x0A, raw_u) == MSG_OK);
-    snapshot_.valid_pack_current = ok;
-    snapshot_.pack_current_ma = ok ? ScaleCurrentRawToMilliA((int16_t)raw_u) : 0;
-    any_ok = any_ok || ok;
+    char line[128];
+    std::snprintf(line, sizeof(line), "BMS dump addr=0x%02X\r\n", (unsigned)DEVICE_ADDRESS);
+    BmsPrintLine(line);
   }
 
+  debug::SbsDebugCallbacks cb{};
+  cb.ctx = bms_cfg_->i2c;
+  cb.print_line = &PrintLineCb;
+  cb.get_i2c_errors = &GetI2cErrorsCb;
+
+  debug::SbsDebugOptions opt{};
+  opt.include_cmd_scan = true;
+  opt.list_unknown_nonzero = true;
+  opt.suppress_cmds_0x3c_0x42 = true;  // printed separately as cell voltages
+
+  if (!debug::DumpSbsDevice(sbs_, cb, opt)) {
+    return false;
+  }
+
+  // Vendor-specific: observed per-cell voltages (mV) at 0x3C..0x42 (7 values for 7S packs).
   {
-    bool cells_any_ok = false;
+    BmsPrintLine("BMS cell voltages cmds 0x3C..0x42\r\n");
+
+    bool all_ok = true;
+    uint32_t sum_mv = 0;
+    uint16_t min_mv = 0xFFFFU;
+    uint16_t max_mv = 0U;
+
     for (uint8_t i = 0; i < 7U; i++) {
+      const uint8_t reg = (uint8_t)(0x3CU + i);
       uint16_t mv = 0;
-      const bool ok = (ReadRegister((uint8_t)(0x3CU + i), mv) == MSG_OK);
-      snapshot_.cell_mv[i] = ok ? mv : 0U;
-      cells_any_ok = cells_any_ok || ok;
+      const msg_t msg = ReadRegister(reg, mv);
+      const bool ok = (msg == MSG_OK);
+      all_ok = all_ok && ok;
+
+      if (ok) {
+        sum_mv += mv;
+        min_mv = (mv < min_mv) ? mv : min_mv;
+        max_mv = (mv > max_mv) ? mv : max_mv;
+      }
+
+      char line[160];
+      if (!ok) {
+        std::snprintf(line, sizeof(line), "  Cell%u (0x%02X) NACK msg=%d\r\n", (unsigned)(i + 1U), (unsigned)reg,
+                      (int)msg);
+      } else {
+        std::snprintf(line, sizeof(line), "  Cell%u (0x%02X) ACK  = %u mV = %lu.%03lu V\r\n", (unsigned)(i + 1U),
+                      (unsigned)reg, (unsigned)mv, (unsigned long)((uint32_t)mv / 1000U),
+                      (unsigned long)((uint32_t)mv % 1000U));
+      }
+      BmsPrintLine(line);
     }
-    snapshot_.valid_cell_voltages = cells_any_ok;
-    any_ok = any_ok || cells_any_ok;
+
+    if (all_ok) {
+      const uint16_t delta_mv = (uint16_t)(max_mv - min_mv);
+      char line[192];
+      std::snprintf(line, sizeof(line), "  CellSum=%lu.%03lu V  Min=%u  Max=%u  Delta=%u mV\r\n",
+                    (unsigned long)(sum_mv / 1000U), (unsigned long)(sum_mv % 1000U), (unsigned)min_mv,
+                    (unsigned)max_mv, (unsigned)delta_mv);
+      BmsPrintLine(line);
+    }
   }
 
-  return any_ok;
+  return true;
 }
 
 msg_t SaboBmsDriver::ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len) {
@@ -330,40 +404,14 @@ int16_t SaboBmsDriver::ScaleCurrentRawToMilliA(int16_t raw) {
   return (int16_t)scaled;
 }
 
-bool SaboBmsDriver::ReadSbsTemperatureCentiC(uint8_t cmd, int32_t& out_centi_c) {
-  uint16_t raw = 0;
-  return ReadSbsTemperature(cmd, raw, out_centi_c);
-}
+void SaboBmsDriver::rtrim(char* str) {
+  if (*str == 0) return;
 
-bool SaboBmsDriver::ReadSbsTemperature(uint8_t cmd, uint16_t& out_raw, int32_t& out_centi_c) {
-  // SBS temperature: 0.1 Kelvin
-  if (ReadRegister(cmd, out_raw) != MSG_OK) return false;
-  // C*100 = raw*10 - 27315
-  out_centi_c = (int32_t)out_raw * 10 - 27315;
-  return true;
-}
+  // Trailing spaces
+  char* end = str + strlen(str) - 1;
+  while (end > str && isspace((unsigned char)*end)) end--;
 
-bool SaboBmsDriver::ReadSbsVoltageMilliV(uint8_t cmd, uint16_t& out_mv) {
-  // SBS voltage: mV
-  return ReadRegister(cmd, out_mv) == MSG_OK;
-}
-
-bool SaboBmsDriver::ReadSbsCurrentMilliA(uint8_t cmd, int16_t& out_ma) {
-  // Pack-specific: observed current appears to be 10 mA/LSB (not 1 mA/LSB).
-  int16_t raw = 0;
-  if (ReadRegister(cmd, raw) != MSG_OK) return false;
-
-  out_ma = ScaleCurrentRawToMilliA(raw);
-  return true;
-}
-
-bool SaboBmsDriver::ReadSbsCapacityMilliAh(uint8_t cmd, uint16_t& out_mah) {
-  // SBS capacity: mAh
-  return ReadRegister(cmd, out_mah) == MSG_OK;
-}
-
-bool SaboBmsDriver::ReadSbsMinutes(uint8_t cmd, uint16_t& out_minutes) {
-  return ReadRegister(cmd, out_minutes) == MSG_OK;
+  end[1] = '\0';
 }
 
 }  // namespace xbot::driver::bms
