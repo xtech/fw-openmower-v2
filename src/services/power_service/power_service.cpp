@@ -6,6 +6,8 @@
 
 #include <ulog.h>
 
+#include <cstdio>
+#include <cstring>
 #include <globals.hpp>
 
 #include "board.h"
@@ -46,6 +48,30 @@ void PowerService::tick() {
                       (robot->Power_GetDefaultBatteryFullVoltage() - robot->Power_GetDefaultBatteryEmptyVoltage());
   }
   SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
+
+  // BMS values
+  {
+    const char* extra = (bms_ != nullptr) ? bms_->GetExtraDataJson() : "";
+    SendBMSExtraData(extra, (uint32_t)strlen(extra));
+  }
+
+  if (bms_ != nullptr && bms_->IsPresent()) {
+    const auto* data = bms_->GetData();
+    if (data != nullptr) {
+      SendChargeCurrentBMS(data->pack_current_a);
+      SendBatteryVoltageBMS(data->pack_voltage_v);
+      SendBatteryPercentageBMS(data->battery_percentage);
+
+      SendBatteryStatusBMS(data->battery_status);
+    }
+  } else {
+    constexpr float kZero = 0.0f;
+    SendChargeCurrentBMS(kZero);
+    SendBatteryVoltageBMS(kZero);
+    SendBatteryPercentageBMS(kZero);
+    SendBatteryStatusBMS((uint16_t)0);
+  }
+
   CommitTransaction();
 }
 

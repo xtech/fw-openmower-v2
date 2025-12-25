@@ -35,42 +35,20 @@ namespace xbot::driver::bms {
  */
 class SaboBmsDriver : public BmsDriver {
  public:
-  struct Data {
-    // Static values (read only once in Tick())
-    char mfr_name[33]{};             // Read only once
-    uint16_t mfr_date{};             // Days since 1970-01-01 (UTC), read only once
-    char dev_name[33]{};             // Read only once
-    char dev_chemistry[33]{};        // Read only once
-    uint16_t serial_number = 0;      // Read only once
-    uint16_t design_capacity_mah{};  // Read only once
-    uint16_t design_voltage_mv{};    // Read only once
-
-    // Dynamic values (updated in Tick())
-    uint16_t pack_voltage_mv{};
-    int16_t pack_current_ma{};
-    int32_t temperature_centi_c{};
-    uint16_t rel_soc_percent{};
-    uint16_t remaining_capacity_mah{};
-    uint16_t full_charge_capacity_mah{};
-    uint16_t cycle_count{};
-    uint16_t battery_status{};
-    uint16_t cell_mv[7]{};
-  };
+  static constexpr uint8_t kCellCount = 7;
 
   /**
    * @brief Constructor
-   * @param bms_cfg Pointer to BMS hardware configuration
+   * @param bms_cfg Pointer to Sabo-BMS hardware configuration
    */
   explicit SaboBmsDriver(const Bms* bms_cfg);
 
   bool Init() override;
   void Tick() override;
 
-  bool DumpDevice();
+  const char* GetExtraDataJson() const override;
 
-  const Data& GetData() const {
-    return data_;
-  }
+  bool DumpDevice();
 
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x0B;
@@ -79,10 +57,7 @@ class SaboBmsDriver : public BmsDriver {
   SbsProtocol sbs_{};
 
   bool configured_{false};
-
-  bool present_{false};
   bool probe();
-  Data data_{};
 
   static constexpr unsigned i2c_retries = 3;
   static constexpr unsigned i2c_retry_delay_ms = 2;

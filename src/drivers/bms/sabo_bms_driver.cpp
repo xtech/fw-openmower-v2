@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "json_utils.hpp"
 #include "sbs_debug.hpp"
 
 #ifdef USE_SEGGER_RTT
@@ -30,6 +31,8 @@ extern "C" {
 #include <SEGGER_RTT_streams.h>
 }
 #endif
+
+using namespace xbot::json;
 
 namespace xbot::driver::bms {
 
@@ -60,7 +63,8 @@ static uint32_t GetI2cErrorsCb(void* ctx) {
 }  // namespace
 
 SaboBmsDriver::SaboBmsDriver(const Bms* bms_cfg)
-    : bms_cfg_(bms_cfg),
+    : BmsDriver(kCellCount),
+      bms_cfg_(bms_cfg),
       sbs_(SbsProtocol::ReadByteFn::create<SaboBmsDriver, &SaboBmsDriver::SbsReadByte>(*this),
            SbsProtocol::ReadWordFn::create<SaboBmsDriver, &SaboBmsDriver::SbsReadWord>(*this),
            SbsProtocol::ReadInt16Fn::create<SaboBmsDriver, &SaboBmsDriver::SbsReadInt16>(*this),
@@ -101,12 +105,12 @@ bool SaboBmsDriver::Init() {
 void SaboBmsDriver::Tick() {
   static uint8_t check_cnt = 10;  // Need some retries to detect presence
 
-  if (!configured_ || (!present_ && !check_cnt)) return;
+  if (!configured_ || (!IsPresent() && !check_cnt)) return;
 
-  if (!present_) {
-    present_ = probe();
+  if (!IsPresent()) {
+    SetPresent(probe());
     check_cnt--;
-    if (!present_) {
+    if (!IsPresent()) {
       ULOG_INFO("BMS probe failed at I2C addr 0x%02X (%d tries left)", (unsigned)DEVICE_ADDRESS, (unsigned)check_cnt);
       return;
     } else {
@@ -135,7 +139,7 @@ void SaboBmsDriver::Tick() {
       if (sbs_.ReadWord(SbsProtocol::Command::ManufacturerDate, tmp_uint16) == MSG_OK) {
         uint16_t days = 0;
         if (SbsProtocol::ManufacturerDateRawToEpochDays(tmp_uint16, days)) {
-          data_.mfr_date = days;
+          data_.mfr_date_days_utc = days;
         }
       }
 
@@ -146,12 +150,12 @@ void SaboBmsDriver::Tick() {
 
       // DesignCapacity (0x18) word
       if (sbs_.ReadWord(SbsProtocol::Command::DesignCapacity, tmp_uint16) == MSG_OK) {
-        data_.design_capacity_mah = tmp_uint16;
+        data_.design_capacity_ah = (float)tmp_uint16 / 1000.0f;
       }
 
       // DesignVoltage (0x19) word
       if (sbs_.ReadWord(SbsProtocol::Command::DesignVoltage, tmp_uint16) == MSG_OK) {
-        data_.design_voltage_mv = tmp_uint16;
+        data_.design_voltage_v = (float)tmp_uint16 / 1000.0f;
       }
 
       ULOG_INFO("BMS '%s, %s, %s, S/N %u' found at I2C addr 0x%02X", data_.mfr_name, data_.dev_name,
@@ -165,32 +169,35 @@ void SaboBmsDriver::Tick() {
 
   // Voltage (0x09) word: mV
   if (sbs_.ReadWord(SbsProtocol::Command::Voltage, u16) == MSG_OK && u16 > 0U) {
-    data_.pack_voltage_mv = u16;
+    data_.pack_voltage_v = (float)u16 / 1000.0f;
   }
 
   // Current (0x0A) word: pack-specific scaling (10 mA/LSB observed)
   if (sbs_.ReadInt16(SbsProtocol::Command::Current, i16) == MSG_OK && i16 != 0) {
-    data_.pack_current_ma = ScaleCurrentRawToMilliA(i16);
+    data_.pack_current_a = (float)ScaleCurrentRawToMilliA(i16) / 1000.0f;
   }
 
   // Temperature (0x08) word: 0.1 Kelvin
   if (ReadRegister(0x08, u16) == MSG_OK && u16 > 0U) {
-    data_.temperature_centi_c = (int32_t)u16 * 10 - 27315;
+    data_.temperature_c = ((float)u16 * 0.1f) - 273.15f;
   }
 
   // Relative SoC (0x0D) word: percent
   if (ReadRegister(0x0D, u16) == MSG_OK && u16 > 0U) {
-    data_.rel_soc_percent = u16;
+    float soc = (float)u16 / 100.0f;
+    if (soc < 0.0f) soc = 0.0f;
+    if (soc > 1.0f) soc = 1.0f;
+    data_.battery_percentage = soc;
   }
 
   // RemainingCapacity (0x0F) word: mAh
   if (ReadRegister(0x0F, u16) == MSG_OK && u16 > 0U) {
-    data_.remaining_capacity_mah = u16;
+    data_.remaining_capacity_ah = (float)u16 / 1000.0f;
   }
 
   // FullChargeCapacity (0x10) word: mAh
   if (ReadRegister(0x10, u16) == MSG_OK && u16 > 0U) {
-    data_.full_charge_capacity_mah = u16;
+    data_.full_charge_capacity_ah = (float)u16 / 1000.0f;
   }
 
   // BatteryStatus (0x16) word
@@ -204,13 +211,45 @@ void SaboBmsDriver::Tick() {
   }
 
   // Per-cell voltages: vendor-specific 0x3C..0x42, mV
-  for (uint8_t i = 0; i < 7U; i++) {
+  const uint8_t cell_count = (data_.cell_count > (uint8_t)kMaxCells) ? (uint8_t)kMaxCells : data_.cell_count;
+  for (uint8_t i = 0; i < cell_count; i++) {
     const uint8_t cmd = (uint8_t)(0x3CU + i);
     uint16_t mv = 0;
     if (ReadRegister(cmd, mv) == MSG_OK && mv > 0U) {
-      data_.cell_mv[i] = mv;
+      data_.cell_voltage_v[i] = (float)mv / 1000.0f;
     }
   }
+}
+
+const char* SaboBmsDriver::GetExtraDataJson() const {
+  static char json_buf[256];
+
+  json_buf[0] = '\0';
+
+  if (!IsPresent()) {
+    return json_buf;
+  }
+
+  char mfr_esc[80] = {0};
+  char dev_esc[80] = {0};
+  char chem_esc[80] = {0};
+
+  EscapeStringInto(data_.mfr_name, mfr_esc, sizeof(mfr_esc));
+  EscapeStringInto(data_.dev_name, dev_esc, sizeof(dev_esc));
+  EscapeStringInto(data_.dev_chemistry, chem_esc, sizeof(chem_esc));
+
+  const int n =
+      std::snprintf(json_buf, sizeof(json_buf),
+                    "{\"mfr\":\"%s\",\"dev\":\"%s\",\"chem\":\"%s\",\"date_days\":%u,\"sn\":%u,\"design_"
+                    "capacity_ah\":%.3f,\"design_voltage_v\":%.3f}",
+                    mfr_esc, dev_esc, chem_esc, (unsigned)data_.mfr_date_days_utc, (unsigned)data_.serial_number,
+                    (double)data_.design_capacity_ah, (double)data_.design_voltage_v);
+
+  if (n <= 0) {
+    json_buf[0] = '\0';
+  }
+
+  return json_buf;
 }
 
 bool SaboBmsDriver::probe() {
