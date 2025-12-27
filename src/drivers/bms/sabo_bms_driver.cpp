@@ -11,12 +11,13 @@
  * @file sabo_bms_driver.cpp
  * @brief Sabo BMS driver implementation
  * @author Apehaenger <joerg@ebeling.ws>
- * @date 2025-12-20
+ * @date 2025-12-27
  */
 
 #include "sabo_bms_driver.hpp"
 
 #include <ch.h>
+#include <chprintf.h>
 #include <ctype.h>
 #include <ulog.h>
 
@@ -129,18 +130,17 @@ void SaboBmsDriver::Tick() {
       rtrim(data_.dev_name);
 
       // DeviceChemistry (0x22) block
-      sbs_.ReadBlock(SbsProtocol::Command::DeviceChemistry, reinterpret_cast<uint8_t*>(data_.dev_chemistry),
-                     sizeof(data_.dev_chemistry), len);
-      rtrim(data_.dev_chemistry);
+      // "FSM-BMZ, 30710, V2.00" has some kind of version string in it
+      sbs_.ReadBlock(SbsProtocol::Command::DeviceChemistry, reinterpret_cast<uint8_t*>(data_.dev_version),
+                     sizeof(data_.dev_version), len);
+      rtrim(data_.dev_version);
+      chsnprintf(data_.dev_chemistry, sizeof(data_.dev_chemistry), "LION");
 
       uint16_t tmp_uint16 = 0;
 
       // ManufacturerDate (0x1B) word
       if (sbs_.ReadWord(SbsProtocol::Command::ManufacturerDate, tmp_uint16) == MSG_OK) {
-        uint16_t days = 0;
-        if (SbsProtocol::ManufacturerDateRawToEpochDays(tmp_uint16, days)) {
-          data_.mfr_date_days_utc = days;
-        }
+        SbsProtocol::SbsDateToYMDString(tmp_uint16, data_.mfr_date, sizeof(data_.mfr_date));
       }
 
       // SerialNumber (0x1C) word
@@ -167,27 +167,27 @@ void SaboBmsDriver::Tick() {
   uint16_t u16 = 0;
   int16_t i16 = 0;
 
+  // Temperature (0x08) word: 0.1 Kelvin
+  if (ReadRegister(0x08, u16) == MSG_OK && u16 > 0U) {
+    data_.temperature_c = ((float)u16 * 0.1f) - 273.15f;
+  }
+
   // Voltage (0x09) word: mV
   if (sbs_.ReadWord(SbsProtocol::Command::Voltage, u16) == MSG_OK && u16 > 0U) {
     data_.pack_voltage_v = (float)u16 / 1000.0f;
   }
 
   // Current (0x0A) word: pack-specific scaling (10 mA/LSB observed)
-  if (sbs_.ReadInt16(SbsProtocol::Command::Current, i16) == MSG_OK && i16 != 0) {
+  if (sbs_.ReadInt16(SbsProtocol::Command::Current, i16) == MSG_OK) {
     data_.pack_current_a = (float)ScaleCurrentRawToMilliA(i16) / 1000.0f;
   }
 
-  // Temperature (0x08) word: 0.1 Kelvin
-  if (ReadRegister(0x08, u16) == MSG_OK && u16 > 0U) {
-    data_.temperature_c = ((float)u16 * 0.1f) - 273.15f;
-  }
-
   // Relative SoC (0x0D) word: percent
-  if (ReadRegister(0x0D, u16) == MSG_OK && u16 > 0U) {
+  if (ReadRegister(0x0D, u16) == MSG_OK) {
     float soc = (float)u16 / 100.0f;
     if (soc < 0.0f) soc = 0.0f;
     if (soc > 1.0f) soc = 1.0f;
-    data_.battery_percentage = soc;
+    data_.battery_soc = soc;
   }
 
   // RemainingCapacity (0x0F) word: mAh
@@ -201,8 +201,24 @@ void SaboBmsDriver::Tick() {
   }
 
   // BatteryStatus (0x16) word
-  if (ReadRegister(0x16, u16) == MSG_OK && u16 > 0U) {
-    data_.battery_status = u16;
+  // "FSM-BMZ, 30710, V2.00" seem to support only some of the status bits.
+  if (ReadRegister(0x16, u16) == MSG_OK) {
+    // Bit 7-6 looks like a CHARGING flag => /DISCHARGING
+    ((u16 & 0b11000000) && data_.pack_current_a > 0.0f)
+        ? SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusDischarging)
+        : SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusDischarging);
+    // Bit 5 looks like a /FULLY_CHARGED flag
+    (u16 & 0b00100000)
+        ? SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged)
+        : SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged);
+    // Bit 1 looks like a FULLY_DISCHARGED flag, SoC < 20% ?
+    (u16 & 0b00000010)
+        ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyDischarged)
+        : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyDischarged);
+    // Bit 0 looks like a TERMINATE_DISCHARGE_ALARM flag, SoC < 5% ?
+    (u16 & 0b00000001)
+        ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge)
+        : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge);
   }
 
   // CycleCount (0x17) word
@@ -222,7 +238,8 @@ void SaboBmsDriver::Tick() {
 }
 
 const char* SaboBmsDriver::GetExtraDataJson() const {
-  static char json_buf[256];
+  // FIXME: Quite large JSON buffer. Optimize as streamed output?
+  static char json_buf[512];
 
   json_buf[0] = '\0';
 
@@ -230,22 +247,43 @@ const char* SaboBmsDriver::GetExtraDataJson() const {
     return json_buf;
   }
 
-  char mfr_esc[80] = {0};
-  char dev_esc[80] = {0};
-  char chem_esc[80] = {0};
+  int chars = 0;
+  char esc_str[60] = {0};
 
-  EscapeStringInto(data_.mfr_name, mfr_esc, sizeof(mfr_esc));
-  EscapeStringInto(data_.dev_name, dev_esc, sizeof(dev_esc));
-  EscapeStringInto(data_.dev_chemistry, chem_esc, sizeof(chem_esc));
+  EscapeStringInto(data_.mfr_name, esc_str, sizeof(esc_str));
+  chars += chsnprintf(json_buf, sizeof(json_buf), "{\"mfr_name\":\"%s\"", esc_str);
 
-  const int n =
-      std::snprintf(json_buf, sizeof(json_buf),
-                    "{\"mfr\":\"%s\",\"dev\":\"%s\",\"chem\":\"%s\",\"date_days\":%u,\"sn\":%u,\"design_"
-                    "capacity_ah\":%.3f,\"design_voltage_v\":%.3f}",
-                    mfr_esc, dev_esc, chem_esc, (unsigned)data_.mfr_date_days_utc, (unsigned)data_.serial_number,
-                    (double)data_.design_capacity_ah, (double)data_.design_voltage_v);
+  // Manufacturer date: already formatted as YYYY-MM-DD.
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"mfr_date\":\"%s\"", data_.mfr_date);
 
-  if (n <= 0) {
+  EscapeStringInto(data_.dev_name, esc_str, sizeof(esc_str));
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"dev_name\":\"%s\"", esc_str);
+
+  EscapeStringInto(data_.dev_version, esc_str, sizeof(esc_str));
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"dev_version\":\"%s\"", esc_str);
+
+  EscapeStringInto(data_.dev_chemistry, esc_str, sizeof(esc_str));
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"dev_chemistry\":\"%s\"", esc_str);
+
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars,
+                      ",\"serial_number\":%u,\"design_capacity_ah\":%.3f,\"design_voltage_v\":%.3f",
+                      (unsigned)data_.serial_number, (double)data_.design_capacity_ah, (double)data_.design_voltage_v);
+
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars,
+                      ",\"full_charge_capacity_ah\":%.3f,\"remaining_capacity_ah\":%.3f,\"cycle_count\":%u",
+                      (double)data_.full_charge_capacity_ah, (double)data_.remaining_capacity_ah,
+                      (unsigned)data_.cycle_count);
+
+  // Cell voltages
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"cell_count\":%u,\"cell_voltage_v\": [",
+                      (unsigned)data_.cell_count);
+  for (uint8_t i = 0; i < data_.cell_count; i++) {
+    chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, "%.3f%s", (double)data_.cell_voltage_v[i],
+                        (i + 1U < data_.cell_count) ? "," : "");
+  }
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, "]}");
+
+  if (chars <= 0) {
     json_buf[0] = '\0';
   }
 
@@ -267,7 +305,7 @@ bool SaboBmsDriver::probe() {
   // BatteryStatus (0x16) word
   uint16_t battery_status = 0;
   msg = sbs_.ReadWord(SbsProtocol::Command::BatteryStatus, battery_status);
-  if (msg == MSG_OK && battery_status != 0x00) {
+  if (msg == MSG_OK) {
     return true;
   }
 

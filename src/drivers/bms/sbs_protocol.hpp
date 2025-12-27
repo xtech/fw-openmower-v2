@@ -9,13 +9,17 @@
  * @file sbs_protocol.hpp
  * @brief SBS protocol helper implementation
  * @author Apehaenger <joerg@ebeling.ws>
- * @date 2025-12-23
+ * @date 2025-12-27
  */
 
 #ifndef SBS_PROTOCOL_HPP
 #define SBS_PROTOCOL_HPP
 
-#include <ch.h>
+// clang-format off
+#include <ch.h>   // Includes chconf.h which defines CHPRINTF_USE_FLOAT
+#include <hal.h>  // Defines BaseSequentialStream
+#include <chprintf.h>
+// clang-format on
 #include <etl/array.h>
 #include <etl/delegate.h>
 #include <etl/string_view.h>
@@ -71,7 +75,7 @@ class SbsProtocol {
     ManufacturerData = 0x23,
   };
 
-  // LSB 0-3 of BatteryStatusBits are error codes
+  // LSB 0-3 of BatteryStatus are an error code (4-bit value), per SBS.
   enum class ErrorCode : uint8_t {
     Ok = 0,
     Busy,
@@ -83,12 +87,37 @@ class SbsProtocol {
     Unknown
   };
 
+  enum class BatteryStatusBit : uint8_t {
+    StatusFullyDischarged = 4,
+    StatusFullyCharged = 5,
+    StatusDischarging = 6,
+    StatusInitialized = 7,
+    AlarmRemainingTime = 8,
+    AlarmRemainingCapacity = 9,
+    AlarmReserved1 = 10,
+    AlarmTerminateDischarge = 11,
+    AlarmOverTemperature = 12,
+    AlarmReserved2 = 13,
+    AlarmTerminateCharge = 14,
+    AlarmOverCharged = 15,
+  };
+
   static ErrorCode BatteryStatusToErrorCode(uint16_t battery_status) {
     const uint8_t ec = (uint8_t)(battery_status & 0x0FU);
     if (ec <= (uint8_t)ErrorCode::BadSize) {
       return static_cast<ErrorCode>(ec);
     }
     return ErrorCode::Unknown;
+  }
+
+  static void SetBatteryStatus(uint16_t& battery_status, BatteryStatusBit bit) {
+    battery_status |= (uint16_t)(1U << (uint8_t)bit);
+    return;
+  }
+
+  static void ResetBatteryStatus(uint16_t& battery_status, BatteryStatusBit bit) {
+    battery_status &= ~(1U << (uint8_t)bit);
+    return;
   }
 
   static etl::string_view GetCommandStr(Command cmd) {
@@ -149,21 +178,6 @@ class SbsProtocol {
     if (idx < kMap.size()) return kMap[idx];
     return "Unknown";
   }
-
-  enum class BatteryStatusBit : uint16_t {
-    FullyDischarged = 1 << 4,
-    FullyCharged = 1 << 5,
-    Discharging = 1 << 6,
-    Initialized = 1 << 7,
-    AlarmTimeRemaining = 1 << 8,
-    AlarmCapacityRemaining = 1 << 9,
-    Reserved1 = 1 << 10,
-    AlarmTerminateDischarge = 1 << 11,
-    AlarmOverTemperature = 1 << 12,
-    Reserved2 = 1 << 13,
-    AlarmTerminateCharge = 1 << 14,
-    AlarmOverCharged = 1 << 15
-  };
 
   struct ReadWordResult {
     msg_t msg{MSG_RESET};
@@ -241,39 +255,35 @@ class SbsProtocol {
     return r;
   }
 
-  // Decode SBS ManufacturerDate (0x1B) raw value to epoch days since 1970-01-01 (UTC).
-  // Returns false if the raw fields are invalid/out of range.
-  static bool ManufacturerDateRawToEpochDays(uint16_t raw, uint16_t& out_days) {
-    const uint32_t day = raw & 0x1FU;
-    const uint32_t month = (raw >> 5) & 0x0FU;
-    const uint32_t year = 1980U + ((raw >> 9) & 0x7FU);
+  static constexpr bool IsLeapYear(uint16_t year) {
+    return ((year % 4U) == 0U) && (((year % 100U) != 0U) || ((year % 400U) == 0U));
+  }
 
-    if (year < 1970U || year > 2107U) return false;
-    if (month < 1U || month > 12U) return false;
-    if (day < 1U || day > 31U) return false;
+  static uint8_t DaysInMonth(uint16_t year, uint8_t month) {
+    static constexpr uint8_t kDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (month < 1U || month > 12U) return 0;
+    if (month == 2U && IsLeapYear(year)) return 29;
+    return kDays[month - 1U];
+  }
 
-    const int64_t days = DaysFromCivil((int32_t)year, month, day);
-    if (days < 0 || days > 0xFFFF) return false;
-    out_days = (uint16_t)days;
+  static bool SbsDateToYMDString(const uint16_t sbs_date, char* out_buf, size_t out_buf_size) {
+    if (out_buf == nullptr || out_buf_size < 11) return false;
+
+    const uint16_t day = (uint16_t)(sbs_date & 0x1FU);
+    const uint16_t month = (uint16_t)((sbs_date >> 5) & 0x0FU);
+    const uint16_t year = (uint16_t)(1980U + ((sbs_date >> 9) & 0x7FU));
+
+    const uint8_t dim = DaysInMonth(year, (uint8_t)month);
+    if (month < 1U || month > 12U || day < 1U || dim == 0U || day > (uint16_t)dim) {
+      out_buf[0] = '\0';
+      return false;
+    }
+
+    (void)chsnprintf(out_buf, out_buf_size, "%04u-%02u-%02u", (unsigned)year, (unsigned)month, (unsigned)day);
     return true;
   }
 
-  static uint64_t EpochDaysToUnixTimestamp(uint16_t epoch_days) {
-    return (uint64_t)epoch_days * 86400ULL;
-  }
-
  private:
-  // Convert civil date to days since Unix epoch (1970-01-01), proleptic Gregorian calendar.
-  // Based on a well-known algorithm by Howard Hinnant.
-  static int64_t DaysFromCivil(int32_t y, uint32_t m, uint32_t d) {
-    y -= (m <= 2);
-    const int32_t era = (y >= 0 ? y : y - 399) / 400;
-    const uint32_t yoe = (uint32_t)(y - era * 400);                                 // [0, 399]
-    const uint32_t doy = (153 * (m + (m > 2 ? (uint32_t)-3 : 9)) + 2) / 5 + d - 1;  // [0, 365]
-    const uint32_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;                     // [0, 146096]
-    return (int64_t)era * 146097 + (int64_t)doe - 719468;                           // 719468 = days to 1970-01-01
-  }
-
   ReadByteFn read_byte_{};
   ReadWordFn read_word_{};
   ReadInt16Fn read_int16_{};

@@ -50,26 +50,18 @@ void PowerService::tick() {
   SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
 
   // BMS values
-  {
-    const char* extra = (bms_ != nullptr) ? bms_->GetExtraDataJson() : "";
-    SendBMSExtraData(extra, (uint32_t)strlen(extra));
-  }
-
   if (bms_ != nullptr && bms_->IsPresent()) {
     const auto* data = bms_->GetData();
     if (data != nullptr) {
-      SendChargeCurrentBMS(data->pack_current_a);
+      SendBatteryCurrent(data->pack_current_a);
       SendBatteryVoltageBMS(data->pack_voltage_v);
-      SendBatteryPercentageBMS(data->battery_percentage);
-
-      SendBatteryStatusBMS(data->battery_status);
+      SendBatterySoC(data->battery_soc);
+      SendBatteryTemperature(data->temperature_c);
+      SendBatteryStatus(data->battery_status);
     }
-  } else {
-    constexpr float kZero = 0.0f;
-    SendChargeCurrentBMS(kZero);
-    SendBatteryVoltageBMS(kZero);
-    SendBatteryPercentageBMS(kZero);
-    SendBatteryStatusBMS((uint16_t)0);
+
+    const char* extra = (bms_ != nullptr) ? bms_->GetExtraDataJson() : "";
+    SendBMSExtraData(extra, (uint32_t)strlen(extra));
   }
 
   CommitTransaction();

@@ -121,7 +121,8 @@ bool DumpSbsDevice(const SbsProtocol& sbs, const SbsDebugCallbacks& cb, const Sb
           case SbsProtocol::Command::AtRate:
           case SbsProtocol::Command::ChargingCurrent: {
             const int16_t ma = (int16_t)r.value;
-            std::snprintf(extra, sizeof(extra), " = %d mA", (int)ma);
+            const int32_t ma_10 = (int32_t)ma * 10;
+            std::snprintf(extra, sizeof(extra), " = %d mA = %ld mA@10mA/LSB", (int)ma, (long)ma_10);
           } break;
 
           case SbsProtocol::Command::RemainingCapacity:

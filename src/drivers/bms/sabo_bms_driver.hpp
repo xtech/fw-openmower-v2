@@ -20,6 +20,7 @@
 #include "bms_driver.hpp"
 #include "robots/include/sabo_common.hpp"
 #include "sbs_protocol.hpp"
+#include "services/power_service/power_service.hpp"
 
 using namespace xbot::driver::sabo::config;
 
@@ -32,6 +33,9 @@ namespace xbot::driver::bms {
  * But my last OEM setup only responded on 0x0b and 0x09.
  * 0x0b got identified as SBS/SMBus Smart Battery device.
  * 0x09 seem to be some other OEM I2c device.
+ *
+ * This first driver implementation got aligned to an mfr_name:FSM-BMZ, dev_name:30710, dev_chemistry:V2.00 with all
+ * it's quirks. Further devices might need adjustments and should implement a quirks mapper.
  */
 class SaboBmsDriver : public BmsDriver {
  public:
