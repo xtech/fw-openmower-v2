@@ -156,7 +156,7 @@ class WidgetIcon {
   ~WidgetIcon() {
     if (label_) {
       // Stop any running animation
-      lv_anim_del(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
+      lv_anim_delete(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
       lv_obj_delete(label_);
       label_ = nullptr;
     }
@@ -179,14 +179,14 @@ class WidgetIcon {
     switch (new_state) {
       case State::ON:
         // Stop any blinking animation and show icon
-        lv_anim_del(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
-        lv_obj_clear_flag(label_, LV_OBJ_FLAG_HIDDEN);
+        lv_anim_delete(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
+        lv_obj_remove_flag(label_, LV_OBJ_FLAG_HIDDEN);
         break;
 
       case State::OFF:
       case State::UNDEF:
         // Stop animation and hide icon
-        lv_anim_del(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
+        lv_anim_delete(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
         lv_obj_add_flag(label_, LV_OBJ_FLAG_HIDDEN);
         break;
 
@@ -252,7 +252,7 @@ class WidgetIcon {
   static void BlinkCallback_(void* obj, int32_t value) {
     lv_obj_t* label = static_cast<lv_obj_t*>(obj);
     if (value) {
-      lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);  // Show
+      lv_obj_remove_flag(label, LV_OBJ_FLAG_HIDDEN);  // Show
     } else {
       lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);  // Hide
     }
@@ -263,20 +263,20 @@ class WidgetIcon {
    */
   void StartBlinking_() {
     // Stop previous animation if running
-    lv_anim_del(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
+    lv_anim_delete(label_, (lv_anim_exec_xcb_t)BlinkCallback_);
 
     // Configure and start new animation
     lv_anim_init(&animation_);
     lv_anim_set_exec_cb(&animation_, (lv_anim_exec_xcb_t)BlinkCallback_);
     lv_anim_set_var(&animation_, label_);
-    lv_anim_set_time(&animation_, 600);          // 600ms period
+    lv_anim_set_duration(&animation_, 600);      // 600ms period
     lv_anim_set_repeat_delay(&animation_, 600);  // Same as period
     lv_anim_set_values(&animation_, 0, 1);
     lv_anim_set_repeat_count(&animation_, LV_ANIM_REPEAT_INFINITE);
     lv_anim_start(&animation_);
 
     // Make sure icon is visible when blinking starts
-    lv_obj_clear_flag(label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(label_, LV_OBJ_FLAG_HIDDEN);
   }
 };
 
