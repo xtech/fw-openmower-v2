@@ -105,6 +105,7 @@ bool SaboBmsDriver::Init() {
 
 void SaboBmsDriver::Tick() {
   static uint8_t check_cnt = 10;  // Need some retries to detect presence
+  static systime_t last_log_time = 0;
 
   if (!configured_ || (!IsPresent() && !check_cnt)) return;
 
@@ -234,6 +235,24 @@ void SaboBmsDriver::Tick() {
     if (ReadRegister(cmd, mv) == MSG_OK && mv > 0U) {
       data_.cell_voltage_v[i] = (float)mv / 1000.0f;
     }
+  }
+
+  // Log BMS data every minute for analysis and BatteryStatus monitoring
+  const systime_t now = chVTGetSystemTimeX();
+  if (chVTTimeElapsedSinceX(last_log_time) > TIME_S2I(60)) {
+    last_log_time = now;
+
+    // Format battery_status as hex and binary
+    char status_bin[17];
+    for (int i = 0; i < 16; i++) {
+      status_bin[i] = (data_.battery_status & (1 << (15 - i))) ? '1' : '0';
+    }
+    status_bin[16] = '\0';
+
+    ULOG_INFO("BMS Data: t=%lu V=%.2f I=%.3f T=%.1f SOC=%.1f%% RemCap=%.3fAh FullCap=%.3fAh Status=0x%04X (%s)",
+              (unsigned long)TIME_I2MS(now), (double)data_.pack_voltage_v, (double)data_.pack_current_a,
+              (double)data_.temperature_c, (double)(data_.battery_soc * 100.0f), (double)data_.remaining_capacity_ah,
+              (double)data_.full_charge_capacity_ah, (unsigned)data_.battery_status, status_bin);
   }
 }
 
