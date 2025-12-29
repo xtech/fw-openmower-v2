@@ -34,24 +34,24 @@ class SaboRobot : public MowerRobot {
   }
 
   float Power_GetDefaultBatteryFullVoltage() override {
-    return 29.4f;  // As rated on battery pack, which is 7 * 4.2V
+    return 29.0f;  // Conservative. Rated on battery pack is 29.4V
   }
 
   float Power_GetDefaultBatteryEmptyVoltage() override {
-    return 7.0f * 3.36f;
-  }
-
-  float Power_GetDefaultChargeCurrent() override {
-    // Battery pack is 7S3P, so max. would be 1.3Ah * 3 = 3.9A
-    // 3.9A would be also the max. charge current for the stock PSU!
-    return 1.95f;  // Lets stay save and conservative for now
+    return 7.0f * 3.36f;  // 23.52V
   }
 
   float Power_GetAbsoluteMinVoltage() override {
     // Stock Sabo battery pack has INR18650-13L (Samsung) which are specified as:
     // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save and use 3.15V,
     // because most packages are > 10 years old now and cells may be a bit worn out.
-    return 7.0f * 3.15;
+    return 7.0f * 3.2;  // 22.4V
+  }
+
+  float Power_GetDefaultChargeCurrent() override {
+    // Battery pack is 7S3P, so max. would be 1.3Ah * 3 = 3.9A
+    // 3.9A would be also the max. charge current for the stock PSU!
+    return 1.95f;  // Lets stay save and conservative for now
   }
 
   // ----- Some driver Test* functions used by Boot-Screen -----
