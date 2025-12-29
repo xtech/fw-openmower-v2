@@ -65,7 +65,7 @@ class WidgetIcon {
     BATTERY_FULL,
     DOCKED,
     BATTERY_VOLTAGE,
-    CHARGE_CURRENT,
+    CURRENT,
     HAND_STOP,
     TIMEOUT
   };
@@ -93,7 +93,7 @@ class WidgetIcon {
       {"\xEF\x89\x80"},  // BATTERY_FULL - Battery 100% (U+F240)
       {"\xEF\x97\xA7"},  // DOCKED - Charging station (U+F5E7)
       {"\xEF\x97\x9F"},  // BATTERY_VOLTAGE - Car battery (U+F5DF)
-      {"\xEF\x82\x8B"},  // CHARGE_CURRENT - Arrow right from bracket (U+F08B)
+      {"\xEE\x82\xB7"},  // CURRENT - Bolt/arrow icon (U+E0B7)
       {"\xEF\x89\x96"},  // HAND_STOP - Hand stop (U+F06A)
       {"\xEF\x89\x93"}   // TIMEOUT - Hourglass (U+F251)
   };

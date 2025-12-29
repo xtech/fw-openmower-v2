@@ -108,6 +108,11 @@ class SaboRobot : public MowerRobot {
     sabo_input_driver_.SetBlockButtons(block);
   }
 
+  // BMS data access
+  const xbot::driver::bms::Data* GetBmsData() const {
+    return bms_.GetData();
+  }
+
   // BMS debug access
   void DumpBms() {
     if (hardware_config.bms != nullptr) {
