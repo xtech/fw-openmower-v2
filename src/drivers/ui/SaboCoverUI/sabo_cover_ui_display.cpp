@@ -77,8 +77,9 @@ void SaboCoverUIDisplay::Start() {
   DriverUC1698::Instance().Start();
 
   // Disable boot screen here for faster testing
-  ShowBootScreen();
+  // ShowBootScreen();
   // ShowMainScreen();
+  ShowBatteryScreen();
 }
 
 void SaboCoverUIDisplay::ShowBootScreen() {
@@ -162,6 +163,37 @@ void SaboCoverUIDisplay::CloseAboutScreen() {
   }
 }
 
+void SaboCoverUIDisplay::ShowBatteryScreen() {
+  // If menu is open, hide it immediately (without animation) before switching screens
+  SafeDelete(menu_main_);
+
+  if (active_screen_) {
+    active_screen_->Deactivate();
+    active_screen_->Hide();
+  }
+
+  GetOrCreateScreen(screen_battery_);
+  active_screen_ = screen_battery_;
+  screen_battery_->Show();
+  screen_battery_->Activate(input_group_);
+}
+
+void SaboCoverUIDisplay::CloseBatteryScreen() {
+  // Clean up menu if it's open (it might be attached to Battery screen)
+  SafeDelete(menu_main_);
+
+  if (screen_battery_) {
+    // Switch to main screen BEFORE deleting battery screen to avoid deleting the active LVGL screen
+    ShowMainScreen();
+    SafeDelete(screen_battery_);
+  }
+
+  // Clear group
+  if (input_group_) {
+    lv_group_remove_all_objs(input_group_);
+  }
+}
+
 void SaboCoverUIDisplay::ShowInputsScreen() {
   // If menu is open, hide it immediately (without animation) before switching screens
   SafeDelete(menu_main_);
@@ -236,6 +268,14 @@ void SaboCoverUIDisplay::ShowMenu() {
         auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
         // Don't call HideMenu() here - ShowSettingsScreen() will handle menu cleanup
         display->ShowSettingsScreen();
+      },
+      this);
+  menu_main_->SetMenuItemCallback(
+      SaboMenuMain::MenuItem::BATTERY,
+      [](lv_event_t* e) {
+        auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
+        // Don't call HideMenu() here - ShowBatteryScreen() will handle menu cleanup
+        display->ShowBatteryScreen();
       },
       this);
   menu_main_->SetMenuItemCallback(
@@ -343,6 +383,9 @@ bool SaboCoverUIDisplay::OnButtonPress(ButtonId button_id) {
         return true;  // Handled
       } else if (active_screen_->GetScreenId() == ScreenId::ABOUT) {
         CloseAboutScreen();
+        return true;  // Handled
+      } else if (active_screen_->GetScreenId() == ScreenId::BATTERY) {
+        CloseBatteryScreen();
         return true;  // Handled
       } else if (active_screen_->GetScreenId() == ScreenId::INPUTS) {
         CloseInputsScreen();

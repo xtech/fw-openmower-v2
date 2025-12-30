@@ -36,8 +36,8 @@ using namespace xbot::driver::sabo::defs;  // For LCD_WIDTH, LCD_HEIGHT
  */
 class SaboMenuMain {
  public:
-  static const int MENU_ITEMS = 4;
-  enum class MenuItem { CMD, INPUTS, SETTINGS, ABOUT };
+  static const int MENU_ITEMS = 5;
+  enum class MenuItem { CMD, SETTINGS, BATTERY, INPUTS, ABOUT };
   enum class AnimationState { HIDDEN, SLIDING_IN, VISIBLE, SLIDING_OUT };
 
   using MenuClosedCallback = void (*)(void* context);
@@ -110,9 +110,10 @@ class SaboMenuMain {
 
     // Create menu items (starting after separator)
     CreateMenuItem(MenuItem::CMD, "Command", 35);
-    CreateMenuItem(MenuItem::INPUTS, "Inputs", 60);
-    CreateMenuItem(MenuItem::SETTINGS, "Settings", 85);
-    CreateMenuItem(MenuItem::ABOUT, "About", 110);
+    CreateMenuItem(MenuItem::SETTINGS, "Settings", 60);
+    CreateMenuItem(MenuItem::BATTERY, "Battery", 85);
+    CreateMenuItem(MenuItem::INPUTS, "Inputs", 110);
+    CreateMenuItem(MenuItem::ABOUT, "About", 135);
 
     anim_state_ = AnimationState::HIDDEN;
   }

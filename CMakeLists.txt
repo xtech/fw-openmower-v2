@@ -114,6 +114,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_display_driver_uc1698.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_display.cpp
         src/drivers/ui/lvgl/sabo/sabo_screen_boot.cpp
+        src/drivers/ui/lvgl/sabo/sabo_screen_battery.cpp
         src/drivers/bms/sabo_bms_driver.cpp
         src/drivers/bms/sbs_debug.cpp
         # Raw driver debug interface

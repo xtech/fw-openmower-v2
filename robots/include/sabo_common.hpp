@@ -38,7 +38,7 @@ enum class InputType : uint8_t { SENSOR, BUTTON };
 
 enum class SensorId : uint8_t { LIFT_FL, LIFT_FR, STOP_TOP, STOP_REAR };
 
-enum class ScreenId : uint8_t { BOOT, MAIN, MENU, CMD, INPUTS, SETTINGS, ABOUT };
+enum class ScreenId : uint8_t { BOOT, MAIN, MENU, CMD, SETTINGS, BATTERY, INPUTS, ABOUT };
 
 enum class ButtonId : uint8_t {
   UP = 0,

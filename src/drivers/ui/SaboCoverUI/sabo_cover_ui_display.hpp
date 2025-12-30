@@ -24,6 +24,7 @@
 #include "../lvgl/sabo/sabo_input_device_keypad.hpp"
 #include "../lvgl/sabo/sabo_menu_main.hpp"
 #include "../lvgl/sabo/sabo_screen_about.hpp"
+#include "../lvgl/sabo/sabo_screen_battery.hpp"
 #include "../lvgl/sabo/sabo_screen_boot.hpp"
 #include "../lvgl/sabo/sabo_screen_inputs.hpp"
 #include "../lvgl/sabo/sabo_screen_main.hpp"
@@ -61,6 +62,8 @@ class SaboCoverUIDisplay {
   void CloseSettingsScreen();
   void ShowAboutScreen();
   void CloseAboutScreen();
+  void ShowBatteryScreen();
+  void CloseBatteryScreen();
   void ShowInputsScreen();
   void CloseInputsScreen();
   void ShowMenu();
@@ -81,6 +84,7 @@ class SaboCoverUIDisplay {
   SaboScreenAbout* screen_about_ = nullptr;
   SaboScreenSettings* screen_settings_ = nullptr;
   SaboScreenInputs* screen_inputs_ = nullptr;
+  SaboScreenBattery* screen_battery_ = nullptr;
   SaboMenuMain* menu_main_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
 
