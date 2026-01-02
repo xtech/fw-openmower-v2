@@ -67,7 +67,9 @@ class WidgetIcon {
     BATTERY_VOLTAGE,
     CURRENT,
     HAND_STOP,
-    TIMEOUT
+    TIMEOUT,
+    CHECK,
+    SQUARE_XMARK
   };
 
   enum class State : uint8_t { UNDEF, OFF, ON, BLINK };
@@ -95,7 +97,9 @@ class WidgetIcon {
       {"\xEF\x97\x9F"},  // BATTERY_VOLTAGE - Car battery (U+F5DF)
       {"\xEE\x82\xB7"},  // CURRENT - Bolt/arrow icon (U+E0B7)
       {"\xEF\x89\x96"},  // HAND_STOP - Hand stop (U+F06A)
-      {"\xEF\x89\x93"}   // TIMEOUT - Hourglass (U+F251)
+      {"\xEF\x89\x93"},  // TIMEOUT - Hourglass (U+F251)
+      {"\xEF\x80\x8C"},  // CHECK - Check (U+F00C)
+      {"\xEF\x8B\x93"}   // SQUARE_XMARK - Square X mark (U+F2D3)
   };
 
   /**
@@ -148,6 +152,10 @@ class WidgetIcon {
 
     // Set initial state
     SetState(state);
+  }
+
+  lv_obj_t* GetLvObj() const {
+    return label_;
   }
 
   /**
@@ -207,11 +215,9 @@ class WidgetIcon {
    * Useful for dynamic icon changes based on status.
    */
   void SetIcon(Icon new_icon) {
-    static Icon last_icon = Icon::UNDEF;
-
-    if (new_icon == last_icon) return;
+    if (new_icon == last_set_icon_) return;
     lv_label_set_text_static(label_, ICONS[static_cast<int>(new_icon)].utf8);
-    last_icon = new_icon;
+    last_set_icon_ = new_icon;
   }
 
   /**
@@ -243,6 +249,7 @@ class WidgetIcon {
   State state_ = State::UNDEF;
   lv_obj_t* label_ = nullptr;
   lv_anim_t animation_;
+  Icon last_set_icon_ = Icon::UNDEF;
 
   /**
    * @brief LVGL animation callback for blinking effect

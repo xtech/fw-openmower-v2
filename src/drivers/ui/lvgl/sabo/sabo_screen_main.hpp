@@ -205,15 +205,15 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     update_phase = (update_phase + 1) % 5;  // Cycle through 5 phases
 
-    // FIXME: BMS testing only
-    static systime_t last_test_time = 0;
+    // DEBUG: BMS testing only
+    /*static systime_t last_test_time = 0;
     const systime_t now = chVTGetSystemTime();
     if (chVTTimeElapsedSinceX(last_test_time) > TIME_MS2I(5000)) {
       last_test_time = now;
       if (sabo_robot_ != nullptr) {
         sabo_robot_->DumpBms();
       }
-    }
+    }*/
   }
 
  private:

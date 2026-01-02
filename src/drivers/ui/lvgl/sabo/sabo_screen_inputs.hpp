@@ -55,6 +55,13 @@ class SaboScreenInputs : public ScreenBase<ScreenId, ButtonId> {
       auto* sabo_robot = static_cast<SaboRobot*>(robot);
       sabo_robot->SetBlockButtons(false);
     }
+
+    // Delete WidgetSensor objects
+    for (auto& sensor : sensors_) {
+      if (sensor.widget) {
+        delete sensor.widget;
+      }
+    }
   }
 
   void Create(lv_color_t bg_color = lv_color_white()) override {

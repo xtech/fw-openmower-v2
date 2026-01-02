@@ -62,8 +62,6 @@ SaboScreenBoot::~SaboScreenBoot() {
     delete status_bar_;
     status_bar_ = nullptr;
   }
-
-  // LVGL objects (mower_, wheel_, screen_) are automatically deleted by parent screen cleanup
 }
 
 void SaboScreenBoot::Create(lv_color_t bg_color) {

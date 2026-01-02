@@ -24,7 +24,10 @@ template <typename ScreenId, typename ButtonId = void>
 class ScreenBase {
  public:
   explicit ScreenBase(ScreenId screen_id) : screen_id_(screen_id){};
-  virtual ~ScreenBase() = default;
+  virtual ~ScreenBase() {
+    // Delete LVGL screen (automatically deletes all LVGL child objects)
+    if (screen_) lv_obj_delete(screen_);
+  }
 
   virtual void Create(lv_color_t bg_color = lv_color_white()) {
     screen_ = lv_obj_create(NULL);
@@ -42,7 +45,6 @@ class ScreenBase {
    */
   virtual void Hide() {
     is_visible_ = false;
-    // Note: We don't unload the screen as LVGL is capable of screen switching
   }
 
   /**

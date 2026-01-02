@@ -77,9 +77,8 @@ void SaboCoverUIDisplay::Start() {
   DriverUC1698::Instance().Start();
 
   // Disable boot screen here for faster testing
-  // ShowBootScreen();
+  ShowBootScreen();
   // ShowMainScreen();
-  ShowBatteryScreen();
 }
 
 void SaboCoverUIDisplay::ShowBootScreen() {
@@ -95,139 +94,47 @@ void SaboCoverUIDisplay::ShowBootScreen() {
 }
 
 void SaboCoverUIDisplay::ShowMainScreen() {
-  GetOrCreateScreen(screen_main_);
+  if (!screen_main_) {
+    screen_main_ = new SaboScreenMain();
+    screen_main_->Create();
+  }
   active_screen_ = screen_main_;
   screen_main_->Show();
 }
 
 void SaboCoverUIDisplay::ShowSettingsScreen() {
-  // If menu is open, hide it immediately (without animation) before switching screens
-  SafeDelete(menu_main_);
-
-  if (active_screen_) {
-    active_screen_->Deactivate();
-    active_screen_->Hide();
-  }
-
-  GetOrCreateScreen(screen_settings_);
-  active_screen_ = screen_settings_;
-  screen_settings_->Show();
-  screen_settings_->Activate(input_group_);
+  SwitchToScreen(screen_settings_);
 }
 
 void SaboCoverUIDisplay::CloseSettingsScreen() {
-  // Clean up menu if it's open (it might be attached to Settings screen)
-  SafeDelete(menu_main_);
-
   if (screen_settings_) {
     lcd_settings_ = screen_settings_->GetSettings();
-    // Switch to main screen BEFORE deleting settings screen to avoid deleting the active LVGL screen
-    ShowMainScreen();
-    SafeDelete(screen_settings_);
   }
-
-  // Clear group
-  if (input_group_) {
-    lv_group_remove_all_objs(input_group_);
-  }
+  CloseScreen(screen_settings_);
 }
 
 void SaboCoverUIDisplay::ShowAboutScreen() {
-  // If menu is open, hide it immediately (without animation) before switching screens
-  SafeDelete(menu_main_);
-
-  if (active_screen_) {
-    active_screen_->Deactivate();
-    active_screen_->Hide();
-  }
-
-  GetOrCreateScreen(screen_about_);
-  active_screen_ = screen_about_;
-  screen_about_->Show();
-  screen_about_->Activate(input_group_);
+  SwitchToScreen(screen_about_);
 }
 
 void SaboCoverUIDisplay::CloseAboutScreen() {
-  // Clean up menu if it's open (it might be attached to About screen)
-  SafeDelete(menu_main_);
-
-  if (screen_about_) {
-    // Switch to main screen BEFORE deleting about screen to avoid deleting the active LVGL screen
-    ShowMainScreen();
-    SafeDelete(screen_about_);
-  }
-
-  // Clear group
-  if (input_group_) {
-    lv_group_remove_all_objs(input_group_);
-  }
+  CloseScreen(screen_about_);
 }
 
 void SaboCoverUIDisplay::ShowBatteryScreen() {
-  // If menu is open, hide it immediately (without animation) before switching screens
-  SafeDelete(menu_main_);
-
-  if (active_screen_) {
-    active_screen_->Deactivate();
-    active_screen_->Hide();
-  }
-
-  GetOrCreateScreen(screen_battery_);
-  active_screen_ = screen_battery_;
-  screen_battery_->Show();
-  screen_battery_->Activate(input_group_);
+  SwitchToScreen(screen_battery_);
 }
 
 void SaboCoverUIDisplay::CloseBatteryScreen() {
-  // Clean up menu if it's open (it might be attached to Battery screen)
-  SafeDelete(menu_main_);
-
-  if (screen_battery_) {
-    // Switch to main screen BEFORE deleting battery screen to avoid deleting the active LVGL screen
-    ShowMainScreen();
-    SafeDelete(screen_battery_);
-  }
-
-  // Clear group
-  if (input_group_) {
-    lv_group_remove_all_objs(input_group_);
-  }
+  CloseScreen(screen_battery_);
 }
 
 void SaboCoverUIDisplay::ShowInputsScreen() {
-  // If menu is open, hide it immediately (without animation) before switching screens
-  SafeDelete(menu_main_);
-
-  if (active_screen_) {
-    active_screen_->Deactivate();
-    active_screen_->Hide();
-  }
-
-  // Create inputs screen if not already created
-  if (!screen_inputs_) {
-    screen_inputs_ = new lvgl::sabo::SaboScreenInputs();
-    screen_inputs_->Create();
-  }
-
-  active_screen_ = screen_inputs_;
-  screen_inputs_->Show();
-  screen_inputs_->Activate(input_group_);
+  SwitchToScreen(screen_inputs_);
 }
 
 void SaboCoverUIDisplay::CloseInputsScreen() {
-  // Clean up menu if it's open (it might be attached to Inputs screen)
-  SafeDelete(menu_main_);
-
-  if (screen_inputs_) {
-    // Switch to main screen BEFORE deleting inputs screen to avoid deleting the active LVGL screen
-    ShowMainScreen();
-    SafeDelete(screen_inputs_);
-  }
-
-  // Clear group
-  if (input_group_) {
-    lv_group_remove_all_objs(input_group_);
-  }
+  CloseScreen(screen_inputs_);
 }
 
 void SaboCoverUIDisplay::ShowMenu() {

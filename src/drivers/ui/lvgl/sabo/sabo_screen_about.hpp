@@ -45,18 +45,6 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
   SaboScreenAbout() : ScreenBase<ScreenId, ButtonId>(ScreenId::ABOUT) {
   }
 
-  ~SaboScreenAbout() {
-    // LVGL objects are automatically deleted with the screen, but we clean up explicitly
-    if (content_container_) {
-      lv_obj_delete(content_container_);
-      content_container_ = nullptr;
-    }
-    if (screen_) {
-      lv_obj_delete(screen_);
-      screen_ = nullptr;
-    }
-  }
-
   void Create(lv_color_t bg_color = lv_color_white()) override {
     ScreenBase::Create(bg_color);
 

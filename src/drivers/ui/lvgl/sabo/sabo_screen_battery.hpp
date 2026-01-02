@@ -11,7 +11,7 @@
  * @file sabo_screen_battery.hpp
  * @brief Battery Screen with BMS information and cell visualization
  * @author Apehaenger <joerg@ebeling.ws>
- * @date 2025-12-29
+ * @date 2026-01-02
  */
 
 #ifndef LVGL_SABO_SCREEN_BATTERY_HPP_
@@ -30,6 +30,7 @@
 
 #include "../../SaboCoverUI/sabo_cover_ui_controller.hpp"
 #include "../screen_base.hpp"
+#include "../widget_icon.hpp"
 #include "robots/include/sabo_common.hpp"
 #include "robots/include/sabo_robot.hpp"
 #include "services.hpp"
@@ -51,15 +52,15 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
   void Create(lv_color_t bg_color = lv_color_white()) override;
 
   /**
-   * @brief Activate screen for input focus - adds content container to LVGL group
+   * @brief Activate screen for input focus
    * This enables scrolling through the LVGL group instead of direct button handling
    * When group is deactivated (e.g., menu opens), scrolling is automatically disabled
    */
   void Activate(lv_group_t* group) override {
     ScreenBase::Activate(group);
-    if (group && content_container_) {
-      lv_group_add_obj(group, content_container_);
-      lv_group_focus_obj(content_container_);
+    if (group && screen_) {
+      lv_group_add_obj(group, screen_);
+      lv_group_focus_obj(screen_);
     }
   }
 
@@ -67,8 +68,8 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
    * @brief Deactivate screen input focus - removes content container from LVGL group
    */
   void Deactivate() override {
-    if (content_container_) {
-      lv_group_remove_obj(content_container_);
+    if (screen_) {
+      lv_group_remove_obj(screen_);
     }
     ScreenBase::Deactivate();
   }
@@ -79,13 +80,13 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
    * Only receives input when the group is active (menu is closed)
    */
   bool OnButtonPress(ButtonId button_id) override {
-    if (!content_container_) {
+    if (!screen_) {
       return false;
     }
 
     switch (button_id) {
-      case ButtonId::UP: lv_obj_scroll_by_bounded(content_container_, 0, 20, LV_ANIM_OFF); return true;
-      case ButtonId::DOWN: lv_obj_scroll_by_bounded(content_container_, 0, -20, LV_ANIM_OFF); return true;
+      case ButtonId::UP: lv_obj_scroll_by_bounded(screen_, 0, 20, LV_ANIM_OFF); return true;
+      case ButtonId::DOWN: lv_obj_scroll_by_bounded(screen_, 0, -20, LV_ANIM_OFF); return true;
       default: return false;
     }
   }
@@ -100,7 +101,6 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
   SaboRobot* sabo_robot_ = nullptr;
   const xbot::driver::bms::Data* bms_data_ = nullptr;
 
-  lv_obj_t* content_container_ = nullptr;
   bool is_created_ = false;
 
   // BMS info labels
@@ -109,42 +109,89 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
   lv_obj_t* ver_val_label_ = nullptr;
   lv_obj_t* ser_val_label_ = nullptr;
   lv_obj_t* dat_val_label_ = nullptr;
+
+  // BMS data labels
   lv_obj_t* design_v_val_label_ = nullptr;
   lv_obj_t* design_ah_val_label_ = nullptr;
+  lv_obj_t* full_charge_ah_val_label_ = nullptr;
+  lv_obj_t* actual_v_val_label_ = nullptr;
+  lv_obj_t* actual_ah_val_label_ = nullptr;
+  lv_obj_t* health_cycles_val_label_ = nullptr;
+  lv_obj_t* health_pct_val_label_ = nullptr;
+  lv_obj_t* soc_val_label_ = nullptr;
 
-  lv_obj_t* design_capacity_label_ = nullptr;
-  lv_obj_t* design_voltage_label_ = nullptr;
+  // Cell voltages
+  constexpr static size_t BATTERY_CELLS = 7;
+  lv_obj_t* cell_voltage_labels_[BATTERY_CELLS] = {nullptr};
+  lv_obj_t* cell_diff_labels_[BATTERY_CELLS] = {nullptr};
+  WidgetIcon* cell_status_icons_[BATTERY_CELLS] = {nullptr};
 
-  // Cell voltage labels (7 cells)
-  lv_obj_t* cell_voltage_labels_[7] = {nullptr};
-  lv_obj_t* cell_diff_labels_[6] = {nullptr};  // 6 differences between 7 cells
+  // State tracking for updates
+  bool bms_info_printed_ = false;
+  float last_cell_voltages_[BATTERY_CELLS] = {0};
+  int last_cell_diffs_[BATTERY_CELLS] = {0};
 
-  // Battery visualization objects (7S3P representation)
-  lv_obj_t* cell_visualization_[7] = {nullptr};  // 7 cells in series
+  // BMS data state tracking
+  float last_design_voltage_v_ = 0;
+  float last_design_capacity_ah_ = 0;
+  float last_full_charge_capacity_ah_ = 0;
+  float last_pack_voltage_v_ = 0;
+  float last_remaining_capacity_ah_ = 0;
+  uint16_t last_cycle_count_ = 0;
+  uint8_t last_health_pct_ = 0;
+  float last_battery_soc_ = -1.0f;
+
+  // Threshold constants for cell delta status
+  static constexpr int DELTA_WARNING_THRESHOLD_MV = 50;  // 50mV warning threshold
+  static constexpr int DELTA_ERROR_THRESHOLD_MV = 100;   // 100mV error threshold
 
   // Shared text buffer for formatting
   static constexpr size_t SHARED_TEXT_BUFFER_SIZE = 64;
   char shared_text_buffer_[SHARED_TEXT_BUFFER_SIZE];
   etl::string<64> tmp_string_;
 
-  /**
-   * @brief Create BMS information section
-   * @param parent Parent container
-   * @param y_pos Starting Y position (updated to position after this section)
-   */
-  void CreateBmsInfoSection(lv_obj_t* parent, int& y_pos);
+  // Creates a grid cell using an existing object (obj) as the base
+  void CreateLabelGridCell(lv_obj_t* obj, lv_obj_t* parent, const char* text, lv_grid_align_t column_align,
+                           int32_t col_pos, int32_t col_span, lv_grid_align_t row_align, int32_t row_pos,
+                           int32_t row_span);
+
+  // Creates a new grid cell as a child of parent
+  lv_obj_t* CreateLabelGridCell(lv_obj_t* parent, const char* text, lv_grid_align_t column_align, int32_t col_pos,
+                                int32_t col_span, lv_grid_align_t row_align, int32_t row_pos, int32_t row_span);
 
   /**
-   * @brief Create battery visualization section (7S3P)
+   * @brief Create BMS information section like Manufacturer, Device, Version, ...
    * @param parent Parent container
-   * @param y_pos Starting Y position (updated to position after this section)
+   * @param y_pos Starting Y position
+   * @return New Y position after section (for further content placement)
    */
-  void CreateBatteryVisualization(lv_obj_t* parent, int& y_pos);
+  int CreateBmsInfoSection(lv_obj_t* parent, int y_pos);
+
+  /**
+   * @brief Create BMS data section like Voltages, Currents, SOC, ...
+   * @param parent Parent container
+   * @param y_pos Starting Y position
+   * @return New Y position after section (for further content placement)
+   */
+  int CreateBmsDataSection(lv_obj_t* parent, int y_pos);
+
+  /**
+   * @brief Create BMS Cell section like Voltages, Deltas, Status
+   * @param parent Parent container
+   * @param y_pos Starting Y position
+   * @return New Y position after section (for further content placement)
+   */
+  int CreateBmsCellSection(lv_obj_t* parent, int y_pos);
 
   /**
    * @brief Update BMS information display
    */
   void UpdateBmsInfo();
+
+  /**
+   * @brief Update BMS data display
+   */
+  void UpdateBmsData();
 
   /**
    * @brief Update cell voltages and visualization

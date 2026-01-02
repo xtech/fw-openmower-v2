@@ -56,6 +56,7 @@ class SaboCoverUIDisplay {
 
   bool Init();
   void Start();
+
   void ShowBootScreen();
   void ShowMainScreen();
   void ShowSettingsScreen();
@@ -66,8 +67,10 @@ class SaboCoverUIDisplay {
   void CloseBatteryScreen();
   void ShowInputsScreen();
   void CloseInputsScreen();
+
   void ShowMenu();
   void HideMenu();
+
   void Tick();
   void WakeUp();
   bool OnButtonPress(ButtonId button_id);
@@ -102,10 +105,40 @@ class SaboCoverUIDisplay {
   }
 
   template <typename ScreenT>
-  void GetOrCreateScreen(ScreenT*& screen_ptr) {
+  void SwitchToScreen(ScreenT*& screen_ptr) {
+    // If menu is open, hide it immediately (without animation) before switching screens
+    SafeDelete(menu_main_);
+
+    if (active_screen_) {
+      active_screen_->Deactivate();
+      active_screen_->Hide();
+    }
+
+    // Create screen if needed (inlined from CreateIfNeeded)
     if (!screen_ptr) {
       screen_ptr = new ScreenT();
       screen_ptr->Create();
+    }
+
+    active_screen_ = screen_ptr;
+    screen_ptr->Show();
+    screen_ptr->Activate(input_group_);
+  }
+
+  template <typename ScreenT>
+  void CloseScreen(ScreenT*& screen_ptr) {
+    // Clean up menu if it's open (it might be attached to the screen)
+    SafeDelete(menu_main_);
+
+    if (screen_ptr) {
+      // Switch to main screen BEFORE deleting screen to avoid deleting the active LVGL screen
+      ShowMainScreen();
+      SafeDelete(screen_ptr);
+    }
+
+    // Clear group
+    if (input_group_) {
+      lv_group_remove_all_objs(input_group_);
     }
   }
 

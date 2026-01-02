@@ -41,18 +41,6 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
     }
   }
 
-  ~SaboScreenSettings() {
-    // LVGL-Objekte explizit löschen
-    if (contrast_slider_) lv_obj_delete(contrast_slider_);
-    if (contrast_value_label_) lv_obj_delete(contrast_value_label_);
-    if (temp_selector_) lv_obj_delete(temp_selector_);
-    if (sleep_slider_) lv_obj_delete(sleep_slider_);
-    if (sleep_value_label_) lv_obj_delete(sleep_value_label_);
-
-    // Screen löschen (falls erstellt)
-    if (screen_) lv_obj_delete(screen_);
-  }
-
   void Create(lv_color_t bg_color = lv_color_white()) override {
     ScreenBase::Create(bg_color);
 
