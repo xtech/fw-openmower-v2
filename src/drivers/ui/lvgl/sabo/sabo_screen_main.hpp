@@ -528,8 +528,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     // Get current values with reduced precision (0.1V / 0.01A resolution)
     const float adapter_volts = std::round(power_service.GetAdapterVolts() * 10.0f) / 10.0f;
-    const bool is_docked_ = adapter_volts > 10.0f;
     const CHARGER_STATUS charger_status = power_service.GetChargerStatus();
+    is_docked_ = adapter_volts > 10.0f;
 
     // Update docked state only if changed
     if (is_docked_ != last_is_docked_) {
