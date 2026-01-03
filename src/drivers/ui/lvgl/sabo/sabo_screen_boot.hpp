@@ -43,7 +43,7 @@ class SaboScreenBoot : public ScreenBase<ScreenId, ButtonId> {
     completion_context_ = context;
   }
 
-  void Create(lv_color_t bg_color = lv_color_white()) override;
+  void Create(lv_color_t bg_color = lv_color_white(), lv_color_t fg_color = lv_color_black()) override;
 
   /**
    * @brief Override Tick to handle boot sequence state machine

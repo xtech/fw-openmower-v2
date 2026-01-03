@@ -102,41 +102,6 @@ void SaboCoverUIDisplay::ShowMainScreen() {
   screen_main_->Show();
 }
 
-void SaboCoverUIDisplay::ShowSettingsScreen() {
-  SwitchToScreen(screen_settings_);
-}
-
-void SaboCoverUIDisplay::CloseSettingsScreen() {
-  if (screen_settings_) {
-    lcd_settings_ = screen_settings_->GetSettings();
-  }
-  CloseScreen(screen_settings_);
-}
-
-void SaboCoverUIDisplay::ShowAboutScreen() {
-  SwitchToScreen(screen_about_);
-}
-
-void SaboCoverUIDisplay::CloseAboutScreen() {
-  CloseScreen(screen_about_);
-}
-
-void SaboCoverUIDisplay::ShowBatteryScreen() {
-  SwitchToScreen(screen_battery_);
-}
-
-void SaboCoverUIDisplay::CloseBatteryScreen() {
-  CloseScreen(screen_battery_);
-}
-
-void SaboCoverUIDisplay::ShowInputsScreen() {
-  SwitchToScreen(screen_inputs_);
-}
-
-void SaboCoverUIDisplay::CloseInputsScreen() {
-  CloseScreen(screen_inputs_);
-}
-
 void SaboCoverUIDisplay::ShowMenu() {
   // Don't create a new menu if one is still animating out
   if (menu_main_ && menu_main_->GetAnimationState() == SaboMenuMain::AnimationState::SLIDING_OUT) {

@@ -42,10 +42,11 @@ SaboScreenBattery::~SaboScreenBattery() {
   }
 }
 
-void SaboScreenBattery::Create(lv_color_t bg_color) {
+void SaboScreenBattery::Create(lv_color_t bg_color, lv_color_t fg_color) {
   if (is_created_) return;  // Prevent multiple calls to Create()
 
-  ScreenBase::Create(bg_color);
+  ScreenBase::Create(bg_color, fg_color);
+  lv_obj_set_style_text_font(screen_, &orbitron_12, LV_PART_MAIN);
   lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_AUTO);
   lv_obj_set_scroll_dir(screen_, LV_DIR_VER);
@@ -109,29 +110,20 @@ int SaboScreenBattery::CreateBmsInfoSection(lv_obj_t* parent, int y_pos) {
   y_pos += section_height;
 
   // Row 0: Manufacturer Name and Device
-  // Mfr. label
   CreateLabelGridCell(grid, "Mfr.:", LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-  // Mfr. value
   mfr_val_label_ = CreateLabelGridCell(grid, "N/A", LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-  // Dev. label
+  // Device
   CreateLabelGridCell(grid, "Dev.:", LV_GRID_ALIGN_START, 2, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-  // Dev. value
   dev_val_label_ = CreateLabelGridCell(grid, "N/A", LV_GRID_ALIGN_START, 3, 1, LV_GRID_ALIGN_CENTER, 0, 1);
 
   // Row 1: Version and Serial Number
-  // Ver. label
   CreateLabelGridCell(grid, "Ver.:", LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_CENTER, 1, 1);
-  // Ver. value
   ver_val_label_ = CreateLabelGridCell(grid, "N/A", LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, 1, 1);
-  // S/N label
   CreateLabelGridCell(grid, "S/N:", LV_GRID_ALIGN_START, 2, 1, LV_GRID_ALIGN_CENTER, 1, 1);
-  // S/N value
   ser_val_label_ = CreateLabelGridCell(grid, "N/A", LV_GRID_ALIGN_START, 3, 1, LV_GRID_ALIGN_CENTER, 1, 1);
 
   // Row 2: Manufacturer Date (centered across all 4 columns)
-  // Date label
   CreateLabelGridCell(grid, "Date:", LV_GRID_ALIGN_END, 0, 1, LV_GRID_ALIGN_CENTER, 2, 1);
-  // Date value
   dat_val_label_ = CreateLabelGridCell(grid, "N/A", LV_GRID_ALIGN_START, 1, 3, LV_GRID_ALIGN_CENTER, 2, 1);
 
   return y_pos;
@@ -428,7 +420,6 @@ lv_obj_t* SaboScreenBattery::CreateLabelGridCell(lv_obj_t* parent, const char* t
 
   lv_obj_t* obj = lv_label_create(parent);
   lv_label_set_text(obj, text);
-  lv_obj_set_style_text_font(obj, &orbitron_12, LV_PART_MAIN);
   lv_obj_set_grid_cell(obj, column_align, col_pos, col_span, row_align, row_pos, row_span);
   return obj;
 }

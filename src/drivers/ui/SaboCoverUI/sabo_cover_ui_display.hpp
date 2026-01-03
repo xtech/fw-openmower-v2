@@ -59,14 +59,33 @@ class SaboCoverUIDisplay {
 
   void ShowBootScreen();
   void ShowMainScreen();
-  void ShowSettingsScreen();
-  void CloseSettingsScreen();
-  void ShowAboutScreen();
-  void CloseAboutScreen();
-  void ShowBatteryScreen();
-  void CloseBatteryScreen();
-  void ShowInputsScreen();
-  void CloseInputsScreen();
+  void ShowSettingsScreen() {
+    SwitchToScreen(screen_settings_);
+  }
+  void CloseSettingsScreen() {
+    if (screen_settings_) {
+      lcd_settings_ = screen_settings_->GetSettings();
+    }
+    CloseScreen(screen_settings_);
+  }
+  void ShowAboutScreen() {
+    SwitchToScreen(screen_about_);
+  }
+  void CloseAboutScreen() {
+    CloseScreen(screen_about_);
+  }
+  void ShowBatteryScreen() {
+    SwitchToScreen(screen_battery_);
+  }
+  void CloseBatteryScreen() {
+    CloseScreen(screen_battery_);
+  }
+  void ShowInputsScreen() {
+    SwitchToScreen(screen_inputs_);
+  }
+  void CloseInputsScreen() {
+    CloseScreen(screen_inputs_);
+  }
 
   void ShowMenu();
   void HideMenu();

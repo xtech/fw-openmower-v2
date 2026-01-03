@@ -89,6 +89,7 @@ class SaboMenuMain {
     lv_obj_set_style_border_color(menu_container_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_pad_all(menu_container_, 0, LV_PART_MAIN);  // Remove internal padding
     lv_obj_clear_flag(menu_container_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_text_font(menu_container_, &orbitron_12, LV_PART_MAIN);
 
     // Start hidden (off-screen to the right)
     lv_obj_set_pos(menu_container_, LCD_WIDTH, 0);
@@ -96,7 +97,6 @@ class SaboMenuMain {
     // Menu title - larger bold font
     lv_obj_t* title_label = lv_label_create(menu_container_);
     lv_label_set_text(title_label, "Menu");
-    lv_obj_set_style_text_color(title_label, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(title_label, &orbitron_16b, LV_PART_MAIN);  // Bold font
     lv_obj_align(title_label, LV_ALIGN_TOP_MID, 0, 3);
 
@@ -230,7 +230,7 @@ class SaboMenuMain {
   void* closed_callback_context_ = nullptr;
 
   void CreateMenuItem(MenuItem item, const char* text, int y_offset) {
-    // Create button with flat styling for non-touch display
+    // Create button with flat styling
     lv_obj_t* btn = lv_button_create(menu_container_);
     lv_obj_set_size(btn, LCD_WIDTH / 3 - 10, 20);
     lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, y_offset);
@@ -238,7 +238,6 @@ class SaboMenuMain {
     // Flat button style: no shadow, no 3D effect
     lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(btn, lv_color_make(0xD0, 0xD0, 0xD0), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
 
@@ -250,8 +249,6 @@ class SaboMenuMain {
     lv_obj_t* label = lv_label_create(btn);
     lv_label_set_text(label, text);
     lv_obj_center(label);
-    lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(label, &orbitron_12, LV_PART_MAIN);
 
     // Add event callback to handle focus state changes and clicks
     lv_obj_add_event_cb(

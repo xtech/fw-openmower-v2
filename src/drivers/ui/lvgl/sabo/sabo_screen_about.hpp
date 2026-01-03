@@ -45,8 +45,9 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
   SaboScreenAbout() : ScreenBase<ScreenId, ButtonId>(ScreenId::ABOUT) {
   }
 
-  void Create(lv_color_t bg_color = lv_color_white()) override {
-    ScreenBase::Create(bg_color);
+  void Create(lv_color_t bg_color = lv_color_white(), lv_color_t fg_color = lv_color_black()) override {
+    ScreenBase::Create(bg_color, fg_color);
+    lv_obj_set_style_text_font(screen_, &orbitron_12, LV_PART_MAIN);
 
     // Title (stays at top, NOT scrollable)
     lv_obj_t* title = lv_label_create(screen_);
@@ -68,7 +69,6 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
     lv_obj_add_flag(content_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(content_container, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_scroll_dir(content_container, LV_DIR_VER);
-    lv_obj_set_style_bg_color(content_container, bg_color, LV_PART_MAIN);
     lv_obj_set_style_border_width(content_container, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(content_container, 0, LV_PART_MAIN);
 
@@ -78,7 +78,6 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
     lv_obj_t* fw_header = lv_label_create(content_container);
     lv_label_set_text(fw_header, "Firmware:");
     lv_obj_set_style_text_font(fw_header, &orbitron_16b, LV_PART_MAIN);
-    lv_obj_set_style_text_color(fw_header, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_pos(fw_header, 5, y_pos);
 
     y_pos += 18;
@@ -91,8 +90,6 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
                BUILD_DATE, BUILD_GIT_HASH);
     lv_obj_t* fw_label = lv_label_create(content_container);
     lv_label_set_text(fw_label, fw_text);
-    lv_obj_set_style_text_color(fw_label, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(fw_label, &orbitron_12, LV_PART_MAIN);
     lv_obj_set_style_text_align(fw_label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     lv_obj_set_pos(fw_label, 5, y_pos);
 
@@ -102,7 +99,6 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
     lv_obj_t* hw_header = lv_label_create(content_container);
     lv_label_set_text(hw_header, "Hardware:");
     lv_obj_set_style_text_font(hw_header, &orbitron_16b, LV_PART_MAIN);
-    lv_obj_set_style_text_color(hw_header, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_pos(hw_header, 5, y_pos);
 
     y_pos += 18;
@@ -117,8 +113,6 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
                board_info.version_minor, board_info.version_patch);
     lv_obj_t* hw_label = lv_label_create(content_container);
     lv_label_set_text(hw_label, hw_text);
-    lv_obj_set_style_text_color(hw_label, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(hw_label, &orbitron_12, LV_PART_MAIN);
     lv_obj_set_style_text_align(hw_label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     lv_obj_set_pos(hw_label, 5, y_pos);
 
@@ -128,7 +122,6 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
     lv_obj_t* credits_header = lv_label_create(content_container);
     lv_label_set_text(credits_header, "Credits:");
     lv_obj_set_style_text_font(credits_header, &orbitron_16b, LV_PART_MAIN);
-    lv_obj_set_style_text_color(credits_header, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_pos(credits_header, 5, y_pos);
 
     y_pos += 18;
@@ -141,8 +134,6 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
                "https://github.com/xtech/\nfw-openmower-v2");
     lv_obj_t* credits_label = lv_label_create(content_container);
     lv_label_set_text(credits_label, credits_text);
-    lv_obj_set_style_text_color(credits_label, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(credits_label, &orbitron_12, LV_PART_MAIN);
     lv_obj_set_style_text_align(credits_label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     lv_obj_set_pos(credits_label, 5, y_pos);
 

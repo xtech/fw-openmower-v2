@@ -49,7 +49,7 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
   SaboScreenBattery();
   ~SaboScreenBattery() override;
 
-  void Create(lv_color_t bg_color = lv_color_white()) override;
+  void Create(lv_color_t bg_color = lv_color_white(), lv_color_t fg_color = lv_color_black()) override;
 
   /**
    * @brief Activate screen for input focus

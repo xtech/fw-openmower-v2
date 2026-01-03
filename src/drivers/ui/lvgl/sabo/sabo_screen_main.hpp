@@ -85,8 +85,9 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     }
   }
 
-  void Create(lv_color_t bg_color = lv_color_white()) override {
-    ScreenBase::Create(bg_color);
+  void Create(lv_color_t bg_color = lv_color_white(), lv_color_t fg_color = lv_color_black()) override {
+    ScreenBase::Create(bg_color, fg_color);
+    lv_obj_set_style_text_font(screen_, &orbitron_12, LV_PART_MAIN);
 
     // Register for emergency change events
     chEvtRegister(&mower_events, &emergency_event_listener_, Events::GLOBAL);
@@ -102,8 +103,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
         new WidgetIcon(WidgetIcon::Icon::SATELLITE, screen_, LV_ALIGN_TOP_LEFT, 0, y - 2, WidgetIcon::State::ON);
     sats_value_ = lv_label_create(screen_);
     lv_label_set_text_static(sats_value_, "0");
-    lv_obj_set_style_text_color(sats_value_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(sats_value_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(sats_value_, LV_ALIGN_TOP_LEFT, 17, y);
 
     // NTRIP actuality icon
@@ -111,8 +110,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
         new WidgetIcon(WidgetIcon::Icon::DOWNLOAD, screen_, LV_ALIGN_TOP_MID, -55, y - 2, WidgetIcon::State::ON);
     ntrip_value_ = lv_label_create(screen_);
     lv_label_set_text_static(ntrip_value_, "N/A");
-    lv_obj_set_style_text_color(ntrip_value_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(ntrip_value_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(ntrip_value_, LV_ALIGN_TOP_LEFT, 75, y);
 
     // GPS Mode icon
@@ -120,8 +117,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
         new WidgetIcon(WidgetIcon::Icon::NO_RTK_FIX, screen_, LV_ALIGN_TOP_RIGHT, -84, y - 2, WidgetIcon::State::BLINK);
     gps_mode_value_ = lv_label_create(screen_);
     lv_label_set_text_static(gps_mode_value_, "N/A");
-    lv_obj_set_style_text_color(gps_mode_value_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(gps_mode_value_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(gps_mode_value_, LV_ALIGN_TOP_LEFT, defs::LCD_WIDTH - 80, y);
 
     // GPS Accuracy
@@ -148,15 +143,11 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     y += 20;
     adapter_voltage_label_ = lv_label_create(screen_);
     lv_label_set_text_static(adapter_voltage_label_, "");
-    lv_obj_set_style_text_color(adapter_voltage_label_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(adapter_voltage_label_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(adapter_voltage_label_, LV_ALIGN_TOP_LEFT, 0, y);
 
     // Charger status label
     charger_status_label_ = lv_label_create(screen_);
     lv_label_set_text_static(charger_status_label_, "");
-    lv_obj_set_style_text_color(charger_status_label_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(charger_status_label_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(charger_status_label_, LV_ALIGN_TOP_RIGHT, 0, y);
 
     // Create state label container with scrolling text
@@ -540,6 +531,19 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
         current_bar_->Show();
         lv_obj_remove_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
+
+        // Update adapter voltage label only if changed (0.1V resolution)
+        if (adapter_volts != last_adapter_volts) {
+          chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", adapter_volts);
+          lv_label_set_text(adapter_voltage_label_, shared_text_buffer_);
+          last_adapter_volts = adapter_volts;
+        }
+
+        // Update charger status only if changed
+        if (charger_status != last_charger_status) {
+          lv_label_set_text(charger_status_label_, ChargerDriver::statusToString(charger_status));
+          last_charger_status = charger_status;
+        }
       } else if (!has_bms_current_) {
         icon_current_->SetState(WidgetIcon::State::OFF);
         current_bar_->Hide();
@@ -549,19 +553,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       }
 
       last_is_docked_ = is_docked_;
-    }
-
-    // Update adapter voltage label only if changed (0.1V resolution)
-    if (adapter_volts != last_adapter_volts) {
-      chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", adapter_volts);
-      lv_label_set_text(adapter_voltage_label_, shared_text_buffer_);
-      last_adapter_volts = adapter_volts;
-    }
-
-    // Update charger status only if changed
-    if (charger_status != last_charger_status) {
-      lv_label_set_text(charger_status_label_, ChargerDriver::statusToString(charger_status));
-      last_charger_status = charger_status;
     }
   }
 
@@ -656,7 +647,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     // Create scrolling label
     state_label_ = lv_label_create(screen_);  // Doesn't work with state_container_ as parent. Whyever :-/
     lv_label_set_text(state_label_, "Robot State");
-    lv_obj_set_style_text_color(state_label_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(state_label_, &orbitron_16b, LV_PART_MAIN);
     lv_obj_align(state_label_, LV_ALIGN_BOTTOM_MID, defs::LCD_WIDTH / 4, -2);
     lv_label_set_long_mode(state_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
