@@ -13,7 +13,7 @@ OUTPUT_FONT_NAME="font_awesome_${FONT_SIZE}"
 # 0xf0c8 = square -> Used as "undefined" icon
 # 0xf544 = robot -> ROS
 # 0xf5e1 = car-burst -> Wheel-Lift Emergency
-# 0xf071 = exclamation-triangle -> General Emergency
+# 0xf071 = exclamation-triangle -> General Emergency or bad cell status
 # 0xf601 = location-crosshairs -> GPS RTK-FIX Symbol in Topbar
 # 0xf244 = battery-empty -> Battery empty
 # 0xf243 = battery-quarter -> Battery 1/4
@@ -26,9 +26,11 @@ OUTPUT_FONT_NAME="font_awesome_${FONT_SIZE}"
 # 0xf140 = bullseye -> GPS mode
 # 0xf05b = crosshairs -> GPS accuracy
 # 0xf5df = car-battery -> Battery voltage bar
-# 0xf08b = arrow-right-from-bracket -> Charging current
+# 0xe0b7 = bolt-lightning -> Current
 # 0xf256 = hand -> Stop pressed emergency
 # 0xf253 = hourglass-end -> Timeout emergency
+# 0xf00c = check -> OK status indicator, e.g. for cell status
+# 0xf2d3 = square-xmark -> Bad status indicator, e.g. for cell status
 lv_font_conv --font "$INPUT_FONT" --size $FONT_SIZE --bpp 1 --format lvgl \
--r "0xf0c8,0xf544,0xf5e1,0xf071,0xf601,0xf244,0xf243,0xf242,0xf241,0xf240,0xf5e7,0xf7bf,0xf019,0xf140,0xf05b,0xf5df,0xf08b,0xf256,0xf253" \
+-r "0xf0c8,0xf544,0xf5e1,0xf071,0xf601,0xf244,0xf243,0xf242,0xf241,0xf240,0xf5e7,0xf7bf,0xf019,0xf140,0xf05b,0xf5df,0xe0b7,0xf256,0xf253,0xf00c,0xf2d3" \
 -o "${OUTPUT_FONT_NAME}.c" --lv-font-name "${OUTPUT_FONT_NAME}"

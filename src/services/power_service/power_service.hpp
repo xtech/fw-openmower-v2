@@ -8,10 +8,13 @@
 #include <ch.h>
 
 #include <PowerServiceBase.hpp>
+#include <drivers/bms/bms_driver.hpp>
 #include <drivers/charger/charger.hpp>
 #include <xbot-service/Lock.hpp>
 
 using namespace xbot::service;
+using namespace xbot::driver::bms;
+
 using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
 
 class PowerService : public PowerServiceBase {
@@ -20,6 +23,7 @@ class PowerService : public PowerServiceBase {
   }
 
   void SetDriver(ChargerDriver* charger_driver);
+  void SetDriver(BmsDriver* bms_driver);
 
   [[nodiscard]] float GetChargeCurrent() {
     xbot::service::Lock lk{&mtx_};
@@ -54,11 +58,13 @@ class PowerService : public PowerServiceBase {
 
   static constexpr auto CHARGE_STATUS_NOT_FOUND_STR = "Charger Not Found";
 
-  void tick();
-  void charger_tick();
+  void tick();          // Service tick
+  void drivers_tick();  // Tick for all drivers (i.e charger, BMS, ...)
+  void charger_tick();  // Charger specific tick
+
   ServiceSchedule tick_schedule_{*this, 1'000'000, XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::tick, this)};
-  Schedule charger_managed_schedule_{scheduler_, true, 1'000'000,
-                                     XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::charger_tick, this)};
+  Schedule driver_schedule_{scheduler_, true, 1'000'000,
+                            XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::drivers_tick, this)};
 
   bool charger_configured_ = false;
   float charge_current = 0;
@@ -68,6 +74,8 @@ class PowerService : public PowerServiceBase {
   int critical_count = 0;
   CHARGER_STATUS charger_status = CHARGER_STATUS::COMMS_ERROR;
   ChargerDriver* charger_ = nullptr;
+  BmsDriver* bms_ = nullptr;
+
   THD_WORKING_AREA(wa, 1500){};
 
  protected:

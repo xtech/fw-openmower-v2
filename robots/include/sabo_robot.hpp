@@ -2,6 +2,7 @@
 #define SABO_ROBOT_HPP
 
 #include <cstdint>
+#include <drivers/bms/sabo_bms_driver.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/input/sabo_input_driver.hpp>
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
@@ -13,6 +14,7 @@
 using namespace xbot::driver::ui;
 using namespace xbot::driver::motor;
 using namespace xbot::driver::sabo;
+using namespace xbot::driver::bms;
 
 class SaboRobot : public MowerRobot {
  public:
@@ -32,23 +34,24 @@ class SaboRobot : public MowerRobot {
   }
 
   float Power_GetDefaultBatteryFullVoltage() override {
-    return 29.4f;  // As rated on battery pack, which is 7 * 4.2V
+    return 29.0f;  // Conservative. Rated on battery pack is 29.4V
   }
 
   float Power_GetDefaultBatteryEmptyVoltage() override {
-    return 7.0f * 3.3f;
+    return 7.0f * 3.36f;  // 23.52V
+  }
+
+  float Power_GetAbsoluteMinVoltage() override {
+    // Stock Sabo battery pack has INR18650-13L (Samsung) which are specified as:
+    // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save and use 3.15V,
+    // because most packages are > 10 years old now and cells may be a bit worn out.
+    return 7.0f * 3.2;  // 22.4V
   }
 
   float Power_GetDefaultChargeCurrent() override {
     // Battery pack is 7S3P, so max. would be 1.3Ah * 3 = 3.9A
     // 3.9A would be also the max. charge current for the stock PSU!
     return 1.95f;  // Lets stay save and conservative for now
-  }
-
-  float Power_GetAbsoluteMinVoltage() override {
-    // Stock Sabo battery pack has INR18650-13L (Samsung) which are specified as:
-    // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save and use 3.0V
-    return 7.0f * 3.0;
   }
 
   // ----- Some driver Test* functions used by Boot-Screen -----
@@ -106,10 +109,23 @@ class SaboRobot : public MowerRobot {
     sabo_input_driver_.SetBlockButtons(block);
   }
 
+  // BMS data access
+  const xbot::driver::bms::Data* GetBmsData() const {
+    return bms_.GetData();
+  }
+
+  // BMS debug access
+  void DumpBms() {
+    if (hardware_config.bms != nullptr) {
+      bms_.DumpDevice();
+    }
+  }
+
  private:
   BQ2576 charger_{};
   SaboCoverUIController cover_ui_{hardware_config};
   SaboInputDriver sabo_input_driver_{hardware_config};
+  SaboBmsDriver bms_{hardware_config.bms};
 };
 
 #endif  // SABO_ROBOT_HPP

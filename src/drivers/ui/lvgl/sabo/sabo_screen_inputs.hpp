@@ -55,10 +55,18 @@ class SaboScreenInputs : public ScreenBase<ScreenId, ButtonId> {
       auto* sabo_robot = static_cast<SaboRobot*>(robot);
       sabo_robot->SetBlockButtons(false);
     }
+
+    // Delete WidgetSensor objects
+    for (auto& sensor : sensors_) {
+      if (sensor.widget) {
+        delete sensor.widget;
+      }
+    }
   }
 
-  void Create(lv_color_t bg_color = lv_color_white()) override {
-    ScreenBase::Create(bg_color);
+  void Create(lv_color_t bg_color = lv_color_white(), lv_color_t fg_color = lv_color_black()) override {
+    ScreenBase::Create(bg_color, fg_color);
+    lv_obj_set_style_text_font(screen_, &orbitron_12, LV_PART_MAIN);
 
     // Sabo Top View Image - fill entire screen
     lv_obj_t* image = lv_img_create(screen_);
@@ -82,28 +90,20 @@ class SaboScreenInputs : public ScreenBase<ScreenId, ButtonId> {
     // Create Button test label in upper-left corner
     lv_obj_t* btn_label_ = lv_label_create(screen_);
     lv_label_set_text_static(btn_label_, "Button Test");
-    lv_obj_set_style_text_color(btn_label_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(btn_label_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(btn_label_, LV_ALIGN_TOP_MID, -(LCD_WIDTH / 4), 0);
     // ... and value
     btn_test_value_ = lv_label_create(screen_);
     lv_label_set_text_static(btn_test_value_, "?");
-    lv_obj_set_style_text_color(btn_test_value_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(btn_test_value_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(btn_test_value_, LV_ALIGN_TOP_MID, -(LCD_WIDTH / 4), 15);
 
     // Create heartbeat label in lower-left corner
     lv_obj_t* heartbeat_label_ = lv_label_create(screen_);
     lv_label_set_text_static(heartbeat_label_, "Rear Handle\n  Heartbeat");
-    lv_obj_set_style_text_color(heartbeat_label_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(heartbeat_label_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(heartbeat_label_, LV_ALIGN_BOTTOM_MID, -(LCD_WIDTH / 4), -15);
 
     // ... and value
     heartbeat_value_ = lv_label_create(screen_);
     lv_label_set_text_static(heartbeat_value_, "0 Hz");
-    lv_obj_set_style_text_color(heartbeat_value_, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(heartbeat_value_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(heartbeat_value_, LV_ALIGN_BOTTOM_MID, -(LCD_WIDTH / 4), 0);
   }
 

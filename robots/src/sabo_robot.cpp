@@ -13,8 +13,12 @@ SaboRobot::SaboRobot() : hardware_config(GetHardwareConfig(GetHardwareVersion(ca
 void SaboRobot::InitPlatform() {
   InitMotors();
   charger_.setI2C(&I2CD1);
+  bms_.Init();
+
   power_service.SetDriver(&charger_);
+  power_service.SetDriver(&bms_);
   input_service.RegisterInputDriver("sabo", &sabo_input_driver_);
+
   cover_ui_.Start();
 
   // Initialize GPS driver for immediate availability (without waiting for ROS configuration)

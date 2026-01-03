@@ -24,6 +24,7 @@
 #include "../lvgl/sabo/sabo_input_device_keypad.hpp"
 #include "../lvgl/sabo/sabo_menu_main.hpp"
 #include "../lvgl/sabo/sabo_screen_about.hpp"
+#include "../lvgl/sabo/sabo_screen_battery.hpp"
 #include "../lvgl/sabo/sabo_screen_boot.hpp"
 #include "../lvgl/sabo/sabo_screen_inputs.hpp"
 #include "../lvgl/sabo/sabo_screen_main.hpp"
@@ -55,16 +56,40 @@ class SaboCoverUIDisplay {
 
   bool Init();
   void Start();
+
   void ShowBootScreen();
   void ShowMainScreen();
-  void ShowSettingsScreen();
-  void CloseSettingsScreen();
-  void ShowAboutScreen();
-  void CloseAboutScreen();
-  void ShowInputsScreen();
-  void CloseInputsScreen();
+  void ShowSettingsScreen() {
+    SwitchToScreen(screen_settings_);
+  }
+  void CloseSettingsScreen() {
+    if (screen_settings_) {
+      lcd_settings_ = screen_settings_->GetSettings();
+    }
+    CloseScreen(screen_settings_);
+  }
+  void ShowAboutScreen() {
+    SwitchToScreen(screen_about_);
+  }
+  void CloseAboutScreen() {
+    CloseScreen(screen_about_);
+  }
+  void ShowBatteryScreen() {
+    SwitchToScreen(screen_battery_);
+  }
+  void CloseBatteryScreen() {
+    CloseScreen(screen_battery_);
+  }
+  void ShowInputsScreen() {
+    SwitchToScreen(screen_inputs_);
+  }
+  void CloseInputsScreen() {
+    CloseScreen(screen_inputs_);
+  }
+
   void ShowMenu();
   void HideMenu();
+
   void Tick();
   void WakeUp();
   bool OnButtonPress(ButtonId button_id);
@@ -81,6 +106,7 @@ class SaboCoverUIDisplay {
   SaboScreenAbout* screen_about_ = nullptr;
   SaboScreenSettings* screen_settings_ = nullptr;
   SaboScreenInputs* screen_inputs_ = nullptr;
+  SaboScreenBattery* screen_battery_ = nullptr;
   SaboMenuMain* menu_main_ = nullptr;
   SaboScreenBase* active_screen_ = nullptr;
 
@@ -98,10 +124,40 @@ class SaboCoverUIDisplay {
   }
 
   template <typename ScreenT>
-  void GetOrCreateScreen(ScreenT*& screen_ptr) {
+  void SwitchToScreen(ScreenT*& screen_ptr) {
+    // If menu is open, hide it immediately (without animation) before switching screens
+    SafeDelete(menu_main_);
+
+    if (active_screen_) {
+      active_screen_->Deactivate();
+      active_screen_->Hide();
+    }
+
+    // Create screen if needed (inlined from CreateIfNeeded)
     if (!screen_ptr) {
       screen_ptr = new ScreenT();
       screen_ptr->Create();
+    }
+
+    active_screen_ = screen_ptr;
+    screen_ptr->Show();
+    screen_ptr->Activate(input_group_);
+  }
+
+  template <typename ScreenT>
+  void CloseScreen(ScreenT*& screen_ptr) {
+    // Clean up menu if it's open (it might be attached to the screen)
+    SafeDelete(menu_main_);
+
+    if (screen_ptr) {
+      // Switch to main screen BEFORE deleting screen to avoid deleting the active LVGL screen
+      ShowMainScreen();
+      SafeDelete(screen_ptr);
+    }
+
+    // Clear group
+    if (input_group_) {
+      lv_group_remove_all_objs(input_group_);
     }
   }
 

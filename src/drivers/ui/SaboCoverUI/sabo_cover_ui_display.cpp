@@ -94,108 +94,12 @@ void SaboCoverUIDisplay::ShowBootScreen() {
 }
 
 void SaboCoverUIDisplay::ShowMainScreen() {
-  GetOrCreateScreen(screen_main_);
+  if (!screen_main_) {
+    screen_main_ = new SaboScreenMain();
+    screen_main_->Create();
+  }
   active_screen_ = screen_main_;
   screen_main_->Show();
-}
-
-void SaboCoverUIDisplay::ShowSettingsScreen() {
-  // If menu is open, hide it immediately (without animation) before switching screens
-  SafeDelete(menu_main_);
-
-  if (active_screen_) {
-    active_screen_->Deactivate();
-    active_screen_->Hide();
-  }
-
-  GetOrCreateScreen(screen_settings_);
-  active_screen_ = screen_settings_;
-  screen_settings_->Show();
-  screen_settings_->Activate(input_group_);
-}
-
-void SaboCoverUIDisplay::CloseSettingsScreen() {
-  // Clean up menu if it's open (it might be attached to Settings screen)
-  SafeDelete(menu_main_);
-
-  if (screen_settings_) {
-    lcd_settings_ = screen_settings_->GetSettings();
-    // Switch to main screen BEFORE deleting settings screen to avoid deleting the active LVGL screen
-    ShowMainScreen();
-    SafeDelete(screen_settings_);
-  }
-
-  // Clear group
-  if (input_group_) {
-    lv_group_remove_all_objs(input_group_);
-  }
-}
-
-void SaboCoverUIDisplay::ShowAboutScreen() {
-  // If menu is open, hide it immediately (without animation) before switching screens
-  SafeDelete(menu_main_);
-
-  if (active_screen_) {
-    active_screen_->Deactivate();
-    active_screen_->Hide();
-  }
-
-  GetOrCreateScreen(screen_about_);
-  active_screen_ = screen_about_;
-  screen_about_->Show();
-  screen_about_->Activate(input_group_);
-}
-
-void SaboCoverUIDisplay::CloseAboutScreen() {
-  // Clean up menu if it's open (it might be attached to About screen)
-  SafeDelete(menu_main_);
-
-  if (screen_about_) {
-    // Switch to main screen BEFORE deleting about screen to avoid deleting the active LVGL screen
-    ShowMainScreen();
-    SafeDelete(screen_about_);
-  }
-
-  // Clear group
-  if (input_group_) {
-    lv_group_remove_all_objs(input_group_);
-  }
-}
-
-void SaboCoverUIDisplay::ShowInputsScreen() {
-  // If menu is open, hide it immediately (without animation) before switching screens
-  SafeDelete(menu_main_);
-
-  if (active_screen_) {
-    active_screen_->Deactivate();
-    active_screen_->Hide();
-  }
-
-  // Create inputs screen if not already created
-  if (!screen_inputs_) {
-    screen_inputs_ = new lvgl::sabo::SaboScreenInputs();
-    screen_inputs_->Create();
-  }
-
-  active_screen_ = screen_inputs_;
-  screen_inputs_->Show();
-  screen_inputs_->Activate(input_group_);
-}
-
-void SaboCoverUIDisplay::CloseInputsScreen() {
-  // Clean up menu if it's open (it might be attached to Inputs screen)
-  SafeDelete(menu_main_);
-
-  if (screen_inputs_) {
-    // Switch to main screen BEFORE deleting inputs screen to avoid deleting the active LVGL screen
-    ShowMainScreen();
-    SafeDelete(screen_inputs_);
-  }
-
-  // Clear group
-  if (input_group_) {
-    lv_group_remove_all_objs(input_group_);
-  }
 }
 
 void SaboCoverUIDisplay::ShowMenu() {
@@ -236,6 +140,14 @@ void SaboCoverUIDisplay::ShowMenu() {
         auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
         // Don't call HideMenu() here - ShowSettingsScreen() will handle menu cleanup
         display->ShowSettingsScreen();
+      },
+      this);
+  menu_main_->SetMenuItemCallback(
+      SaboMenuMain::MenuItem::BATTERY,
+      [](lv_event_t* e) {
+        auto* display = static_cast<SaboCoverUIDisplay*>(lv_event_get_user_data(e));
+        // Don't call HideMenu() here - ShowBatteryScreen() will handle menu cleanup
+        display->ShowBatteryScreen();
       },
       this);
   menu_main_->SetMenuItemCallback(
@@ -343,6 +255,9 @@ bool SaboCoverUIDisplay::OnButtonPress(ButtonId button_id) {
         return true;  // Handled
       } else if (active_screen_->GetScreenId() == ScreenId::ABOUT) {
         CloseAboutScreen();
+        return true;  // Handled
+      } else if (active_screen_->GetScreenId() == ScreenId::BATTERY) {
+        CloseBatteryScreen();
         return true;  // Handled
       } else if (active_screen_->GetScreenId() == ScreenId::INPUTS) {
         CloseInputsScreen();

@@ -62,17 +62,14 @@ SaboScreenBoot::~SaboScreenBoot() {
     delete status_bar_;
     status_bar_ = nullptr;
   }
-
-  // LVGL objects (mower_, wheel_, screen_) are automatically deleted by parent screen cleanup
 }
 
-void SaboScreenBoot::Create(lv_color_t bg_color) {
-  ScreenBase::Create(bg_color);
+void SaboScreenBoot::Create(lv_color_t bg_color, lv_color_t fg_color) {
+  ScreenBase::Create(bg_color, fg_color);
 
   // Title
   lv_obj_t* title_label = lv_label_create(screen_);
   lv_label_set_text(title_label, "OpenMower @ SABO");
-  lv_obj_set_style_text_color(title_label, lv_color_black(), LV_PART_MAIN);
   lv_obj_set_style_text_font(title_label, &orbitron_16b, LV_PART_MAIN);
   lv_obj_align(title_label, LV_ALIGN_TOP_MID, 0, 0);
 

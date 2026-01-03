@@ -41,20 +41,9 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
     }
   }
 
-  ~SaboScreenSettings() {
-    // LVGL-Objekte explizit löschen
-    if (contrast_slider_) lv_obj_delete(contrast_slider_);
-    if (contrast_value_label_) lv_obj_delete(contrast_value_label_);
-    if (temp_selector_) lv_obj_delete(temp_selector_);
-    if (sleep_slider_) lv_obj_delete(sleep_slider_);
-    if (sleep_value_label_) lv_obj_delete(sleep_value_label_);
-
-    // Screen löschen (falls erstellt)
-    if (screen_) lv_obj_delete(screen_);
-  }
-
-  void Create(lv_color_t bg_color = lv_color_white()) override {
-    ScreenBase::Create(bg_color);
+  void Create(lv_color_t bg_color = lv_color_white(), lv_color_t fg_color = lv_color_black()) override {
+    ScreenBase::Create(bg_color, fg_color);
+    lv_obj_set_style_text_font(screen_, &orbitron_12, LV_PART_MAIN);
 
     // Title
     lv_obj_t* title = lv_label_create(screen_);
@@ -74,7 +63,6 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
     // 1. Contrast Slider
     lv_obj_t* contrast_label = lv_label_create(screen_);
     lv_label_set_text(contrast_label, "Contrast");
-    lv_obj_set_style_text_font(contrast_label, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(contrast_label, LV_ALIGN_TOP_LEFT, 3, y_pos);
 
     contrast_slider_ = lv_slider_create(screen_);
@@ -85,7 +73,6 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
 
     contrast_value_label_ = lv_label_create(screen_);
     lv_label_set_text_fmt(contrast_value_label_, "%d", settings_.contrast);
-    lv_obj_set_style_text_font(contrast_value_label_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(contrast_value_label_, LV_ALIGN_TOP_RIGHT, -3, y_pos);
 
     lv_obj_add_event_cb(
@@ -107,14 +94,12 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
     // 2. Temperature Compensation
     lv_obj_t* temp_label = lv_label_create(screen_);
     lv_label_set_text(temp_label, "Temperature Comp.");
-    lv_obj_set_style_text_font(temp_label, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(temp_label, LV_ALIGN_TOP_LEFT, 3, y_pos);
 
     temp_selector_ = lv_dropdown_create(screen_);
     lv_dropdown_set_options(temp_selector_, "Off\n-0.05%/C\n-0.15%/C\n-0.25%/C");
     lv_dropdown_set_selected(temp_selector_, static_cast<uint32_t>(settings_.temp_compensation));
     lv_obj_set_size(temp_selector_, 95, 17);
-    lv_obj_set_style_text_font(temp_selector_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(temp_selector_, LV_ALIGN_TOP_RIGHT, -3, y_pos - 2);
     lv_dropdown_set_dir(temp_selector_, LV_DIR_BOTTOM);
 
@@ -140,7 +125,6 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
     // 3. Auto-Sleep Timer - Label on top, value and slider below
     lv_obj_t* sleep_label = lv_label_create(screen_);
     lv_label_set_text(sleep_label, "Auto-Sleep");
-    lv_obj_set_style_text_font(sleep_label, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(sleep_label, LV_ALIGN_TOP_LEFT, 3, y_pos);
 
     sleep_slider_ = lv_slider_create(screen_);
@@ -151,7 +135,6 @@ class SaboScreenSettings : public ScreenBase<ScreenId, ButtonId> {
 
     sleep_value_label_ = lv_label_create(screen_);
     lv_label_set_text_fmt(sleep_value_label_, "%d min", settings_.auto_sleep_minutes);
-    lv_obj_set_style_text_font(sleep_value_label_, &orbitron_12, LV_PART_MAIN);
     lv_obj_align(sleep_value_label_, LV_ALIGN_TOP_RIGHT, -3, y_pos);
 
     lv_obj_add_event_cb(

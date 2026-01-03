@@ -6,12 +6,18 @@
 
 #include <ulog.h>
 
+#include <cstdio>
+#include <cstring>
 #include <globals.hpp>
 
 #include "board.h"
 
 void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
+}
+
+void PowerService::SetDriver(BmsDriver* bms_driver) {
+  bms_ = bms_driver;
 }
 
 bool PowerService::OnStart() {
@@ -42,8 +48,31 @@ void PowerService::tick() {
                       (robot->Power_GetDefaultBatteryFullVoltage() - robot->Power_GetDefaultBatteryEmptyVoltage());
   }
   SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
+
+  // BMS values
+  if (bms_ != nullptr && bms_->IsPresent()) {
+    const auto* data = bms_->GetData();
+    if (data != nullptr) {
+      SendBatteryCurrent(data->pack_current_a);
+      SendBatteryVoltageBMS(data->pack_voltage_v);
+      SendBatterySoC(data->battery_soc);
+      SendBatteryTemperature(data->temperature_c);
+      SendBatteryStatus(data->battery_status);
+    }
+
+    const char* extra = (bms_ != nullptr) ? bms_->GetExtraDataJson() : "";
+    SendBMSExtraData(extra, (uint32_t)strlen(extra));
+  }
+
   CommitTransaction();
 }
+
+void PowerService::drivers_tick() {
+  charger_tick();
+
+  if (bms_ != nullptr) bms_->Tick();
+}
+
 void PowerService::charger_tick() {
   if (charger_ == nullptr) {
     ULOG_ARG_ERROR(&service_id_, "Charger is null!");

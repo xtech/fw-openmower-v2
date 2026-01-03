@@ -51,6 +51,10 @@ class WidgetTextBar {
 
   ~WidgetTextBar() = default;
 
+  void SetBaseDir(lv_base_dir_t dir) {
+    if (bar_) lv_obj_set_style_base_dir(bar_, dir, LV_PART_MAIN);
+  }
+
   /**
    * @brief Set the font for the text bar
    */
@@ -162,13 +166,14 @@ class WidgetTextBar {
     constexpr size_t BUFFER_SIZE = 64;
     char buf[BUFFER_SIZE];
 
-    // Check if text_data contains a format specifier (%)
-    if (strchr(text_data, '%') != nullptr) {
+    // Determine if we're using the format string (no custom text)
+    bool using_format_string = (self->text_buffer_[0] == '\0');
+    if (using_format_string && strchr(text_data, '%') != nullptr) {
       // It's a format string - use bar value
       int32_t bar_value = lv_bar_get_value(obj);
       chsnprintf(buf, BUFFER_SIZE, text_data, bar_value);
     } else {
-      // It's plain text - use as is
+      // It's plain text (custom text or format string without %) - use as is
       lv_strlcpy(buf, text_data, BUFFER_SIZE);
     }
 
@@ -177,33 +182,51 @@ class WidgetTextBar {
     lv_text_get_size(&txt_size, buf, label_dsc.font, label_dsc.letter_space, label_dsc.line_space, LV_COORD_MAX,
                      label_dsc.flag);
 
-    // Get bar coordinates and calculate indicator area
+    // Get bar coordinates
     lv_area_t bar_coords, txt_area;
     lv_obj_get_coords(obj, &bar_coords);
 
-    // Calculate actual indicator width for intelligent text positioning
-    int32_t bar_range = lv_bar_get_max_value(obj) - lv_bar_get_min_value(obj);
-    int32_t current_value = lv_bar_get_value(obj) - lv_bar_get_min_value(obj);
+    // Calculate indicator position based on value and base direction
+    int32_t bar_min = lv_bar_get_min_value(obj);
+    int32_t bar_max = lv_bar_get_max_value(obj);
+    int32_t bar_value = lv_bar_get_value(obj);
+    int32_t bar_range = bar_max - bar_min;
     int32_t bar_width = lv_area_get_width(&bar_coords);
-    int32_t indic_width = bar_range > 0 ? (bar_width * current_value) / bar_range : 0;
+    int32_t indic_width = bar_range > 0 ? (bar_width * (bar_value - bar_min)) / bar_range : 0;
 
-    // Prefer text right of the inidicator if fits, otherwise left
+    lv_base_dir_t base_dir = lv_obj_get_style_base_dir(obj, LV_PART_MAIN);
+    int32_t indic_start;
+    if (base_dir == LV_BASE_DIR_RTL) {
+      // Indicator grows from right to left
+      indic_start = bar_coords.x2 - indic_width + 1;
+    } else {
+      // Default LTR: indicator grows from left to right
+      indic_start = bar_coords.x1;
+    }
+
+    int32_t left_space = indic_start - bar_coords.x1;
+    int32_t right_space = bar_coords.x2 - (indic_start + indic_width - 1);
+
+    // Prefer text in the larger empty space (left or right) if fits, otherwise inside indicator
     constexpr int32_t MIN_TEXT_MARGIN = 8;
     int32_t text_x = 0;
     int32_t text_y = bar_coords.y1 + (lv_area_get_height(&bar_coords) - txt_size.y) / 2;
 
-    // Check if text fits outside the indicator area
-    if ((bar_width - indic_width) >= txt_size.x + MIN_TEXT_MARGIN) {
-      text_x = bar_coords.x1 + indic_width + ((bar_width - indic_width) - txt_size.x) / 2;
+    // Check if text fits in left empty space
+    if (left_space >= txt_size.x + MIN_TEXT_MARGIN) {
+      text_x = bar_coords.x1 + (left_space - txt_size.x) / 2;
       label_dsc.color = lv_color_black();
-    } else if (indic_width >= txt_size.x + MIN_TEXT_MARGIN) {
-      // Text fits in the indicator (left)
-      text_x = bar_coords.x1 + (indic_width - txt_size.x) / 2;
+    }
+    // Else check if text fits in right empty space
+    else if (right_space >= txt_size.x + MIN_TEXT_MARGIN) {
+      text_x = (indic_start + indic_width) + (right_space - txt_size.x) / 2;
+      label_dsc.color = lv_color_black();
+    }
+    // Else text must be placed inside the indicator
+    else {
+      // Center text within indicator area
+      text_x = indic_start + (indic_width - txt_size.x) / 2;
       label_dsc.color = lv_color_white();
-    } else {
-      // Fallback: Text centered over the whole bar, color depending on fill level
-      text_x = bar_coords.x1 + (bar_width - txt_size.x) / 2;
-      label_dsc.color = (indic_width > bar_width / 2) ? lv_color_white() : lv_color_black();
     }
 
     txt_area.x1 = text_x;
