@@ -1,6 +1,7 @@
 #include "../include/sabo_robot.hpp"
 
 #include <drivers/gps/nmea_gps_driver.h>
+#include <ulog.h>
 
 #include <services.hpp>
 
@@ -22,7 +23,11 @@ void SaboRobot::InitPlatform() {
   cover_ui_.Start();
 
   // Initialize GPS driver for immediate availability (without waiting for ROS configuration)
-  gps_service.LoadAndStartGpsDriver(ProtocolType::NMEA, 0, 921600);
+  settings::GPSSettings gps_settings;
+  if (!settings::GPSSettings::Load(gps_settings)) {
+    ULOG_WARNING("Failed to load GPS settings from flash, using defaults");
+  }
+  gps_service.LoadAndStartGpsDriver(gps_settings.protocol, gps_settings.uart, gps_settings.baudrate);
 }
 
 bool SaboRobot::IsHardwareSupported() {
@@ -36,4 +41,12 @@ bool SaboRobot::IsHardwareSupported() {
   }
 
   return false;
+}
+
+bool SaboRobot::SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) {
+  settings::GPSSettings gps_settings;
+  gps_settings.protocol = protocol;
+  gps_settings.uart = uart;
+  gps_settings.baudrate = baudrate;
+  return settings::GPSSettings::Save(gps_settings);
 }

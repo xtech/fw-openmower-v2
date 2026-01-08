@@ -54,6 +54,11 @@ bool GpsService::OnStart() {
   if (gps_driver_->GetProtocolType() != Protocol.value || used_port_index_ != Uart.value ||
       gps_driver_->GetUartBaudrate() != Baudrate.value) {
     ULOG_ARG_WARNING(&service_id_, "GPS protocol, uart or baudrate change detected - restarting");
+    // Save new settings to persistent storage (if supported by robot)
+    if (!robot->SaveGpsSettings(Protocol.value, Uart.value, Baudrate.value)) {
+      ULOG_ERROR("Failed to save GPS settings! Abort GpsService::OnStart()");
+      return false;
+    }
     NVIC_SystemReset();
   }
 

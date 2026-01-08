@@ -54,6 +54,8 @@ class SaboRobot : public MowerRobot {
     return 1.95f;  // Lets stay save and conservative for now
   }
 
+  bool SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) override;
+
   // ----- Some driver Test* functions used by Boot-Screen -----
 
   bool TestCharger() {

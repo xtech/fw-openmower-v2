@@ -24,6 +24,7 @@
 #include <globals.hpp>
 
 #include "../../src/filesystem/versioned_struct.hpp"
+#include "GpsServiceBase.hpp"
 
 namespace xbot::driver::sabo {
 
@@ -210,7 +211,7 @@ namespace settings {
  * Migration is handled automatically by VersionedStruct base class.
  */
 #pragma pack(push, 1)
-struct LCDSettings : public xbot::driver::filesystem::VersionedStruct<xbot::driver::sabo::settings::LCDSettings> {
+struct LCDSettings : public xbot::driver::filesystem::VersionedStruct<LCDSettings> {
   VERSIONED_STRUCT_FIELDS(1);  // Version 1 - automatically defines VERSION constant and version field
   static constexpr const char* PATH = "/cfg/sabo/lcd.bin";
 
@@ -220,8 +221,36 @@ struct LCDSettings : public xbot::driver::filesystem::VersionedStruct<xbot::driv
 };
 #pragma pack(pop)
 
-static_assert(sizeof(LCDSettings) == 5,
-              "LCDSettings must be 5 bytes (2 version + 3 data)");  // Protect against thoughtless changes
+// Protect against thoughtless changes
+static_assert(sizeof(LCDSettings) == 5, "LCDSettings must be 5 bytes (2 version + 3 data)");
+
+/**
+ * @brief GPS persistent settings stored in LittleFS
+ *
+ * This struct is serialized directly to flash as binary data.
+ * Evolution strategy: version field + append-only new fields.
+ *
+ * Rules for evolution:
+ * - NEVER change existing field types or order
+ * - ALWAYS increment VERSION when adding fields
+ * - ONLY append new fields at the end
+ * - Use padding to maintain alignment if needed
+ *
+ * Migration is handled automatically by VersionedStruct base class.
+ */
+#pragma pack(push, 1)
+struct GPSSettings : public xbot::driver::filesystem::VersionedStruct<GPSSettings> {
+  VERSIONED_STRUCT_FIELDS(1);  // Version 1 - automatically defines VERSION constant and version field
+  static constexpr const char* PATH = "/cfg/sabo/gps.bin";
+
+  ProtocolType protocol = ProtocolType::NMEA;  // GPS protocol (UBX or NMEA)
+  uint8_t uart = 0;                            // UART index (0 = default robot port)
+  uint32_t baudrate = 921600;                  // Baudrate
+};
+#pragma pack(pop)
+
+// Protect against thoughtless changes
+static_assert(sizeof(GPSSettings) == 8, "GPSSettings must be 8 bytes (2 version + 1 protocol + 1 uart + 4 baudrate)");
 
 }  // namespace settings
 

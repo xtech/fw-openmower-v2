@@ -7,6 +7,9 @@
 
 #include <debug/debug_tcp_interface.hpp>
 
+// Forward declare ProtocolType from GpsServiceBase.hpp
+enum class ProtocolType : uint8_t;
+
 class Robot {
  public:
   virtual void InitPlatform() = 0;
@@ -41,6 +44,20 @@ class Robot {
    * Return the minimum voltage before shutting down as much as possible
    */
   virtual float Power_GetAbsoluteMinVoltage() = 0;
+
+  /**
+   * Save GPS settings to persistent storage (optional).
+   * Default implementation does nothing.
+   * @param protocol GPS protocol (0=UBX, 1=NMEA as per ProtocolType enum)
+   * @param uart UART index (0 = default robot port)
+   * @param baudrate Baudrate
+   */
+  virtual bool SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) {
+    (void)protocol;
+    (void)uart;
+    (void)baudrate;
+    return true;
+  }
 };
 
 class MowerRobot : public Robot {
