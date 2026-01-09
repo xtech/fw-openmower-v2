@@ -29,7 +29,6 @@
 #include <chprintf.h>
 // clang-format on
 #include <lvgl.h>
-#include <ulog.h>
 
 #include <cstdint>
 
@@ -152,6 +151,9 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     // Create state label container with scrolling text
     CreateStateLabel();
+
+    // We most likely missed e.g. the emergency clear event during FW reset, update emergency widgets now
+    UpdateEmergencyWidgets();
   }
 
   /**
@@ -177,16 +179,16 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       case 4: UpdateDockWidgets(); break;
       case 5: UpdateRobotState(); break;
     }
+    update_phase = (update_phase + 1) % 5;  // Cycle through 5 phases
 
-    // Do always Emergency check
+    // On mower event
     eventflags_t flags = chEvtGetAndClearFlags(&emergency_event_listener_);
     if (flags & (MowerEvents::EMERGENCY_CHANGED)) {
       UpdateEmergencyWidgets();
     } else {
-      // Get SaboInputDriver sensors for changes directly, for pre-ROS as well as pre-Emergency display
+      // Get SaboInputDriver sensors, for pre-ROS as well as pre-Emergency display
       if (sabo_robot_ != nullptr) {
         uint8_t current_bits = sabo_robot_->GetSensorBits();
-
         if (current_bits != last_sensor_bits_) {
           last_sensor_bits_ = current_bits;
           UpdateEmergencyWidgets();
@@ -194,13 +196,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       }
     }
 
-    update_phase = (update_phase + 1) % 5;  // Cycle through 5 phases
-
     // DEBUG: BMS testing only
     /*static systime_t last_test_time = 0;
-    const systime_t now = chVTGetSystemTime();
     if (chVTTimeElapsedSinceX(last_test_time) > TIME_MS2I(5000)) {
-      last_test_time = now;
+      last_test_time = chVTGetSystemTime();
       if (sabo_robot_ != nullptr) {
         sabo_robot_->DumpBms();
       }
@@ -225,7 +224,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   enum class EmergencyIconType : uint8_t { GENERIC = 0, STOP, WHEEL, TIMEOUT_ANY, TIMEOUT_HL };
   etl::flat_map<EmergencyIconType, WidgetIcon*, 5> emergency_icons_;
   event_listener_t emergency_event_listener_;
-  uint16_t last_emergency_reasons_ = 0;
 
   // State tracking
   uint8_t last_sensor_bits_ = 0;
@@ -570,16 +568,18 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
    * when input state changes
    */
   void UpdateEmergencyWidgets() {
-    static uint16_t triggered_emergency_reasons_ = 0;
-    static uint16_t last_sensor_reasons_ = 0;
+    static uint16_t last_emergency_reasons = 0xffff;
+    static uint16_t last_sensor_reasons = 0;
+    static uint16_t triggered_emergency_reasons = 0;
+
     uint16_t service_reasons = emergency_service.GetEmergencyReasons();
     uint16_t display_reasons = 0;
 
     // Track initially triggered emergency reasons
-    if (last_emergency_reasons_ == 0 && service_reasons != 0) {
-      triggered_emergency_reasons_ = service_reasons;
+    if (last_emergency_reasons == 0 && service_reasons != 0) {
+      triggered_emergency_reasons = service_reasons;
     } else if (service_reasons == 0) {
-      triggered_emergency_reasons_ = 0;
+      triggered_emergency_reasons = 0;
     }
 
     // SaboInputDriver sensor states as emergency reasons using cached bits
@@ -592,13 +592,13 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       display_reasons |= EmergencyReason::LIFT;
     }
 
-    if (service_reasons == last_emergency_reasons_ && display_reasons == last_sensor_reasons_) {
+    if (service_reasons == last_emergency_reasons && display_reasons == last_sensor_reasons) {
       return;
     }
-    last_emergency_reasons_ = service_reasons;
-    last_sensor_reasons_ = display_reasons;
+    last_emergency_reasons = service_reasons;
+    last_sensor_reasons = display_reasons;
 
-    display_reasons |= service_reasons | triggered_emergency_reasons_;
+    display_reasons |= service_reasons | triggered_emergency_reasons;
     for (auto& [type, icon] : emergency_icons_) {
       if (icon != nullptr) {
         WidgetIcon::State new_state = WidgetIcon::State::OFF;
