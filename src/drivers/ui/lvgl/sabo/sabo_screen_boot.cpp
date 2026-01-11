@@ -121,7 +121,10 @@ void SaboScreenBoot::StartForwardAnimation() {
   });
   lv_anim_set_ready_cb(&anim, [](lv_anim_t* a) {
     auto* self = static_cast<SaboScreenBoot*>(a->var);
-    lv_anim_delete(self->wheel_anim_, self->wheel_anim_->exec_cb);
+    if (self->wheel_anim_) {
+      lv_anim_delete(self->wheel_anim_, nullptr);
+      self->wheel_anim_ = nullptr;
+    }
   });
   lv_anim_set_deleted_cb(&anim, [](lv_anim_t* a) {
     auto* self = static_cast<SaboScreenBoot*>(a->var);
@@ -145,14 +148,6 @@ void SaboScreenBoot::StartWheelAnimation() {
   lv_anim_set_path_cb(&anim, lv_anim_path_ease_in);  // Start slow, then accelerate
   lv_anim_set_exec_cb(
       &anim, [](void* var, int32_t v) { lv_obj_set_style_transform_angle(static_cast<lv_obj_t*>(var), v, 0); });
-  lv_anim_set_completed_cb(&anim, [](lv_anim_t* a) {
-    auto* self = static_cast<SaboScreenBoot*>(a->var);
-    self->wheel_anim_ = nullptr;  // Clear reference when done
-  });
-  lv_anim_set_deleted_cb(&anim, [](lv_anim_t* a) {
-    auto* self = static_cast<SaboScreenBoot*>(a->var);
-    self->wheel_anim_ = nullptr;  // Clear reference when deleted
-  });
   wheel_anim_ = lv_anim_start(&anim);
 }
 
