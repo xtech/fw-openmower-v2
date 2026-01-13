@@ -179,7 +179,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       case 4: UpdateDockWidgets(); break;
       case 5: UpdateRobotState(); break;
     }
-    update_phase = (update_phase + 1) % 5;  // Cycle through 5 phases
+    update_phase = (update_phase + 1) % 6;  // Cycle through 6 phases
 
     // On mower event
     eventflags_t flags = chEvtGetAndClearFlags(&emergency_event_listener_);
@@ -214,7 +214,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   static constexpr lv_coord_t STATELABEL_HEIGHT = 23;
 
   lv_obj_t* topbar_ = nullptr;
-  lv_obj_t* state_container_ = nullptr;
 
   // Status icons (initialized in CreateTopbar)
   WidgetIcon* icon_docked_ = nullptr;
@@ -555,11 +554,70 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   }
 
   /**
-   * @brief Update robot state display (placeholder for future implementation)
+   * @brief Update robot state display with HighLevelService state
    */
   void UpdateRobotState() {
-    // TODO: Implement robot state display
-    // This function is called in phase 4 of the round-robin
+    static etl::string<100> state_name;
+    static HighLevelStatus last_hl_status = HighLevelStatus::UNKNOWN;
+    static etl::string<100> last_sub_state_name;
+
+    HighLevelStatus hl_status = high_level_service.GetStateId();
+    etl::string<100> sub_state_name = high_level_service.GetSubStateName();
+
+    if (hl_status == last_hl_status && sub_state_name == last_sub_state_name) return;
+
+    const uint8_t SUBSTATE_SHIFT = static_cast<uint8_t>(HighLevelStatus::SUBSTATE_SHIFT);
+    const uint8_t STATE_MASK = (1 << SUBSTATE_SHIFT) - 1;  // Main-State bits 0-5 (since SUBSTATE_SHIFT=6)
+    const uint8_t SUBSTATE_MASK = static_cast<uint8_t>(HighLevelStatus::SUBSTATE_MASK);
+
+    uint8_t hl_status_raw = static_cast<uint8_t>(hl_status);
+    HighLevelStatus main_state = static_cast<HighLevelStatus>(hl_status_raw & STATE_MASK);
+    HighLevelStatus sub_state = static_cast<HighLevelStatus>((hl_status_raw >> SUBSTATE_SHIFT) & SUBSTATE_MASK);
+
+    switch (main_state) {
+      case HighLevelStatus::IDLE: state_name = "IDLE"; break;
+
+      case HighLevelStatus::AUTONOMOUS:
+        switch (sub_state) {
+          case HighLevelStatus::SUBSTATE_1:  // Wert 0 = Mowing Normal
+            state_name = "MOWING";
+            break;
+          case HighLevelStatus::SUBSTATE_2:  // Wert 1 = Docking
+            state_name = "DOCKING";
+            break;
+          case HighLevelStatus::SUBSTATE_3:  // Wert 2 = Undocking
+            state_name = "UNDOCKING";
+            break;
+          case HighLevelStatus::SUBSTATE_4:  // Wert 3 = Paused
+            state_name = "PAUSED";
+            break;
+          default: break;
+        }
+        break;
+
+      case HighLevelStatus::RECORDING:
+        state_name = "RECORDING";
+        switch (sub_state) {
+          case HighLevelStatus::SUBSTATE_2:  // Outline
+            state_name += " (OUTLINE)";
+            break;
+          case HighLevelStatus::SUBSTATE_3:  // Obstacle
+            state_name += " (OBSTACLE)";
+            break;
+          default: break;
+        }
+        // SubState exception
+        if (sub_state_name.compare("RECORD_DOCKING_POSITION") == 0) {
+          state_name += " (DOCK)";
+        }
+        break;
+
+      default: state_name = "UNKNOWN"; break;
+    }
+
+    lv_label_set_text(state_label_, state_name.c_str());
+    last_hl_status = hl_status;
+    last_sub_state_name = sub_state_name;
   }
 
   /**
@@ -630,27 +688,21 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   }
 
   /**
-   * @brief Create a bordered container with scrolling label for robot state display
+   * @brief Create a bordered container for robot state display
    *
    * Layout:
    * [bordered rectangle] [Robot State like IDLE/MOWING/PAUSE/etc]
-   * The label uses circular scrolling if text exceeds container width.
    */
   void CreateStateLabel() {
-    // Create container with border (no fill) at bottom of screen
-    state_container_ = lv_obj_create(screen_);
-    lv_obj_set_size(state_container_, defs::LCD_WIDTH, STATELABEL_HEIGHT);
-    lv_obj_set_pos(state_container_, 0, defs::LCD_HEIGHT - STATELABEL_HEIGHT);
-    lv_obj_set_style_border_width(state_container_, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(state_container_, lv_color_black(), LV_PART_MAIN);
-
-    // Create scrolling label
-    state_label_ = lv_label_create(screen_);  // Doesn't work with state_container_ as parent. Whyever :-/
-    lv_label_set_text(state_label_, "Robot State");
+    state_label_ = lv_label_create(screen_);
+    lv_obj_set_size(state_label_, defs::LCD_WIDTH, STATELABEL_HEIGHT);
+    lv_obj_set_pos(state_label_, 0, defs::LCD_HEIGHT - STATELABEL_HEIGHT);
+    lv_obj_set_style_border_width(state_label_, 1, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(state_label_, 3, LV_PART_MAIN);
+    lv_obj_set_style_border_color(state_label_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(state_label_, &orbitron_16b, LV_PART_MAIN);
-    lv_obj_align(state_label_, LV_ALIGN_BOTTOM_MID, defs::LCD_WIDTH / 4, -2);
-    lv_label_set_long_mode(state_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(state_label_, defs::LCD_WIDTH - 6);
+    lv_obj_set_style_text_align(state_label_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_label_set_text(state_label_, "Waiting for ROS");
   }
 
 };  // class SaboScreenMain
