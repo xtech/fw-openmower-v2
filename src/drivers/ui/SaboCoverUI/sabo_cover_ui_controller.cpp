@@ -88,22 +88,18 @@ void SaboCoverUIController::ThreadHelper(void* instance) {
 void SaboCoverUIController::UpdateStates() {
   if (!cabo_->IsReady()) return;
 
-  // const auto high_level_state = mower_ui_service.GetHighLevelState();
-
-  // Start LEDs
-  // For identification purposes, Red-Start-LED get handled exclusively with high priority before Green-Start-LED
+  // Play LEDs
+  // For identification purposes, PLAY_RD get handled exclusively with higher priority before PLAY_GN
   if (emergency_service.GetEmergencyReasons() != 0) {
     cabo_->SetLed(LedId::PLAY_RD, LedMode::BLINK_FAST);  // Emergency
     cabo_->SetLed(LedId::PLAY_GN, LedMode::OFF);
-    /* FIXME: Add/Enable once mower_ui_service is working
-  } else if (high_level_state ==
-             MowerUiService::HighLevelState::MODE_UNKNOWN) { // Waiting for ROS
-    cabo_->SetLED(LEDID::PLAY_RD, LEDMode::BLINK_SLOW);              */
+  } else if (emergency_service.GetEmergencyReasons() & EmergencyReason::TIMEOUT_HIGH_LEVEL) {  // ROS not connected
+    cabo_->SetLed(LedId::PLAY_RD, LedMode::BLINK_SLOW);
     cabo_->SetLed(LedId::PLAY_GN, LedMode::OFF);
   } else {
     cabo_->SetLed(LedId::PLAY_RD, LedMode::OFF);
 
-    // Green-Start-LED
+    // PLAY_GN LED handling
     if (power_service.GetAdapterVolts() > 26.0f) {    // Docked
       if (power_service.GetBatteryVolts() < 20.0f) {  // No (or dead) battery
         cabo_->SetLed(LedId::PLAY_GN, LedMode::BLINK_FAST);
@@ -113,9 +109,45 @@ void SaboCoverUIController::UpdateStates() {
         cabo_->SetLed(LedId::PLAY_GN, LedMode::ON);
       }
     } else {
-      // TODO: Handle high level states like "Mowing" or "Area Recording"
       cabo_->SetLed(LedId::PLAY_GN, LedMode::OFF);
     }
+  }
+
+  // Handle HighLevelService states for AUTO, MOWING, HOME LEDs
+  const HighLevelStatus hl_status = high_level_service.GetStateId();
+  const uint8_t SUBSTATE_SHIFT = static_cast<uint8_t>(HighLevelStatus::SUBSTATE_SHIFT);
+  const uint8_t STATE_MASK = (1 << SUBSTATE_SHIFT) - 1;
+  const uint8_t SUBSTATE_MASK = static_cast<uint8_t>(HighLevelStatus::SUBSTATE_MASK);
+
+  uint8_t hl_status_raw = static_cast<uint8_t>(hl_status);
+  HighLevelStatus main_state = static_cast<HighLevelStatus>(hl_status_raw & STATE_MASK);
+  HighLevelStatus sub_state = static_cast<HighLevelStatus>((hl_status_raw >> SUBSTATE_SHIFT) & SUBSTATE_MASK);
+
+  // AUTO LED
+  if (main_state == HighLevelStatus::AUTONOMOUS) {
+    cabo_->SetLed(LedId::AUTO, LedMode::ON);
+  } else if (power_service.GetAdapterVolts() <= 26.0f) {
+    cabo_->SetLed(LedId::AUTO, LedMode::BLINK_SLOW);  // Hanging around indicator
+  } else {
+    cabo_->SetLed(LedId::AUTO, LedMode::OFF);
+  }
+
+  // MOWING LED
+  if (main_state == HighLevelStatus::AUTONOMOUS && sub_state == HighLevelStatus::SUBSTATE_1) {
+    if (high_level_service.GetStateName().compare("MOWING") == 0) {
+      cabo_->SetLed(LedId::MOWING, LedMode::ON);
+    } else {
+      cabo_->SetLed(LedId::MOWING, LedMode::BLINK_SLOW);
+    }
+  } else {
+    cabo_->SetLed(LedId::MOWING, LedMode::OFF);
+  }
+
+  // HOME (Docking) LED
+  if (main_state == HighLevelStatus::AUTONOMOUS && sub_state == HighLevelStatus::SUBSTATE_2) {
+    cabo_->SetLed(LedId::HOME, LedMode::ON);
+  } else {
+    cabo_->SetLed(LedId::HOME, LedMode::OFF);
   }
 }
 
