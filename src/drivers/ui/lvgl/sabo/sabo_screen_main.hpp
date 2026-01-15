@@ -373,6 +373,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       lv_label_set_text(gps_mode_value_, gps_mode);
       icon_gps_mode_->SetIcon(gps_icon);
       icon_gps_mode_->SetState(gps_icon_state);
+
+      // Update last_gps_state with minimal copy (only needed fields)
+      last_gps_state.rtk_type = gps_state.rtk_type;
+      last_gps_state.fix_type = gps_state.fix_type;
     }
 
     // Update NTRIP seconds only if changed
@@ -388,10 +392,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       }
       last_seconds_since_rtcm = seconds_since_rtcm;
     }
-
-    // Update last_gps_state with minimal copy (only needed fields)
-    last_gps_state.rtk_type = gps_state.rtk_type;
-    last_gps_state.fix_type = gps_state.fix_type;
   }
 
   /**
