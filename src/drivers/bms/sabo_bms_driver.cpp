@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "../dma_resource_manager.hpp"
 #include "json_utils.hpp"
 #include "sbs_debug.hpp"
 
@@ -34,6 +35,7 @@ extern "C" {
 #endif
 
 using namespace xbot::json;
+using namespace xbot::driver;
 
 namespace xbot::driver::bms {
 
@@ -98,22 +100,46 @@ bool SaboBmsDriver::Init() {
     ULOG_ERROR("SaboBmsDriver: I2C driver not set\n");
     return false;
   }
-  configured_ = true;
 
-  return configured_;
+  // BMS is a low-prio driver, let's use with the DMA resource manager as DMA-Streams MUX
+  // Create delegates bound to this instance
+  auto start_delegate = etl::delegate<msg_t()>::create<SaboBmsDriver, &SaboBmsDriver::StartI2C>(*this);
+  auto stop_delegate = etl::delegate<void()>::create<SaboBmsDriver, &SaboBmsDriver::StopI2C>(*this);
+  // Resource ID is the I2C driver pointer, so that multiple drivers sharing the same I2C are recognized
+  void* resource_id = static_cast<void*>(bms_cfg_->i2c);
+  // Priority: 100 (medium-low)
+  if (!DmaResourceManager::GetInstance().Register(this, resource_id, 100, start_delegate, stop_delegate)) {
+    ULOG_WARNING("SaboBmsDriver: Failed registering with DMA resource manager (resource %p)", resource_id);
+    return false;
+  }
+
+  configured_ = true;
+  return true;
 }
 
 void SaboBmsDriver::Tick() {
   static uint8_t check_cnt = 10;  // Need some retries to detect presence
   static systime_t last_log_time = 0;
+  // static bool registered = false;
 
   if (!configured_ || (!IsPresent() && !check_cnt)) return;
+
+  // Acquire bus and request DMA resource
+  i2cAcquireBus(bms_cfg_->i2c);
+  msg_t result = DmaResourceManager::GetInstance().Request(this);
+  if (result != HAL_RET_SUCCESS) {
+    i2cReleaseBus(bms_cfg_->i2c);
+    ULOG_WARNING("SaboBmsDriver: Failed to start I2C driver (result %d)! Skipping Tick().", result);
+    return;
+  }
 
   if (!IsPresent()) {
     SetPresent(probe());
     check_cnt--;
     if (!IsPresent()) {
       ULOG_INFO("BMS probe failed at I2C addr 0x%02X (%d tries left)", (unsigned)DEVICE_ADDRESS, (unsigned)check_cnt);
+      DmaResourceManager::GetInstance().Release(this);
+      i2cReleaseBus(bms_cfg_->i2c);
       return;
     } else {
       size_t len = 0;
@@ -204,6 +230,10 @@ void SaboBmsDriver::Tick() {
   // BatteryStatus (0x16) word
   // "FSM-BMZ, 30710, V2.00" seem to support only some of the status bits.
   if (ReadRegister(0x16, u16) == MSG_OK) {
+    // Bit 11, 0x0800 looks like a TERMINATE_DISCHARGE_ALARM flag, SoC < 5% ?
+    (u16 & 0b0000100000000000)
+        ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge)
+        : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge);
     // Bit 7-6 looks like a CHARGING flag => /DISCHARGING
     ((u16 & 0b11000000) && data_.pack_current_a > 0.0f)
         ? SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusDischarging)
@@ -217,9 +247,10 @@ void SaboBmsDriver::Tick() {
         ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyDischarged)
         : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyDischarged);
     // Bit 0 looks like a TERMINATE_DISCHARGE_ALARM flag, SoC < 5% ?
-    (u16 & 0b00000001)
+    /*(u16 & 0b00000001)
         ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge)
-        : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge);
+        : SbsProtocol::ResetBatteryStatus(data_.battery_status,
+       SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge);*/
   }
 
   // CycleCount (0x17) word
@@ -254,6 +285,8 @@ void SaboBmsDriver::Tick() {
               (double)data_.temperature_c, (double)(data_.battery_soc * 100.0f), (double)data_.remaining_capacity_ah,
               (double)data_.full_charge_capacity_ah, (unsigned)data_.battery_status, status_bin);
   }
+  DmaResourceManager::GetInstance().Release(this);
+  i2cReleaseBus(bms_cfg_->i2c);
 }
 
 const char* SaboBmsDriver::GetExtraDataJson() const {
@@ -406,8 +439,6 @@ bool SaboBmsDriver::DumpDevice() {
 msg_t SaboBmsDriver::ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len) {
   if (bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr || rx == nullptr || rx_len == 0) return MSG_RESET;
 
-  i2cAcquireBus(bms_cfg_->i2c);
-
   msg_t last_msg = MSG_RESET;
   for (unsigned attempt = 0; attempt < i2c_retries; attempt++) {
     const msg_t msg = i2cMasterTransmit(bms_cfg_->i2c, DEVICE_ADDRESS, &reg, 1, rx, rx_len);
@@ -416,7 +447,6 @@ msg_t SaboBmsDriver::ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len) {
     chThdSleepMilliseconds(i2c_retry_delay_ms);
   }
 
-  i2cReleaseBus(bms_cfg_->i2c);
   return last_msg;
 }
 
@@ -444,8 +474,6 @@ msg_t SaboBmsDriver::ReadRegister(uint8_t reg, int16_t& result) {
 msg_t SaboBmsDriver::ReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity, size_t& out_len) {
   out_len = 0;
   if (!bms_cfg_ || !bms_cfg_->i2c || !data || !data_capacity) return MSG_RESET;
-
-  i2cAcquireBus(bms_cfg_->i2c);
 
   // SMBus block read: device returns [len][data0][data1]...[data(len-1)]
   // Read the maximum (1 + 32) in one transaction.
@@ -489,7 +517,6 @@ msg_t SaboBmsDriver::ReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity,
     break;
   }
 
-  i2cReleaseBus(bms_cfg_->i2c);
   return last_msg;
 }
 
@@ -508,6 +535,17 @@ void SaboBmsDriver::rtrim(char* str) {
   while (end > str && isspace((unsigned char)*end)) end--;
 
   end[1] = '\0';
+}
+
+msg_t SaboBmsDriver::StartI2C() {
+  if (bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr || bms_cfg_->i2c->config == nullptr) return HAL_RET_NO_RESOURCE;
+  return i2cStart(bms_cfg_->i2c, bms_cfg_->i2c->config);
+}
+
+void SaboBmsDriver::StopI2C() {
+  if (bms_cfg_ && bms_cfg_->i2c) {
+    i2cStop(bms_cfg_->i2c);
+  }
 }
 
 }  // namespace xbot::driver::bms
