@@ -81,10 +81,6 @@ class SaboBmsDriver : public BmsDriver {
   static int16_t ScaleCurrentRawToMilliA(int16_t raw);
 
   inline void rtrim(char* str);
-
-  // DMA resource manager callbacks
-  msg_t StartI2C();
-  void StopI2C();
 };
 
 }  // namespace xbot::driver::bms

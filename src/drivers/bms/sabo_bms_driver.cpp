@@ -24,7 +24,6 @@
 #include <cstdio>
 #include <cstring>
 
-#include "../dma_resource_manager.hpp"
 #include "json_utils.hpp"
 #include "sbs_debug.hpp"
 
@@ -101,18 +100,6 @@ bool SaboBmsDriver::Init() {
     return false;
   }
 
-  // BMS is a low-prio driver, let's use with the DMA resource manager as DMA-Streams MUX
-  // Create delegates bound to this instance
-  auto start_delegate = etl::delegate<msg_t()>::create<SaboBmsDriver, &SaboBmsDriver::StartI2C>(*this);
-  auto stop_delegate = etl::delegate<void()>::create<SaboBmsDriver, &SaboBmsDriver::StopI2C>(*this);
-  // Resource ID is the I2C driver pointer, so that multiple drivers sharing the same I2C are recognized
-  void* resource_id = static_cast<void*>(bms_cfg_->i2c);
-  // Priority: 100 (medium-low)
-  if (!DmaResourceManager::GetInstance().Register(this, resource_id, 100, start_delegate, stop_delegate)) {
-    ULOG_WARNING("SaboBmsDriver: Failed registering with DMA resource manager (resource %p)", resource_id);
-    return false;
-  }
-
   configured_ = true;
   return true;
 }
@@ -126,19 +113,10 @@ void SaboBmsDriver::Tick() {
 
   // Acquire bus and request DMA resource
   i2cAcquireBus(bms_cfg_->i2c);
-  msg_t result = DmaResourceManager::GetInstance().Request(this);
-  if (result != HAL_RET_SUCCESS) {
-    i2cReleaseBus(bms_cfg_->i2c);
-    ULOG_WARNING("SaboBmsDriver: Failed to start I2C driver (result %d)! Skipping Tick().", result);
-    return;
-  }
-
   if (!IsPresent()) {
     SetPresent(probe());
     check_cnt--;
     if (!IsPresent()) {
-      ULOG_INFO("BMS probe failed at I2C addr 0x%02X (%d tries left)", (unsigned)DEVICE_ADDRESS, (unsigned)check_cnt);
-      DmaResourceManager::GetInstance().Release(this);
       i2cReleaseBus(bms_cfg_->i2c);
       return;
     } else {
@@ -285,7 +263,6 @@ void SaboBmsDriver::Tick() {
               (double)data_.temperature_c, (double)(data_.battery_soc * 100.0f), (double)data_.remaining_capacity_ah,
               (double)data_.full_charge_capacity_ah, (unsigned)data_.battery_status, status_bin);
   }
-  DmaResourceManager::GetInstance().Release(this);
   i2cReleaseBus(bms_cfg_->i2c);
 }
 
@@ -535,17 +512,6 @@ void SaboBmsDriver::rtrim(char* str) {
   while (end > str && isspace((unsigned char)*end)) end--;
 
   end[1] = '\0';
-}
-
-msg_t SaboBmsDriver::StartI2C() {
-  if (bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr || bms_cfg_->i2c->config == nullptr) return HAL_RET_NO_RESOURCE;
-  return i2cStart(bms_cfg_->i2c, bms_cfg_->i2c->config);
-}
-
-void SaboBmsDriver::StopI2C() {
-  if (bms_cfg_ && bms_cfg_->i2c) {
-    i2cStop(bms_cfg_->i2c);
-  }
 }
 
 }  // namespace xbot::driver::bms

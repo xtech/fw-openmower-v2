@@ -58,11 +58,20 @@ void PowerService::tick() {
       SendBatterySoC(data->battery_soc);
       SendBatteryTemperature(data->temperature_c);
       SendBatteryStatus(data->battery_status);
+    } else {
+      SendBatteryCurrent(std::numeric_limits<float>::quiet_NaN());
+      SendBatteryVoltageBMS(std::numeric_limits<float>::quiet_NaN());
+      SendBatterySoC(std::numeric_limits<float>::quiet_NaN());
+      SendBatteryTemperature(std::numeric_limits<float>::quiet_NaN());
+      SendBatteryStatus(0);
     }
 
     const char* extra = (bms_ != nullptr) ? bms_->GetExtraDataJson() : "";
     SendBMSExtraData(extra, (uint32_t)strlen(extra));
   }
+
+  // Read and send system current (currently only used by Sabo)
+  SendSystemCurrent(robot->Power_GetSystemCurrent());
 
   CommitTransaction();
 }

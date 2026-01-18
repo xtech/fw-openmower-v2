@@ -191,6 +191,14 @@ inline constexpr size_t NUM_BUTTONS = sizeof(ALL_BUTTONS) / sizeof(ALL_BUTTONS[0
 inline constexpr uint16_t LCD_WIDTH = 240;  // ATTENTION: LVGL I1 mode requires a multiple of 8 width
 inline constexpr uint16_t LCD_HEIGHT = 160;
 inline constexpr uint8_t BUFFER_FRACTION = 10;  // 1/10 screen size for buffers
+
+// INA180A1 input current sensor constants
+inline constexpr float ICS_SHUNT_RESISTANCE = 0.1f;                // 0.1 Ohm
+inline constexpr float ICS_VOLTAGE_DIVIDER_RATIO = 27.0f / 49.0f;  // 27k / (22k + 27k)
+inline constexpr float ICS_GAIN = 20.0f;                           // V/V for INA180A1
+inline constexpr float ADC_REF_VOLTAGE = 3.3f;                     // V
+inline constexpr uint32_t ADC_MAX_VALUE = 4095;                    // 12-bit ADC
+inline const ioline_t ICS_GPIO = LINE_AGPIO2;                      // PA4
 }  // namespace defs
 
 // Settings namespace for persistent configuration

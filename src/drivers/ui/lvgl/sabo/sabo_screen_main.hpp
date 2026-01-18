@@ -227,7 +227,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   // State tracking
   uint8_t last_sensor_bits_ = 0;
   bool is_docked_ = false;
-  bool last_is_docked_ = true;
   bool has_bms_current_ = false;
 
   // GPS display widgets
@@ -487,8 +486,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     // Static variables for caching and change detection
     static float last_current;
 
-    if (!is_docked_ && !last_is_docked_ && !has_bms_current_) {
-      return;  // Not docked, no BMS current available, skip update
+    if (!is_docked_ && !has_bms_current_) {
+      return;  // Not docked and, no BMS current available, skip update
     }
 
     // Get current values with reduced precision (0.1V / 0.01A resolution)
@@ -519,37 +518,33 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     const CHARGER_STATUS charger_status = power_service.GetChargerStatus();
     is_docked_ = adapter_volts > 10.0f;
 
-    // Update docked state only if changed
-    if (is_docked_ != last_is_docked_) {
-      icon_docked_->SetState(is_docked_ ? WidgetIcon::State::ON : WidgetIcon::State::OFF);
+    // Update docked state
+    icon_docked_->SetState(is_docked_ ? WidgetIcon::State::ON : WidgetIcon::State::OFF);
 
-      if (is_docked_) {
-        icon_current_->SetState(WidgetIcon::State::ON);
-        current_bar_->Show();
-        lv_obj_remove_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
+    if (is_docked_) {
+      icon_current_->SetState(WidgetIcon::State::ON);
+      current_bar_->Show();
+      lv_obj_remove_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_remove_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
 
-        // Update adapter voltage label only if changed (0.1V resolution)
-        if (adapter_volts != last_adapter_volts) {
-          chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", adapter_volts);
-          lv_label_set_text(adapter_voltage_label_, shared_text_buffer_);
-          last_adapter_volts = adapter_volts;
-        }
-
-        // Update charger status only if changed
-        if (charger_status != last_charger_status) {
-          lv_label_set_text(charger_status_label_, ChargerDriver::statusToString(charger_status));
-          last_charger_status = charger_status;
-        }
-      } else if (!has_bms_current_) {
-        icon_current_->SetState(WidgetIcon::State::OFF);
-        current_bar_->Hide();
-      } else {
-        lv_obj_add_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
+      // Update adapter voltage label only if changed (0.1V resolution)
+      if (adapter_volts != last_adapter_volts) {
+        chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", adapter_volts);
+        lv_label_set_text(adapter_voltage_label_, shared_text_buffer_);
+        last_adapter_volts = adapter_volts;
       }
 
-      last_is_docked_ = is_docked_;
+      // Update charger status only if changed
+      if (charger_status != last_charger_status) {
+        lv_label_set_text(charger_status_label_, ChargerDriver::statusToString(charger_status));
+        last_charger_status = charger_status;
+      }
+    } else if (!has_bms_current_) {
+      icon_current_->SetState(WidgetIcon::State::OFF);
+      current_bar_->Hide();
+    } else {
+      lv_obj_add_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
     }
   }
 
