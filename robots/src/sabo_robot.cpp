@@ -9,25 +9,9 @@
 using namespace xbot::driver::sabo;
 using namespace xbot::driver::gps;
 using namespace xbot::driver;
+using namespace xbot::driver::adc;
 
 SaboRobot::SaboRobot() : hardware_config(GetHardwareConfig(GetHardwareVersion(carrier_board_info))) {
-  // ADC configuration for input current measurement (channel 9 = PA4)
-  static uint32_t adc_channels[] = {9};  // ADC12_IN9
-  static adcsample_t adc_buffer[100];    // Buffer for 100 samples (single channel)
-
-  xbot::driver::adc::AdcDriver::Config adc_config;
-  adc_config.adc = &ADCD1;
-  adc_config.channels = adc_channels;
-  adc_config.num_channels = 1;
-  adc_config.buffer = adc_buffer;
-  adc_config.buffer_depth = 100;
-  adc_config.sampling_time = ADC_SMPR_SMP_16P5;  // 16.5 cycles
-  adc_config.circular = false;
-  adc_config.vref = 3.3f;
-
-  if (!adc_.Init(adc_config)) {
-    ULOG_ERROR("SaboRobot: Failed to initialize ADC driver");
-  }
 }
 
 void SaboRobot::InitPlatform() {
@@ -38,6 +22,9 @@ void SaboRobot::InitPlatform() {
   power_service.SetDriver(&charger_);
   power_service.SetDriver(&bms_);
   input_service.RegisterInputDriver("sabo", &sabo_input_driver_);
+
+  adc_.Init(CreateAdcConfig());
+  adc_.Start();
 
   cover_ui_.Start();
 
@@ -70,33 +57,30 @@ bool SaboRobot::SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t ba
   return settings::GPSSettings::Save(gps_settings);
 }
 
-float SaboRobot::Power_GetSystemCurrent() {
-  // Start single conversion
-  /*if (!adc_.StartConversion()) {
-    ULOG_WARNING("SaboRobot: Failed to start ADC conversion");
-    return std::numeric_limits<float>::quiet_NaN();
-  }
+AdcConfig SaboRobot::CreateAdcConfig() {
+  // Channels
+  static const AdcChannel channels[] = {
+      AdcChannel::Create(ChannelId::V_CHARGER, ADC_CHANNEL_IN15, ADC_SMPR_SMP_810P5,
+                         [](adcsample_t raw) -> float {
+                           float voltage = AdcChannel::RawToVoltage(raw);
+                           return voltage;
+                         }),
+      AdcChannel::Create(ChannelId::V_BATTERY, ADC_CHANNEL_IN16, ADC_SMPR_SMP_810P5,
+                         [](adcsample_t raw) -> float {
+                           float voltage = AdcChannel::RawToVoltage(raw);
+                           return voltage;
+                         }),
+      AdcChannel::Create(ChannelId::I_IN_DCDC, ADC_CHANNEL_IN18, ADC_SMPR_SMP_810P5, [](adcsample_t raw) -> float {
+        float voltage = AdcChannel::RawToVoltage(raw);
+        return voltage;
+      })};
 
-  // Wait for conversion to complete (timeout 100ms)
-  if (!adc_.WaitConversion(TIME_MS2I(100))) {
-    adc_.StopConversion();
-    ULOG_WARNING("SaboRobot: ADC conversion timeout");
-    return std::numeric_limits<float>::quiet_NaN();
-  }
+  // ADC
+  size_t const num_channels = sizeof(channels) / sizeof(channels[0]);
+  static adcsample_t sample_buffer[num_channels];
+  static const AdcConfig config = {.drv = &ADCD1,
+                                   .channels = etl::array_view<const AdcChannel>(channels, num_channels),
+                                   .sample_buffer = sample_buffer};
 
-  // Get voltage from channel 0 (input current sensor)
-  float voltage = adc_.GetChannelVoltage(0);
-  // Debug: get raw sample
-  adcsample_t raw = adc_.GetChannelSample(0);
-
-  // Convert voltage to current using INA180A1 constants
-  using namespace xbot::driver::sabo::defs;
-  float current = voltage / (ICS_VOLTAGE_DIVIDER_RATIO * ICS_SHUNT_RESISTANCE * ICS_GAIN);
-
-  // Debug log
-  ULOG_INFO("SaboRobot: ADC raw=%u, voltage=%.3fV, current=%.3fA", raw, voltage, current);
-
-  return current;
-  */
-  return std::numeric_limits<float>::quiet_NaN();
+  return config;
 }

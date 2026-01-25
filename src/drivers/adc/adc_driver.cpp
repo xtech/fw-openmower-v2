@@ -6,117 +6,91 @@
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
+/**
+ * @file adc_driver.cpp
+ * @brief ADC driver with hardware-independent configuration
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2026-01-25
+ */
 
 #include "adc_driver.hpp"
 
 #include <ch.h>
-#include <hal.h>
 #include <ulog.h>
+
+#include <cstring>
 
 namespace xbot::driver::adc {
 
-// Static member definitions
-AdcDriver* AdcDriver::s_instance_ = nullptr;
-
-AdcDriver::~AdcDriver() {
-  Stop();
-}
-
-bool AdcDriver::Init(const Config& config) {
+bool AdcDriver::Init(const AdcConfig &config) {
   if (!config.IsValid()) {
     ULOG_ERROR("AdcDriver: Invalid configuration");
     return false;
   }
 
-  // Stop if already initialized
-  if (state_ != State::STOPPED) {
-    Stop();
-  }
-
   config_ = config;
 
   // Initialize conversion group
-  conv_group_.circular = config.circular;
-  conv_group_.num_channels = config.num_channels;
-  conv_group_.end_cb = ConversionEndCallback;
-  conv_group_.error_cb = ConversionErrorCallback;
-  conv_group_.cfgr = ADC_CFGR_CONT_ENABLED | ADC_CFGR_DMNGT_CIRCULAR;
-  conv_group_.cfgr2 = 0;
-  conv_group_.ccr = 0;
-  conv_group_.pcsel = 0;
-  conv_group_.ltr1 = 0;
-  conv_group_.htr1 = 0;
-  conv_group_.ltr2 = 0;
-  conv_group_.htr2 = 0;
-  conv_group_.ltr3 = 0;
-  conv_group_.htr3 = 0;
-  conv_group_.awd2cr = 0;
-  conv_group_.awd3cr = 0;
+  conv_group_.circular = false;
+  conv_group_.num_channels = static_cast<adc_channels_num_t>(config.channels.size());
+  conv_group_.end_cb = NULL;
+  conv_group_.error_cb = NULL;
+  conv_group_.cfgr = ADC_CFGR_RES_16BITS;
 
-  // Clear SMPR registers
-  conv_group_.smpr[0] = 0;
-  conv_group_.smpr[1] = 0;
+  // PCSEL, SMPR, SQR setup
+  for (size_t i = 0; i < config.channels.size(); ++i) {
+    adc_channels_num_t channel = config.channels[i].channel;
 
-  // Set sampling time for all channels
-  // For simplicity, we use the same sampling time for all channels
-  // In a more advanced implementation, we could support per-channel sampling times
-  for (uint8_t i = 0; i < config.num_channels; ++i) {
-    if (config.channels[i] <= 9) {
-      conv_group_.smpr[0] |= config.sampling_time << (config.channels[i] * 3);
-    } else if (config.channels[i] <= 19) {
-      conv_group_.smpr[1] |= config.sampling_time << ((config.channels[i] - 10) * 3);
-    } else {
-      ULOG_ERROR("AdcDriver: Channel %lu out of range", config.channels[i]);
-      return false;
+    // PCSEL
+    conv_group_.pcsel |= (1U << channel);
+
+    // SMPR
+    if (channel <= ADC_CHANNEL_IN9) {
+      conv_group_.smpr[0] |= config.channels[i].sample_rate << (channel * 3);
+    } else if (channel <= ADC_CHANNEL_IN19) {
+      conv_group_.smpr[1] |= config.channels[i].sample_rate << ((channel - 10) * 3);
     }
-  }
 
-  // Clear SQR registers
-  conv_group_.sqr[0] = 0;
-  conv_group_.sqr[1] = 0;
-  conv_group_.sqr[2] = 0;
-  conv_group_.sqr[3] = 0;
-
-  // Set sequence order (same as input order)
-  for (uint8_t i = 0; i < config.num_channels; ++i) {
-    uint8_t sq_index = i + 1;  // SQR positions start at 1
-    if (sq_index <= 6) {
-      conv_group_.sqr[0] |= config.channels[i] << ((sq_index - 1) * 5);
-    } else if (sq_index <= 12) {
-      conv_group_.sqr[1] |= config.channels[i] << ((sq_index - 7) * 5);
-    } else if (sq_index <= 18) {
-      conv_group_.sqr[2] |= config.channels[i] << ((sq_index - 13) * 5);
-    } else if (sq_index <= 20) {
-      conv_group_.sqr[3] |= config.channels[i] << ((sq_index - 19) * 5);
-    } else {
-      ULOG_ERROR("AdcDriver: Too many channels (%u), max is 20", config.num_channels);
-      return false;
+    // SQR
+    if (i < 4) {
+      conv_group_.sqr[0] |= ADC_SQR1_SQ1_N(channel) << (i * 6);
+    } else if (i < 8) {
+      conv_group_.sqr[1] |= ADC_SQR2_SQ5_N(channel) << ((i - 4) * 6);
+    } else if (i < 13) {
+      conv_group_.sqr[2] |= ADC_SQR3_SQ10_N(channel) << ((i - 8) * 6);
+    } else if (i < 16) {
+      conv_group_.sqr[3] |= ADC_SQR4_SQ15_N(channel) << ((i - 12) * 6);
     }
+
+    // Map ChannelId to channel index
+    uint8_t id_num = static_cast<uint8_t>(config.channels[i].id);
+    channel_id_to_index_[id_num] = static_cast<int8_t>(i);
   }
 
   // Set number of conversions in sequence
-  conv_group_.sqr[0] |= ADC_SQR1_NUM_CH(config.num_channels);
+  conv_group_.sqr[0] |= ADC_SQR1_NUM_CH(config.channels.size());
 
-  // Initialize binary semaphore for conversion completion
-  chSemObjectInit(&conversion_sem_, 0);
+  initialized_ = true;
 
-  // Set static instance pointer (single instance assumption)
-  s_instance_ = this;
+  ULOG_INFO("AdcDriver: Initialized with %u channels", config.channels.size());
 
-  state_ = State::READY;
-  ULOG_INFO("AdcDriver: Initialized with %u channels, buffer depth %zu", config.num_channels, config.buffer_depth);
   return true;
 }
 
 bool AdcDriver::Start() {
-  if (state_ != State::READY) {
-    ULOG_ERROR("AdcDriver: Cannot start, not in READY state");
+  if (!initialized_) {
+    ULOG_ERROR("AdcDriver: Not initialized");
     return false;
   }
 
-  msg_t result = StartADC();
+  if (config_.drv->state != ADC_STOP) {
+    ULOG_WARNING("AdcDriver: Invalid, !ADC_STOP state");
+    return false;
+  }
+
+  // Start ADC driver with ChibiOS default config (diffsel=0)
+  msg_t result = adcStart(config_.drv, nullptr);
   if (result != HAL_RET_SUCCESS) {
-    state_ = State::ERROR;
     ULOG_ERROR("AdcDriver: Failed to start ADC (result %d)", result);
     return false;
   }
@@ -126,172 +100,76 @@ bool AdcDriver::Start() {
 }
 
 void AdcDriver::Stop() {
-  if (state_ == State::STOPPED || state_ == State::ERROR) {
+  if (!initialized_) {
     return;
   }
-
-  StopConversion();
-  StopADC();
-  // Clear static instance if it's this instance
-  if (s_instance_ == this) {
-    s_instance_ = nullptr;
-  }
-
-  state_ = State::STOPPED;
+  adcStop(config_.drv);
   ULOG_DEBUG("AdcDriver: Stopped");
 }
 
-bool AdcDriver::StartConversion() {
-  if (state_ != State::READY) {
-    ULOG_ERROR("AdcDriver: Cannot start conversion, not in READY state");
-    return false;
+msg_t AdcDriver::Convert() {
+  if (!initialized_) {
+    ULOG_ERROR("AdcDriver: Not initialized");
+    return MSG_RESET;
   }
 
-  // For single conversion, temporarily set circular to false
-  bool was_circular = conv_group_.circular;
-  conv_group_.circular = false;
+  adcAcquireBus(config_.drv);
+  // Synchronous conversion (blocking)
+  msg_t result = adcConvert(config_.drv, &conv_group_, config_.sample_buffer, 1);
+  if (result == MSG_OK) {
+    last_conversion_ = chVTGetSystemTimeX();
+  } else {
+    ULOG_ERROR("AdcDriver: adcConvert failed (result %d)", result);
+  }
+  adcReleaseBus(config_.drv);
 
-  // Reset semaphore (ensure it's empty)
-  chSemReset(&conversion_sem_, 0);
-
-  adcStartConversion(config_.adc, &conv_group_, config_.buffer, config_.buffer_depth * config_.num_channels);
-
-  conv_group_.circular = was_circular;
-  state_ = State::CONVERTING;
-  return true;
+  return result;
 }
 
-bool AdcDriver::StartContinuous() {
-  if (state_ != State::READY) {
-    ULOG_ERROR("AdcDriver: Cannot start continuous conversion, not in READY state");
-    return false;
-  }
+void AdcDriver::ConvertIfOutdated(uint16_t max_age_ms) {
+  if (!initialized_) return;
+  // Age not reached
+  if ((last_conversion_ + TIME_MS2I(max_age_ms)) > chVTGetSystemTimeX()) return;
 
-  // Ensure circular mode is enabled
-  conv_group_.circular = true;
-
-  adcStartConversion(config_.adc, &conv_group_, config_.buffer, config_.buffer_depth * config_.num_channels);
-
-  state_ = State::CONVERTING;
-  return true;
+  Convert();
 }
 
-void AdcDriver::StopConversion() {
-  if (state_ != State::CONVERTING) {
-    return;
-  }
+adcsample_t AdcDriver::GetChannelRawValue(ChannelId channel_id, uint16_t max_age_ms) {
+  if (!initialized_) return 0;
 
-  adcStopConversion(config_.adc);
-  state_ = State::READY;
+  ConvertIfOutdated(max_age_ms);
 
-  // Signal semaphore to wake up any waiting thread
-  chSemSignal(&conversion_sem_);
+  auto channel_index = channel_id_to_index_[static_cast<uint8_t>(channel_id)];
+  if (channel_index < 0) return 0;
+
+  ULOG_INFO("AdcDriver: GetChannelRawValue raw=%u (ID=%d index=%d  age=%ums)", config_.sample_buffer[channel_index],
+            channel_id, channel_index, TIME_I2MS(chVTGetSystemTimeX() - last_conversion_));
+
+  return config_.sample_buffer[channel_index];
 }
 
-bool AdcDriver::WaitConversion(systime_t timeout) {
-  if (state_ != State::CONVERTING) {
-    return true;  // Not converting, so "completed"
+float AdcDriver::GetChannelValue(ChannelId channel_id, uint16_t max_age_ms) {
+  if (!initialized_) {
+    return std::numeric_limits<float>::quiet_NaN();
   }
 
-  // Wait on semaphore with timeout
-  msg_t msg = chSemWaitTimeout(&conversion_sem_, timeout);
-  if (msg == MSG_TIMEOUT) {
-    ULOG_WARNING("AdcDriver: Conversion timeout");
-    return false;
+  const int8_t channel_index = channel_id_to_index_[static_cast<uint8_t>(channel_id)];
+  if (channel_index < 0) return std::numeric_limits<float>::quiet_NaN();
+
+  const AdcChannel &channel = config_.channels[channel_index];
+  const adcsample_t raw = GetChannelRawValue(channel_id, max_age_ms);
+
+  float val = std::numeric_limits<float>::quiet_NaN();
+  if (channel.convert.is_valid()) {
+    val = channel.convert(raw);
+  } else {
+    val = AdcChannel::RawToVoltage(raw);
   }
 
-  // If semaphore was signaled, conversion completed
-  return state_ == State::READY;
-}
+  ULOG_INFO("AdcDriver: GetChannelValue %.3f (ID=%d index=%d  age=%ums)", val, channel_id, channel_index,
+            TIME_I2MS(chVTGetSystemTimeX() - last_conversion_));
 
-float AdcDriver::RawToVoltage(adcsample_t sample) const {
-  // Assuming 12-bit ADC (0-4095)
-  return (sample * config_.vref) / 4095.0f;
-}
-
-float AdcDriver::GetChannelVoltage(uint8_t channel) const {
-  if (channel >= config_.num_channels || config_.buffer == nullptr) {
-    return 0.0f;
-  }
-
-  // Calculate average of all samples for this channel
-  uint32_t sum = 0;
-  for (size_t i = 0; i < config_.buffer_depth; ++i) {
-    sum += config_.buffer[i * config_.num_channels + channel];
-  }
-
-  float avg = static_cast<float>(sum) / config_.buffer_depth;
-  return RawToVoltage(static_cast<adcsample_t>(avg));
-}
-
-adcsample_t AdcDriver::GetChannelSample(uint8_t channel) const {
-  if (channel >= config_.num_channels || config_.buffer == nullptr || config_.buffer_depth == 0) {
-    return 0;
-  }
-
-  // Return the latest sample (last in buffer)
-  return config_.buffer[(config_.buffer_depth - 1) * config_.num_channels + channel];
-}
-
-msg_t AdcDriver::StartADC() {
-  if (config_.adc == nullptr) {
-    return HAL_RET_NO_RESOURCE;
-  }
-
-  // Check if ADC is already active
-  if (config_.adc->state == ADC_READY || config_.adc->state == ADC_ACTIVE) {
-    ULOG_DEBUG("AdcDriver: ADC already started, skipping");
-    return HAL_RET_SUCCESS;
-  }
-
-  // Start ADC driver with default configuration
-  msg_t result = adcStart(config_.adc, nullptr);
-  if (result != HAL_RET_SUCCESS) {
-    // Not a real error if used via DmaResourceManager
-    ULOG_DEBUG("AdcDriver: Failed to start ADC peripheral (result %d)", result);
-    return result;
-  }
-
-  return HAL_RET_SUCCESS;
-}
-
-void AdcDriver::StopADC() {
-  if (config_.adc == nullptr) {
-    return;
-  }
-
-  // Stop ADC driver
-  adcStop(config_.adc);
-}
-
-void AdcDriver::ConversionEndCallback(ADCDriver* adcp) {
-  // Use static instance pointer (single instance assumption)
-  if (s_instance_ == nullptr || s_instance_->config_.adc != adcp) {
-    // Instance mismatch or not set; ignore
-    return;
-  }
-
-  // Kernel is already locked by ADC ISR, but we need to satisfy debug check
-  // Use chSysLockFromISR() and chSysUnlockFromISR() to explicitly lock/unlock
-  chSysLockFromISR();
-  chSemSignalI(&s_instance_->conversion_sem_);
-  chSysUnlockFromISR();
-
-  // Update state
-  s_instance_->state_ = State::READY;
-}
-
-void AdcDriver::ConversionErrorCallback(ADCDriver* adcp, [[maybe_unused]] adcerror_t err) {
-  // Use static instance pointer (single instance assumption)
-  if (s_instance_ == nullptr || s_instance_->config_.adc != adcp) {
-    // Instance mismatch or not set; ignore
-    return;
-  }
-
-  // Signal semaphore from ISR to wake up waiting thread
-  chSemSignalI(&s_instance_->conversion_sem_);
-
-  s_instance_->state_ = State::ERROR;
+  return val;
 }
 
 }  // namespace xbot::driver::adc

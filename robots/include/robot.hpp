@@ -6,10 +6,13 @@
 #include <hal.h>
 
 #include <debug/debug_tcp_interface.hpp>
+#include <drivers/adc/adc_driver.hpp>
 #include <limits>
 
 // Forward declare ProtocolType from GpsServiceBase.hpp
 enum class ProtocolType : uint8_t;
+
+using namespace xbot::driver::adc;
 
 class Robot {
  public:
@@ -47,16 +50,9 @@ class Robot {
   virtual float Power_GetAbsoluteMinVoltage() = 0;
 
   /**
-   * Return the system current in Amps, which is the load of the whole system (charger, dcdc, VM, ...)
-   * Not all robots do have a system current sense.
-   */
-  virtual float Power_GetSystemCurrent() {
-    return std::numeric_limits<float>::quiet_NaN();
-  };
-
-  /**
-   * Set the max. allowed system current in Amps. This is to limit e.g. the charger current for not overloading the
-   * power supply. Only usefull for systems that do have a system current sense. See Power_GetSystemCurrent().
+   * Set the max. allowed system current in Amps.
+   * This is to limit e.g. the charger current for not overloading the power supply.
+   * Only usefull for systems that do have some kind of system current sense.
    */
   virtual void Power_SetSystemCurrent(float system_current) {
     (void)system_current;
@@ -75,6 +71,13 @@ class Robot {
     (void)baudrate;
     return true;
   }
+
+  AdcDriver& GetAdc() {
+    return adc_;
+  }
+
+ protected:
+  AdcDriver adc_{};
 };
 
 class MowerRobot : public Robot {

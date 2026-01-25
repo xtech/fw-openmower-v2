@@ -2,7 +2,6 @@
 #define SABO_ROBOT_HPP
 
 #include <cstdint>
-#include <drivers/adc/adc_driver.hpp>
 #include <drivers/bms/sabo_bms_driver.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/input/sabo_input_driver.hpp>
@@ -15,6 +14,8 @@
 using namespace xbot::driver::ui;
 using namespace xbot::driver::motor;
 using namespace xbot::driver::sabo;
+using namespace xbot::driver::bms;
+using namespace xbot::driver::adc;
 
 class SaboRobot : public MowerRobot {
  public:
@@ -53,8 +54,6 @@ class SaboRobot : public MowerRobot {
     // 3.9A would be also the max. charge current for the stock PSU!
     return 1.95f;  // Lets stay save and conservative for now
   }
-
-  float Power_GetSystemCurrent() override;
 
   bool SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) override;
 
@@ -125,12 +124,14 @@ class SaboRobot : public MowerRobot {
     }
   }
 
+  // ADC
+  AdcConfig CreateAdcConfig();
+
  private:
   BQ2576 charger_{};
   SaboCoverUIController cover_ui_{hardware_config};
   SaboInputDriver sabo_input_driver_{hardware_config};
-  xbot::driver::bms::SaboBmsDriver bms_{hardware_config.bms};
-  xbot::driver::adc::AdcDriver adc_{};
+  SaboBmsDriver bms_{hardware_config.bms};
 };
 
 #endif  // SABO_ROBOT_HPP

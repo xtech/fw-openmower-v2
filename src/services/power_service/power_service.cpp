@@ -35,8 +35,8 @@ void PowerService::tick() {
   } else {
     SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
   }
-  SendBatteryVoltage(battery_volts);
-  SendChargeVoltage(adapter_volts);
+  SendBatteryVoltageCHG(battery_volts);
+  SendChargeVoltageCHG(adapter_volts);
   SendChargeCurrent(charge_current);
   SendChargerEnabled(true);
   float battery_percent;
@@ -70,8 +70,10 @@ void PowerService::tick() {
     SendBMSExtraData(extra, (uint32_t)strlen(extra));
   }
 
-  // Read and send system current (currently only used by Sabo)
-  SendSystemCurrent(robot->Power_GetSystemCurrent());
+  // ADC values
+  SendBatteryVoltageADC(robot->GetAdc().GetChannelValue(ChannelId::V_BATTERY, 100));
+  SendChargeVoltageADC(robot->GetAdc().GetChannelValue(ChannelId::V_CHARGER, 100));
+  SendDCDCInputCurrent(robot->GetAdc().GetChannelValue(ChannelId::I_IN_DCDC, 100));
 
   CommitTransaction();
 }
