@@ -31,7 +31,7 @@ namespace xbot::driver::sabo {
 // Main types and enums
 namespace types {
 // Hardware versions are "as of" versions
-enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2, V0_3 };
+enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2_0, V0_2_1, V0_3 };
 
 enum class SeriesType { Series1, Series2 };
 
@@ -75,41 +75,47 @@ enum class TempCompensation : uint8_t {
 // Hardware configurations
 namespace config {
 struct Sensor {
-  ioline_t line;
-  bool invert = false;
+  const ioline_t line;
+  const bool invert = false;
 };
 
 struct Spi {
   SPIDriver* instance;
   struct {
-    ioline_t sck;
-    ioline_t miso;
-    ioline_t mosi;
-    ioline_t cs = PAL_NOLINE;
+    const ioline_t sck;
+    const ioline_t miso;
+    const ioline_t mosi;
+    const ioline_t cs = PAL_NOLINE;
   } pins;
 };
 
 struct CoverUi {
   Spi spi;
   struct {
-    ioline_t latch_load;
-    ioline_t oe = PAL_NOLINE;
-    ioline_t btn_cs = PAL_NOLINE;
-    ioline_t inp_cs = PAL_NOLINE;
+    const ioline_t latch_load;
+    const ioline_t oe = PAL_NOLINE;
+    const ioline_t btn_cs = PAL_NOLINE;
+    const ioline_t inp_cs = PAL_NOLINE;
   } pins;
 };
 
 struct Lcd {
-  Spi spi;
+  const Spi spi;
   struct {
-    ioline_t dc;
-    ioline_t rst;
-    ioline_t backlight;
+    const ioline_t dc;
+    const ioline_t rst;
+    const ioline_t backlight;
   } pins;
 };
 
 struct Bms {
   I2CDriver* i2c;
+};
+
+struct Adc {
+  const float charger_voltage_scale_factor;
+  const float battery_voltage_scale_factor;
+  const float dcdc_in_current_scale_factor;
 };
 
 // Individual hardware configurations
@@ -144,12 +150,17 @@ inline const Lcd LCD_V0_2 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LIN
 
 inline const Bms BMS_V0_2 = {.i2c = &I2CD2};
 
+inline const Adc ADC_V0_2_1 = {.charger_voltage_scale_factor = 16.3846f,  // (200k Rtop + 13k Rbot)/13k Rbot
+                               .battery_voltage_scale_factor = 16.3846f,  // (200k Rtop + 13k Rbot)/13k Rbot
+                               .dcdc_in_current_scale_factor = 1.0f};     // 1/(20gain * Rshunt 0.05)
+
 // Hardware configuration references
 struct HardwareConfig {
   etl::array_view<const Sensor> sensors;
   const CoverUi* cover_ui;
   const Lcd* lcd;
   const Bms* bms;
+  const Adc* adc;
 };
 
 // Hardware version to configuration array which need to be in sync with HardwareVersion enum
@@ -160,22 +171,26 @@ inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
         .cover_ui = &COVER_UI_V0_1,
         .lcd = nullptr,  // No LCD for V0_1
         .bms = nullptr,  // No BMS for V0_1
+        .adc = nullptr   // No ADC for V0_1
     },
-    // V0_2
-    {
-        .sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
-        .cover_ui = &COVER_UI_V0_2,
-        .lcd = &LCD_V0_2,
-        .bms = &BMS_V0_2,
-    },
+    // V0_2_0
+    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
+     .cover_ui = &COVER_UI_V0_2,
+     .lcd = &LCD_V0_2,
+     .bms = &BMS_V0_2,
+     .adc = nullptr},
+    // V0_2_1
+    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
+     .cover_ui = &COVER_UI_V0_2,
+     .lcd = &LCD_V0_2,
+     .bms = &BMS_V0_2,
+     .adc = &ADC_V0_2_1},
     // V0_3
-    {
-        .sensors = etl::array_view<const Sensor>(SENSORS_V0_3),
-        .cover_ui = &COVER_UI_V0_2,
-        .lcd = &LCD_V0_2,
-        .bms = nullptr,  // No BMS for V0_3 yet
-    },
-};
+    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_3),
+     .cover_ui = &COVER_UI_V0_2,
+     .lcd = &LCD_V0_2,
+     .bms = nullptr,  // No BMS for V0_3 yet
+     .adc = &ADC_V0_2_1}};
 }  // namespace config
 
 // Constants and definitions
@@ -192,13 +207,6 @@ inline constexpr uint16_t LCD_WIDTH = 240;  // ATTENTION: LVGL I1 mode requires 
 inline constexpr uint16_t LCD_HEIGHT = 160;
 inline constexpr uint8_t BUFFER_FRACTION = 10;  // 1/10 screen size for buffers
 
-// INA180A1 input current sensor constants
-inline constexpr float ICS_SHUNT_RESISTANCE = 0.1f;                // 0.1 Ohm
-inline constexpr float ICS_VOLTAGE_DIVIDER_RATIO = 27.0f / 49.0f;  // 27k / (22k + 27k)
-inline constexpr float ICS_GAIN = 20.0f;                           // V/V for INA180A1
-inline constexpr float ADC_REF_VOLTAGE = 3.3f;                     // V
-inline constexpr uint32_t ADC_MAX_VALUE = 4095;                    // 12-bit ADC
-inline const ioline_t ICS_GPIO = LINE_AGPIO2;                      // PA4
 }  // namespace defs
 
 // Settings namespace for persistent configuration
@@ -273,7 +281,12 @@ inline types::HardwareVersion GetHardwareVersion(const struct carrier_board_info
   if (board_info.version_major == 0) {
     switch (board_info.version_minor) {
       case 1: version = types::HardwareVersion::V0_1; break;
-      case 2: version = types::HardwareVersion::V0_2; break;
+      case 2:
+        switch (board_info.version_patch) {
+          case 0: version = types::HardwareVersion::V0_2_0; break;
+          case 1: version = types::HardwareVersion::V0_2_1; break;
+        }
+        break;
       case 3: version = types::HardwareVersion::V0_3; break;
     }
   }

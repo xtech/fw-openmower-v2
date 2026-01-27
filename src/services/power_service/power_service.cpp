@@ -71,9 +71,9 @@ void PowerService::tick() {
   }
 
   // ADC values
-  SendBatteryVoltageADC(robot->GetAdc().GetChannelValue(ChannelId::V_BATTERY, 100));
-  SendChargeVoltageADC(robot->GetAdc().GetChannelValue(ChannelId::V_CHARGER, 100));
-  SendDCDCInputCurrent(robot->GetAdc().GetChannelValue(ChannelId::I_IN_DCDC, 100));
+  SendBatteryVoltageADC(robot->GetAdcValueOrNaN(ChannelId::V_BATTERY, 100));
+  SendChargeVoltageADC(robot->GetAdcValueOrNaN(ChannelId::V_CHARGER, 100));
+  SendDCDCInputCurrent(robot->GetAdcValueOrNaN(ChannelId::I_IN_DCDC, 100));
 
   CommitTransaction();
 }

@@ -72,12 +72,17 @@ class Robot {
     return true;
   }
 
-  AdcDriver& GetAdc() {
-    return adc_;
+  /**
+   * @brief Get the Adc Value or NaN object
+   *
+   * @param channel_id
+   * @param max_age_ms
+   * @return float
+   */
+  static float GetAdcValueOrNaN(ChannelId channel_id, uint16_t max_age_ms = 20) {
+    auto* adc = xbot::driver::adc::GetAdcDriver();
+    return adc ? adc->GetChannelValue(channel_id, max_age_ms) : std::numeric_limits<float>::quiet_NaN();
   }
-
- protected:
-  AdcDriver adc_{};
 };
 
 class MowerRobot : public Robot {

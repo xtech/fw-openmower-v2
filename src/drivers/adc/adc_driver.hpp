@@ -28,7 +28,7 @@ namespace xbot::driver::adc {
 
 // ChannelId for ADC channel identification
 // Add new channels as you like (your robot has)
-enum class ChannelId : uint8_t { V_BATTERY = 0, V_CHARGER, I_IN_DCDC, T_BATTERY, T_MCU, _NUM_CHANNEL_IDS };
+enum class ChannelId : uint8_t { V_CHARGER = 0, V_BATTERY, I_IN_DCDC, T_BATTERY, T_MCU, _NUM_CHANNEL_IDS };
 
 /**
  * @brief ADC channel configuration and calculation
@@ -39,7 +39,8 @@ struct AdcChannel {
   uint8_t sample_rate;  // Sample rate for this channel, see ADC_SMPR_SMP_*
 
   // Conversion function from raw sample to physical value
-  etl::delegate<float(adcsample_t)> convert;
+  etl::delegate<float(adcsample_t, const void*)> convert;
+  const void* user_data = nullptr;
 
   // Some usefull 16-bit ADC constants for raw to V/A/... conversions
   static constexpr float VREF = 3.3f;
@@ -58,10 +59,11 @@ struct AdcChannel {
 
   // Factory Method
   template <typename F>
-  static AdcChannel Create(ChannelId id, uint8_t channel, uint8_t sample_rate, F &&func) {
-    etl::delegate<float(adcsample_t)> delegate;
+  static AdcChannel Create(ChannelId id, uint8_t channel, uint8_t sample_rate, F&& func, const void* user_data) {
+    etl::delegate<float(adcsample_t, const void*)> delegate;
     delegate = std::forward<F>(func);
-    return AdcChannel{.id = id, .channel = channel, .sample_rate = sample_rate, .convert = delegate};
+    return AdcChannel{
+        .id = id, .channel = channel, .sample_rate = sample_rate, .convert = delegate, .user_data = user_data};
   }
 };
 
@@ -72,9 +74,9 @@ struct AdcChannel {
  * all channels, sampling settings, and buffer configuration.
  */
 struct AdcConfig {
-  ADCDriver *drv;                              // ADC driver (e.g., &ADCD1)
+  ADCDriver* drv;                              // ADC driver (e.g., &ADCD1)
   etl::array_view<const AdcChannel> channels;  // Array of channel configurations
-  adcsample_t *sample_buffer;                  // Sample buffer where ADC will DMA results
+  adcsample_t* sample_buffer;                  // Sample buffer where ADC will DMA results
 
   /**
    * @brief Validate configuration
@@ -101,17 +103,12 @@ struct AdcConfig {
  */
 class AdcDriver {
  public:
-  AdcDriver() {
-    // Initialize channel ID to index map with -1 (not present)
-    for (size_t i = 0; i < static_cast<uint8_t>(ChannelId::_NUM_CHANNEL_IDS); ++i) channel_id_to_index_[i] = -1;
-  }
-
   /**
    * @brief Initialize ADC with given configuration
    * @param config ADC configuration
    * @return true if initialization successful
    */
-  bool Init(const AdcConfig &config);
+  bool Init(const AdcConfig& config);
 
   /**
    * @brief Start ADC conversions
@@ -156,7 +153,7 @@ class AdcDriver {
   /**
    * @brief Get the configuration
    */
-  const AdcConfig &GetConfig() const {
+  const AdcConfig& GetConfig() const {
     return config_;
   }
 
@@ -170,6 +167,14 @@ class AdcDriver {
   // Lookup: ChannelId -> channel index (or -1 if not present)
   int8_t channel_id_to_index_[static_cast<uint8_t>(ChannelId::_NUM_CHANNEL_IDS)];
 
+  // Constructor
+  AdcDriver() {
+    // Initialize channel ID to index map with -1 (not present)
+    for (size_t i = 0; i < static_cast<uint8_t>(ChannelId::_NUM_CHANNEL_IDS); ++i) channel_id_to_index_[i] = -1;
+  }
+
+  friend bool InitAdcDriver(const AdcConfig& config);
+
   /**
    * @brief Do conversion if last conversion is older than max_age_ms ago
    * @param max_age_ms Maximum age of last conversion in milliseconds
@@ -178,9 +183,14 @@ class AdcDriver {
   void ConvertIfOutdated(uint16_t max_age_ms);
 
   // Disallow copying
-  AdcDriver(const AdcDriver &) = delete;
-  AdcDriver &operator=(const AdcDriver &) = delete;
+  AdcDriver(const AdcDriver&) = delete;
+  AdcDriver& operator=(const AdcDriver&) = delete;
 };
+
+// Singleton accessor
+AdcDriver* GetAdcDriver();
+bool InitAdcDriver(const AdcConfig& config);
+void DeInitAdcDriver();
 
 }  // namespace xbot::driver::adc
 

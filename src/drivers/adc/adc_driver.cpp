@@ -22,7 +22,36 @@
 
 namespace xbot::driver::adc {
 
-bool AdcDriver::Init(const AdcConfig &config) {
+// Global ADC-Instance (internal linkage)
+static AdcDriver* g_adc_driver = nullptr;
+
+AdcDriver* GetAdcDriver() {
+  return g_adc_driver;
+}
+
+bool InitAdcDriver(const AdcConfig& config) {
+  if (g_adc_driver != nullptr) {
+    ULOG_ERROR("AdcDriver: Already initialized");
+    return false;
+  }
+
+  static AdcDriver instance;
+  if (instance.Init(config)) {
+    instance.Start();
+    g_adc_driver = &instance;
+    return true;
+  }
+  return false;
+}
+
+void DeInitAdcDriver() {
+  if (g_adc_driver) {
+    g_adc_driver->Stop();
+    g_adc_driver = nullptr;
+  }
+}
+
+bool AdcDriver::Init(const AdcConfig& config) {
   if (!config.IsValid()) {
     ULOG_ERROR("AdcDriver: Invalid configuration");
     return false;
@@ -142,8 +171,8 @@ adcsample_t AdcDriver::GetChannelRawValue(ChannelId channel_id, uint16_t max_age
   auto channel_index = channel_id_to_index_[static_cast<uint8_t>(channel_id)];
   if (channel_index < 0) return 0;
 
-  ULOG_INFO("AdcDriver: GetChannelRawValue raw=%u (ID=%d index=%d  age=%ums)", config_.sample_buffer[channel_index],
-            channel_id, channel_index, TIME_I2MS(chVTGetSystemTimeX() - last_conversion_));
+  /*ULOG_DEBUG("AdcDriver: GetChannelRawValue raw=%u (ID=%d index=%d  age=%ums)", config_.sample_buffer[channel_index],
+            channel_id, channel_index, TIME_I2MS(chVTGetSystemTimeX() - last_conversion_));*/
 
   return config_.sample_buffer[channel_index];
 }
@@ -156,18 +185,18 @@ float AdcDriver::GetChannelValue(ChannelId channel_id, uint16_t max_age_ms) {
   const int8_t channel_index = channel_id_to_index_[static_cast<uint8_t>(channel_id)];
   if (channel_index < 0) return std::numeric_limits<float>::quiet_NaN();
 
-  const AdcChannel &channel = config_.channels[channel_index];
+  const AdcChannel& channel = config_.channels[channel_index];
   const adcsample_t raw = GetChannelRawValue(channel_id, max_age_ms);
 
   float val = std::numeric_limits<float>::quiet_NaN();
   if (channel.convert.is_valid()) {
-    val = channel.convert(raw);
+    val = channel.convert(raw, channel.user_data);
   } else {
     val = AdcChannel::RawToVoltage(raw);
   }
 
-  ULOG_INFO("AdcDriver: GetChannelValue %.3f (ID=%d index=%d  age=%ums)", val, channel_id, channel_index,
-            TIME_I2MS(chVTGetSystemTimeX() - last_conversion_));
+  /*ULOG_DEBUG("AdcDriver: GetChannelValue %.3f (ID=%d index=%d  age=%ums)", val, channel_id, channel_index,
+            TIME_I2MS(chVTGetSystemTimeX() - last_conversion_));*/
 
   return val;
 }
