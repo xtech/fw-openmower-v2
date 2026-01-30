@@ -36,6 +36,7 @@ bool InitAdcDriver(const AdcConfig& config) {
   }
 
   static AdcDriver instance;
+
   if (instance.Init(config)) {
     instance.Start();
     g_adc_driver = &instance;
@@ -65,6 +66,7 @@ bool AdcDriver::Init(const AdcConfig& config) {
   conv_group_.end_cb = NULL;
   conv_group_.error_cb = NULL;
   conv_group_.cfgr = ADC_CFGR_RES_16BITS;
+  // conv_group_.ccr = ADC_CCR_DUAL_REG_SIMULT | ADC_CCR_VREFEN | ADC_CCR_DAMDF_1;
 
   // PCSEL, SMPR, SQR setup
   for (size_t i = 0; i < config.channels.size(); ++i) {
@@ -97,7 +99,7 @@ bool AdcDriver::Init(const AdcConfig& config) {
   }
 
   // Set number of conversions in sequence
-  conv_group_.sqr[0] |= ADC_SQR1_NUM_CH(config.channels.size());
+  // conv_group_.sqr[0] |= ADC_SQR1_NUM_CH(config.channels.size());
 
   initialized_ = true;
 
@@ -118,7 +120,8 @@ bool AdcDriver::Start() {
   }
 
   // Start ADC driver with ChibiOS default config (diffsel=0)
-  msg_t result = adcStart(config_.drv, nullptr);
+  static const ADCConfig adc_config = {.difsel = 0x0, .calibration = ADC_CR_ADCALLIN};
+  msg_t result = adcStart(config_.drv, &adc_config);
   if (result != HAL_RET_SUCCESS) {
     ULOG_ERROR("AdcDriver: Failed to start ADC (result %d)", result);
     return false;
@@ -142,8 +145,8 @@ msg_t AdcDriver::Convert() {
     return MSG_RESET;
   }
 
-  adcAcquireBus(config_.drv);
   // Synchronous conversion (blocking)
+  adcAcquireBus(config_.drv);
   msg_t result = adcConvert(config_.drv, &conv_group_, config_.sample_buffer, 1);
   if (result == MSG_OK) {
     last_conversion_ = chVTGetSystemTimeX();
@@ -195,8 +198,8 @@ float AdcDriver::GetChannelValue(ChannelId channel_id, uint16_t max_age_ms) {
     val = AdcChannel::RawToVoltage(raw);
   }
 
-  /*ULOG_DEBUG("AdcDriver: GetChannelValue %.3f (ID=%d index=%d  age=%ums)", val, channel_id, channel_index,
-            TIME_I2MS(chVTGetSystemTimeX() - last_conversion_));*/
+  ULOG_INFO("AdcDriver: GetChannelValue %.3f (ID=%d index=%d  age=%ums, raw=%u == %.3fV)", val, channel_id,
+            channel_index, TIME_I2MS(chVTGetSystemTimeX() - last_conversion_), raw, AdcChannel::RawToVoltage(raw));
 
   return val;
 }

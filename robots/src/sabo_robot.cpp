@@ -62,30 +62,35 @@ AdcConfig SaboRobot::CreateAdcConfig() {
   static const xbot::driver::sabo::config::Adc* adc_scales = hardware_config.adc;
 
   // Channels
-  static const AdcChannel channels[] = {AdcChannel::Create(
-                                            ChannelId::V_CHARGER, ADC_CHANNEL_IN15, ADC_SMPR_SMP_810P5,
-                                            [](adcsample_t raw, const void* user_data) -> float {
-                                              float voltage = AdcChannel::RawToVoltage(raw);
-                                              float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
-                                              return voltage * factor;
-                                            },
-                                            &adc_scales->charger_voltage_scale_factor),
-                                        AdcChannel::Create(
-                                            ChannelId::V_BATTERY, ADC_CHANNEL_IN16, ADC_SMPR_SMP_810P5,
-                                            [](adcsample_t raw, const void* user_data) -> float {
-                                              float voltage = AdcChannel::RawToVoltage(raw);
-                                              float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
-                                              return voltage * factor;
-                                            },
-                                            &adc_scales->battery_voltage_scale_factor),
-                                        AdcChannel::Create(
-                                            ChannelId::I_IN_DCDC, ADC_CHANNEL_IN18, ADC_SMPR_SMP_810P5,
-                                            [](adcsample_t raw, const void* user_data) -> float {
-                                              float voltage = AdcChannel::RawToVoltage(raw);
-                                              float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
-                                              return voltage * factor;
-                                            },
-                                            &adc_scales->dcdc_in_current_scale_factor)};
+  static const AdcChannel channels[] = {
+      AdcChannel::Create(
+          ChannelId::V_CHARGER, ADC_CHANNEL_IN15, ADC_SMPR_SMP_16P5,
+          [](adcsample_t raw, const void* user_data) -> float {
+            float voltage = AdcChannel::RawToVoltage(raw);
+            float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
+            return voltage * factor;
+          },
+          &adc_scales->charger_voltage_scale_factor)
+
+      /*
+        AdcChannel::Create(
+            ChannelId::V_BATTERY, ADC_CHANNEL_IN16, ADC_SMPR_SMP_810P5,
+            [](adcsample_t raw, const void* user_data) -> float {
+              float voltage = AdcChannel::RawToVoltage(raw);
+              float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
+              return voltage * factor;
+            },
+            &adc_scales->battery_voltage_scale_factor),
+        AdcChannel::Create(
+            ChannelId::I_IN_DCDC, ADC_CHANNEL_IN18, ADC_SMPR_SMP_810P5,
+            [](adcsample_t raw, const void* user_data) -> float {
+              float voltage = AdcChannel::RawToVoltage(raw);
+              float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
+              return voltage * factor;
+            }*/
+      //,
+      //&adc_scales->dcdc_in_current_scale_factor)
+  };
 
   // ADC
   size_t const num_channels = sizeof(channels) / sizeof(channels[0]);

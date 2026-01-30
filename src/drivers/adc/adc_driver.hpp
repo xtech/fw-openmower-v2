@@ -43,7 +43,7 @@ struct AdcChannel {
   const void* user_data = nullptr;
 
   // Some usefull 16-bit ADC constants for raw to V/A/... conversions
-  static constexpr float VREF = 3.3f;
+  static constexpr float VREF = 3.33f;
   static constexpr uint8_t BITS = 16;
   static constexpr uint32_t MAX_VALUE = (1 << BITS) - 1;  // 65535 @ 16bit resolution
   static constexpr float MAX_VALUE_F = static_cast<float>(MAX_VALUE);
