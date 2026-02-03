@@ -11,6 +11,7 @@
 #include <globals.hpp>
 
 #include "board.h"
+#include "drivers/adc/adc1.hpp"
 
 void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
@@ -70,10 +71,13 @@ void PowerService::tick() {
     SendBMSExtraData(extra, (uint32_t)strlen(extra));
   }
 
-  // ADC values
-  SendBatteryVoltageADC(robot->GetAdcValueOrNaN(ChannelId::V_BATTERY, 100));
-  SendChargeVoltageADC(robot->GetAdcValueOrNaN(ChannelId::V_CHARGER, 100));
-  SendDCDCInputCurrent(robot->GetAdcValueOrNaN(ChannelId::I_IN_DCDC, 100));
+  // ADC readings
+  using namespace xbot::driver;
+  // adc1::DumpBenchmarkMeasurement(Adc1ConversionId::V_BATTERY, "V-BAT");
+
+  SendBatteryVoltageADC(adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100));
+  SendChargeVoltageADC(adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100));
+  SendDCDCInputCurrent(adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100));
 
   CommitTransaction();
 }

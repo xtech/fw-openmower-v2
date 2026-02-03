@@ -75,7 +75,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/json_stream.cpp
         src/services.cpp
         src/status_led.c
-        src/drivers/adc/adc_driver.cpp
+        src/drivers/adc/adc1.cpp
+        src/drivers/adc/adc3.cpp
         # LittleFS helpers
         src/filesystem/file.cpp
         src/filesystem/filesystem.cpp

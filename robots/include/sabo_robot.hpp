@@ -2,6 +2,7 @@
 #define SABO_ROBOT_HPP
 
 #include <cstdint>
+#include <drivers/adc/adc1.hpp>
 #include <drivers/bms/sabo_bms_driver.hpp>
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 #include <drivers/input/sabo_input_driver.hpp>
@@ -15,7 +16,7 @@ using namespace xbot::driver::ui;
 using namespace xbot::driver::motor;
 using namespace xbot::driver::sabo;
 using namespace xbot::driver::bms;
-using namespace xbot::driver::adc;
+using namespace xbot::driver::adc1;
 
 class SaboRobot : public MowerRobot {
  public:
@@ -124,14 +125,16 @@ class SaboRobot : public MowerRobot {
     }
   }
 
-  // ADC
-  AdcConfig CreateAdcConfig();
-
  private:
   BQ2576 charger_{};
   SaboCoverUIController cover_ui_{hardware_config};
   SaboInputDriver sabo_input_driver_{hardware_config};
   SaboBmsDriver bms_{hardware_config.bms};
+
+  /**
+   * @brief Register all ADC1 sensors
+   */
+  void RegisterAdc1Sensors();
 };
 
 #endif  // SABO_ROBOT_HPP

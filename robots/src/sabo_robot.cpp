@@ -3,13 +3,11 @@
 #include <drivers/gps/nmea_gps_driver.h>
 #include <ulog.h>
 
-#include <drivers/adc/adc_driver.hpp>
 #include <services.hpp>
 
 using namespace xbot::driver::sabo;
 using namespace xbot::driver::gps;
 using namespace xbot::driver;
-using namespace xbot::driver::adc;
 
 SaboRobot::SaboRobot() : hardware_config(GetHardwareConfig(GetHardwareVersion(carrier_board_info))) {
 }
@@ -24,7 +22,9 @@ void SaboRobot::InitPlatform() {
   input_service.RegisterInputDriver("sabo", &sabo_input_driver_);
 
   if (hardware_config.adc != nullptr) {
-    InitAdcDriver(CreateAdcConfig());
+    adc1::Init();
+    adc1::Start();
+    RegisterAdc1Sensors();
   }
 
   cover_ui_.Start();
@@ -58,46 +58,76 @@ bool SaboRobot::SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t ba
   return settings::GPSSettings::Save(gps_settings);
 }
 
-AdcConfig SaboRobot::CreateAdcConfig() {
+void SaboRobot::RegisterAdc1Sensors() {
   static const xbot::driver::sabo::config::Adc* adc_scales = hardware_config.adc;
 
-  // Channels
-  static const AdcChannel channels[] = {
-      AdcChannel::Create(
-          ChannelId::V_CHARGER, ADC_CHANNEL_IN15, ADC_SMPR_SMP_16P5,
-          [](adcsample_t raw, const void* user_data) -> float {
-            float voltage = AdcChannel::RawToVoltage(raw);
-            float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
-            return voltage * factor;
-          },
-          &adc_scales->charger_voltage_scale_factor)
+  // V-Charge sensor
+  static const Adc1Sensor v_charge_sensors[] = {{.channel = ADC_CHANNEL_IN15, .sample_rate = ADC_SMPR_SMP_16P5}};
+  static adcsample_t v_charge_buffer[sizeof(v_charge_sensors) / sizeof(v_charge_sensors[0])];
+  // Create ADC conversion group and place sensor(s)
+  static const Adc1ConversionGroup v_charge_cg = Adc1ConversionGroup::Create(
+      Adc1ConversionId::V_CHARGER,                          // Conversion ID
+      etl::array_view<const Adc1Sensor>(v_charge_sensors),  // Sensor(s)/channel definition
+      v_charge_buffer,                                      // ADC sampple/data buffer
+      Resolution::BITS_16,                                  // ADC resolution
+      0, 0,                                                 // Oversample ratio & right-shift
+      // ADC raw data to final value convert function (lambda)
+      [](const Adc1ConversionGroup* self, float vref_voltage) -> float {
+        if (self->user_data == nullptr) {
+          return std::numeric_limits<float>::quiet_NaN();
+        }
+        const float scale_factor = *static_cast<const float*>(self->user_data);
+        const auto& info = GetResolutionInfo(self->resolution);
+        float voltage = info.RawToVoltage(self->sample_buffer[0], vref_voltage);
+        return voltage * scale_factor;
+      },
+      &adc_scales->charger_voltage_scale_factor);  // User data
+  adc1::RegisterConversionGroup(v_charge_cg);
 
-      /*
-        AdcChannel::Create(
-            ChannelId::V_BATTERY, ADC_CHANNEL_IN16, ADC_SMPR_SMP_810P5,
-            [](adcsample_t raw, const void* user_data) -> float {
-              float voltage = AdcChannel::RawToVoltage(raw);
-              float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
-              return voltage * factor;
-            },
-            &adc_scales->battery_voltage_scale_factor),
-        AdcChannel::Create(
-            ChannelId::I_IN_DCDC, ADC_CHANNEL_IN18, ADC_SMPR_SMP_810P5,
-            [](adcsample_t raw, const void* user_data) -> float {
-              float voltage = AdcChannel::RawToVoltage(raw);
-              float factor = user_data ? *static_cast<const float*>(user_data) : 1.0f;
-              return voltage * factor;
-            }*/
-      //,
-      //&adc_scales->dcdc_in_current_scale_factor)
-  };
+  // V-Battery sensor
+  static const Adc1Sensor v_battery_sensors[] = {{.channel = ADC_CHANNEL_IN16, .sample_rate = ADC_SMPR_SMP_16P5}};
+  static adcsample_t v_battery_buffer[sizeof(v_battery_sensors) / sizeof(v_battery_sensors[0])];
+  // Create ADC conversion group and place sensor(s)
+  static const Adc1ConversionGroup v_battery_cg = Adc1ConversionGroup::Create(
+      Adc1ConversionId::V_BATTERY,                           // Conversion ID
+      etl::array_view<const Adc1Sensor>(v_battery_sensors),  // Sensor(s)/channel definition
+      v_battery_buffer,                                      // ADC sampple/data buffer
+      Resolution::BITS_16,                                   // ADC resolution
+      0, 0,                                                  // Oversample ratio & right-shift
+      // ADC raw data to final value convert function (lambda)
+      [](const Adc1ConversionGroup* self, float vref_voltage) -> float {
+        if (self->user_data == nullptr) {
+          return std::numeric_limits<float>::quiet_NaN();
+        }
+        (void)vref_voltage;
+        const float scale_factor = *static_cast<const float*>(self->user_data);
+        const auto& info = GetResolutionInfo(self->resolution);
+        float voltage = info.RawToVoltage(self->sample_buffer[0], vref_voltage);
+        return voltage * scale_factor;
+      },
+      &adc_scales->battery_voltage_scale_factor);  // User data
+  adc1::RegisterConversionGroup(v_battery_cg);
 
-  // ADC
-  size_t const num_channels = sizeof(channels) / sizeof(channels[0]);
-  static adcsample_t sample_buffer[num_channels];
-  static const AdcConfig config = {.drv = &ADCD1,
-                                   .channels = etl::array_view<const AdcChannel>(channels, num_channels),
-                                   .sample_buffer = sample_buffer};
-
-  return config;
+  // I-IN-DCDC sensor
+  static const Adc1Sensor i_dcdc_sensors[] = {{.channel = ADC_CHANNEL_IN18, .sample_rate = ADC_SMPR_SMP_8P5}};
+  static adcsample_t i_dcdc_buffer[sizeof(i_dcdc_sensors) / sizeof(i_dcdc_sensors[0])];
+  // Create ADC conversion group and place sensor(s)
+  static const Adc1ConversionGroup i_dcdc_cg = Adc1ConversionGroup::Create(
+      Adc1ConversionId::I_IN_DCDC,                        // Conversion ID
+      etl::array_view<const Adc1Sensor>(i_dcdc_sensors),  // Sensor(s)/channel definition
+      i_dcdc_buffer,                                      // ADC sampple/data buffer
+      Resolution::BITS_16,                                // ADC resolution
+      16, 4,                                              // Oversample ratio & right-shift
+      // ADC raw data to final value convert function (lambda)
+      [](const Adc1ConversionGroup* self, float vref_voltage) -> float {
+        if (self->user_data == nullptr) {
+          return std::numeric_limits<float>::quiet_NaN();
+        }
+        const float scale_factor = *static_cast<const float*>(self->user_data);
+        const auto& info = GetResolutionInfo(self->resolution);
+        float voltage = info.RawToVoltage(self->sample_buffer[0], vref_voltage);
+        return voltage * scale_factor;
+      },
+      &adc_scales->dcdc_in_current_scale_factor);  // User data
+  adc1::RegisterConversionGroup(i_dcdc_cg);
 }

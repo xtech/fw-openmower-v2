@@ -6,13 +6,10 @@
 #include <hal.h>
 
 #include <debug/debug_tcp_interface.hpp>
-#include <drivers/adc/adc_driver.hpp>
 #include <limits>
 
 // Forward declare ProtocolType from GpsServiceBase.hpp
 enum class ProtocolType : uint8_t;
-
-using namespace xbot::driver::adc;
 
 class Robot {
  public:
@@ -70,18 +67,6 @@ class Robot {
     (void)uart;
     (void)baudrate;
     return true;
-  }
-
-  /**
-   * @brief Get the Adc Value or NaN object
-   *
-   * @param channel_id
-   * @param max_age_ms
-   * @return float
-   */
-  static float GetAdcValueOrNaN(ChannelId channel_id, uint16_t max_age_ms = 20) {
-    auto* adc = xbot::driver::adc::GetAdcDriver();
-    return adc ? adc->GetChannelValue(channel_id, max_age_ms) : std::numeric_limits<float>::quiet_NaN();
   }
 };
 
