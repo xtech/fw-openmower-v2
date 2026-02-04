@@ -107,7 +107,6 @@ bool SaboBmsDriver::Init() {
 void SaboBmsDriver::Tick() {
   static uint8_t check_cnt = 10;  // Need some retries to detect presence
   static systime_t last_log_time = 0;
-  // static bool registered = false;
 
   if (!configured_ || (!IsPresent() && !check_cnt)) return;
 
