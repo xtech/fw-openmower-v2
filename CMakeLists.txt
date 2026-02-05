@@ -75,6 +75,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/json_stream.cpp
         src/services.cpp
         src/status_led.c
+        src/drivers/adc/adc1.cpp
+        src/drivers/adc/adc3.cpp
         # LittleFS helpers
         src/filesystem/file.cpp
         src/filesystem/filesystem.cpp
@@ -85,6 +87,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/mower_service/mower_service.cpp
         src/services/gps_service/gps_service.cpp
         src/services/input_service/input_service.cpp
+        src/services/high_level_service/high_level_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
         # BQ25679 driver
@@ -160,6 +163,7 @@ target_add_service(${CMAKE_PROJECT_NAME} DiffDriveService ${CMAKE_CURRENT_SOURCE
 target_add_service(${CMAKE_PROJECT_NAME} MowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/services/gps_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} InputService ${CMAKE_CURRENT_SOURCE_DIR}/services/input_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} HighLevelService ${CMAKE_CURRENT_SOURCE_DIR}/services/high_level_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")

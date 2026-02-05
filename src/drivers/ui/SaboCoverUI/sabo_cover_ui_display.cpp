@@ -94,12 +94,20 @@ void SaboCoverUIDisplay::ShowBootScreen() {
 }
 
 void SaboCoverUIDisplay::ShowMainScreen() {
+  SafeDelete(menu_main_);
+
+  if (active_screen_) {
+    active_screen_->Deactivate();
+    active_screen_->Hide();
+  }
+
   if (!screen_main_) {
     screen_main_ = new SaboScreenMain();
     screen_main_->Create();
   }
   active_screen_ = screen_main_;
   screen_main_->Show();
+  screen_main_->Activate(input_group_);
 }
 
 void SaboCoverUIDisplay::ShowMenu() {
@@ -277,8 +285,8 @@ void SaboCoverUIDisplay::OnBootComplete(void* context) {
   if (!context) return;
   auto* display = static_cast<SaboCoverUIDisplay*>(context);
 
-  display->SafeDelete(display->screen_boot_);
   display->ShowMainScreen();
+  display->SafeDelete(display->screen_boot_);
 }
 
 void SaboCoverUIDisplay::OnMenuClosed(void* context) {

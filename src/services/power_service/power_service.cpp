@@ -11,6 +11,7 @@
 #include <globals.hpp>
 
 #include "board.h"
+#include "drivers/adc/adc1.hpp"
 
 void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
@@ -35,8 +36,8 @@ void PowerService::tick() {
   } else {
     SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
   }
-  SendBatteryVoltage(battery_volts);
-  SendChargeVoltage(adapter_volts);
+  SendBatteryVoltageCHG(battery_volts);
+  SendChargeVoltageCHG(adapter_volts);
   SendChargeCurrent(charge_current);
   SendChargerEnabled(true);
   float battery_percent;
@@ -58,11 +59,25 @@ void PowerService::tick() {
       SendBatterySoC(data->battery_soc);
       SendBatteryTemperature(data->temperature_c);
       SendBatteryStatus(data->battery_status);
+    } else {
+      SendBatteryCurrent(std::numeric_limits<float>::quiet_NaN());
+      SendBatteryVoltageBMS(std::numeric_limits<float>::quiet_NaN());
+      SendBatterySoC(std::numeric_limits<float>::quiet_NaN());
+      SendBatteryTemperature(std::numeric_limits<float>::quiet_NaN());
+      SendBatteryStatus(0);
     }
 
     const char* extra = (bms_ != nullptr) ? bms_->GetExtraDataJson() : "";
     SendBMSExtraData(extra, (uint32_t)strlen(extra));
   }
+
+  // ADC readings
+  using namespace xbot::driver;
+  // adc1::DumpBenchmarkMeasurement(Adc1ConversionId::V_BATTERY, "V-BAT");
+
+  SendBatteryVoltageADC(adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100));
+  SendChargeVoltageADC(adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100));
+  SendDCDCInputCurrent(adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100));
 
   CommitTransaction();
 }

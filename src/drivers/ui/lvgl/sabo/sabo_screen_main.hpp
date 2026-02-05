@@ -29,7 +29,6 @@
 #include <chprintf.h>
 // clang-format on
 #include <lvgl.h>
-#include <ulog.h>
 
 #include <cstdint>
 
@@ -152,6 +151,9 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     // Create state label container with scrolling text
     CreateStateLabel();
+
+    // We most likely missed e.g. the emergency clear event during FW reset, update emergency widgets now
+    UpdateEmergencyWidgets();
   }
 
   /**
@@ -177,16 +179,16 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       case 4: UpdateDockWidgets(); break;
       case 5: UpdateRobotState(); break;
     }
+    update_phase = (update_phase + 1) % 6;  // Cycle through 6 phases
 
-    // Do always Emergency check
+    // On mower event
     eventflags_t flags = chEvtGetAndClearFlags(&emergency_event_listener_);
     if (flags & (MowerEvents::EMERGENCY_CHANGED)) {
       UpdateEmergencyWidgets();
     } else {
-      // Get SaboInputDriver sensors for changes directly, for pre-ROS as well as pre-Emergency display
+      // Get SaboInputDriver sensors, for pre-ROS as well as pre-Emergency display
       if (sabo_robot_ != nullptr) {
         uint8_t current_bits = sabo_robot_->GetSensorBits();
-
         if (current_bits != last_sensor_bits_) {
           last_sensor_bits_ = current_bits;
           UpdateEmergencyWidgets();
@@ -194,13 +196,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       }
     }
 
-    update_phase = (update_phase + 1) % 5;  // Cycle through 5 phases
-
     // DEBUG: BMS testing only
     /*static systime_t last_test_time = 0;
-    const systime_t now = chVTGetSystemTime();
     if (chVTTimeElapsedSinceX(last_test_time) > TIME_MS2I(5000)) {
-      last_test_time = now;
+      last_test_time = chVTGetSystemTime();
       if (sabo_robot_ != nullptr) {
         sabo_robot_->DumpBms();
       }
@@ -215,7 +214,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   static constexpr lv_coord_t STATELABEL_HEIGHT = 23;
 
   lv_obj_t* topbar_ = nullptr;
-  lv_obj_t* state_container_ = nullptr;
 
   // Status icons (initialized in CreateTopbar)
   WidgetIcon* icon_docked_ = nullptr;
@@ -225,12 +223,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   enum class EmergencyIconType : uint8_t { GENERIC = 0, STOP, WHEEL, TIMEOUT_ANY, TIMEOUT_HL };
   etl::flat_map<EmergencyIconType, WidgetIcon*, 5> emergency_icons_;
   event_listener_t emergency_event_listener_;
-  uint16_t last_emergency_reasons_ = 0;
 
   // State tracking
   uint8_t last_sensor_bits_ = 0;
   bool is_docked_ = false;
-  bool last_is_docked_ = true;
   bool has_bms_current_ = false;
 
   // GPS display widgets
@@ -376,6 +372,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       lv_label_set_text(gps_mode_value_, gps_mode);
       icon_gps_mode_->SetIcon(gps_icon);
       icon_gps_mode_->SetState(gps_icon_state);
+
+      // Update last_gps_state with minimal copy (only needed fields)
+      last_gps_state.rtk_type = gps_state.rtk_type;
+      last_gps_state.fix_type = gps_state.fix_type;
     }
 
     // Update NTRIP seconds only if changed
@@ -391,10 +391,6 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       }
       last_seconds_since_rtcm = seconds_since_rtcm;
     }
-
-    // Update last_gps_state with minimal copy (only needed fields)
-    last_gps_state.rtk_type = gps_state.rtk_type;
-    last_gps_state.fix_type = gps_state.fix_type;
   }
 
   /**
@@ -490,8 +486,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     // Static variables for caching and change detection
     static float last_current;
 
-    if (!is_docked_ && !last_is_docked_ && !has_bms_current_) {
-      return;  // Not docked, no BMS current available, skip update
+    if (!is_docked_ && !has_bms_current_) {
+      return;  // Not docked and, no BMS current available, skip update
     }
 
     // Get current values with reduced precision (0.1V / 0.01A resolution)
@@ -522,46 +518,101 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     const CHARGER_STATUS charger_status = power_service.GetChargerStatus();
     is_docked_ = adapter_volts > 10.0f;
 
-    // Update docked state only if changed
-    if (is_docked_ != last_is_docked_) {
-      icon_docked_->SetState(is_docked_ ? WidgetIcon::State::ON : WidgetIcon::State::OFF);
+    // Update docked state
+    icon_docked_->SetState(is_docked_ ? WidgetIcon::State::ON : WidgetIcon::State::OFF);
 
-      if (is_docked_) {
-        icon_current_->SetState(WidgetIcon::State::ON);
-        current_bar_->Show();
-        lv_obj_remove_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
+    if (is_docked_) {
+      icon_current_->SetState(WidgetIcon::State::ON);
+      current_bar_->Show();
+      lv_obj_remove_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_remove_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
 
-        // Update adapter voltage label only if changed (0.1V resolution)
-        if (adapter_volts != last_adapter_volts) {
-          chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", adapter_volts);
-          lv_label_set_text(adapter_voltage_label_, shared_text_buffer_);
-          last_adapter_volts = adapter_volts;
-        }
-
-        // Update charger status only if changed
-        if (charger_status != last_charger_status) {
-          lv_label_set_text(charger_status_label_, ChargerDriver::statusToString(charger_status));
-          last_charger_status = charger_status;
-        }
-      } else if (!has_bms_current_) {
-        icon_current_->SetState(WidgetIcon::State::OFF);
-        current_bar_->Hide();
-      } else {
-        lv_obj_add_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
+      // Update adapter voltage label only if changed (0.1V resolution)
+      if (adapter_volts != last_adapter_volts) {
+        chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", adapter_volts);
+        lv_label_set_text(adapter_voltage_label_, shared_text_buffer_);
+        last_adapter_volts = adapter_volts;
       }
 
-      last_is_docked_ = is_docked_;
+      // Update charger status only if changed
+      if (charger_status != last_charger_status) {
+        lv_label_set_text(charger_status_label_, ChargerDriver::statusToString(charger_status));
+        last_charger_status = charger_status;
+      }
+    } else if (!has_bms_current_) {
+      icon_current_->SetState(WidgetIcon::State::OFF);
+      current_bar_->Hide();
+    } else {
+      lv_obj_add_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
     }
   }
 
   /**
-   * @brief Update robot state display (placeholder for future implementation)
+   * @brief Update robot state display with HighLevelService state
    */
   void UpdateRobotState() {
-    // TODO: Implement robot state display
-    // This function is called in phase 4 of the round-robin
+    static etl::string<100> state_name;
+    static HighLevelStatus last_hl_status = HighLevelStatus::UNKNOWN;
+    static etl::string<100> last_sub_state_name;
+
+    HighLevelStatus hl_status = high_level_service.GetStateId();
+    etl::string<100> sub_state_name = high_level_service.GetSubStateName();
+
+    if (hl_status == last_hl_status && sub_state_name == last_sub_state_name) return;
+
+    const uint8_t SUBSTATE_SHIFT = static_cast<uint8_t>(HighLevelStatus::SUBSTATE_SHIFT);
+    const uint8_t STATE_MASK = (1 << SUBSTATE_SHIFT) - 1;  // Main-State bits 0-5 (since SUBSTATE_SHIFT=6)
+    const uint8_t SUBSTATE_MASK = static_cast<uint8_t>(HighLevelStatus::SUBSTATE_MASK);
+
+    uint8_t hl_status_raw = static_cast<uint8_t>(hl_status);
+    HighLevelStatus main_state = static_cast<HighLevelStatus>(hl_status_raw & STATE_MASK);
+    HighLevelStatus sub_state = static_cast<HighLevelStatus>((hl_status_raw >> SUBSTATE_SHIFT) & SUBSTATE_MASK);
+
+    switch (main_state) {
+      case HighLevelStatus::IDLE: state_name = "IDLE"; break;
+
+      case HighLevelStatus::AUTONOMOUS:
+        switch (sub_state) {
+          case HighLevelStatus::SUBSTATE_1:  // Wert 0 = Mowing Normal
+            state_name = "MOWING";
+            break;
+          case HighLevelStatus::SUBSTATE_2:  // Wert 1 = Docking
+            state_name = "DOCKING";
+            break;
+          case HighLevelStatus::SUBSTATE_3:  // Wert 2 = Undocking
+            state_name = "UNDOCKING";
+            break;
+          case HighLevelStatus::SUBSTATE_4:  // Wert 3 = Paused
+            state_name = "PAUSED";
+            break;
+          default: break;
+        }
+        break;
+
+      case HighLevelStatus::RECORDING:
+        state_name = "RECORDING";
+        switch (sub_state) {
+          case HighLevelStatus::SUBSTATE_2:  // Outline
+            state_name += " (OUTLINE)";
+            break;
+          case HighLevelStatus::SUBSTATE_3:  // Obstacle
+            state_name += " (OBSTACLE)";
+            break;
+          default: break;
+        }
+        // SubState exception
+        if (sub_state_name.compare("RECORD_DOCKING_POSITION") == 0) {
+          state_name += " (DOCK)";
+        }
+        break;
+
+      default: state_name = "UNKNOWN"; break;
+    }
+
+    lv_label_set_text(state_label_, state_name.c_str());
+    last_hl_status = hl_status;
+    last_sub_state_name = sub_state_name;
   }
 
   /**
@@ -570,16 +621,18 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
    * when input state changes
    */
   void UpdateEmergencyWidgets() {
-    static uint16_t triggered_emergency_reasons_ = 0;
-    static uint16_t last_sensor_reasons_ = 0;
+    static uint16_t last_emergency_reasons = 0xffff;
+    static uint16_t last_sensor_reasons = 0;
+    static uint16_t triggered_emergency_reasons = 0;
+
     uint16_t service_reasons = emergency_service.GetEmergencyReasons();
     uint16_t display_reasons = 0;
 
     // Track initially triggered emergency reasons
-    if (last_emergency_reasons_ == 0 && service_reasons != 0) {
-      triggered_emergency_reasons_ = service_reasons;
+    if (last_emergency_reasons == 0 && service_reasons != 0) {
+      triggered_emergency_reasons = service_reasons;
     } else if (service_reasons == 0) {
-      triggered_emergency_reasons_ = 0;
+      triggered_emergency_reasons = 0;
     }
 
     // SaboInputDriver sensor states as emergency reasons using cached bits
@@ -592,13 +645,13 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       display_reasons |= EmergencyReason::LIFT;
     }
 
-    if (service_reasons == last_emergency_reasons_ && display_reasons == last_sensor_reasons_) {
+    if (service_reasons == last_emergency_reasons && display_reasons == last_sensor_reasons) {
       return;
     }
-    last_emergency_reasons_ = service_reasons;
-    last_sensor_reasons_ = display_reasons;
+    last_emergency_reasons = service_reasons;
+    last_sensor_reasons = display_reasons;
 
-    display_reasons |= service_reasons | triggered_emergency_reasons_;
+    display_reasons |= service_reasons | triggered_emergency_reasons;
     for (auto& [type, icon] : emergency_icons_) {
       if (icon != nullptr) {
         WidgetIcon::State new_state = WidgetIcon::State::OFF;
@@ -630,27 +683,21 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   }
 
   /**
-   * @brief Create a bordered container with scrolling label for robot state display
+   * @brief Create a bordered container for robot state display
    *
    * Layout:
    * [bordered rectangle] [Robot State like IDLE/MOWING/PAUSE/etc]
-   * The label uses circular scrolling if text exceeds container width.
    */
   void CreateStateLabel() {
-    // Create container with border (no fill) at bottom of screen
-    state_container_ = lv_obj_create(screen_);
-    lv_obj_set_size(state_container_, defs::LCD_WIDTH, STATELABEL_HEIGHT);
-    lv_obj_set_pos(state_container_, 0, defs::LCD_HEIGHT - STATELABEL_HEIGHT);
-    lv_obj_set_style_border_width(state_container_, 1, LV_PART_MAIN);
-    lv_obj_set_style_border_color(state_container_, lv_color_black(), LV_PART_MAIN);
-
-    // Create scrolling label
-    state_label_ = lv_label_create(screen_);  // Doesn't work with state_container_ as parent. Whyever :-/
-    lv_label_set_text(state_label_, "Robot State");
+    state_label_ = lv_label_create(screen_);
+    lv_obj_set_size(state_label_, defs::LCD_WIDTH, STATELABEL_HEIGHT);
+    lv_obj_set_pos(state_label_, 0, defs::LCD_HEIGHT - STATELABEL_HEIGHT);
+    lv_obj_set_style_border_width(state_label_, 1, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(state_label_, 3, LV_PART_MAIN);
+    lv_obj_set_style_border_color(state_label_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(state_label_, &orbitron_16b, LV_PART_MAIN);
-    lv_obj_align(state_label_, LV_ALIGN_BOTTOM_MID, defs::LCD_WIDTH / 4, -2);
-    lv_label_set_long_mode(state_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(state_label_, defs::LCD_WIDTH - 6);
+    lv_obj_set_style_text_align(state_label_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_label_set_text(state_label_, "Waiting for ROS");
   }
 
 };  // class SaboScreenMain

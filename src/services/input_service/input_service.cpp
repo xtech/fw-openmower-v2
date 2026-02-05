@@ -200,9 +200,9 @@ void InputService::OnInputChanged(Input& input, const bool active, const uint32_
     SendInputEventHelper(input, InputEventType::ACTIVE);
   } else {
     SendInputEventHelper(input, InputEventType::INACTIVE);
-    if (duration >= LongPressTime.value) {
+    if (duration >= LongPressTime.value * 1000) {
       SendInputEventHelper(input, InputEventType::LONG);
-    } else if (duration >= DebounceTime.value) {
+    } else if (duration >= DebounceTime.value * 1000) {
       // Note that debouncing works only one-way here.
       // If the input becomes inactive for just a nanosecond, it will interrupt the long press.
       SendInputEventHelper(input, InputEventType::SHORT);
