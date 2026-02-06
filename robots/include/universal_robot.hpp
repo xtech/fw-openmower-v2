@@ -5,6 +5,10 @@
 
 #include "robot.hpp"
 
+/**
+ * @class UniversalRobot
+ * @brief Intermediate base class for Universal robot platform variants.
+ */
 class UniversalRobot : public MowerRobot {
  public:
   void InitPlatform() override;
@@ -20,6 +24,9 @@ class UniversalRobot : public MowerRobot {
   float Power_GetDefaultChargeCurrent() override {
     return 0.5;
   }
+
+ protected:
+  UniversalRobot() = default;  // Intermediate/abstract class
 
  private:
   BQ2576 charger_{};

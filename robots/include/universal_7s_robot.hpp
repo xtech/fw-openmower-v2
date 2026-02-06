@@ -5,7 +5,7 @@
 
 /**
  * @class Universal7SRobot
- * @brief Universal robot platform variant for 7S (7-series) lithium battery packs.
+ * @brief Universal robot platform variant for 7S (7-series) battery packs.
  */
 class Universal7SRobot : public UniversalRobot {
  public:
@@ -21,9 +21,6 @@ class Universal7SRobot : public UniversalRobot {
     // 3.3V min, 7s pack
     return 7.0f * 3.0;
   }
-
- private:
-  BQ2576 charger_{};
 };
 
 #endif  // UNIVERSAL_7S_ROBOT_HPP
