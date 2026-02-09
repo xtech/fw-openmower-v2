@@ -432,11 +432,9 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
                                     ? std::round(bms_data_->pack_voltage_v * 10.0f) / 10.0f
                                     : std::round(power_service.GetBatteryVolts() * 10.0f) / 10.0f;
 
-    // Prefer BMS battery_soc over calculated battery percentage
-    const auto battery_percent = bms_data_ != nullptr && bms_data_->battery_soc > 0.0f
-                                     ? static_cast<int32_t>(bms_data_->battery_soc * 100)
-                                     : GetPercent(battery_volts, sabo_robot_->Power_GetAbsoluteMinVoltage(),
-                                                  sabo_robot_->Power_GetDefaultBatteryFullVoltage());
+    // Prefer calculated battery percentage over BMS battery_soc (BMS SoC is waste)
+    const auto battery_percent = GetPercent(battery_volts, sabo_robot_->Power_GetAbsoluteMinVoltage(),
+                                            sabo_robot_->Power_GetDefaultBatteryFullVoltage());
 
     if (battery_percent != last_battery_percent) {
       // Determine battery icon and state based on percentage
