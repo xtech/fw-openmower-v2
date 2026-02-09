@@ -61,6 +61,16 @@ class PowerService : public PowerServiceBase {
     return dcdc_current;
   }
 
+  [[nodiscard]] float GetAdcAdapterVolts() {
+    xbot::service::Lock lk{&mtx_};
+    return adapter_volts_adc;
+  }
+
+  [[nodiscard]] float GetAdcBatteryVolts() {
+    xbot::service::Lock lk{&mtx_};
+    return battery_volts_adc;
+  }
+
   [[nodiscard]] float GetConfiguredChargeCurrent() const {
     return ChargeCurrent.valid ? ChargeCurrent.value : std::numeric_limits<float>::quiet_NaN();
   }
