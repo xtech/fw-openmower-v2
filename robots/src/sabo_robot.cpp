@@ -1,6 +1,7 @@
 #include "../include/sabo_robot.hpp"
 
 #include <drivers/gps/nmea_gps_driver.h>
+#include <etl/delegate.h>
 #include <ulog.h>
 
 #include <services.hpp>
@@ -27,7 +28,8 @@ void SaboRobot::InitPlatform() {
     RegisterAdc1Sensors();
   }
 
-  cover_ui_.Start();
+  power_service.SetPowerManagementCallback(
+      etl::delegate<void()>::create<SaboRobot, &SaboRobot::OnPowerManagement>(*this));
 
   // Initialize GPS driver for immediate availability (without waiting for ROS configuration)
   settings::GPSSettings gps_settings;
@@ -35,6 +37,8 @@ void SaboRobot::InitPlatform() {
     ULOG_WARNING("Failed to load GPS settings from flash, using defaults");
   }
   gps_service.LoadAndStartGpsDriver(gps_settings.protocol, gps_settings.uart, gps_settings.baudrate);
+
+  cover_ui_.Start();
 }
 
 bool SaboRobot::IsHardwareSupported() {
@@ -130,4 +134,40 @@ void SaboRobot::RegisterAdc1Sensors() {
       },
       &adc_scales->dcdc_in_current_scale_factor);  // User data
   adc1::RegisterConversionGroup(i_dcdc_cg);
+}
+
+void SaboRobot::OnPowerManagement() {
+  static float last_adapter_limit = 0.0f;
+  static float last_charge_limit = 0.0f;
+
+  constexpr float HYSTERESIS = 0.05f;          // 50mA
+  constexpr float SAFETY_RESERVE = 0.2f;       // 200mA (~100mA blind current into ESCs + 100mA ADC inaccuracy)
+  constexpr float MIN_ADAPTER_CURRENT = 0.3f;  // 300mA
+  constexpr float MAX_ADAPTER_CURRENT = 4.5f;  // Hardware limit: PCB traces = ~4.9A = 4.5A conservative
+  constexpr float MAX_CHARGE_CURRENT = 5.5f;   // Hardware limit: PCB traces = ~5.9A = 5.5A conservative
+
+  float system_current = power_service.GetSystemCurrentLimit();
+  if (isnan(system_current) || system_current <= 0.0f) return;
+
+  float dcdc_current = power_service.GetDCDCCurrent();
+  if (isnan(dcdc_current) || dcdc_current <= 0.0f) return;
+
+  // Clamp adapter current to a minimum of MIN_ADAPTER_CURRENT
+  float adapter_limit = std::max(MIN_ADAPTER_CURRENT, system_current - dcdc_current - SAFETY_RESERVE);
+  adapter_limit = std::min(adapter_limit, MAX_ADAPTER_CURRENT);  // Clamp to <= MAX_ADAPTER_CURRENT
+  if (fabsf(adapter_limit - last_adapter_limit) > HYSTERESIS) {  // Don't flood charger with minor corrections
+    charger_.setAdapterCurrent(adapter_limit, true);
+    last_adapter_limit = adapter_limit;
+  }
+
+  // When overwriting ICHG pin, we also need to ensure charge current hardware limits by software
+  float config_charge_current = power_service.GetConfiguredChargeCurrent();
+  float charge_limit = (!isnan(config_charge_current) && config_charge_current > 0)
+                           ? config_charge_current
+                           : Power_GetDefaultChargeCurrent();  // Sabo default
+  charge_limit = std::min(MAX_CHARGE_CURRENT, charge_limit);   // Clamp to <= MAX_CHARGE_CURRENT
+  if (last_charge_limit != charge_limit) {
+    charger_.setChargingCurrent(charge_limit, true);
+    last_charge_limit = charge_limit;
+  }
 }

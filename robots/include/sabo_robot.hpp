@@ -52,8 +52,8 @@ class SaboRobot : public MowerRobot {
 
   float Power_GetDefaultChargeCurrent() override {
     // Battery pack is 7S3P, so max. would be 1.3Ah * 3 = 3.9A
-    // 3.9A would be also the max. charge current for the stock PSU!
-    return 1.95f;  // Lets stay save and conservative for now
+    // 3.9A would be also approx. the max. charge current for the stock 90W PSU!
+    return 2.5f;  // Lets stay save and conservative for now
   }
 
   bool SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) override;
@@ -126,15 +126,20 @@ class SaboRobot : public MowerRobot {
   }
 
  private:
-  BQ2576 charger_{};
+  BQ2576 charger_{0.005f};  // All Sabo's do have an 5mΩ Rac_sns
   SaboCoverUIController cover_ui_{hardware_config};
   SaboInputDriver sabo_input_driver_{hardware_config};
   SaboBmsDriver bms_{hardware_config.bms};
 
   /**
-   * @brief Register all ADC1 sensors
+   * @brief Configures and registers all Sabo-specific ADC1 sensors for voltage/current monitoring
    */
   void RegisterAdc1Sensors();
+
+  /**
+   * @brief Dynamic power management callback that adjusts charger settings based on system load
+   */
+  void OnPowerManagement();
 };
 
 #endif  // SABO_ROBOT_HPP

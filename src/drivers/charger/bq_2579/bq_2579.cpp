@@ -5,6 +5,13 @@
 #include "bq_2579.hpp"
 BQ2579::~BQ2579() = default;
 
+bool BQ2579::setAdapterCurrent(float current_amps, bool overwrite_hardware_limit) {
+  (void)overwrite_hardware_limit;
+  if (current_amps > 3.3f) {
+    current_amps = 3.3f;
+  }
+  return writeRegister16(REG_Adapter_Current_Limit, static_cast<uint16_t>(current_amps * 100.0f));
+}
 bool BQ2579::setChargingCurrent(float current_amps, bool overwrite_hardware_limit) {
   (void)overwrite_hardware_limit;
   if (current_amps > 5.0f) {
@@ -88,6 +95,12 @@ bool BQ2579::setTsEnabled(bool enabled) {
     register_value &= 0b11111110;
   }
   return writeRegister8(REG_NTC_Control_1, register_value);
+}
+bool BQ2579::readAdapterCurrent(float& result) {
+  uint16_t raw_result = 0;
+  if (!readRegister(REG_IBUS_ADC, raw_result)) return false;
+  result = static_cast<float>(static_cast<int16_t>(raw_result)) / 1000.0f;
+  return true;
 }
 bool BQ2579::readChargeCurrent(float& result) {
   uint16_t raw_result = 0;
