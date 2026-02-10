@@ -46,8 +46,6 @@ class BQ2576 : public ChargerDriver {
   static constexpr uint8_t REG_Precharge_Current_Limit = 0x10;
   static constexpr uint8_t REG_Precharge_and_Termination_Control = 0x14;
 
-  static constexpr uint8_t PINCTL_BIT_EN_ICHG = 0b1 << 7;  // Pin control bit for ICHG pin (charge current limit pin)
-
   const float r_ac_sense_;  // 0 = No Rac_sns
 
   bool readRegister(uint8_t reg, uint8_t &result);
@@ -62,7 +60,7 @@ class BQ2576 : public ChargerDriver {
   uint8_t readFaults();
 
  public:
-  bool setAdapterCurrent(float current_amps, bool overwrite_hardware_limit) override;
+  bool setAdapterCurrent(float current_amps) override;
   bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) override;
   bool setPreChargeCurrent(float current_amps) override;
   bool setTerminationCurrent(float current_amps) override;

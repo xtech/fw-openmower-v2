@@ -196,10 +196,6 @@ bool BQ2576::readVFB(float& result) {
 }
 
 bool BQ2576::setChargingCurrent(float current_amps, bool overwrite_hardware_limit) {
-  current_amps = std::max(current_amps, 0.4f);  // Clamp to >= 0.4f
-  uint16_t value = static_cast<uint16_t>(current_amps * 1000.0f / 50.0f) << 2;
-  if (!writeRegister16(REG_Charge_Current_Limit, value)) return false;
-
   uint8_t pin_ctl_value;
   if (!readRegister(REG_Pin_Control, pin_ctl_value)) {
     return false;
@@ -207,41 +203,30 @@ bool BQ2576::setChargingCurrent(float current_amps, bool overwrite_hardware_limi
 
   if (overwrite_hardware_limit) {
     // Force EN_ICHG_PIN bit low
-    pin_ctl_value &= ~PINCTL_BIT_EN_ICHG;
+    pin_ctl_value &= 0b01111111;
   } else {
     // Force EN_ICHG_PIN bit high
-    pin_ctl_value |= PINCTL_BIT_EN_ICHG;
+    pin_ctl_value |= 0b10000000;
   }
   // Set the pin
-  return writeRegister8(REG_Pin_Control, pin_ctl_value);
+  if (!writeRegister8(REG_Pin_Control, pin_ctl_value)) return false;
+
+  if (current_amps < 0.4f) current_amps = 0.4f;
+  uint16_t value = static_cast<uint16_t>(current_amps * 1000.0f / 50.0f) << 2;
+  return writeRegister16(REG_Charge_Current_Limit, value);
 }
 
-bool BQ2576::setAdapterCurrent(float i_ac_max, bool overwrite_hardware_limit) {
-  if (r_ac_sense_ <= 0.0f) {
-    // Without Rac_sense we cannot use IAC_DPM limit
-    return false;
-  }
+bool BQ2576::setAdapterCurrent(float current_amps) {
+  if (r_ac_sense_ <= 0.0f) return false;  // Without Rac_sense we cannot use IAC_DPM limit
 
-  i_ac_max = std::max(i_ac_max, 0.4f);  // Clamp to >= 0.4f
+  current_amps = std::max(current_amps, 0.4f);  // Clamp to >= 0.4f
 
   // - 5mΩ RAC_SNS = 50mA per step
   // - Step size scales inversely with RAC_SNS: step_size = 0.05f * (0.005f / r_ac_sense_)
   // - Register value = i_ac_max / step_size, then << 2 for bit position
-  uint16_t value = static_cast<uint16_t>(i_ac_max * 4000.0f * r_ac_sense_) << 2;
+  uint16_t value = static_cast<uint16_t>(current_amps * 4000.0f * r_ac_sense_) << 2;
 
-  if (!writeRegister16(REG_Adapter_Current_Limit, value)) return false;
-
-  uint8_t pin_ctl_value;
-  if (!readRegister(REG_Pin_Control, pin_ctl_value)) {
-    return false;
-  }
-
-  if (overwrite_hardware_limit) {
-    pin_ctl_value &= ~PINCTL_BIT_EN_ICHG;  // Disable ICHG pin
-  } else {
-    pin_ctl_value |= PINCTL_BIT_EN_ICHG;  // Enable ICHG pin
-  }
-  return writeRegister8(REG_Pin_Control, pin_ctl_value);
+  return writeRegister16(REG_Adapter_Current_Limit, value);
 }
 
 bool BQ2576::setPreChargeCurrent(float current_amps) {

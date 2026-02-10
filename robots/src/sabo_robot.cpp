@@ -156,13 +156,13 @@ void SaboRobot::OnPowerManagement() {
   float adapter_limit = std::max(MIN_ADAPTER_CURRENT, system_current - dcdc_current - SAFETY_RESERVE);
   adapter_limit = std::min(adapter_limit, MAX_ADAPTER_CURRENT);  // Clamp to <= MAX_ADAPTER_CURRENT
   if (fabsf(adapter_limit - last_adapter_limit) > HYSTERESIS) {  // Don't flood charger with minor corrections
-    charger_.setAdapterCurrent(adapter_limit, true);
+    charger_.setAdapterCurrent(adapter_limit);
     last_adapter_limit = adapter_limit;
   }
 
-  // When overwriting ICHG pin, we also need to ensure charge current hardware limits by software
+  // Ensure charge current is within Sabo's design limits before disabling ICHG pin
   float config_charge_current = power_service.GetConfiguredChargeCurrent();
-  float charge_limit = (!isnan(config_charge_current) && config_charge_current > 0)
+  float charge_limit = (!isnan(config_charge_current) && config_charge_current > 0.0f)
                            ? config_charge_current
                            : Power_GetDefaultChargeCurrent();  // Sabo default
   charge_limit = std::min(MAX_CHARGE_CURRENT, charge_limit);   // Clamp to <= MAX_CHARGE_CURRENT

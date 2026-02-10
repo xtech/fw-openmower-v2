@@ -12,7 +12,7 @@ using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
 class BQ2579 : public ChargerDriver {
  public:
   ~BQ2579() override;
-  bool setAdapterCurrent(float current_amps, bool overwrite_hardware_limit) override;
+  bool setAdapterCurrent(float current_amps) override;
   bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) override;
   bool setPreChargeCurrent(float current_amps) override;
   bool setTerminationCurrent(float current_amps) override;

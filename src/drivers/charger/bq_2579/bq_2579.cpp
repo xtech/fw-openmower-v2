@@ -5,8 +5,7 @@
 #include "bq_2579.hpp"
 BQ2579::~BQ2579() = default;
 
-bool BQ2579::setAdapterCurrent(float current_amps, bool overwrite_hardware_limit) {
-  (void)overwrite_hardware_limit;
+bool BQ2579::setAdapterCurrent(float current_amps) {
   if (current_amps > 3.3f) {
     current_amps = 3.3f;
   }

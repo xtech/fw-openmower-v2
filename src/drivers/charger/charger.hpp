@@ -43,7 +43,7 @@ class ChargerDriver {
                 "CHARGER_STATUS_STRINGS size must match CHARGER_STATUS enum count");
 
   virtual ~ChargerDriver() = default;
-  virtual bool setAdapterCurrent(float current_amps, bool overwrite_hardware_limit) = 0;
+  virtual bool setAdapterCurrent(float current_amps) = 0;
   virtual bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) = 0;
   virtual bool setPreChargeCurrent(float current_amps) = 0;
   virtual bool setTerminationCurrent(float current_amps) = 0;
