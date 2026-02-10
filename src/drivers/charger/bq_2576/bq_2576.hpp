@@ -13,6 +13,10 @@
 using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
 
 class BQ2576 : public ChargerDriver {
+ public:
+  explicit BQ2576(float r_ac_sense = 0.0f) : ChargerDriver(), r_ac_sense_(r_ac_sense) {
+  }
+
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x6B;
   static constexpr uint8_t REG_PART_INFORMATION = 0x3D;
@@ -22,11 +26,13 @@ class BQ2576 : public ChargerDriver {
   static constexpr uint8_t REG_IBAT_ADC = 0x2F;
   static constexpr uint8_t REG_ADC_Control = 0x2B;
   static constexpr uint8_t REG_VAC_ADC = 0x31;
+  static constexpr uint8_t REG_IAC_ADC = 0x2d;
   static constexpr uint8_t REG_VBAT_ADC = 0x33;
   static constexpr uint8_t REG_VFB_ADC = 0x39;
   static constexpr uint8_t REG_Charger_Control = 0x17;
   static constexpr uint8_t REG_Pin_Control = 0x18;
   static constexpr uint8_t REG_Charge_Current_Limit = 0x02;
+  static constexpr uint8_t REG_Adapter_Current_Limit = 0x06;
   static constexpr uint8_t REG_Charger_Status_1 = 0x21;
   static constexpr uint8_t REG_Charger_Status_2 = 0x22;
   static constexpr uint8_t REG_Charger_Status_3 = 0x23;
@@ -40,6 +46,8 @@ class BQ2576 : public ChargerDriver {
   static constexpr uint8_t REG_Precharge_Current_Limit = 0x10;
   static constexpr uint8_t REG_Precharge_and_Termination_Control = 0x14;
 
+  const float r_ac_sense_;  // 0 = No Rac_sns
+
   bool readRegister(uint8_t reg, uint8_t &result);
   bool readRegister(uint8_t reg, uint16_t &result);
   bool writeRegister8(uint8_t reg, uint8_t value);
@@ -52,6 +60,7 @@ class BQ2576 : public ChargerDriver {
   uint8_t readFaults();
 
  public:
+  bool setAdapterCurrent(float current_amps) override;
   bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) override;
   bool setPreChargeCurrent(float current_amps) override;
   bool setTerminationCurrent(float current_amps) override;
@@ -62,6 +71,7 @@ class BQ2576 : public ChargerDriver {
 
   bool setTsEnabled(bool enabled) override;
 
+  bool readAdapterCurrent(float &result) override;
   bool readChargeCurrent(float &result) override;
   bool readAdapterVoltage(float &result) override;
   bool readBatteryVoltage(float &result) override;

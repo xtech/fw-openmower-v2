@@ -13,6 +13,8 @@
 #include "board.h"
 #include "drivers/adc/adc1.hpp"
 
+using namespace xbot::driver;
+
 void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
 }
@@ -49,35 +51,24 @@ void PowerService::tick() {
                       (robot->Power_GetDefaultBatteryFullVoltage() - robot->Power_GetDefaultBatteryEmptyVoltage());
   }
   SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
+  SendChargerInputCurrent(adapter_current);
 
   // BMS values
-  if (bms_ != nullptr && bms_->IsPresent()) {
-    const auto* data = bms_->GetData();
-    if (data != nullptr) {
-      SendBatteryCurrent(data->pack_current_a);
-      SendBatteryVoltageBMS(data->pack_voltage_v);
-      SendBatterySoC(data->battery_soc);
-      SendBatteryTemperature(data->temperature_c);
-      SendBatteryStatus(data->battery_status);
-    } else {
-      SendBatteryCurrent(std::numeric_limits<float>::quiet_NaN());
-      SendBatteryVoltageBMS(std::numeric_limits<float>::quiet_NaN());
-      SendBatterySoC(std::numeric_limits<float>::quiet_NaN());
-      SendBatteryTemperature(std::numeric_limits<float>::quiet_NaN());
-      SendBatteryStatus(0);
-    }
-
-    const char* extra = (bms_ != nullptr) ? bms_->GetExtraDataJson() : "";
-    SendBMSExtraData(extra, (uint32_t)strlen(extra));
+  if (bms_data_ != nullptr) {
+    SendBatteryCurrent(bms_data_->pack_current_a);
+    SendBatteryVoltageBMS(bms_data_->pack_voltage_v);
+    SendBatterySoC(bms_data_->battery_soc);
+    SendBatteryTemperature(bms_data_->temperature_c);
+    SendBatteryStatus(bms_data_->battery_status);
+  }
+  if (bms_extra_data_ != nullptr) {
+    SendBMSExtraData(bms_extra_data_, (uint32_t)strlen(bms_extra_data_));
   }
 
-  // ADC readings
-  using namespace xbot::driver;
-  // adc1::DumpBenchmarkMeasurement(Adc1ConversionId::V_BATTERY, "V-BAT");
-
-  SendBatteryVoltageADC(adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100));
-  SendChargeVoltageADC(adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100));
-  SendDCDCInputCurrent(adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100));
+  // ADC values
+  SendBatteryVoltageADC(battery_volts_adc);
+  SendChargeVoltageADC(adapter_volts_adc);
+  SendDCDCInputCurrent(dcdc_current);
 
   CommitTransaction();
 }
@@ -85,7 +76,26 @@ void PowerService::tick() {
 void PowerService::drivers_tick() {
   charger_tick();
 
-  if (bms_ != nullptr) bms_->Tick();
+  // Optional BMS tick and data retrieval
+  if (bms_ != nullptr) {
+    bms_->Tick();
+    if (bms_->IsPresent()) {
+      bms_data_ = bms_->GetData();
+      bms_extra_data_ = bms_->GetExtraDataJson();
+    }
+  }
+
+  // ADC readings (for debugging use e.g.: adc1::DumpBenchmarkMeasurement(Adc1ConversionId::V_BATTERY, "V-BAT");
+  {
+    xbot::service::Lock lk{&mtx_};
+    adapter_volts_adc = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100);
+    battery_volts_adc = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100);
+    dcdc_current = adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100);
+  }
+
+  if (charger_configured_ && power_management_callback_) {
+    power_management_callback_();
+  }
 }
 
 void PowerService::charger_tick() {
@@ -145,6 +155,13 @@ void PowerService::charger_tick() {
       bool s = charger_->readAdapterVoltage(adapter_volts);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Adapter Voltage");
+      }
+      success &= s;
+    }
+    {
+      bool s = charger_->readAdapterCurrent(adapter_current);
+      if (!s) {
+        ULOG_ARG_WARNING(&service_id_, "Error Reading Adapter Current");
       }
       success &= s;
     }

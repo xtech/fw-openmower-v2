@@ -6,6 +6,9 @@
 
 #include <ulog.h>
 
+#include <algorithm>
+#include <limits>
+
 #include "ch.h"
 #include "hal.h"
 
@@ -73,6 +76,24 @@ bool BQ2576::readRegister(uint8_t reg, uint8_t& result) {
   bool ok = i2cMasterTransmit(i2c_driver_, DEVICE_ADDRESS, &reg, sizeof(reg), &result, sizeof(result)) == MSG_OK;
   i2cReleaseBus(i2c_driver_);
   return ok;
+}
+
+bool BQ2576::readAdapterCurrent(float& result) {
+  if (r_ac_sense_ <= 0.0f) {
+    // Without Rac_sense Iac_adc reading is useless
+    result = std::numeric_limits<float>::quiet_NaN();
+    return true;
+  }
+
+  uint16_t raw_result = 0;
+  if (!readRegister(REG_IAC_ADC, raw_result)) return false;
+
+  // - 2mΩ RAC_SNS = 2mA per LSB
+  // - LSB size scales inversely with RAC_SNS: lsb_size = 0.002f * (0.002f / r_ac_sense_)
+  // - Current = raw_value * lsb_size
+  result = static_cast<int16_t>(raw_result) * 0.000004f / r_ac_sense_;
+
+  return true;
 }
 
 bool BQ2576::readChargeCurrent(float& result) {
@@ -193,6 +214,19 @@ bool BQ2576::setChargingCurrent(float current_amps, bool overwrite_hardware_limi
   if (current_amps < 0.4f) current_amps = 0.4f;
   uint16_t value = static_cast<uint16_t>(current_amps * 1000.0f / 50.0f) << 2;
   return writeRegister16(REG_Charge_Current_Limit, value);
+}
+
+bool BQ2576::setAdapterCurrent(float current_amps) {
+  if (r_ac_sense_ <= 0.0f) return false;  // Without Rac_sense we cannot use IAC_DPM limit
+
+  current_amps = std::max(current_amps, 0.4f);  // Clamp to >= 0.4f
+
+  // - 5mΩ RAC_SNS = 50mA per step
+  // - Step size scales inversely with RAC_SNS: step_size = 0.05f * (0.005f / r_ac_sense_)
+  // - Register value = i_ac_max / step_size, then << 2 for bit position
+  uint16_t value = static_cast<uint16_t>(current_amps * 4000.0f * r_ac_sense_) << 2;
+
+  return writeRegister16(REG_Adapter_Current_Limit, value);
 }
 
 bool BQ2576::setPreChargeCurrent(float current_amps) {

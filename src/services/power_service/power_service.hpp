@@ -10,6 +10,7 @@
 #include <PowerServiceBase.hpp>
 #include <drivers/bms/bms_driver.hpp>
 #include <drivers/charger/charger.hpp>
+#include <limits>
 #include <xbot-service/Lock.hpp>
 
 using namespace xbot::service;
@@ -50,6 +51,39 @@ class PowerService : public PowerServiceBase {
     return charger_status;
   }
 
+  [[nodiscard]] float GetAdapterCurrent() {
+    xbot::service::Lock lk{&mtx_};
+    return adapter_current;
+  }
+
+  [[nodiscard]] float GetDCDCCurrent() {
+    xbot::service::Lock lk{&mtx_};
+    return dcdc_current;
+  }
+
+  [[nodiscard]] float GetAdcAdapterVolts() {
+    xbot::service::Lock lk{&mtx_};
+    return adapter_volts_adc;
+  }
+
+  [[nodiscard]] float GetAdcBatteryVolts() {
+    xbot::service::Lock lk{&mtx_};
+    return battery_volts_adc;
+  }
+
+  float GetConfiguredChargeCurrent() const {
+    return ChargeCurrent.valid ? ChargeCurrent.value : std::numeric_limits<float>::quiet_NaN();
+  }
+
+  float GetConfiguredSystemCurrent() const {
+    return SystemCurrent.valid ? SystemCurrent.value : std::numeric_limits<float>::quiet_NaN();
+  }
+
+  using PowerManagementCallback = etl::delegate<void()>;
+  void SetPowerManagementCallback(PowerManagementCallback callback) {
+    power_management_callback_ = callback;
+  }
+
  protected:
   bool OnStart() override;
 
@@ -71,10 +105,23 @@ class PowerService : public PowerServiceBase {
   float adapter_volts = 0;
   float battery_volts = 0;
   float battery_percent = 0;
+
+  // BMS data
+  const Data* bms_data_ = nullptr;
+  const char* bms_extra_data_ = nullptr;
+
+  // Most designs don't have these
+  float adapter_volts_adc = std::numeric_limits<float>::quiet_NaN();
+  float battery_volts_adc = std::numeric_limits<float>::quiet_NaN();
+  float adapter_current = std::numeric_limits<float>::quiet_NaN();
+  float dcdc_current = std::numeric_limits<float>::quiet_NaN();
+
   int critical_count = 0;
   CHARGER_STATUS charger_status = CHARGER_STATUS::COMMS_ERROR;
   ChargerDriver* charger_ = nullptr;
   BmsDriver* bms_ = nullptr;
+
+  PowerManagementCallback power_management_callback_;
 
   THD_WORKING_AREA(wa, 1500){};
 
