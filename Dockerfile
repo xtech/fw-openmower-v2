@@ -27,6 +27,7 @@ RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Worx -BWorx && cd Wor
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Lyfco_E1600 -BLyfco_E1600 && cd Lyfco_E1600 && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Sabo -BSabo && cd Sabo && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=xBot -BxBot && cd xBot && make -j$(nproc)
+RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Universal7S -BUniversal7S && cd Universal7S && make -j$(nproc)
 # Use Sabo build for RAM and ROM analysis for now - it has the most libraries
 RUN elf-size-analyze -H -R -t arm-none-eabi- ./build/Sabo/openmower.elf -W > build/ram-info.html
 RUN elf-size-analyze -H -F -t arm-none-eabi- ./build/Sabo/openmower.elf -W > build/flash-info.html
@@ -54,3 +55,6 @@ COPY --from=builder /project/build/Sabo/openmower.elf /openmower-sabo.elf
 
 COPY --from=builder /project/build/xBot/openmower.bin /openmower-xbot.bin
 COPY --from=builder /project/build/xBot/openmower.elf /openmower-xbot.elf
+
+COPY --from=builder /project/build/Universal7S/openmower.bin /openmower-universal-7s.bin
+COPY --from=builder /project/build/Universal7S/openmower.elf /openmower-universal-7s.elf
