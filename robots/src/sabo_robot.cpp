@@ -146,7 +146,7 @@ void SaboRobot::OnPowerManagement() {
   constexpr float MAX_ADAPTER_CURRENT = 4.5f;  // Hardware limit: PCB traces = ~4.9A = 4.5A conservative
   constexpr float MAX_CHARGE_CURRENT = 5.5f;   // Hardware limit: PCB traces = ~5.9A = 5.5A conservative
 
-  float system_current = power_service.GetSystemCurrentLimit();
+  float system_current = power_service.GetConfiguredSystemCurrent();
   if (isnan(system_current) || system_current <= 0.0f) return;
 
   float dcdc_current = power_service.GetDCDCCurrent();

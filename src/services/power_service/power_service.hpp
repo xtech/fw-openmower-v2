@@ -75,8 +75,8 @@ class PowerService : public PowerServiceBase {
     return ChargeCurrent.valid ? ChargeCurrent.value : std::numeric_limits<float>::quiet_NaN();
   }
 
-  float GetSystemCurrentLimit() const {
-    return SystemCurrentLimit.valid ? SystemCurrentLimit.value : std::numeric_limits<float>::quiet_NaN();
+  float GetConfiguredSystemCurrent() const {
+    return SystemCurrent.valid ? SystemCurrent.value : std::numeric_limits<float>::quiet_NaN();
   }
 
   using PowerManagementCallback = etl::delegate<void()>;
