@@ -71,7 +71,7 @@ class PowerService : public PowerServiceBase {
     return battery_volts_adc;
   }
 
-  [[nodiscard]] float GetConfiguredChargeCurrent() const {
+  float GetConfiguredChargeCurrent() const {
     return ChargeCurrent.valid ? ChargeCurrent.value : std::numeric_limits<float>::quiet_NaN();
   }
 
@@ -105,6 +105,10 @@ class PowerService : public PowerServiceBase {
   float adapter_volts = 0;
   float battery_volts = 0;
   float battery_percent = 0;
+
+  // BMS data
+  const Data* bms_data_ = nullptr;
+  const char* bms_extra_data_ = nullptr;
 
   // Most designs don't have these
   float adapter_volts_adc = std::numeric_limits<float>::quiet_NaN();
