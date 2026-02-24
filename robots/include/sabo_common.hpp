@@ -23,8 +23,12 @@
 #include <cstdint>
 #include <globals.hpp>
 
-#include "../../src/filesystem/versioned_struct.hpp"
 #include "GpsServiceBase.hpp"
+#include "drivers/gpio/tca_95xx/tca9534.hpp"
+#include "drivers/gpio/tca_95xx/tca9535.hpp"
+#include "filesystem/versioned_struct.hpp"
+
+using namespace xbot::driver;
 
 namespace xbot::driver::sabo {
 
@@ -97,13 +101,18 @@ struct CoverUi {
     const ioline_t btn_cs = PAL_NOLINE;
     const ioline_t inp_cs = PAL_NOLINE;
   } pins;
+  // Optional GPIO expander. Only >= v0.3 have them
+  struct {
+    const gpio::TCA95xxConfig leds{};
+    const gpio::TCA95xxConfig btns{};
+  } gpio_expander;
 };
 
 struct Lcd {
   const Spi spi;
   struct {
-    const ioline_t dc;
-    const ioline_t rst;
+    const ioline_t dc;   // data/command control pin
+    const ioline_t rst;  // /reset pin
     const ioline_t backlight;
   } pins;
 };
@@ -135,20 +144,35 @@ inline const Sensor SENSORS_V0_3[] = {
 #error STM32_SPI_USE_SPI1 must be enabled for CoverUI support
 #endif
 
-inline const CoverUi COVER_UI_V0_1 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
-                                      .pins = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1, PAL_NOLINE}};
+inline const CoverUi COVER_UI_V0_1 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
+    .pins = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1, PAL_NOLINE}  // Latch/Load, OE, Btn /CS, Inp /CS
+};
 
-inline const CoverUi COVER_UI_V0_2 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
-                                      .pins = {LINE_GPIO9, PAL_NOLINE, PAL_NOLINE, LINE_GPIO1}};
+inline const CoverUi COVER_UI_V0_2 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
+    .pins = {LINE_GPIO9, PAL_NOLINE, PAL_NOLINE, LINE_GPIO1}  // Latch/Load, OE, Btn /CS, Inp /CS
+};
 
-inline const Lcd LCD_V0_2 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, LINE_GPIO5}},
-                             .pins = {LINE_AGPIO4, LINE_UART7_TX, LINE_GPIO3}};
+#ifndef STM32_I2C_USE_I2C4
+#error STM32_I2C_USE_I2C4 must be enabled for TCA95x GPIO expander support
+#endif
 
-#ifndef STM32_SPI_USE_SPI2
-#error STM32_SPI_USE_SPI2 must be enabled for BMS support
+inline const CoverUi COVER_UI_V0_3 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},  // SPI, SCK, MISO, MOSI, CS
+    .pins = {LINE_GPIO9, PAL_NOLINE, PAL_NOLINE, LINE_GPIO1},  // S2-BTNs Shift/Load, OE, Btn /CS, S2-STR
+    .gpio_expander = {.leds = {.i2c = &I2CD4, .address = 0x21}, .btns = {.i2c = &I2CD4, .address = 0x20}}};
+
+inline const Lcd LCD_V0_2 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, LINE_GPIO5}},  // SPI, SCK, MISO, MOSI, CS
+    .pins = {LINE_AGPIO4, LINE_UART7_TX, LINE_GPIO3}};                             // D/C, /RST, Backlight
+
+#ifndef STM32_I2C_USE_I2C2
+#error STM32_I2C_USE_I2C2 must be enabled for BMS support
 #endif
 
 inline const Bms BMS_V0_2 = {.i2c = &I2CD2};
+inline const Bms BMS_V0_3 = {.i2c = &I2CD1};
 
 inline const Adc ADC_V0_2_1 = {.charger_voltage_scale_factor = 16.3846f,  // (200k Rtop + 13k Rbot)/13k Rbot
                                .battery_voltage_scale_factor = 16.3846f,  // (200k Rtop + 13k Rbot)/13k Rbot
@@ -158,27 +182,20 @@ inline const Adc ADC_V0_2_1 = {.charger_voltage_scale_factor = 16.3846f,  // (20
 struct HardwareConfig {
   etl::array_view<const Sensor> sensors;
   const CoverUi* cover_ui;
-  const Lcd* lcd;
-  const Bms* bms;
-  const Adc* adc;
+  const Lcd* lcd = nullptr;  // Optional LCD, not all hardware versions have it
+  const Bms* bms = nullptr;  // Optional BMS, not all hardware versions have it
+  const Adc* adc = nullptr;  // Optional ADC, only V0.2.1 and later have it
 };
 
 // Hardware version to configuration array which need to be in sync with HardwareVersion enum
 inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
     // V0_1
-    {
-        .sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
-        .cover_ui = &COVER_UI_V0_1,
-        .lcd = nullptr,  // No LCD for V0_1
-        .bms = nullptr,  // No BMS for V0_1
-        .adc = nullptr   // No ADC for V0_1
-    },
+    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1), .cover_ui = &COVER_UI_V0_1},
     // V0_2_0
     {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
      .lcd = &LCD_V0_2,
-     .bms = &BMS_V0_2,
-     .adc = nullptr},
+     .bms = &BMS_V0_2},
     // V0_2_1
     {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
@@ -187,9 +204,9 @@ inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
      .adc = &ADC_V0_2_1},
     // V0_3
     {.sensors = etl::array_view<const Sensor>(SENSORS_V0_3),
-     .cover_ui = &COVER_UI_V0_2,
+     .cover_ui = &COVER_UI_V0_3,
      .lcd = &LCD_V0_2,
-     .bms = nullptr,  // No BMS for V0_3 yet
+     .bms = &BMS_V0_3,
      .adc = &ADC_V0_2_1}};
 }  // namespace config
 
@@ -227,7 +244,7 @@ namespace settings {
  * Migration is handled automatically by VersionedStruct base class.
  */
 #pragma pack(push, 1)
-struct LCDSettings : public xbot::driver::filesystem::VersionedStruct<LCDSettings> {
+struct LCDSettings : public filesystem::VersionedStruct<LCDSettings> {
   VERSIONED_STRUCT_FIELDS(1);  // Version 1 - automatically defines VERSION constant and version field
   static constexpr const char* PATH = "/cfg/sabo/lcd.bin";
 
@@ -255,7 +272,7 @@ static_assert(sizeof(LCDSettings) == 5, "LCDSettings must be 5 bytes (2 version 
  * Migration is handled automatically by VersionedStruct base class.
  */
 #pragma pack(push, 1)
-struct GPSSettings : public xbot::driver::filesystem::VersionedStruct<GPSSettings> {
+struct GPSSettings : public filesystem::VersionedStruct<GPSSettings> {
   VERSIONED_STRUCT_FIELDS(1);  // Version 1 - automatically defines VERSION constant and version field
   static constexpr const char* PATH = "/cfg/sabo/gps.bin";
 
