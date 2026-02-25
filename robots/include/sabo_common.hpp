@@ -134,10 +134,11 @@ inline const Sensor SENSORS_V0_1[] = {
     {LINE_GPIO11},  // STOP_TOP
 };
 
+// TODO: This is at least valid for v0.3 Series-I
 inline const Sensor SENSORS_V0_3[] = {
-    {LINE_GPIO13, true},  // LIFT_FL
-    {LINE_GPIO12, true},  // LIFT_FR
-    {LINE_GPIO11, true},  // STOP_TOP
+    {LINE_GPIO13, false},  // LIFT_FL
+    {LINE_GPIO12, false},  // LIFT_FR
+    {LINE_GPIO11, false},  // STOP_TOP
 };
 
 #ifndef STM32_SPI_USE_SPI1
