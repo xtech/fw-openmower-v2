@@ -113,7 +113,7 @@ void SaboRobot::RegisterAdc1Sensors() {
   adc1::RegisterConversionGroup(v_battery_cg);
 
   // I-IN-DCDC sensor
-  static const Adc1Sensor i_dcdc_sensors[] = {{.channel = ADC_CHANNEL_IN18, .sample_rate = ADC_SMPR_SMP_8P5}};
+  static const Adc1Sensor i_dcdc_sensors[] = {{.channel = ADC_CHANNEL_IN18, .sample_rate = ADC_SMPR_SMP_16P5}};
   static adcsample_t i_dcdc_buffer[sizeof(i_dcdc_sensors) / sizeof(i_dcdc_sensors[0])];
   // Create ADC conversion group and place sensor(s)
   static const Adc1ConversionGroup i_dcdc_cg = Adc1ConversionGroup::Create(

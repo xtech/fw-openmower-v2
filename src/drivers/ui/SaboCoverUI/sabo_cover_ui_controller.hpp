@@ -9,8 +9,7 @@
 
 #include "ch.h"
 #include "robots/include/sabo_common.hpp"
-#include "sabo_cover_ui_cabo_driver_v01.hpp"
-#include "sabo_cover_ui_cabo_driver_v02.hpp"
+#include "sabo_cover_ui_cabo_driver_base.hpp"
 
 namespace xbot::driver::ui {
 
