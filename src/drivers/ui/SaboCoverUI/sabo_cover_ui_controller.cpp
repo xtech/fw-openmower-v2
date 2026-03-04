@@ -192,6 +192,14 @@ uint16_t SaboCoverUIController::GetButtonsMask() const {
   return cabo_->GetButtonsMask();
 }
 
+SeriesType SaboCoverUIController::GetSeriesType() const {
+  if (!cabo_ || !cabo_->IsReady()) {
+    return SeriesType::Unknown;
+  }
+
+  return cabo_->GetSeriesType();
+}
+
 void SaboCoverUIController::ThreadFunc() {
   if (display_) {
     display_->Start();

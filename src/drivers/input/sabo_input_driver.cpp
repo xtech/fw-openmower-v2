@@ -54,8 +54,8 @@ static const etl::flat_map<etl::string<6>, types::ButtonId, 12> BUTTON_IDS = {
 
 SaboInputDriver::SaboInputDriver(const config::HardwareConfig& hardware_config) : hardware_config(hardware_config) {
   // Setup GPIO for regular sensors
-  for (const auto& sensor : hardware_config.sensors) {
-    palSetLineMode(sensor.line, PAL_MODE_INPUT);
+  for (const auto& line : hardware_config.sensors) {
+    palSetLineMode(line, PAL_MODE_INPUT);
   }
 
   // Setup EXTI for heartbeat sensor (STOP_REAR)
@@ -75,8 +75,17 @@ bool SaboInputDriver::GetSensorState(SensorId sensor_id) {
 
   // Handle regular GPIO sensors (LIFT_FL, LIFT_FR, STOP_TOP)
   if (idx < hardware_config.sensors.size()) {
-    const auto& sensor = hardware_config.sensors[idx];
-    return (palReadLine(sensor.line) == PAL_HIGH) ^ sensor.invert;
+    const auto& line = hardware_config.sensors[idx];
+    bool raw_state = (palReadLine(line) == PAL_HIGH);
+
+    // As of HW v0.3 Series-2 has inverted hall sensors
+    bool invert = false;
+    if (robot != nullptr) {
+      auto* sabo_robot = static_cast<SaboRobot*>(robot);
+      invert = sabo_robot->HasInvertedHallSensors();
+    }
+
+    return raw_state ^ invert;
   }
 
   // Handle STOP_REAR heartbeat sensor

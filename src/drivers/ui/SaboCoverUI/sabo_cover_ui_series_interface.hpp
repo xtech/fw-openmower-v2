@@ -10,6 +10,8 @@
 
 namespace xbot::driver::ui {
 
+enum class SeriesType { Unknown, Series1, Series2 };
+
 using namespace xbot::driver::sabo::types;
 
 class SaboCoverUISeriesInterface {

@@ -37,8 +37,6 @@ namespace types {
 // Hardware versions are "as of" versions
 enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2_0, V0_2_1, V0_3 };
 
-enum class SeriesType { Series1, Series2 };
-
 enum class InputType : uint8_t { SENSOR, BUTTON };
 
 enum class SensorId : uint8_t { LIFT_FL, LIFT_FR, STOP_TOP, STOP_REAR };
@@ -78,11 +76,6 @@ enum class TempCompensation : uint8_t {
 
 // Hardware configurations
 namespace config {
-struct Sensor {
-  const ioline_t line;
-  const bool invert = false;
-};
-
 struct Spi {
   SPIDriver* instance;
   struct {
@@ -141,17 +134,10 @@ struct Adc {
 };
 
 // Individual hardware configurations
-inline const Sensor SENSORS_V0_1[] = {
-    {LINE_GPIO13},  // LIFT_FL
-    {LINE_GPIO12},  // LIFT_FR
-    {LINE_GPIO11},  // STOP_TOP
-};
-
-// TODO: This is at least valid for v0.3 Series-I
-inline const Sensor SENSORS_V0_3[] = {
-    {LINE_GPIO13, false},  // LIFT_FL
-    {LINE_GPIO12, false},  // LIFT_FR
-    {LINE_GPIO11, false},  // STOP_TOP
+inline const ioline_t SENSORS_V0_1[] = {
+    LINE_GPIO13,  // LIFT_FL
+    LINE_GPIO12,  // LIFT_FR
+    LINE_GPIO11   // STOP_TOP
 };
 
 #ifndef STM32_SPI_USE_SPI1
@@ -196,7 +182,7 @@ inline const Adc ADC_V0_2_1 = {.charger_voltage_scale_factor = 16.3846f,  // (20
 
 // Hardware configuration references
 struct HardwareConfig {
-  etl::array_view<const Sensor> sensors;
+  etl::array_view<const ioline_t> sensors;
   const CoverUi* cover_ui;
   const Lcd* lcd = nullptr;  // Optional LCD, not all hardware versions have it
   const Bms* bms = nullptr;  // Optional BMS, not all hardware versions have it
@@ -206,20 +192,20 @@ struct HardwareConfig {
 // Hardware version to configuration array which need to be in sync with HardwareVersion enum
 inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
     // V0_1
-    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1), .cover_ui = &COVER_UI_V0_1},
+    {.sensors = etl::array_view<const ioline_t>(SENSORS_V0_1), .cover_ui = &COVER_UI_V0_1},
     // V0_2_0
-    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
+    {.sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_2},
     // V0_2_1
-    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
+    {.sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_2,
      .adc = &ADC_V0_2_1},
     // V0_3
-    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_3),
+    {.sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_3,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_3,

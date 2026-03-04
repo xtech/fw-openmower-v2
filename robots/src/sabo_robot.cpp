@@ -54,6 +54,16 @@ bool SaboRobot::IsHardwareSupported() {
   return false;
 }
 
+bool SaboRobot::HasInvertedHallSensors() const {
+  // As of HW v0.3 Series-2 has inverted hall sensors.
+  if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor >= 3 &&
+      cover_ui_.GetSeriesType() == SeriesType::Series2) {
+    return true;
+  }
+
+  return false;
+}
+
 bool SaboRobot::SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) {
   settings::GPSSettings gps_settings;
   gps_settings.protocol = protocol;
