@@ -59,11 +59,15 @@ SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardw
       cabo_ = new (&cabo_driver_storage.v02) SaboCoverUICaboDriverV02(hardware_config.cover_ui);
     } else {
       // Init v0.3 specific pins
-      // FIXME: Switch SPI_MOSI -> LCD_SPI_MOSI permanently on!
-      // Not sure yet if we really need that. Need to test that for Series-II CoverUI @ HW v0.3
-      // If we need it, we need to move it to Cabo as well as Display driver as config option
+
+      // SEL_SPI_MOSI_LCD/UI_S2 -> LCD_SPI_MOSI
+      // Required for Series-I. Series-II get bridged via wire so this setting doesn't affect Series-II
       palSetLineMode(LINE_GPIO8, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
       palWriteLine(LINE_GPIO8, PAL_HIGH);
+
+      // SEL_SPI_MISO_BMC/UI_S2 -> /US_S2_MISO (BMS got identified to be I2C instead of SPI)
+      palSetLineMode(LINE_UART7_RX, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+      palWriteLine(LINE_UART7_RX, PAL_LOW);
 
       // Carrier v0.3 and later have TCA953x GPIO expanders and need a different driver implementation
       cabo_ = new (&cabo_driver_storage.v03) SaboCoverUICaboDriverV03(hardware_config.cover_ui);

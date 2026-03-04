@@ -11,7 +11,7 @@
  * @file sabo_cover_ui_cabo_driver_v03.hpp
  * @brief Sabo CoverUI Cabo Driver for Hardware v0.3 with TCA9534/TCA9535 GPIO expanders
  * @author Apehaenger <joerg@ebeling.ws>
- * @date 2025-02-20
+ * @date 2026-03-02
  */
 
 #ifndef OPENMOWER_SABO_COVER_UI_CABO_DRIVER_V03_HPP
@@ -25,7 +25,7 @@
 #include "drivers/gpio/tca_95xx/tca9535.hpp"
 #include "sabo_cover_ui_cabo_driver_base.hpp"
 #include "sabo_cover_ui_series1_v03.hpp"
-// #include "sabo_cover_ui_series2.hpp"
+#include "sabo_cover_ui_series2.hpp"
 
 namespace xbot::driver::ui {
 
@@ -38,13 +38,9 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
   explicit SaboCoverUICaboDriverV03(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
       : SaboCoverUICaboDriverBase(cover_ui_cfg),
         gpio_exp_leds_(&cover_ui_cfg->gpio_expander.leds),
-        gpio_exp_btns_(&cover_ui_cfg->gpio_expander.btns) {
+        gpio_exp_btns_(&cover_ui_cfg->gpio_expander.btns),
+        pins_(cover_ui_cfg_->pins.v03) {
   }
-
-  // Relevant control bits of 74HC595 shift register
-  /*static constexpr uint8_t SR_MASK_S2_HALL_EN_L    = (1 << 0);  // Series-II Hall /EN
-  static constexpr uint8_t SR_MASK_S2_LATCH_LOAD_L = (1 << 1);  // Series-II Latch- HEF4794BT, /Load 74HC165 BUT MODded
-  to LINE_UART7_RX */
 
   // Relevant GPIO bits for CoverUI-Series detection (/CON)
   static constexpr uint8_t GPIO_LEDS_MASK_S1_CONNECTED_L = (1 << 5);   // Series-I CoverUI /Connected
@@ -55,18 +51,22 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
   bool Init() override {
     if (!SaboCoverUICaboDriverBase::Init()) return false;
 
-    spi_config_ = {
-        .circular = false,
-        .slave = false,
-        .data_cb = NULL,
-        .error_cb = NULL,
-        .ssline = 0,
-        // HEF4794BT is the slowest device on SPI bus. F_clk(max)@5V: Min=5MHz, Typ=10MHz
-        // Also worked with 12.5MHz, but let's be save within the limits of the HEF4794BT
-        .cfg1 = SPI_CFG1_MBR_2 | SPI_CFG1_MBR_0 |  // Baudrate = FPCLK/32 (6.25 MHz @ 200 MHz PLL2_P)
-                SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
-        .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
-    };
+    // Non-sense SPI-MOSI switch. Series-I doesn't need it why it needs to be permanent on LCD selection = high
+    // Series-II has remorked bridged outputs, wherefor it doesn't matter
+    palSetLineMode(pins_.sel_spi_mosi, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+    palWriteLine(pins_.sel_spi_mosi, PAL_HIGH);
+
+    // None-sense SPI-MISO switch. BMC got identified in-between as I2C instead of designed SPI.
+    // Permanently set it to UI-S2-MISO = low
+    palSetLineMode(pins_.sel_spi_miso, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLDOWN);
+    palWriteLine(pins_.sel_spi_miso, PAL_LOW);
+
+    // Set HEF4794BT STR (LEDs and button row) to low by default before Series detection / initialization
+    palSetLineMode(pins_.s2_latch, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+    palWriteLine(pins_.s2_latch, PAL_LOW);
+
+    palSetLineMode(pins_.s2_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+    palWriteLine(pins_.s2_load, PAL_LOW);  // Set S2-Load to low to block HC165 shifting
 
     // Initialize GPIO expanders
     if (!gpio_exp_leds_.Init()) {
@@ -91,6 +91,8 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
 
   // Latch LEDs (as well as button-row if exists) and load button columns
   void LatchLoad() override {
+    uint8_t btn_cols;
+
     if (!series_) return;
 
     switch (series_->GetType()) {
@@ -108,9 +110,10 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
         DebounceRawButtons(btns);
         break;
       case SeriesType::Series2:
-        Series2LatchSR(current_led_mask_ | series_->GetButtonRowMask());  // Latch LEDs and button row
-        LatchLoadSR();                                                    // Load raw buttons
-        DebounceRawButtons(series_->ProcessButtonCol(sr_load_buf_[2]));   // Process received button column
+        // Series2LatchSSR(current_led_mask_ | series_->GetButtonRowMask());  // Latch LEDs and button row
+        btn_cols = Series2LatchLoad(current_led_mask_ |
+                                    series_->GetButtonRowMask());  // Latch LEDs and button row, return button columns
+        DebounceRawButtons(series_->ProcessButtonCol(btn_cols));   // Process received button column
         break;
       default: ULOG_ERROR("Unknown Sabo CoverUI series type"); return;
     }
@@ -120,64 +123,35 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
   TCA9534Driver gpio_exp_leds_;  // GPIO expander for Series-I LEDs (and Series-I connection detection))
   TCA9535Driver gpio_exp_btns_;  // GPIO expander for Series-I buttons as well as Series-II /con and OE
 
-  uint8_t cabo_sr_ctrl_mask_;  // 74HC595 Control bitmask of CarrierBoard
-
-  // HC165 parallel load shift register
-  uint8_t sr_load_buf_[3];
-  size_t sr_load_size_ = 2;  // Get set to 3 if a Series-II CoverUI get detected
-
-  // Cabo's HC165 input mask
-  uint16_t sr_inp_mask_ = 0xFFFF;  // All inputs are high (inactive)
-
   uint8_t MapLedIdToMask(const LedId id) const override {
     //  LedId ENUM matches LEDs pin position for both series now
     return (1 << uint8_t(id)) & 0b11111;  // Safety mask to only use the connected LEDs
   }
 
   /**
-   * @brief Send tx_data to Series-II HEF4794 and latch it.
+   * @brief Send tx_data to Series-II (HEF4794) "Shift and Store Register" and latch it.
    *
    * @param tx_data
    */
-  void Series2LatchSR(uint8_t tx_data) {
-    spiAcquireBus(cover_ui_cfg_->spi.instance);
-
-    spiStart(cover_ui_cfg_->spi.instance, &spi_config_);
-    spiSend(cover_ui_cfg_->spi.instance, 1, &tx_data);  // Send tx_data to HEF4794
-    palWriteLine(UI_S2_LATCH, PAL_HIGH);                // Latch HEF4794
-    chThdSleepMicroseconds(1);
-    palWriteLine(UI_S2_LATCH, PAL_LOW);  // Close HEF4794 latch
-
-    spiReleaseBus(cover_ui_cfg_->spi.instance);
-  }
-
-  /**
-   * @brief Latch Cabo's HC595 and load HC165 parallel-input shift register.
-   * It's required to do this in two steps, because HC595 get latched by rising edge of SH/PL of HC165
-   */
-  void LatchLoadSR() {
-    assert(sr_load_size_ <= sizeof(sr_load_buf_));
+  uint8_t Series2LatchLoad(uint8_t tx_data) {
+    uint8_t rx_data = 0;
 
     spiAcquireBus(cover_ui_cfg_->spi.instance);
 
     spiStart(cover_ui_cfg_->spi.instance, &spi_config_);
-    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);      // HC165 /PL (parallel load) pulse, also blocks shifting
-    if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_LOW);  // S2- /PL
-    chThdSleepMicroseconds(1);
-    spiSend(cover_ui_cfg_->spi.instance, 1, &cabo_sr_ctrl_mask_);  // Send data to HC595
-    chThdSleepMicroseconds(1);
-    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_HIGH);      // HC165 shift enable & latch HC595 (RCLK rising edge)
-    if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_HIGH);  // S2- HC165 shift enable
-    chThdSleepMicroseconds(1);
-    spiReceive(cover_ui_cfg_->spi.instance, sr_load_size_, sr_load_buf_);
-    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);      // Need to block HC165 shifting again
-    if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_LOW);  // S2- /PL
+
+    palWriteLine(pins_.s2_load, PAL_HIGH);  // Set S2-Load to high to enable HC165 shifting
+
+    // Send LEDs (& button rows) and read button columns
+    spiExchange(cover_ui_cfg_->spi.instance, 1, &tx_data, &rx_data);
+
+    palWriteLine(pins_.s2_latch, PAL_HIGH);  // Latch HEF4794
+    palWriteLine(pins_.s2_load, PAL_LOW);    // Set S2-Load to low to block HC165 shifting
+    palWriteLine(pins_.s2_latch, PAL_LOW);   // Close HEF4794 latch
 
     spiReleaseBus(cover_ui_cfg_->spi.instance);
 
-    // Extract Cabo's sr_inp_mask_ out of the received bytes, which may differ dependent of the connected CoverUI
-    // Series. If a Series-II is connected it shift its own HC165 byte first.
-    sr_inp_mask_ = (sr_load_buf_[sr_load_size_ - 1] << 8) | sr_load_buf_[sr_load_size_ - 2];
+    return rx_data;
   }
 
   SaboCoverUISeriesInterface* GetSeriesDriver() override {
@@ -212,11 +186,12 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
 
     if ((gpio_port_data & GPIO_BTNS_MASK_S2_CONNECTED_L) == 0) {
       ULOG_INFO("Detected Sabo Series-II CoverUI");
-      gpio_exp_btns_.WritePin(GPIO_BTNS_PIN_S2_OE, true);  // Set S2-OE to enable Series-II HC165 outputs
-      // TODO
-      // Series2LatchSR(0);                            // Latch LEDs=off and select no button row
-      // LatchLoadSR();
-      // sr_load_size_ = 3;  // For Series-II CoverUI we need to read 3 bytes for the HC165
+
+      Series2LatchLoad(0);  // Latch LEDs=off and select no button row
+
+      // Set UI_S2-OE to enable Series-II HEF4794 outputs (LEDs and button row)
+      gpio_exp_btns_.WritePin(GPIO_BTNS_PIN_S2_OE, true);
+
       static SaboCoverUISeries2 series2_driver;
       return &series2_driver;
     }
@@ -224,6 +199,9 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
     ULOG_INFO("No Sabo CoverUI detected");
     return nullptr;
   }
+
+ private:
+  const decltype(xbot::driver::sabo::config::CoverUi::pins.v03)& pins_;
 };
 
 }  // namespace xbot::driver::ui

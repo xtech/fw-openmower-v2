@@ -8,33 +8,18 @@
 namespace xbot::driver::ui {
 
 bool SaboCoverUICaboDriverBase::Init() {
-  // Init SPI pins
-  if (cover_ui_cfg_->spi.instance != nullptr) {
-    palSetLineMode(cover_ui_cfg_->spi.pins.sck, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
-    palSetLineMode(cover_ui_cfg_->spi.pins.miso,
-                   PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-    palSetLineMode(cover_ui_cfg_->spi.pins.mosi, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_MID2);
-    if (cover_ui_cfg_->spi.pins.cs != PAL_NOLINE) {
-      palSetLineMode(cover_ui_cfg_->spi.pins.cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-      palWriteLine(cover_ui_cfg_->spi.pins.cs, PAL_HIGH);
-    }
-  }
-
-  // Init Cabo's shift register control pins
-  palSetLineMode(cover_ui_cfg_->pins.latch_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-  palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);  // HC595 RCLK/PL (parallel load)
-  if (cover_ui_cfg_->pins.oe != PAL_NOLINE) {
-    palSetLineMode(cover_ui_cfg_->pins.oe, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cover_ui_cfg_->pins.oe, PAL_HIGH);  // /OE (output enable = no)
-  }
-  if (cover_ui_cfg_->pins.btn_cs != PAL_NOLINE) {
-    palSetLineMode(cover_ui_cfg_->pins.btn_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cover_ui_cfg_->pins.btn_cs, PAL_HIGH);  // /CS (chip select = no)
-  }
-  if (cover_ui_cfg_->pins.inp_cs != PAL_NOLINE) {
-    palSetLineMode(cover_ui_cfg_->pins.inp_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
-    palWriteLine(cover_ui_cfg_->pins.inp_cs, PAL_HIGH);  // /CS (chip select = no)
-  }
+  spi_config_ = {
+      .circular = false,
+      .slave = false,
+      .data_cb = NULL,
+      .error_cb = NULL,
+      .ssline = 0,
+      // Series-II HEF4794BT is the slowest device on SPI bus. F_clk(max)@5V: Min=5MHz, Typ=10MHz
+      // Also worked with 12.5MHz, but let's be save within the limits of the HEF4794BT
+      .cfg1 = SPI_CFG1_MBR_2 | SPI_CFG1_MBR_0 |  // Baudrate = FPCLK/32 (6.25 MHz @ 200 MHz PLL2_P)
+              SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
+      .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
+  };
 
   return true;
 }

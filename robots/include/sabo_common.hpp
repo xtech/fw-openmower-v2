@@ -95,11 +95,24 @@ struct Spi {
 
 struct CoverUi {
   Spi spi;
-  struct {
-    const ioline_t latch_load;
-    const ioline_t oe = PAL_NOLINE;
-    const ioline_t btn_cs = PAL_NOLINE;
-    const ioline_t inp_cs = PAL_NOLINE;
+  union {
+    struct {
+      const ioline_t latch_load;
+      const ioline_t oe;
+      const ioline_t btn_cs;
+    } v01;
+    struct {
+      const ioline_t latch_load;
+      const ioline_t inp_cs;
+      const ioline_t s2_latch;  // Series-II Latch (HEF4794BT)
+      const ioline_t s2_load;   // Series-II SH/LD (HC165)
+    } v02;
+    struct {
+      const ioline_t s2_latch;      // Series-II Latch (HEF4794BT STR)
+      const ioline_t s2_load;       // Series-II SH/LD (HC165 SH/LD)
+      const ioline_t sel_spi_mosi;  // v0.3 has a none-sense SPI-MOSI switch
+      const ioline_t sel_spi_miso;  // v0.3 has a none-sense SPI-MISO switch
+    } v03;
   } pins;
   // Optional GPIO expander. Only >= v0.3 have them
   struct {
@@ -147,12 +160,12 @@ inline const Sensor SENSORS_V0_3[] = {
 
 inline const CoverUi COVER_UI_V0_1 = {
     .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
-    .pins = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1, PAL_NOLINE}  // Latch/Load, OE, Btn /CS, Inp /CS
+    .pins = {.v01 = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1}}  // Latch/Load, OE, Btn /CS
 };
 
 inline const CoverUi COVER_UI_V0_2 = {
     .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
-    .pins = {LINE_GPIO9, PAL_NOLINE, PAL_NOLINE, LINE_GPIO1}  // Latch/Load, OE, Btn /CS, Inp /CS
+    .pins = {.v02 = {LINE_GPIO9, LINE_GPIO1, LINE_GPIO8, LINE_UART7_RX}}  // Latch/Load, Inp /CS, S2-Latch, S2-Load
 };
 
 #ifndef STM32_I2C_USE_I2C4
@@ -161,7 +174,9 @@ inline const CoverUi COVER_UI_V0_2 = {
 
 inline const CoverUi COVER_UI_V0_3 = {
     .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},  // SPI, SCK, MISO, MOSI, CS
-    .pins = {LINE_GPIO9, PAL_NOLINE, PAL_NOLINE, LINE_GPIO1},  // S2-BTNs Shift/Load, OE, Btn /CS, S2-STR
+
+    .pins = {.v03 = {LINE_GPIO1, LINE_GPIO9,       // HEF4794BT STR, HC165 SH/LD
+                     LINE_GPIO8, LINE_UART7_RX}},  // SPI-MOSI switch, SPI-MISO switch
     .gpio_expander = {.leds = {.i2c = &I2CD4, .address = 0x21}, .btns = {.i2c = &I2CD4, .address = 0x20}}};
 
 inline const Lcd LCD_V0_2 = {

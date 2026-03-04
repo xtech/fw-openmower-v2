@@ -1,6 +1,17 @@
-//
-// Created by Apehaenger on 6/5/25.
-//
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2025 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+/**
+ * @file sabo_cover_ui_cabo_driver_v02.hpp
+ * @brief Sabo CoverUI Cabo Driver for Hardware v0.2 with cascaded 74HC595/74HC165 support
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2025-06-05
+ */
 
 #ifndef OPENMOWER_SABO_COVER_UI_CABO_DRIVER_V02_HPP
 #define OPENMOWER_SABO_COVER_UI_CABO_DRIVER_V02_HPP
@@ -11,11 +22,7 @@
 
 #include "sabo_cover_ui_cabo_driver_base.hpp"
 #include "sabo_cover_ui_series1_v02.hpp"
-#include "sabo_cover_ui_series2.hpp"
-
-// HW v0.2 messed up control pins
-#define UI_S2_LATCH LINE_GPIO8    // Series-II Latch (HEF4794BT)
-#define UI_S2_LOAD LINE_UART7_RX  // Series-II SH/LD (HC165)
+#include "sabo_cover_ui_series2_v02.hpp"
 
 namespace xbot::driver::ui {
 
@@ -25,7 +32,7 @@ using namespace xbot::driver::sabo::types;
 class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
  public:
   explicit SaboCoverUICaboDriverV02(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
-      : SaboCoverUICaboDriverBase(cover_ui_cfg) {
+      : SaboCoverUICaboDriverBase(cover_ui_cfg), pins_(cover_ui_cfg_->pins.v02) {
   }
 
   // clang-format off
@@ -46,29 +53,21 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
   bool Init() override {
     if (!SaboCoverUICaboDriverBase::Init()) return false;
 
-    // Init HW v0.2 messed up control pins
-    palSetLineMode(UI_S2_LATCH, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLDOWN);
-    palWriteLine(UI_S2_LATCH, PAL_LOW);  // Close HEF4794 latch
+    // Init Cabo's shift register control pins
+    palSetLineMode(pins_.latch_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
+    palWriteLine(pins_.latch_load, PAL_LOW);  // HC595 RCLK/PL (parallel load)
 
-    palSetLineMode(UI_S2_LOAD, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
-    palWriteLine(UI_S2_LOAD, PAL_LOW);  // /PL (parallel load) of HC165 = NO shifting
-
+    palSetLineMode(pins_.inp_cs, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2);
     // Cabo HC165 /CS is superfluous because of combined HC595 RCLK and HC165 SH/PL
     // and the resulting Send+Receive cycle requirement
-    palWriteLine(cover_ui_cfg_->pins.inp_cs, PAL_LOW);
+    palWriteLine(pins_.inp_cs, PAL_LOW);
 
-    spi_config_ = {
-        .circular = false,
-        .slave = false,
-        .data_cb = NULL,
-        .error_cb = NULL,
-        .ssline = 0,
-        // HEF4794BT is the slowest device on SPI bus. F_clk(max)@5V: Min=5MHz, Typ=10MHz
-        // Also worked with 12.5MHz, but let's be save within the limits of the HEF4794BT
-        .cfg1 = SPI_CFG1_MBR_2 | SPI_CFG1_MBR_0 |  // Baudrate = FPCLK/32 (6.25 MHz @ 200 MHz PLL2_P)
-                SPI_CFG1_DSIZE_2 | SPI_CFG1_DSIZE_1 | SPI_CFG1_DSIZE_0,  // 8-Bit (DS = 0b111)*/
-        .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
-    };
+    // Init HW v0.2 messed up control pins
+    palSetLineMode(pins_.s2_latch, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLDOWN);
+    palWriteLine(pins_.s2_latch, PAL_LOW);  // Close HEF4794 latch
+
+    palSetLineMode(pins_.s2_load, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+    palWriteLine(pins_.s2_load, PAL_LOW);  // /PL (parallel load) of HC165 = NO shifting
 
     return true;
   }
@@ -118,9 +117,9 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
 
     spiStart(cover_ui_cfg_->spi.instance, &spi_config_);
     spiSend(cover_ui_cfg_->spi.instance, 1, &tx_data);  // Send tx_data to HEF4794
-    palWriteLine(UI_S2_LATCH, PAL_HIGH);                // Latch HEF4794
+    palWriteLine(pins_.s2_latch, PAL_HIGH);             // Latch HEF4794
     chThdSleepMicroseconds(1);
-    palWriteLine(UI_S2_LATCH, PAL_LOW);  // Close HEF4794 latch
+    palWriteLine(pins_.s2_latch, PAL_LOW);  // Close HEF4794 latch
 
     spiReleaseBus(cover_ui_cfg_->spi.instance);
   }
@@ -135,17 +134,17 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
     spiAcquireBus(cover_ui_cfg_->spi.instance);
 
     spiStart(cover_ui_cfg_->spi.instance, &spi_config_);
-    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);      // HC165 /PL (parallel load) pulse, also blocks shifting
-    if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_LOW);  // S2- /PL
+    palWriteLine(pins_.latch_load, PAL_LOW);  // HC165 /PL (parallel load) pulse, also blocks shifting
+    if (sr_load_size_ == 3) palWriteLine(pins_.s2_load, PAL_LOW);  // S2- /PL
     chThdSleepMicroseconds(1);
     spiSend(cover_ui_cfg_->spi.instance, 1, &cabo_sr_ctrl_mask_);  // Send data to HC595
     chThdSleepMicroseconds(1);
-    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_HIGH);      // HC165 shift enable & latch HC595 (RCLK rising edge)
-    if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_HIGH);  // S2- HC165 shift enable
+    palWriteLine(pins_.latch_load, PAL_HIGH);  // HC165 shift enable & latch HC595 (RCLK rising edge)
+    if (sr_load_size_ == 3) palWriteLine(pins_.s2_load, PAL_HIGH);  // S2- HC165 shift enable
     chThdSleepMicroseconds(1);
     spiReceive(cover_ui_cfg_->spi.instance, sr_load_size_, sr_load_buf_);
-    palWriteLine(cover_ui_cfg_->pins.latch_load, PAL_LOW);      // Need to block HC165 shifting again
-    if (sr_load_size_ == 3) palWriteLine(UI_S2_LOAD, PAL_LOW);  // S2- /PL
+    palWriteLine(pins_.latch_load, PAL_LOW);                       // Need to block HC165 shifting again
+    if (sr_load_size_ == 3) palWriteLine(pins_.s2_load, PAL_LOW);  // S2- /PL
 
     spiReleaseBus(cover_ui_cfg_->spi.instance);
 
@@ -179,13 +178,16 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
       cabo_sr_ctrl_mask_ |= SR_MASK_S2_OE;          // S2-OE = on
       LatchLoadSR();
       sr_load_size_ = 3;  // For Series-II CoverUI we need to read 3 bytes for the HC165
-      static SaboCoverUISeries2 series2_driver;
+      static SaboCoverUISeries2V02 series2_driver;
       return &series2_driver;
     }
 
     ULOG_INFO("No Sabo CoverUI detected [sr_inp_mask_ = 0x%04X]", sr_inp_mask_);
     return nullptr;
   }
+
+ private:
+  const decltype(xbot::driver::sabo::config::CoverUi::pins.v02)& pins_;
 };
 
 }  // namespace xbot::driver::ui
