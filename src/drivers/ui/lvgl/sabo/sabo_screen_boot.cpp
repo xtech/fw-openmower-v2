@@ -36,6 +36,9 @@ using namespace xbot::driver::sabo::types;
 SaboScreenBoot::SaboScreenBoot() : ScreenBase<ScreenId, ButtonId>(ScreenId::BOOT) {
   // Initialize boot steps with hardware tests
   boot_steps_ = {{
+      // Initial delay to give ESC some time to boot up and avoid false errors
+      {"Initializing", []() -> bool { return true; }, 2000},
+      // Peripheral tests
       {"Motion Sensor", []() -> bool { return imu_service.IsFound(); }},
       {"Charger", []() -> bool { return static_cast<SaboRobot*>(robot)->TestCharger(); }},
       {"Left ESC", []() -> bool { return static_cast<SaboRobot*>(robot)->TestLeftESC(); }},
@@ -154,10 +157,9 @@ void SaboScreenBoot::StartWheelAnimation() {
 bool SaboScreenBoot::OnButtonPress(ButtonId button_id) {
   (void)button_id;  // Parameter not used, we skip on any button press
   if (current_boot_step_ < BOOT_STEP_COUNT_) {
-    BootStep& step = boot_steps_[current_boot_step_];
-    if (step.state == BootStep::State::ERROR) {
-      step.state = BootStep::State::DONE;
+    if (boot_step_state_ == BootStepState::ERROR) {
       current_boot_step_++;
+      boot_step_state_ = BootStepState::INIT;
       boot_step_retry_count_ = 0;
       return true;  // Button handled
     }
@@ -182,51 +184,46 @@ void SaboScreenBoot::Tick() {
 
   BootStep& step = boot_steps_[current_boot_step_];
   systime_t now = chVTGetSystemTimeX();
-  uint32_t elapsed_ms = TIME_I2MS(now - step.last_action_time);
+  uint32_t elapsed_ms = TIME_I2MS(now - last_boot_step_action_time_);
 
-  switch (step.state) {
-    case BootStep::State::WAIT:
-      step.state = BootStep::State::RUNNING;
-      step.last_action_time = now;
+  switch (boot_step_state_) {
+    case BootStepState::INIT:
+      last_boot_step_action_time_ = now;
+      boot_step_retry_count_ = 0;
       SetBootStatusText(step.name, (current_boot_step_ * 100) / BOOT_STEP_COUNT_);
+      boot_step_state_ = BootStepState::RUNNING;
       break;
 
-    case BootStep::State::RUNNING:
-      if (elapsed_ms >= 1000) {
+    case BootStepState::RUNNING:
+      if (elapsed_ms >= step.delay_ms) {
         if (step.test_func()) {
-          step.state = BootStep::State::DONE;
           current_boot_step_++;
-          boot_step_retry_count_ = 0;
+          boot_step_state_ = BootStepState::INIT;
         } else {
           boot_step_retry_count_++;
+          last_boot_step_action_time_ = now;
           if (boot_step_retry_count_ < BOOT_STEP_RETRIES_) {
             etl::string<48> fail_msg;
             chsnprintf(fail_msg.data(), fail_msg.max_size(), "%s failure %d/%d", step.name, boot_step_retry_count_,
                        BOOT_STEP_RETRIES_);
             SetBootStatusText(fail_msg, (current_boot_step_ * 100) / BOOT_STEP_COUNT_);
-            step.last_action_time = now;
           } else {
             etl::string<48> fail_msg = step.name;
             fail_msg += " failed!";
             SetBootStatusText(fail_msg, (current_boot_step_ * 100) / BOOT_STEP_COUNT_);
-            step.state = BootStep::State::ERROR;
-            step.last_action_time = now;
+            boot_step_state_ = BootStepState::ERROR;
           }
         }
       }
       break;
 
-    case BootStep::State::ERROR:
+    case BootStepState::ERROR:
       // Wait 60 seconds to continue
       if (elapsed_ms >= 60000) {
-        step.state = BootStep::State::DONE;
         current_boot_step_++;
+        boot_step_state_ = BootStepState::INIT;
         boot_step_retry_count_ = 0;
       }
-      break;
-
-    case BootStep::State::DONE:
-      // NOP. Next step gets handled in next tick
       break;
   }
 }

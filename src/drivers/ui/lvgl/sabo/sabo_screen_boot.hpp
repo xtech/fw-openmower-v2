@@ -68,20 +68,21 @@ class SaboScreenBoot : public ScreenBase<ScreenId, ButtonId> {
   AnimationState animation_state_ = AnimationState::NONE;
 
   // Boot sequence related
-  static constexpr size_t BOOT_STEP_COUNT_ = 5;
+  static constexpr size_t BOOT_STEP_COUNT_ = 6;
   static constexpr size_t BOOT_STEP_RETRIES_ = 3;
 
   struct BootStep {
     const char* name;
     BootTestCallback test_func;
-    enum class State { WAIT, RUNNING, ERROR, DONE } state = State::WAIT;
-    systime_t last_action_time = 0;
+    uint16_t delay_ms = 1000;  // Time to wait before running test
   };
 
   etl::array<BootStep, BOOT_STEP_COUNT_> boot_steps_;
 
   size_t current_boot_step_ = 0;
+  enum class BootStepState { INIT, RUNNING, ERROR } boot_step_state_ = BootStepState::INIT;
   size_t boot_step_retry_count_ = 0;
+  systime_t last_boot_step_action_time_ = 0;
 
   BootCompletionCallback completion_callback_ = nullptr;
   void* completion_context_ = nullptr;
