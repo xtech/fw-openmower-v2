@@ -249,6 +249,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
   // Robot state label
   lv_obj_t* state_label_ = nullptr;
+  constexpr static char ROS_OFFLINE_TEXT[] = "Waiting for ROS";
 
   // Shared text buffer for formatting (used by all update methods)
   static constexpr size_t SHARED_TEXT_BUFFER_SIZE = 32;
@@ -557,6 +558,14 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     HighLevelStatus hl_status = high_level_service.GetStateId();
     etl::string<100> sub_state_name = high_level_service.GetSubStateName();
 
+    // Handle ROS offline
+    uint16_t emergency_reasons = emergency_service.GetEmergencyReasons();
+    if (emergency_reasons & EmergencyReason::TIMEOUT_HIGH_LEVEL) {
+      lv_label_set_text_static(state_label_, ROS_OFFLINE_TEXT);
+      last_hl_status = HighLevelStatus::UNKNOWN;
+      return;  // Without ROS there's no valid state, skip further processing
+    }
+
     if (hl_status == last_hl_status && sub_state_name == last_sub_state_name) return;
 
     const uint8_t SUBSTATE_SHIFT = static_cast<uint8_t>(HighLevelStatus::SUBSTATE_SHIFT);
@@ -695,7 +704,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     lv_obj_set_style_border_color(state_label_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_text_font(state_label_, &orbitron_16b, LV_PART_MAIN);
     lv_obj_set_style_text_align(state_label_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_label_set_text(state_label_, "Waiting for ROS");
+    lv_label_set_text_static(state_label_, ROS_OFFLINE_TEXT);
   }
 
 };  // class SaboScreenMain
