@@ -140,6 +140,12 @@ inline const ioline_t SENSORS_V0_1[] = {
     LINE_GPIO11   // STOP_TOP
 };
 
+// PCB design limits
+struct Limits {
+  const float max_adapter_current;  // Max allowed adapter current in Amperes
+  const float max_charge_current;   // Max allowed charge current in Amperes
+};
+
 #ifndef STM32_SPI_USE_SPI1
 #error STM32_SPI_USE_SPI1 must be enabled for CoverUI support
 #endif
@@ -180,8 +186,13 @@ inline const Adc ADC_V0_2_1 = {.charger_voltage_scale_factor = 16.3846f,  // (20
                                .battery_voltage_scale_factor = 16.3846f,  // (200k Rtop + 13k Rbot)/13k Rbot
                                .dcdc_in_current_scale_factor = 1.0f};     // 1/(20gain * Rshunt 0.05)
 
+inline const Limits LIMITS_V0_1 = {.max_adapter_current = 4.2f, .max_charge_current = 5.0f};
+inline const Limits LIMITS_V0_2 = {.max_adapter_current = 4.9f, .max_charge_current = 4.9f};
+inline const Limits LIMITS_V0_3 = {.max_adapter_current = 4.8f, .max_charge_current = 5.5f};
+
 // Hardware configuration references
 struct HardwareConfig {
+  const Limits* limits;
   etl::array_view<const ioline_t> sensors;
   const CoverUi* cover_ui;
   const Lcd* lcd = nullptr;  // Optional LCD, not all hardware versions have it
@@ -192,20 +203,23 @@ struct HardwareConfig {
 // Hardware version to configuration array which need to be in sync with HardwareVersion enum
 inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
     // V0_1
-    {.sensors = etl::array_view<const ioline_t>(SENSORS_V0_1), .cover_ui = &COVER_UI_V0_1},
+    {.limits = &LIMITS_V0_1, .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1), .cover_ui = &COVER_UI_V0_1},
     // V0_2_0
-    {.sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
+    {.limits = &LIMITS_V0_2,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_2},
     // V0_2_1
-    {.sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
+    {.limits = &LIMITS_V0_2,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_2,
      .adc = &ADC_V0_2_1},
     // V0_3
-    {.sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
+    {.limits = &LIMITS_V0_3,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_3,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_3,
