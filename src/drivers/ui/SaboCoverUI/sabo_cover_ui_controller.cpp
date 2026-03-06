@@ -22,24 +22,55 @@
 #include <globals.hpp>
 #include <services.hpp>
 
+#include "sabo_cover_ui_cabo_driver_v01.hpp"
+#include "sabo_cover_ui_cabo_driver_v02.hpp"
+#include "sabo_cover_ui_cabo_driver_v03.hpp"
 #include "sabo_cover_ui_display.hpp"
 
 namespace xbot::driver::ui {
 
 using namespace xbot::driver::sabo::types;
 
+// Union to store exactly one driver instance (size = largest driver, alignment = most restrictive)
+union CaboDriverStorage {
+  SaboCoverUICaboDriverV01 v01;
+  SaboCoverUICaboDriverV02 v02;
+  SaboCoverUICaboDriverV03 v03;
+
+  CaboDriverStorage() {
+  }
+  ~CaboDriverStorage() {
+  }
+};
+
+// Static storage for the driver (only one instance exists)
+static CaboDriverStorage cabo_driver_storage;
+
 SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardware_config) {
   // Select the CoverUI driver based on the hardware configuration
   if (hardware_config.cover_ui != nullptr) {
-    // Select driver based on hardware version
-    if (GetHardwareVersion(carrier_board_info) == types::HardwareVersion::V0_1) {
-      // Mobo v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
-      static SaboCoverUICaboDriverV01 driver_v01(hardware_config.cover_ui);
-      cabo_ = &driver_v01;
+    const auto version = GetHardwareVersion(carrier_board_info);
+
+    if (version == types::HardwareVersion::V0_1) {
+      // Carrier v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
+      cabo_ = new (&cabo_driver_storage.v01) SaboCoverUICaboDriverV01(hardware_config.cover_ui);
+    } else if (version == types::HardwareVersion::V0_2_0 || version == types::HardwareVersion::V0_2_1) {
+      // Carrier v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
+      cabo_ = new (&cabo_driver_storage.v02) SaboCoverUICaboDriverV02(hardware_config.cover_ui);
     } else {
-      // Mobo v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
-      static SaboCoverUICaboDriverV02 driver_v02(hardware_config.cover_ui);
-      cabo_ = &driver_v02;
+      // Init v0.3 specific pins
+
+      // SEL_SPI_MOSI_LCD/UI_S2 -> LCD_SPI_MOSI
+      // Required for Series-I. Series-II get bridged via wire so this setting doesn't affect Series-II
+      palSetLineMode(LINE_GPIO8, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+      palWriteLine(LINE_GPIO8, PAL_HIGH);
+
+      // SEL_SPI_MISO_BMC/UI_S2 -> /US_S2_MISO (BMS got identified to be I2C instead of SPI)
+      palSetLineMode(LINE_UART7_RX, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
+      palWriteLine(LINE_UART7_RX, PAL_LOW);
+
+      // Carrier v0.3 and later have TCA953x GPIO expanders and need a different driver implementation
+      cabo_ = new (&cabo_driver_storage.v03) SaboCoverUICaboDriverV03(hardware_config.cover_ui);
     }
   }
 
@@ -159,6 +190,14 @@ bool SaboCoverUIController::IsButtonPressed(const ButtonId button) const {
 uint16_t SaboCoverUIController::GetButtonsMask() const {
   if (!cabo_ || !cabo_->IsReady()) return 0;
   return cabo_->GetButtonsMask();
+}
+
+SeriesType SaboCoverUIController::GetSeriesType() const {
+  if (!cabo_ || !cabo_->IsReady()) {
+    return SeriesType::Unknown;
+  }
+
+  return cabo_->GetSeriesType();
 }
 
 void SaboCoverUIController::ThreadFunc() {

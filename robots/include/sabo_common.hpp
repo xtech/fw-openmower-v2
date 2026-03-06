@@ -23,8 +23,12 @@
 #include <cstdint>
 #include <globals.hpp>
 
-#include "../../src/filesystem/versioned_struct.hpp"
 #include "GpsServiceBase.hpp"
+#include "drivers/gpio/tca_95xx/tca9534.hpp"
+#include "drivers/gpio/tca_95xx/tca9535.hpp"
+#include "filesystem/versioned_struct.hpp"
+
+using namespace xbot::driver;
 
 namespace xbot::driver::sabo {
 
@@ -32,8 +36,6 @@ namespace xbot::driver::sabo {
 namespace types {
 // Hardware versions are "as of" versions
 enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2_0, V0_2_1, V0_3 };
-
-enum class SeriesType { Series1, Series2 };
 
 enum class InputType : uint8_t { SENSOR, BUTTON };
 
@@ -74,11 +76,6 @@ enum class TempCompensation : uint8_t {
 
 // Hardware configurations
 namespace config {
-struct Sensor {
-  const ioline_t line;
-  const bool invert = false;
-};
-
 struct Spi {
   SPIDriver* instance;
   struct {
@@ -91,19 +88,37 @@ struct Spi {
 
 struct CoverUi {
   Spi spi;
-  struct {
-    const ioline_t latch_load;
-    const ioline_t oe = PAL_NOLINE;
-    const ioline_t btn_cs = PAL_NOLINE;
-    const ioline_t inp_cs = PAL_NOLINE;
+  union {
+    struct {
+      const ioline_t latch_load;
+      const ioline_t oe;
+      const ioline_t btn_cs;
+    } v01;
+    struct {
+      const ioline_t latch_load;
+      const ioline_t inp_cs;
+      const ioline_t s2_latch;  // Series-II Latch (HEF4794BT)
+      const ioline_t s2_load;   // Series-II SH/LD (HC165)
+    } v02;
+    struct {
+      const ioline_t s2_latch;      // Series-II Latch (HEF4794BT STR)
+      const ioline_t s2_load;       // Series-II SH/LD (HC165 SH/LD)
+      const ioline_t sel_spi_mosi;  // v0.3 has a none-sense SPI-MOSI switch
+      const ioline_t sel_spi_miso;  // v0.3 has a none-sense SPI-MISO switch
+    } v03;
   } pins;
+  // Optional GPIO expander. Only >= v0.3 have them
+  struct {
+    const gpio::TCA95xxConfig leds{};
+    const gpio::TCA95xxConfig btns{};
+  } gpio_expander;
 };
 
 struct Lcd {
   const Spi spi;
   struct {
-    const ioline_t dc;
-    const ioline_t rst;
+    const ioline_t dc;   // data/command control pin
+    const ioline_t rst;  // /reset pin
     const ioline_t backlight;
   } pins;
 };
@@ -119,77 +134,95 @@ struct Adc {
 };
 
 // Individual hardware configurations
-inline const Sensor SENSORS_V0_1[] = {
-    {LINE_GPIO13},  // LIFT_FL
-    {LINE_GPIO12},  // LIFT_FR
-    {LINE_GPIO11},  // STOP_TOP
+inline const ioline_t SENSORS_V0_1[] = {
+    LINE_GPIO13,  // LIFT_FL
+    LINE_GPIO12,  // LIFT_FR
+    LINE_GPIO11   // STOP_TOP
 };
 
-inline const Sensor SENSORS_V0_3[] = {
-    {LINE_GPIO13, true},  // LIFT_FL
-    {LINE_GPIO12, true},  // LIFT_FR
-    {LINE_GPIO11, true},  // STOP_TOP
+// PCB design limits
+struct Limits {
+  const float max_adapter_current;  // Max allowed adapter current in Amperes
+  const float max_charge_current;   // Max allowed charge current in Amperes
 };
 
 #ifndef STM32_SPI_USE_SPI1
 #error STM32_SPI_USE_SPI1 must be enabled for CoverUI support
 #endif
 
-inline const CoverUi COVER_UI_V0_1 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
-                                      .pins = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1, PAL_NOLINE}};
+inline const CoverUi COVER_UI_V0_1 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
+    .pins = {.v01 = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1}}  // Latch/Load, OE, Btn /CS
+};
 
-inline const CoverUi COVER_UI_V0_2 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
-                                      .pins = {LINE_GPIO9, PAL_NOLINE, PAL_NOLINE, LINE_GPIO1}};
+inline const CoverUi COVER_UI_V0_2 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
+    .pins = {.v02 = {LINE_GPIO9, LINE_GPIO1, LINE_GPIO8, LINE_UART7_RX}}  // Latch/Load, Inp /CS, S2-Latch, S2-Load
+};
 
-inline const Lcd LCD_V0_2 = {.spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, LINE_GPIO5}},
-                             .pins = {LINE_AGPIO4, LINE_UART7_TX, LINE_GPIO3}};
+#ifndef STM32_I2C_USE_I2C4
+#error STM32_I2C_USE_I2C4 must be enabled for TCA95x GPIO expander support
+#endif
 
-#ifndef STM32_SPI_USE_SPI2
-#error STM32_SPI_USE_SPI2 must be enabled for BMS support
+inline const CoverUi COVER_UI_V0_3 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},  // SPI, SCK, MISO, MOSI, CS
+
+    .pins = {.v03 = {LINE_GPIO1, LINE_GPIO9,       // HEF4794BT STR, HC165 SH/LD
+                     LINE_GPIO8, LINE_UART7_RX}},  // SPI-MOSI switch, SPI-MISO switch
+    .gpio_expander = {.leds = {.i2c = &I2CD4, .address = 0x21}, .btns = {.i2c = &I2CD4, .address = 0x20}}};
+
+inline const Lcd LCD_V0_2 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, LINE_GPIO5}},  // SPI, SCK, MISO, MOSI, CS
+    .pins = {LINE_AGPIO4, LINE_UART7_TX, LINE_GPIO3}};                             // D/C, /RST, Backlight
+
+#ifndef STM32_I2C_USE_I2C2
+#error STM32_I2C_USE_I2C2 must be enabled for BMS support
 #endif
 
 inline const Bms BMS_V0_2 = {.i2c = &I2CD2};
+inline const Bms BMS_V0_3 = {.i2c = &I2CD1};
 
 inline const Adc ADC_V0_2_1 = {.charger_voltage_scale_factor = 16.3846f,  // (200k Rtop + 13k Rbot)/13k Rbot
                                .battery_voltage_scale_factor = 16.3846f,  // (200k Rtop + 13k Rbot)/13k Rbot
                                .dcdc_in_current_scale_factor = 1.0f};     // 1/(20gain * Rshunt 0.05)
 
+inline const Limits LIMITS_V0_1 = {.max_adapter_current = 4.2f, .max_charge_current = 5.0f};
+inline const Limits LIMITS_V0_2 = {.max_adapter_current = 4.9f, .max_charge_current = 4.9f};
+inline const Limits LIMITS_V0_3 = {.max_adapter_current = 4.8f, .max_charge_current = 5.5f};
+
 // Hardware configuration references
 struct HardwareConfig {
-  etl::array_view<const Sensor> sensors;
+  const Limits* limits;
+  etl::array_view<const ioline_t> sensors;
   const CoverUi* cover_ui;
-  const Lcd* lcd;
-  const Bms* bms;
-  const Adc* adc;
+  const Lcd* lcd = nullptr;  // Optional LCD, not all hardware versions have it
+  const Bms* bms = nullptr;  // Optional BMS, not all hardware versions have it
+  const Adc* adc = nullptr;  // Optional ADC, only V0.2.1 and later have it
 };
 
 // Hardware version to configuration array which need to be in sync with HardwareVersion enum
 inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
     // V0_1
-    {
-        .sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
-        .cover_ui = &COVER_UI_V0_1,
-        .lcd = nullptr,  // No LCD for V0_1
-        .bms = nullptr,  // No BMS for V0_1
-        .adc = nullptr   // No ADC for V0_1
-    },
+    {.limits = &LIMITS_V0_1, .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1), .cover_ui = &COVER_UI_V0_1},
     // V0_2_0
-    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
+    {.limits = &LIMITS_V0_2,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
      .lcd = &LCD_V0_2,
-     .bms = &BMS_V0_2,
-     .adc = nullptr},
+     .bms = &BMS_V0_2},
     // V0_2_1
-    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_1),
+    {.limits = &LIMITS_V0_2,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_2,
      .adc = &ADC_V0_2_1},
     // V0_3
-    {.sensors = etl::array_view<const Sensor>(SENSORS_V0_3),
-     .cover_ui = &COVER_UI_V0_2,
+    {.limits = &LIMITS_V0_3,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
+     .cover_ui = &COVER_UI_V0_3,
      .lcd = &LCD_V0_2,
-     .bms = nullptr,  // No BMS for V0_3 yet
+     .bms = &BMS_V0_3,
      .adc = &ADC_V0_2_1}};
 }  // namespace config
 
@@ -227,7 +260,7 @@ namespace settings {
  * Migration is handled automatically by VersionedStruct base class.
  */
 #pragma pack(push, 1)
-struct LCDSettings : public xbot::driver::filesystem::VersionedStruct<LCDSettings> {
+struct LCDSettings : public filesystem::VersionedStruct<LCDSettings> {
   VERSIONED_STRUCT_FIELDS(1);  // Version 1 - automatically defines VERSION constant and version field
   static constexpr const char* PATH = "/cfg/sabo/lcd.bin";
 
@@ -255,7 +288,7 @@ static_assert(sizeof(LCDSettings) == 5, "LCDSettings must be 5 bytes (2 version 
  * Migration is handled automatically by VersionedStruct base class.
  */
 #pragma pack(push, 1)
-struct GPSSettings : public xbot::driver::filesystem::VersionedStruct<GPSSettings> {
+struct GPSSettings : public filesystem::VersionedStruct<GPSSettings> {
   VERSIONED_STRUCT_FIELDS(1);  // Version 1 - automatically defines VERSION constant and version field
   static constexpr const char* PATH = "/cfg/sabo/gps.bin";
 

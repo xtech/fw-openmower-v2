@@ -125,6 +125,8 @@ class SaboRobot : public MowerRobot {
     }
   }
 
+  bool HasInvertedHallSensors() const;
+
  private:
   BQ2576 charger_{0.005f};  // All Sabo's do have an 5mΩ Rac_sns
   SaboCoverUIController cover_ui_{hardware_config};

@@ -54,6 +54,16 @@ bool SaboRobot::IsHardwareSupported() {
   return false;
 }
 
+bool SaboRobot::HasInvertedHallSensors() const {
+  // As of HW v0.3 Series-2 has inverted hall sensors.
+  if (carrier_board_info.version_major == 0 && carrier_board_info.version_minor >= 3 &&
+      cover_ui_.GetSeriesType() == SeriesType::Series2) {
+    return true;
+  }
+
+  return false;
+}
+
 bool SaboRobot::SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) {
   settings::GPSSettings gps_settings;
   gps_settings.protocol = protocol;
@@ -113,7 +123,7 @@ void SaboRobot::RegisterAdc1Sensors() {
   adc1::RegisterConversionGroup(v_battery_cg);
 
   // I-IN-DCDC sensor
-  static const Adc1Sensor i_dcdc_sensors[] = {{.channel = ADC_CHANNEL_IN18, .sample_rate = ADC_SMPR_SMP_8P5}};
+  static const Adc1Sensor i_dcdc_sensors[] = {{.channel = ADC_CHANNEL_IN18, .sample_rate = ADC_SMPR_SMP_16P5}};
   static adcsample_t i_dcdc_buffer[sizeof(i_dcdc_sensors) / sizeof(i_dcdc_sensors[0])];
   // Create ADC conversion group and place sensor(s)
   static const Adc1ConversionGroup i_dcdc_cg = Adc1ConversionGroup::Create(
@@ -143,8 +153,6 @@ void SaboRobot::OnPowerManagement() {
   constexpr float HYSTERESIS = 0.05f;          // 50mA
   constexpr float SAFETY_RESERVE = 0.2f;       // 200mA (~100mA blind current into ESCs + 100mA ADC inaccuracy)
   constexpr float MIN_ADAPTER_CURRENT = 0.3f;  // 300mA
-  constexpr float MAX_ADAPTER_CURRENT = 4.5f;  // Hardware limit: PCB traces = ~4.9A = 4.5A conservative
-  constexpr float MAX_CHARGE_CURRENT = 5.5f;   // Hardware limit: PCB traces = ~5.9A = 5.5A conservative
 
   float system_current = power_service.GetConfiguredSystemCurrent();
   if (isnan(system_current) || system_current <= 0.0f) return;
@@ -154,7 +162,8 @@ void SaboRobot::OnPowerManagement() {
 
   // Clamp adapter current to a minimum of MIN_ADAPTER_CURRENT
   float adapter_limit = std::max(MIN_ADAPTER_CURRENT, system_current - dcdc_current - SAFETY_RESERVE);
-  adapter_limit = std::min(adapter_limit, MAX_ADAPTER_CURRENT);  // Clamp to <= MAX_ADAPTER_CURRENT
+  adapter_limit =
+      std::min(adapter_limit, hardware_config.limits->max_adapter_current);  // Clamp to <= adapter current limit
   if (fabsf(adapter_limit - last_adapter_limit) > HYSTERESIS) {  // Don't flood charger with minor corrections
     charger_.setAdapterCurrent(adapter_limit);
     last_adapter_limit = adapter_limit;
@@ -165,7 +174,8 @@ void SaboRobot::OnPowerManagement() {
   float charge_limit = (!isnan(config_charge_current) && config_charge_current > 0.0f)
                            ? config_charge_current
                            : Power_GetDefaultChargeCurrent();  // Sabo default
-  charge_limit = std::min(MAX_CHARGE_CURRENT, charge_limit);   // Clamp to <= MAX_CHARGE_CURRENT
+  charge_limit =
+      std::min(hardware_config.limits->max_charge_current, charge_limit);  // Clamp to <= charge current limit
   if (last_charge_limit != charge_limit) {
     charger_.setChargingCurrent(charge_limit, true);
     last_charge_limit = charge_limit;

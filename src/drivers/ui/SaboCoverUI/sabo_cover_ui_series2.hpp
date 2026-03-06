@@ -26,12 +26,13 @@ class SaboCoverUISeries2 : public SaboCoverUISeriesInterface {
   };
 
   // Process the received button column data dependent on the current row and advance row to the next column
-  uint16_t ProcessButtonCol(const uint8_t cur_col_data) {
+  uint16_t ProcessButtonCol(const uint8_t cur_col_data) override {
     // Only lower 6 bits are connected to buttons; mask them out and set bits 7-8 high
     uint8_t masked_col = (cur_col_data & 0b00111111) | 0b11000000;
+    // Toggle between 0 and 1 before applying column data, because HW v0.1 does latch and load in one Full Duplex cycle
+    current_button_row_ ^= 1;
     cur_btn_mask = (cur_btn_mask & (current_button_row_ ? 0xFF00 : 0x00FF)) |
                    (current_button_row_ ? masked_col : (masked_col << 8));
-    current_button_row_ ^= 1;  // Toggle between 0 and 1
     return cur_btn_mask;
   };
 

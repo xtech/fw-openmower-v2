@@ -39,6 +39,15 @@ class SaboCoverUICaboDriverBase {
    */
   uint16_t GetButtonsMask() const;
 
+  /**
+   * @brief Get the Series Type object
+   *
+   * @return SeriesType
+   */
+  SeriesType GetSeriesType() const {
+    return series_ ? series_->GetType() : SeriesType::Unknown;
+  }
+
   bool IsReady() const;  // True if CoverUI detected, boot anim played and ready to serve requests
 
   void SetLed(LedId id, LedMode mode);  // Set state of a single LED

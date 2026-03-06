@@ -9,8 +9,7 @@
 
 #include "ch.h"
 #include "robots/include/sabo_common.hpp"
-#include "sabo_cover_ui_cabo_driver_v01.hpp"
-#include "sabo_cover_ui_cabo_driver_v02.hpp"
+#include "sabo_cover_ui_cabo_driver_base.hpp"
 
 namespace xbot::driver::ui {
 
@@ -27,6 +26,7 @@ class SaboCoverUIController {
 
   bool IsButtonPressed(const ButtonId btn) const;  // Debounced safe check if a specific button is pressed
   uint16_t GetButtonsMask() const;                 // Returns bitmask of current button states
+  SeriesType GetSeriesType() const;                // Get the detected CoverUI series type
 
  private:
   THD_WORKING_AREA(wa_, 5120);  // AH20260102 In use = 4416. Let's be save (+~1k) for LVGL GUI development
