@@ -266,7 +266,7 @@ CHARGER_STATUS BQ2576::getChargerStatus() {
   const auto faults = readFaults();
 
   if (faults) {
-    ULOG_ERR("BQ2576 Charger Fault detected: 0x%02X", faults);
+    ULOG_ERROR("BQ2576 Charger Fault detected: 0x%02X", faults);
     return CHARGER_STATUS::FAULT;
   }
   switch (status1 & 0b111) {
