@@ -14,13 +14,6 @@ class UniversalRobot : public MowerRobot {
   void InitPlatform() override;
   bool IsHardwareSupported() override;
 
-  UARTDriver* GPS_GetUartPort() override {
-#ifndef STM32_UART_USE_USART6
-#error STM32_UART_USE_USART6 must be enabled for the YardForce build to work
-#endif
-    return &UARTD6;
-  }
-
   float Power_GetDefaultChargeCurrent() override {
     return 0.5;
   }
