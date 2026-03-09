@@ -16,13 +16,20 @@ bool BQ2576::init() {
   uint8_t result = 0;
 
   bool readOk = readRegister(REG_PART_INFORMATION, result);
+  if (!readOk) {
+    ULOG_ERROR("Charger: Error reading PART_INFORMATION");
+  }
   bool charger_connected = readOk && (result & 0b01111000) == 0b010000;
+  if (!charger_connected) {
+    ULOG_ERROR("Charger: Invalid Response (charger_connected)");
+  }
   bool success = charger_connected;
 
   // Reset the charger settings
   {
     bool writeOk = writeRegister8(REG_Power_Path_and_Reverse_Mode_Control, 0b10100000);
     if (!writeOk) {
+      ULOG_ERROR("Charger: Error writing Power_Path_and_Reverse_Mode_Control");
       return false;
     }
   }
@@ -34,6 +41,7 @@ bool BQ2576::init() {
     chThdSleep(TIME_MS2I(100));
     readOk = readRegister(REG_Power_Path_and_Reverse_Mode_Control, result);
     if (!readOk) {
+      ULOG_ERROR("Charger: Error reading Power_Path_and_Reverse_Mode_Control");
       return false;
     }
     reset_done = (result & 0b1000000) == 0;
@@ -41,9 +49,15 @@ bool BQ2576::init() {
 
   // Disable PFM
   success &= writeRegister8(REG_Power_Path_and_Reverse_Mode_Control, 0);
+  if (!success) {
+    ULOG_ERROR("Charger: Error writing Power_Path_and_Reverse_Mode_Control [2]");
+  }
 
   // Enable automatic ADC sampling
   success &= writeRegister8(REG_ADC_Control, 0b10000000);
+  if (!success) {
+    ULOG_ERROR("Charger: Error writing ADC_Control");
+  }
 
   resetWatchdog();
 
@@ -252,6 +266,7 @@ CHARGER_STATUS BQ2576::getChargerStatus() {
   const auto faults = readFaults();
 
   if (faults) {
+    ULOG_ERROR("BQ2576 Charger Fault detected: 0x%02X", faults);
     return CHARGER_STATUS::FAULT;
   }
   switch (status1 & 0b111) {
