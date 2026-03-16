@@ -27,14 +27,14 @@
 /* System Clock Frequency (HCLK3 for D3 domain) */
 #define HCLK3_FREQ 200000000UL /* 200 MHz for D3 domain */
 
-/* Default configuration for MAX98357 */
+/* Default configuration for MAX98357A in TDM mode (SD_MODE=1, GAIN_SLOT=0) */
 static const i2s6_config_t default_config = {
-    .sample_rate = 44100, /* 44.1 kHz */
-    .data_bits = 16,      /* 16-bit data */
-    .channel_bits = 16,   /* 16-bit per channel */
-    .master_mode = true,  /* Master mode */
-    .i2s_standard = true, /* I2S Philips standard */
-    .i2s_mode = true,     /* I2S mode (not PCM) */
+    .sample_rate = 48000,  /* 48 kHz target - MAX98357 supports 48kHz */
+    .data_bits = 16,       /* 16-bit data for TDM mode */
+    .channel_bits = 16,    /* 16-bit per channel */
+    .master_mode = true,   /* Master mode */
+    .i2s_standard = false, /* Not I2S - TDM mode uses frame sync */
+    .i2s_mode = false,     /* PCM mode for TDM */
 };
 
 static bool i2s6_initialized = false;
@@ -154,9 +154,13 @@ bool i2s6_lld_init(const i2s6_config_t* config) {
   /* Configure as Master Transmitter (I2SCFG = 0x2) */
   i2scfgr |= SPI_I2SCFGR_I2SCFG_1; /* Set bit 2 for master transmitter (0x2) */
 
-  /* Configure I2S standard (Philips) */
+  /* Configure I2S standard */
   if (config->i2s_standard) {
     i2scfgr |= (0x0 << SPI_I2SCFGR_I2SSTD_Pos); /* Philips standard */
+  } else {
+    /* For non-I2S mode, use appropriate standard */
+    /* Note: Could be MSB justified (0x1), LSB justified (0x2), or PCM (0x3) */
+    i2scfgr |= (0x3 << SPI_I2SCFGR_I2SSTD_Pos); /* Default to PCM standard */
   }
 
   /* Configure data length */
@@ -184,32 +188,46 @@ bool i2s6_lld_init(const i2s6_config_t* config) {
   SPI6->I2SCFGR = i2scfgr;
   ULOG_INFO("I2S6: I2SCFGR=0x%08X", SPI6->I2SCFGR);
 
-  /* Configure prescaler for I2S mode */
+  /* Configure prescaler for I2S/TDM mode */
   /* For STM32H7 in I2S mode, we need to configure the clock using MBR field in CFG1 */
-  /* Target bit clock frequency = sample_rate * 32 (16 bits * 2 channels) */
+  /* For TDM 16-bit mode: Frame length = 128 BCLK cycles (not 32 like I2S) */
+  /* Target bit clock frequency = sample_rate * 128 (for TDM 16-bit mode) */
   uint32_t pclk4_freq = 100000000UL; /* 100 MHz PCLK4 */
+
+  /* Determine frame length based on mode */
+  uint32_t frame_length;
+  if (config->i2s_mode) {
+    /* I2S mode: 32 BCLK cycles per frame (16 bits × 2 channels) */
+    frame_length = 32;
+    ULOG_INFO("I2S6: I2S mode - frame length = 32 BCLK cycles");
+  } else {
+    /* TDM/PCM mode: 128 BCLK cycles per frame for 16-bit TDM */
+    frame_length = 128;
+    ULOG_INFO("I2S6: TDM mode - frame length = 128 BCLK cycles");
+  }
 
   /* Find appropriate MBR value (see RM0433 Table 436) */
   /* For audio, we prefer standard sample rates: 48kHz or 44.1kHz */
   /* With PCLK4=100MHz:
-   * - MBR=5 (divide by 64): 100MHz/64 = 1.5625MHz -> 48.828kHz
-   * - MBR=6 (divide by 128): 100MHz/128 = 781.25kHz -> 24.414kHz
-   * For 44.1kHz target, MBR=5 gives 48.828kHz (error 4.7kHz)
-   * MBR=6 gives 24.414kHz (error 19.7kHz)
-   * So MBR=5 is better for 44.1kHz target
+   * - MBR=3 (divide by 16): 100MHz/16 = 6.25MHz -> 48.828kHz (TDM: /128 = 48.828kHz)
+   * - MBR=4 (divide by 32): 100MHz/32 = 3.125MHz -> 24.414kHz
+   * For 48kHz target in TDM mode, MBR=3 gives closest
    */
-  uint32_t mbr_value = 5; /* Default to divide by 64 for ~48.8kHz */
+  uint32_t mbr_value = 3; /* Default to divide by 16 for TDM mode */
 
   /* Calculate which MBR gives closest sample rate to target */
-  uint32_t best_mbr = 5;
+  /* For 8000 Hz target with TDM mode (frame_length=128), we need MBR=5 (divider=64) */
+  /* This gives 12,207 Hz which is within MAX98357 spec (8kHz-96kHz) */
+  uint32_t best_mbr = 5; /* Default to MBR=5 for 8kHz target */
   uint32_t best_error = 0xFFFFFFFF;
 
-  ULOG_INFO("I2S6: Calculating best MBR for target %u Hz (PCLK4=%u Hz)", config->sample_rate, pclk4_freq);
+  ULOG_INFO("I2S6: Calculating best MBR for target %u Hz (PCLK4=%u Hz, frame_length=%u)", config->sample_rate,
+            pclk4_freq, frame_length);
 
   for (uint32_t test_mbr = 0; test_mbr <= 7; test_mbr++) {
     uint32_t test_divider = 2 << test_mbr; /* 2^(test_mbr+1) */
     uint32_t test_bit_clock = pclk4_freq / test_divider;
-    uint32_t test_sample_rate = test_bit_clock / 32;
+    uint32_t test_sample_rate = test_bit_clock / frame_length;
     uint32_t error = abs((int32_t)test_sample_rate - (int32_t)config->sample_rate);
 
     ULOG_INFO("I2S6: MBR=%u: divider=%u, bit_clock=%u, sample_rate=%u, error=%u", test_mbr, test_divider,
@@ -222,15 +240,21 @@ bool i2s6_lld_init(const i2s6_config_t* config) {
     }
   }
 
+  /* Force MBR=5 for 8000 Hz target to ensure we're within MAX98357 spec */
+  if (config->sample_rate == 8000) {
+    best_mbr = 5;
+    ULOG_INFO("I2S6: Forcing MBR=5 for 8000 Hz target (MAX98357 requires >= 8kHz)");
+  }
+
   mbr_value = best_mbr;
 
   /* Calculate actual bit clock frequency */
   uint32_t actual_divider = 2 << mbr_value; /* 2^(mbr_value+1) */
   uint32_t actual_bit_clock = pclk4_freq / actual_divider;
-  uint32_t actual_sample_rate = actual_bit_clock / 32;
+  uint32_t actual_sample_rate = actual_bit_clock / frame_length;
 
-  ULOG_INFO("I2S6: Target %u Hz, MBR=%u (div by %u), actual %u Hz", config->sample_rate, mbr_value, actual_divider,
-            actual_sample_rate);
+  ULOG_INFO("I2S6: Target %u Hz, MBR=%u (div by %u), BCLK=%u Hz, actual %u Hz", config->sample_rate, mbr_value,
+            actual_divider, actual_bit_clock, actual_sample_rate);
 
   /* Configure SPI for polling mode - According to Table 436, in I2S mode:
    * - CFG1: Only TXDMAEN, RXDMAEN, FTHLV are usable
@@ -266,11 +290,25 @@ void i2s6_lld_enable(void) {
   SPI6->CR1 |= SPI_CR1_SPE;
   ULOG_INFO("I2S6: CR1 after SPE=0x%08X", SPI6->CR1);
 
-  /* Small delay after enabling peripheral */
-  for (volatile uint32_t i = 0; i < 100; i++) {
+  /* MAX98357 startup sequence:
+   * According to datasheet, when SD_MODE=1 (TDM mode), we need:
+   * 1. 10μs delay after SD_MODE high before starting BCLK/LRCLK
+   * 2. LRCLK must start within 1/2 LRCLK period of BCLK
+   *
+   * Since SD_MODE is hardwired to 1 in hardware, we simulate this by
+   * adding a 10μs delay after enabling the peripheral.
+   */
+  ULOG_INFO("I2S6: MAX98357 startup - waiting 10μs (SD_MODE=1 condition)");
+
+  /* Approximate 10μs delay at 200MHz HCLK3:
+   * 200MHz = 5ns per cycle
+   * 10μs = 2000 cycles
+   */
+  for (volatile uint32_t i = 0; i < 2000; i++) {
+    __asm__ volatile("nop");
   }
 
-  /* Start transmission first (CSTART) - According to STM32 programming examples */
+  /* Start transmission (CSTART) - This starts BCLK and LRCLK */
   SPI6->CR1 |= SPI_CR1_CSTART;
   ULOG_INFO("I2S6: CR1 after CSTART=0x%08X", SPI6->CR1);
 
@@ -340,10 +378,24 @@ bool i2s6_lld_tx_ready(void) {
   return (sr & SPI_SR_TXP) != 0;
 }
 
+/* Optimized version without logging for performance-critical paths */
+static bool i2s6_lld_tx_ready_fast(void) {
+  /* Check if transmit buffer is empty - minimal version */
+  uint32_t sr = SPI6->SR;
+
+  /* Clear any error flags quickly */
+  if (sr & (SPI_SR_UDR | SPI_SR_OVR)) {
+    SPI6->IFCR = SPI_IFCR_UDRC | SPI_IFCR_OVRC;
+  }
+
+  /* Check if transmit buffer has space available (TXP flag) */
+  return (sr & SPI_SR_TXP) != 0;
+}
+
 void i2s6_lld_send_sample(int16_t left_sample, int16_t right_sample) {
-  /* Wait for transmit buffer to be empty */
-  while (!i2s6_lld_tx_ready()) {
-    /* Busy wait */
+  /* Wait for transmit buffer to be empty - optimized version */
+  while (!i2s6_lld_tx_ready_fast()) {
+    /* Busy wait - minimal overhead */
   }
 
   /* For I2S Philips standard with 16-bit data in 32-bit frame:
@@ -357,6 +409,22 @@ void i2s6_lld_send_sample(int16_t left_sample, int16_t right_sample) {
 
   /* Write to transmit register */
   SPI6->TXDR = data;
+}
+
+/* Optimized version for high-performance audio playback */
+void i2s6_lld_send_sample_fast(int16_t left_sample, int16_t right_sample) {
+  /* Wait for transmit buffer to be empty - ultra-fast version */
+  while (!(SPI6->SR & SPI_SR_TXP)) {
+    /* Busy wait - check only TXP flag */
+    /* Clear any error flags that might prevent TXP from being set */
+    uint32_t sr = SPI6->SR;
+    if (sr & (SPI_SR_UDR | SPI_SR_OVR)) {
+      SPI6->IFCR = SPI_IFCR_UDRC | SPI_IFCR_OVRC;
+    }
+  }
+
+  /* Combine channels and write to transmit register */
+  SPI6->TXDR = ((uint32_t)right_sample << 16) | ((uint32_t)left_sample & 0xFFFF);
 }
 
 void i2s6_lld_send_sample_32(int32_t left_sample, int32_t right_sample) {

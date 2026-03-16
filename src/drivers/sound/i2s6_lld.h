@@ -54,6 +54,15 @@ void i2s6_lld_send_sample(int16_t left_sample, int16_t right_sample);
 void i2s6_lld_send_sample_32(int32_t left_sample, int32_t right_sample);
 
 /**
+ * @brief Optimized version for high-performance audio playback
+ * Minimal overhead - no error checking, just TXP flag check
+ *
+ * @param left_sample Left channel sample (16-bit signed)
+ * @param right_sample Right channel sample (16-bit signed)
+ */
+void i2s6_lld_send_sample_fast(int16_t left_sample, int16_t right_sample);
+
+/**
  * @brief Check if I2S6 transmitter is ready for new data
  *
  * @return true if ready, false if busy

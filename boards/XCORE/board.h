@@ -459,7 +459,7 @@
                                      PIN_OSPEED_VERYLOW(GPIOA_UART4_TX) |   \
                                      PIN_OSPEED_HIGH(GPIOA_SWDIO) |         \
                                      PIN_OSPEED_HIGH(GPIOA_SWCLK) |         \
-                                     PIN_OSPEED_VERYLOW(GPIOA_I2S6_WS))
+                                     PIN_OSPEED_HIGH(GPIOA_I2S6_WS))
 #define VAL_GPIOA_PUPDR             (PIN_PUPDR_FLOATING(GPIOA_AGPIO0) |     \
                                      PIN_PUPDR_FLOATING(GPIOA_RMII_REF_CLK) |\
                                      PIN_PUPDR_PULLUP(GPIOA_RMII_MDIO) |    \
