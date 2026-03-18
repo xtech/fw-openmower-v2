@@ -27,77 +27,92 @@
 /* System Clock Frequency (HCLK3 for D3 domain) */
 #define HCLK3_FREQ 200000000UL /* 200 MHz for D3 domain */
 
-/* Default configuration for MAX98357A in TDM mode (SD_MODE=1, GAIN_SLOT=0) */
+/* Default configuration for MAX98357A in I2S standard mode (SD_MODE=0, GAIN_SLOT=0) */
 static const i2s6_config_t default_config = {
-    .sample_rate = 48000,  /* 48 kHz target - MAX98357 supports 48kHz */
-    .data_bits = 16,       /* 16-bit data for TDM mode */
-    .channel_bits = 16,    /* 16-bit per channel */
-    .master_mode = true,   /* Master mode */
-    .i2s_standard = false, /* Not I2S - TDM mode uses frame sync */
-    .i2s_mode = false,     /* PCM mode for TDM */
+    .sample_rate = 16000, /* 16 kHz target - according to architecture documentation */
+    .data_bits = 16,      /* 16-bit data for I2S mode */
+    .channel_bits = 16,   /* 16-bit per channel */
+    .master_mode = true,  /* Master mode */
+    .i2s_standard = true, /* I2S Philips standard */
+    .i2s_mode = true,     /* I2S mode (not PCM) */
 };
 
 static bool i2s6_initialized = false;
 
 /**
- * @brief Calculate I2S prescaler value for desired sample rate
+ * @brief Calculate I2S prescaler values (I2SDIV and ODD) for desired sample rate
  *
  * For I2S Philips standard without master clock output (MCKOE=0):
- * Fs = I2SxCLK / ((16*2)*((2*I2SDIV)+ODD))
+ * F_WS = F_i2s_clk / [32 × (CHLEN + 1) × {(2 × I2SDIV) + ODD}]
  * Where:
- * - Fs = sample rate
- * - I2SxCLK = peripheral clock (PCLK4 = 100MHz for D3 domain)
+ * - F_WS = sample rate (word select frequency)
+ * - F_i2s_clk = peripheral clock (PCLK4 = 100MHz for D3 domain)
+ * - CHLEN = 0 for 16-bit channel length, 1 for 32-bit channel length
  * - I2SDIV = prescaler value (0-255)
  * - ODD = 0 or 1
  *
- * We need to find I2SDIV and ODD such that Fs is as close as possible to desired sample rate.
- *
- * Note: This function is not used in STM32H7 I2S implementation which uses MBR field instead.
- * Keeping it commented for reference.
+ * We need to find I2SDIV and ODD such that F_WS is as close as possible to desired sample rate.
  */
-/*
-static uint32_t calculate_prescaler(uint32_t sample_rate) {
+static uint32_t calculate_i2s_prescaler(uint32_t sample_rate, uint8_t channel_bits) {
   // PCLK4 frequency for D3 domain (from mcuconf.h)
-  const uint32_t i2s_clk = 100000000UL; // 100 MHz PCLK4
+  const uint32_t i2s_clk = 100000000UL;  // 100 MHz PCLK4
 
-  // Target bit clock frequency
-  uint32_t target_freq = sample_rate * 32; // 16 bits * 2 channels
+  // CHLEN value: 0 for 16-bit, 1 for 32-bit
+  uint32_t chlen = (channel_bits == 32) ? 1 : 0;
 
-  // Calculate ideal divider
-  uint32_t ideal_divider = i2s_clk / target_freq;
+  // Calculate denominator: 32 × (CHLEN + 1) for I2S mode
+  uint32_t denominator = 32 * (chlen + 1);
 
-  // I2SDIV = (ideal_divider / 2) - 1
-  uint32_t i2sdiv = (ideal_divider / 2);
-  if (i2sdiv > 0) {
-    i2sdiv--;
+  ULOG_INFO("I2S6: I2S prescaler calculation: target=%u Hz, i2s_clk=%u Hz, CHLEN=%u, denominator=%u", sample_rate,
+            i2s_clk, chlen, denominator);
+
+  // Find best I2SDIV and ODD values
+  uint32_t best_i2sdiv = 0;
+  uint32_t best_odd = 0;
+  uint32_t best_error = 0xFFFFFFFF;
+  uint32_t best_actual_rate = 0;
+
+  // Search through possible I2SDIV values (0-255)
+  for (uint32_t i2sdiv = 0; i2sdiv <= 255; i2sdiv++) {
+    // Try ODD = 0 and ODD = 1
+    for (uint32_t odd = 0; odd <= 1; odd++) {
+      // Calculate divisor: (2 × I2SDIV) + ODD
+      uint32_t divisor = (2 * i2sdiv) + odd;
+
+      // Avoid division by zero
+      if (divisor == 0) continue;
+
+      // Calculate actual sample rate
+      uint32_t actual_rate = i2s_clk / (denominator * divisor);
+
+      // Calculate error
+      uint32_t error = abs((int32_t)actual_rate - (int32_t)sample_rate);
+
+      // Update best values if this is better
+      if (error < best_error) {
+        best_error = error;
+        best_i2sdiv = i2sdiv;
+        best_odd = odd;
+        best_actual_rate = actual_rate;
+
+        ULOG_INFO("I2S6: New best: I2SDIV=%u, ODD=%u, divisor=%u, actual=%u Hz, error=%u", best_i2sdiv, best_odd,
+                  divisor, best_actual_rate, best_error);
+      }
+
+      // If we found an exact match, break early
+      if (error == 0) {
+        ULOG_INFO("I2S6: Found exact match: I2SDIV=%u, ODD=%u", i2sdiv, odd);
+        return (i2sdiv << 16) | (odd << 24);
+      }
+    }
   }
 
-  // Calculate ODD bit
-  uint32_t odd = 0;
-  uint32_t actual_divider = 2 * ((2 * i2sdiv) + odd);
-  uint32_t actual_freq = i2s_clk / (32 * actual_divider);
+  ULOG_INFO("I2S6: Best I2S prescaler: I2SDIV=%u, ODD=%u, actual=%u Hz, error=%u", best_i2sdiv, best_odd,
+            best_actual_rate, best_error);
 
-  // Try with ODD=1 if it gives better accuracy
-  uint32_t odd_divider = 2 * ((2 * i2sdiv) + 1);
-  uint32_t odd_freq = i2s_clk / (32 * odd_divider);
-
-  if (abs((int32_t)odd_freq - (int32_t)sample_rate) < abs((int32_t)actual_freq - (int32_t)sample_rate)) {
-    odd = 1;
-    actual_divider = odd_divider;
-    actual_freq = odd_freq;
-  }
-
-  // Clamp I2SDIV to 8-bit range
-  if (i2sdiv > 255) {
-    i2sdiv = 255;
-  }
-
-  ULOG_INFO("I2S6: sample_rate=%u, i2sdiv=%u, odd=%u, actual_freq=%u", sample_rate, i2sdiv, odd, actual_freq);
-
-  // Return prescaler value with ODD bit
-  return i2sdiv | (odd << 8);
+  // Return prescaler value with I2SDIV in bits 16-23 and ODD in bit 24
+  return (best_i2sdiv << 16) | (best_odd << 24);
 }
-*/
 
 bool i2s6_lld_init(const i2s6_config_t* config) {
   if (config == NULL) {
@@ -184,77 +199,49 @@ bool i2s6_lld_init(const i2s6_config_t* config) {
     i2scfgr |= SPI_I2SCFGR_PCMSYNC;
   }
 
+  /* For I2S Philips standard, set CKPOL = 0 (rising edge) */
+  /* CKPOL is bit 1 of I2SCFGR register */
+  i2scfgr &= ~(1 << 1); /* Clear CKPOL bit for rising edge */
+
   /* Write I2S configuration */
   SPI6->I2SCFGR = i2scfgr;
   ULOG_INFO("I2S6: I2SCFGR=0x%08X", SPI6->I2SCFGR);
 
-  /* Configure prescaler for I2S/TDM mode */
-  /* For STM32H7 in I2S mode, we need to configure the clock using MBR field in CFG1 */
-  /* For TDM 16-bit mode: Frame length = 128 BCLK cycles (not 32 like I2S) */
-  /* Target bit clock frequency = sample_rate * 128 (for TDM 16-bit mode) */
-  uint32_t pclk4_freq = 100000000UL; /* 100 MHz PCLK4 */
-
-  /* Determine frame length based on mode */
-  uint32_t frame_length;
-  if (config->i2s_mode) {
-    /* I2S mode: 32 BCLK cycles per frame (16 bits × 2 channels) */
-    frame_length = 32;
-    ULOG_INFO("I2S6: I2S mode - frame length = 32 BCLK cycles");
-  } else {
-    /* TDM/PCM mode: 128 BCLK cycles per frame for 16-bit TDM */
-    frame_length = 128;
-    ULOG_INFO("I2S6: TDM mode - frame length = 128 BCLK cycles");
-  }
-
-  /* Find appropriate MBR value (see RM0433 Table 436) */
-  /* For audio, we prefer standard sample rates: 48kHz or 44.1kHz */
-  /* With PCLK4=100MHz:
-   * - MBR=3 (divide by 16): 100MHz/16 = 6.25MHz -> 48.828kHz (TDM: /128 = 48.828kHz)
-   * - MBR=4 (divide by 32): 100MHz/32 = 3.125MHz -> 24.414kHz
-   * For 48kHz target in TDM mode, MBR=3 gives closest
+  /* Configure prescaler for I2S mode */
+  /* For I2S Philips standard with MCKOE=0 (no master clock output):
+   * F_WS = F_i2s_clk / [32 × (CHLEN + 1) × {(2 × I2SDIV) + ODD}]
+   * Where:
+   * - F_WS = sample rate (word select frequency)
+   * - F_i2s_clk = peripheral clock (PCLK4 = 100MHz for D3 domain)
+   * - CHLEN = 0 for 16-bit channel length, 1 for 32-bit channel length
+   * - I2SDIV = prescaler value (0-255)
+   * - ODD = 0 or 1
    */
-  uint32_t mbr_value = 3; /* Default to divide by 16 for TDM mode */
+  uint32_t i2s_prescaler = calculate_i2s_prescaler(config->sample_rate, config->channel_bits);
 
-  /* Calculate which MBR gives closest sample rate to target */
-  /* For 8000 Hz target with TDM mode (frame_length=128), we need MBR=5 (divider=64) */
-  /* This gives 12,207 Hz which is within MAX98357 spec (8kHz-96kHz) */
-  uint32_t best_mbr = 5; /* Default to MBR=5 for 8kHz target */
-  uint32_t best_error = 0xFFFFFFFF;
+  /* Apply prescaler to I2SCFGR register */
+  /* Clear existing I2SDIV and ODD bits first */
+  SPI6->I2SCFGR &= ~(SPI_I2SCFGR_I2SDIV_Msk | SPI_I2SCFGR_ODD_Msk);
+  /* Apply new prescaler values */
+  SPI6->I2SCFGR |= i2s_prescaler;
 
-  ULOG_INFO("I2S6: Calculating best MBR for target %u Hz (PCLK4=%u Hz, frame_length=%u)", config->sample_rate,
-            pclk4_freq, frame_length);
+  /* Ensure MCKOE is disabled (no master clock output) */
+  SPI6->I2SCFGR &= ~SPI_I2SCFGR_MCKOE;
 
-  for (uint32_t test_mbr = 0; test_mbr <= 7; test_mbr++) {
-    uint32_t test_divider = 2 << test_mbr; /* 2^(test_mbr+1) */
-    uint32_t test_bit_clock = pclk4_freq / test_divider;
-    uint32_t test_sample_rate = test_bit_clock / frame_length;
-    uint32_t error = abs((int32_t)test_sample_rate - (int32_t)config->sample_rate);
+  ULOG_INFO("I2S6: Updated I2SCFGR with I2S prescaler: 0x%08X", SPI6->I2SCFGR);
 
-    ULOG_INFO("I2S6: MBR=%u: divider=%u, bit_clock=%u, sample_rate=%u, error=%u", test_mbr, test_divider,
-              test_bit_clock, test_sample_rate, error);
+  /* Extract I2SDIV and ODD values for logging */
+  uint32_t i2sdiv = (i2s_prescaler & SPI_I2SCFGR_I2SDIV_Msk) >> 16;
+  uint32_t odd = (i2s_prescaler & SPI_I2SCFGR_ODD_Msk) >> 24;
+  uint32_t chlen = (config->channel_bits == 32) ? 1 : 0;
+  uint32_t divisor = (2 * i2sdiv) + odd;
+  uint32_t denominator = 32 * (chlen + 1); /* 32 for I2S mode */
+  uint32_t i2s_clk = 100000000UL;          /* 100 MHz PCLK4 */
+  uint32_t actual_sample_rate = i2s_clk / (denominator * divisor);
 
-    if (error < best_error) {
-      best_error = error;
-      best_mbr = test_mbr;
-      ULOG_INFO("I2S6: New best: MBR=%u, error=%u", best_mbr, best_error);
-    }
-  }
-
-  /* Force MBR=5 for 8000 Hz target to ensure we're within MAX98357 spec */
-  if (config->sample_rate == 8000) {
-    best_mbr = 5;
-    ULOG_INFO("I2S6: Forcing MBR=5 for 8000 Hz target (MAX98357 requires >= 8kHz)");
-  }
-
-  mbr_value = best_mbr;
-
-  /* Calculate actual bit clock frequency */
-  uint32_t actual_divider = 2 << mbr_value; /* 2^(mbr_value+1) */
-  uint32_t actual_bit_clock = pclk4_freq / actual_divider;
-  uint32_t actual_sample_rate = actual_bit_clock / frame_length;
-
-  ULOG_INFO("I2S6: Target %u Hz, MBR=%u (div by %u), BCLK=%u Hz, actual %u Hz", config->sample_rate, mbr_value,
-            actual_divider, actual_bit_clock, actual_sample_rate);
+  ULOG_INFO("I2S6: I2S configuration: I2SDIV=%u, ODD=%u, CHLEN=%u", i2sdiv, odd, chlen);
+  ULOG_INFO("I2S6: Target %u Hz, actual %u Hz, divisor=%u, denominator=%u", config->sample_rate, actual_sample_rate,
+            divisor, denominator);
 
   /* Configure SPI for polling mode - According to Table 436, in I2S mode:
    * - CFG1: Only TXDMAEN, RXDMAEN, FTHLV are usable
@@ -262,13 +249,18 @@ bool i2s6_lld_init(const i2s6_config_t* config) {
    * Other fields must be at reset values
    */
   /* CFG1: Set FIFO threshold to 1/4 full (FTHLV=0) for 16-bit data */
-  /* Set MBR for clock division */
-  SPI6->CFG1 = (mbr_value << 28) | (0x0 << 5); /* MBR = calculated value, FTHLV = 0 (1/4 full) */
+  /* Note: MBR field in CFG1 is NOT used in I2S mode, only in SPI mode */
+  /* According to Table 434, SPI6 has 8-byte FIFO (not 16-byte) */
+  /* For 16-bit data (2 bytes per sample), 8-byte FIFO = 4 samples capacity */
+  /* Set FTHLV to 1 (1/2 full) to trigger TXP when FIFO has space for 2 samples */
+  SPI6->CFG1 = (0x0 << 28) | (0x1 << 5); /* MBR = 0 (not used), FTHLV = 1 (1/2 full) */
 
-  /* CFG2: Set to reset value (0) as per Table 436 */
-  SPI6->CFG2 = 0;
+  /* CFG2: Configure for I2S mode with AFCNTR enabled for proper GPIO control */
+  /* According to user's documentation: Control of IOs with AFCNTR bit */
+  /* AFCNTR = 1: Alternate function GPIOs are controlled by the SPI/I2S peripheral */
+  SPI6->CFG2 = SPI_CFG2_AFCNTR; /* Enable AFCNTR for proper GPIO control */
 
-  ULOG_INFO("I2S6: CFG1=0x%08X, CFG2=0x%08X", SPI6->CFG1, SPI6->CFG2);
+  ULOG_INFO("I2S6: CFG1=0x%08X (FTHLV=1 for 8-byte FIFO), CFG2=0x%08X (AFCNTR enabled)", SPI6->CFG1, SPI6->CFG2);
 
   /* Clear status register by reading it */
   (void)SPI6->SR;
@@ -286,43 +278,47 @@ void i2s6_lld_enable(void) {
 
   ULOG_INFO("I2S6: Enabling peripheral");
 
+  /* Debug: Check clock configuration */
+  ULOG_INFO("I2S6: RCC_D3CCIPR=0x%08X", RCC->D3CCIPR);
+  ULOG_INFO("I2S6: RCC_APB4ENR=0x%08X", RCC->APB4ENR);
+  ULOG_INFO("I2S6: RCC_APB4RSTR=0x%08X", RCC->APB4RSTR);
+
+  /* Check if SPI6 is out of reset */
+  if (RCC->APB4RSTR & RCC_APB4RSTR_SPI6RST) {
+    ULOG_ERROR("I2S6: SPI6 is still in reset!");
+    RCC->APB4RSTR &= ~RCC_APB4RSTR_SPI6RST;
+    ULOG_INFO("I2S6: Cleared SPI6 reset bit");
+  }
+
   /* Enable SPI/I2S peripheral */
   SPI6->CR1 |= SPI_CR1_SPE;
   ULOG_INFO("I2S6: CR1 after SPE=0x%08X", SPI6->CR1);
 
-  /* MAX98357 startup sequence:
-   * According to datasheet, when SD_MODE=1 (TDM mode), we need:
-   * 1. 10μs delay after SD_MODE high before starting BCLK/LRCLK
-   * 2. LRCLK must start within 1/2 LRCLK period of BCLK
-   *
-   * Since SD_MODE is hardwired to 1 in hardware, we simulate this by
-   * adding a 10μs delay after enabling the peripheral.
+  /* Check I2S configuration */
+  ULOG_INFO("I2S6: I2SCFGR=0x%08X", SPI6->I2SCFGR);
+  ULOG_INFO("I2S6: CFG1=0x%08X", SPI6->CFG1);
+  ULOG_INFO("I2S6: CFG2=0x%08X", SPI6->CFG2);
+
+  /* MAX98357 startup sequence for I2S mode (SD_MODE=0):
+   * According to architecture documentation, SD_MODE is pulled-up (SD_MODE=0 for I2S mode)
+   * The only required sequence for startup is that LRCLK must start within 1/2 LRCLK period of BCLK starting.
+   * The STM32 I2S peripheral handles this automatically when we start transmission (CSTART).
    */
-  ULOG_INFO("I2S6: MAX98357 startup - waiting 10μs (SD_MODE=1 condition)");
-
-  /* Approximate 10μs delay at 200MHz HCLK3:
-   * 200MHz = 5ns per cycle
-   * 10μs = 2000 cycles
-   */
-  for (volatile uint32_t i = 0; i < 2000; i++) {
-    __asm__ volatile("nop");
-  }
-
-  /* Start transmission (CSTART) - This starts BCLK and LRCLK */
-  SPI6->CR1 |= SPI_CR1_CSTART;
-  ULOG_INFO("I2S6: CR1 after CSTART=0x%08X", SPI6->CR1);
-
-  /* Small delay after starting transmission */
-  for (volatile uint32_t i = 0; i < 100; i++) {
-  }
+  ULOG_INFO("I2S6: MAX98357 startup - I2S mode (SD_MODE=0), no delay needed");
 
   /* Check status register before filling FIFO */
-  ULOG_INFO("I2S6: Status after CSTART SR=0x%08X", SPI6->SR);
+  ULOG_INFO("I2S6: Status before filling FIFO SR=0x%08X", SPI6->SR);
 
-  /* According to programming example: Ensure TxFIFO is not empty before transmission starts */
+  /* According to STM32H7 reference manual: Ensure TxFIFO is not empty before transmission starts */
   /* Fill TxFIFO with several zero samples to avoid underrun */
-  /* FIFO is 16 entries deep, fill at least 4 samples (1/4 full threshold) */
-  for (int i = 0; i < 8; i++) {
+  /* According to Table 434, SPI6 has 8-byte FIFO (not 16-byte) */
+  /* For 16-bit stereo data (4 bytes per sample: 2 bytes left + 2 bytes right) */
+  /* 8-byte FIFO = 2 samples capacity */
+  /* With FTHLV=1 (1/2 full), TXP flag triggers when FIFO has space for 2 samples */
+  /* Fill with 1 sample (4 bytes) to ensure FIFO is not empty but not overfilled */
+  ULOG_INFO("I2S6: Filling 8-byte FIFO with 1 sample (4 bytes)");
+
+  for (int i = 0; i < 1; i++) {
     /* Wait for space in FIFO before writing */
     /* TXP flag indicates space available in TxFIFO (bit 1 of SPI_SR) */
     uint32_t sr = SPI6->SR;
@@ -351,6 +347,25 @@ void i2s6_lld_enable(void) {
   }
 
   ULOG_INFO("I2S6: Status after filling FIFO SR=0x%08X", SPI6->SR);
+
+  /* Start transmission (CSTART) - This starts BCLK and LRCLK */
+  /* IMPORTANT: Start transmission AFTER filling FIFO to avoid underrun */
+  SPI6->CR1 |= SPI_CR1_CSTART;
+  ULOG_INFO("I2S6: CR1 after CSTART=0x%08X", SPI6->CR1);
+
+  /* Small delay after starting transmission */
+  for (volatile uint32_t i = 0; i < 100; i++) {
+  }
+
+  /* Check status register after starting transmission */
+  ULOG_INFO("I2S6: Status after CSTART SR=0x%08X", SPI6->SR);
+
+  /* Additional debug: Check if CSTART bit is actually set */
+  if ((SPI6->CR1 & SPI_CR1_CSTART) == 0) {
+    ULOG_ERROR("I2S6: CSTART bit not set after enabling!");
+  } else {
+    ULOG_INFO("I2S6: CSTART bit successfully set");
+  }
 }
 
 void i2s6_lld_disable(void) {

@@ -566,7 +566,7 @@
                                      PIN_OSPEED_VERYLOW(GPIOB_SPI3_MOSI) |  \
                                      PIN_OSPEED_VERYLOW(GPIOB_SPI3_SCK) |   \
                                      PIN_OSPEED_VERYLOW(GPIOB_SPI3_MISO) |  \
-                                     PIN_OSPEED_VERYLOW(GPIOB_I2S6_SDO) |   \
+                                     PIN_OSPEED_HIGH(GPIOB_I2S6_SDO) |   \
                                      PIN_OSPEED_VERYLOW(GPIOB_I2C1_SCL) |   \
                                      PIN_OSPEED_VERYLOW(GPIOB_I2C1_SDA) |   \
                                      PIN_OSPEED_VERYLOW(GPIOB_FDCAN1_RX) |  \
@@ -1158,8 +1158,8 @@
                                      PIN_OSPEED_VERYLOW(GPIOG_SPI1_MISO) |  \
                                      PIN_OSPEED_VERYLOW(GPIOG_GPIO7) |      \
                                      PIN_OSPEED_HIGH(GPIOG_RMII_TX_EN) |    \
-                                     PIN_OSPEED_VERYLOW(GPIOG_I2S6_SDI) |   \
-                                     PIN_OSPEED_VERYLOW(GPIOG_I2S6_CK) |    \
+                                     PIN_OSPEED_HIGH(GPIOG_I2S6_SDI) |   \
+                                     PIN_OSPEED_HIGH(GPIOG_I2S6_CK) |    \
                                      PIN_OSPEED_HIGH(GPIOG_RMII_TXD1) |     \
                                      PIN_OSPEED_VERYLOW(GPIOG_PIN15))
 #define VAL_GPIOG_PUPDR             (PIN_PUPDR_PULLUP(GPIOG_PIN0) |         \

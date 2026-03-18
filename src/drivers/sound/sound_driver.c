@@ -15,11 +15,11 @@
 /* Debug logging */
 #include <ulog.h>
 
-/* Default configuration - Updated for MAX98357 TDM mode */
-/* Reduced to 8kHz for maximum polling performance - within MAX98357 spec */
+/* Default configuration - Updated for MAX98357 I2S mode */
+/* 16kHz sample rate according to architecture documentation */
 static const sound_config_t default_config = {
-    .sample_rate = 8000, /* 8 kHz - MAX98357 supports 8kHz in TDM mode, maximum polling performance */
-    .volume = 80,        /* 80% volume */
+    .sample_rate = 16000, /* 16 kHz - according to architecture documentation */
+    .volume = 80,         /* 80% volume */
     .stereo = true,
 };
 
@@ -32,14 +32,14 @@ static uint32_t buffer_position = 0;
 static bool is_playing = false;
 static bool is_initialized = false;
 
-/* I2S6 configuration - Updated for MAX98357 TDM mode (SD_MODE=1, GAIN_SLOT=0) */
+/* I2S6 configuration - Updated for MAX98357 I2S mode (SD_MODE=0, GAIN_SLOT=0) */
 static i2s6_config_t i2s_config = {
-    .sample_rate = 8000, /* 8 kHz - MAX98357 supports 8kHz in TDM mode, maximum polling performance */
+    .sample_rate = 16000, /* 16 kHz - according to architecture documentation */
     .data_bits = 16,
     .channel_bits = 16,
     .master_mode = true,
-    .i2s_standard = false, /* Not I2S - TDM mode uses frame sync */
-    .i2s_mode = false,     /* PCM mode for TDM */
+    .i2s_standard = true, /* I2S Philips standard */
+    .i2s_mode = true,     /* I2S mode (not PCM) */
 };
 
 /**
