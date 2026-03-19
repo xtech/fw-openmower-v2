@@ -54,8 +54,11 @@ static bool i2s6_initialized = false;
  * We need to find I2SDIV and ODD such that F_WS is as close as possible to desired sample rate.
  */
 static uint32_t calculate_i2s_prescaler(uint32_t sample_rate, uint8_t channel_bits) {
-  // PCLK4 frequency for D3 domain (from mcuconf.h)
-  const uint32_t i2s_clk = 100000000UL;  // 100 MHz PCLK4
+  // PCLK4 frequency for D3 domain (from mcuconf.h and board configuration)
+  // HSE = 25MHz, PLL1: M=2, N=44, P=1 → 550MHz
+  // HCLK3 = 550MHz / 2 = 275MHz (D1HPRE = DIV2)
+  // PCLK4 = HCLK3 / 2 = 137.5MHz (D3PPRE4 = DIV2)
+  const uint32_t i2s_clk = 137500000UL;  // 137.5 MHz PCLK4
 
   // CHLEN value: 0 for 16-bit, 1 for 32-bit
   uint32_t chlen = (channel_bits == 32) ? 1 : 0;
@@ -63,8 +66,7 @@ static uint32_t calculate_i2s_prescaler(uint32_t sample_rate, uint8_t channel_bi
   // Calculate denominator: 32 × (CHLEN + 1) for I2S mode
   uint32_t denominator = 32 * (chlen + 1);
 
-  ULOG_INFO("I2S6: I2S prescaler calculation: target=%u Hz, i2s_clk=%u Hz, CHLEN=%u, denominator=%u", sample_rate,
-            i2s_clk, chlen, denominator);
+  ULOG_INFO("I2S6: Prescaler calc: target=%u Hz, i2s_clk=%u Hz, CHLEN=%u", sample_rate, i2s_clk, chlen);
 
   // Find best I2SDIV and ODD values
   uint32_t best_i2sdiv = 0;
@@ -94,21 +96,18 @@ static uint32_t calculate_i2s_prescaler(uint32_t sample_rate, uint8_t channel_bi
         best_i2sdiv = i2sdiv;
         best_odd = odd;
         best_actual_rate = actual_rate;
-
-        ULOG_INFO("I2S6: New best: I2SDIV=%u, ODD=%u, divisor=%u, actual=%u Hz, error=%u", best_i2sdiv, best_odd,
-                  divisor, best_actual_rate, best_error);
       }
 
       // If we found an exact match, break early
       if (error == 0) {
-        ULOG_INFO("I2S6: Found exact match: I2SDIV=%u, ODD=%u", i2sdiv, odd);
+        ULOG_INFO("I2S6: Exact match: I2SDIV=%u, ODD=%u, actual=%u Hz", i2sdiv, odd, actual_rate);
         return (i2sdiv << 16) | (odd << 24);
       }
     }
   }
 
-  ULOG_INFO("I2S6: Best I2S prescaler: I2SDIV=%u, ODD=%u, actual=%u Hz, error=%u", best_i2sdiv, best_odd,
-            best_actual_rate, best_error);
+  ULOG_INFO("I2S6: Best prescaler: I2SDIV=%u, ODD=%u, actual=%u Hz (error=%u)", best_i2sdiv, best_odd, best_actual_rate,
+            best_error);
 
   // Return prescaler value with I2SDIV in bits 16-23 and ODD in bit 24
   return (best_i2sdiv << 16) | (best_odd << 24);
@@ -236,12 +235,11 @@ bool i2s6_lld_init(const i2s6_config_t* config) {
   uint32_t chlen = (config->channel_bits == 32) ? 1 : 0;
   uint32_t divisor = (2 * i2sdiv) + odd;
   uint32_t denominator = 32 * (chlen + 1); /* 32 for I2S mode */
-  uint32_t i2s_clk = 100000000UL;          /* 100 MHz PCLK4 */
+  uint32_t i2s_clk = 137500000UL;          /* 137.5 MHz PCLK4 */
   uint32_t actual_sample_rate = i2s_clk / (denominator * divisor);
 
-  ULOG_INFO("I2S6: I2S configuration: I2SDIV=%u, ODD=%u, CHLEN=%u", i2sdiv, odd, chlen);
-  ULOG_INFO("I2S6: Target %u Hz, actual %u Hz, divisor=%u, denominator=%u", config->sample_rate, actual_sample_rate,
-            divisor, denominator);
+  ULOG_INFO("I2S6: Config: I2SDIV=%u, ODD=%u, target=%u Hz, actual=%u Hz", i2sdiv, odd, config->sample_rate,
+            actual_sample_rate);
 
   /* Configure SPI for polling mode - According to Table 436, in I2S mode:
    * - CFG1: Only TXDMAEN, RXDMAEN, FTHLV are usable
@@ -467,45 +465,42 @@ uint32_t i2s6_lld_get_status(void) {
 }
 
 /**
- * @brief Simple sine wave generator for test tone
+ * @brief Simple sine wave generator for test tone using fixed-point phase
  */
-static int16_t generate_sine_sample(uint32_t phase, uint32_t frequency, uint32_t sample_rate) {
-  /* Simple sine approximation using fixed-point math */
-  static const int16_t sine_table[] = {
+static int16_t generate_sine_sample_fp(uint32_t phase) {
+  /* 64-entry sine table (one full period) */
+  static const int16_t sine_table[64] = {
       0,      3212,   6393,   9512,   12540,  15446,  18205,  20787,  23170,  25330,  27246,  28899,  30273,
       31357,  32138,  32610,  32767,  32610,  32138,  31357,  30273,  28899,  27246,  25330,  23170,  20787,
       18205,  15446,  12540,  9512,   6393,   3212,   0,      -3212,  -6393,  -9512,  -12540, -15446, -18205,
       -20787, -23170, -25330, -27246, -28899, -30273, -31357, -32138, -32610, -32767, -32610, -32138, -31357,
       -30273, -28899, -27246, -25330, -23170, -20787, -18205, -15446, -12540, -9512,  -6393,  -3212};
 
-  /* Calculate phase increment per sample */
-  uint32_t phase_increment = (frequency * 64) / sample_rate;
-
-  /* Get phase index (0-63) */
-  uint32_t phase_index = (phase / phase_increment) & 0x3F;
+  /* Extract table index from upper 6 bits of phase (after the 16-bit fractional part) */
+  uint32_t phase_index = (phase >> 16) & 0x3F;
 
   return sine_table[phase_index];
 }
 
 /**
- * @brief Test function: Generate 440Hz sine wave
+ * @brief Test function: Generate 440Hz sine wave using fixed-point phase
  */
 void i2s6_test_tone_440hz(void) {
   static uint32_t phase = 0;
   const uint32_t frequency = 440; /* 440 Hz */
   const uint32_t sample_rate = 44100;
 
-  /* Generate sine wave sample */
-  int16_t sample = generate_sine_sample(phase, frequency, sample_rate);
+  /* Calculate phase increment using 16.16 fixed-point arithmetic */
+  static uint32_t phase_increment = ((uint64_t)frequency * 64 * 65536) / sample_rate;
+
+  /* Generate sine wave sample using fixed-point phase */
+  int16_t sample = generate_sine_sample_fp(phase);
 
   /* Send same sample to both channels (mono) */
   i2s6_lld_send_sample(sample, sample);
 
-  /* Update phase */
-  phase++;
-  if (phase >= (sample_rate * 64 / frequency)) {
-    phase = 0;
-  }
+  /* Update phase (wraps automatically due to 32-bit overflow) */
+  phase += phase_increment;
 }
 
 /**

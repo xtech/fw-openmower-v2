@@ -57,23 +57,26 @@ static int16_t apply_volume(int16_t sample, uint8_t volume) {
 }
 
 /**
- * @brief Generate sine wave sample
+ * @brief Generate sine wave sample using fixed-point phase accumulator
+ *
+ * Uses a 64-entry sine lookup table with 16.16 fixed-point phase accumulator
+ * for smooth frequency generation at any sample rate.
+ *
+ * @param phase 16.16 fixed-point phase (upper 6 bits after fractional part = table index)
+ * @return Sine wave sample value (-32767 to +32767)
  */
-static int16_t generate_sine_sample(uint32_t phase, uint32_t frequency, uint32_t sample_rate) {
-  /* Simple sine approximation using fixed-point math */
-  static const int16_t sine_table[] = {
+static int16_t generate_sine_sample_fp(uint32_t phase) {
+  /* 64-entry sine table (one full period) */
+  static const int16_t sine_table[64] = {
       0,      3212,   6393,   9512,   12540,  15446,  18205,  20787,  23170,  25330,  27246,  28899,  30273,
       31357,  32138,  32610,  32767,  32610,  32138,  31357,  30273,  28899,  27246,  25330,  23170,  20787,
       18205,  15446,  12540,  9512,   6393,   3212,   0,      -3212,  -6393,  -9512,  -12540, -15446, -18205,
       -20787, -23170, -25330, -27246, -28899, -30273, -31357, -32138, -32610, -32767, -32610, -32138, -31357,
       -30273, -28899, -27246, -25330, -23170, -20787, -18205, -15446, -12540, -9512,  -6393,  -3212};
 
-  /* Calculate phase increment per sample */
-  uint32_t phase_increment = (frequency * 64) / sample_rate;
-  if (phase_increment == 0) phase_increment = 1;
-
-  /* Get phase index (0-63) */
-  uint32_t phase_index = (phase / phase_increment) & 0x3F;
+  /* Extract table index from upper 6 bits of phase (after the 16-bit fractional part) */
+  /* Phase is 16.16 fixed point, we want bits 16-21 for the 64-entry table index */
+  uint32_t phase_index = (phase >> 16) & 0x3F;
 
   return sine_table[phase_index];
 }
@@ -207,11 +210,16 @@ void sound_beep(uint32_t frequency, uint32_t duration_ms, uint8_t volume) {
 
   /* Calculate number of samples */
   uint32_t num_samples = (current_config.sample_rate * duration_ms) / 1000;
-  uint32_t phase = 0;
-  uint32_t phase_increment = (frequency * 64) / current_config.sample_rate;
-  if (phase_increment == 0) phase_increment = 1;
 
-  ULOG_INFO("Sound: Generating %u samples, phase_increment=%u", num_samples, phase_increment);
+  /* Calculate phase increment using 16.16 fixed-point arithmetic
+   * phase_increment = (frequency * 64 * 65536) / sample_rate
+   * This gives us the amount to add to phase each sample to achieve the desired frequency
+   * The "64" is because we have a 64-entry sine table, and 65536 is for 16-bit fractional part
+   */
+  uint32_t phase = 0;
+  uint32_t phase_increment = ((uint64_t)frequency * 64 * 65536) / current_config.sample_rate;
+
+  ULOG_INFO("Sound: Generating %u samples, phase_increment=0x%08X", num_samples, phase_increment);
 
   /* Temporary volume override */
   uint8_t original_volume = current_config.volume;
@@ -222,8 +230,8 @@ void sound_beep(uint32_t frequency, uint32_t duration_ms, uint8_t volume) {
 
   /* Generate and play beep - use fast version for performance */
   for (uint32_t i = 0; i < num_samples; i++) {
-    /* Generate sine wave sample */
-    int16_t sample = generate_sine_sample(phase, frequency, current_config.sample_rate);
+    /* Generate sine wave sample using fixed-point phase */
+    int16_t sample = generate_sine_sample_fp(phase);
 
     /* Apply volume */
     sample = apply_volume(sample, current_config.volume);
@@ -235,11 +243,8 @@ void sound_beep(uint32_t frequency, uint32_t duration_ms, uint8_t volume) {
       i2s6_lld_send_sample_fast(sample, 0);
     }
 
-    /* Update phase */
+    /* Update phase (wraps automatically due to 32-bit overflow) */
     phase += phase_increment;
-    if (phase >= (current_config.sample_rate * 64 / frequency)) {
-      phase = 0;
-    }
   }
 
   /* Restore original volume */
@@ -248,22 +253,22 @@ void sound_beep(uint32_t frequency, uint32_t duration_ms, uint8_t volume) {
 }
 
 void sound_test_tone(void) {
-  ULOG_INFO("Sound: Playing test tone (440Hz, 1m, 90% volume)");
-  sound_beep(440, 60000, 90); /* 440Hz for 1 minute at 90% volume */
+  ULOG_INFO("Sound: Playing test tone (440Hz, 1s, 90%% volume)");
+  sound_beep(440, 1000, 90); /* 440Hz for 1 second at 90% volume */
 }
 
 void sound_error_beep(void) {
-  ULOG_INFO("Sound: Playing error beep (1000Hz, 200ms, 90% volume)");
+  ULOG_INFO("Sound: Playing error beep (1000Hz, 200ms, 90%% volume)");
   sound_beep(1000, 200, 90); /* High-pitched short beep */
 }
 
 void sound_success_beep(void) {
-  ULOG_INFO("Sound: Playing success beep (300Hz, 300ms, 80% volume)");
+  ULOG_INFO("Sound: Playing success beep (300Hz, 300ms, 80%% volume)");
   sound_beep(300, 300, 80); /* Low-pitched medium beep */
 }
 
 void sound_warning_beep(void) {
-  ULOG_INFO("Sound: Playing warning beep (two 600Hz, 150ms, 85% volume)");
+  ULOG_INFO("Sound: Playing warning beep (two 600Hz, 150ms, 85%% volume)");
   /* Two short beeps */
   sound_beep(600, 150, 85);
 
