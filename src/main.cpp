@@ -19,7 +19,7 @@
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
-#include "drivers/sound/sound_driver.h"
+#include "drivers/sound/sound_driver.hpp"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
@@ -128,8 +128,9 @@ int main() {
   SetStatusLedColor(GREEN);
 
   // Sound driver test - play demo sequence
-  // sound_demo();
-  sound_test_tone();
+  sound::demo();
+  sound::demo();
+  //  sound::test_tone();
 
   DispatchEvents();
 }

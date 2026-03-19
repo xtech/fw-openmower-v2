@@ -1,23 +1,34 @@
 /*
- * i2s6_lld.c - I2S6 Low-Level Driver for STM32H723
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
  *
- * This is a minimal polling-based I2S driver for SPI6 (I2S6) on STM32H723.
- * Designed to work with MAX98357 PCM/I2S Class D amplifier.
+ * Copyright (C) 2026 The OpenMower Contributors
  *
- * Copyright (c) 2025 OpenMower Project
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "i2s6_lld.h"
+/**
+ * @file i2s6_lld.cpp
+ * @brief I2S6 is a minimal Low-Level Driver for STM32H723, designed to work with MAX98357 PCM/I2S Class D amplifier
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2026-03-19
+ */
 
-#include <stddef.h>
-#include <stdlib.h>
+#include "i2s6_lld.hpp"
+
 #include <ulog.h>
 
+#include <cstddef>
+#include <cstdlib>
+
 #include "hal.h"
+#include "sound_samples.hpp"
 #include "stm32_gpio.h"
 
-/* Use ChibiOS STM32H7 register definitions */
+// Use ChibiOS STM32H7 register definitions
 #include "stm32h7xx.h"
+
+namespace xbot::driver::sound::i2s6 {
 
 /* SPI6 is already defined in stm32h723xx.h as ((SPI_TypeDef *) SPI6_BASE) */
 /* RCC macros are already defined in ChibiOS headers */
@@ -113,7 +124,7 @@ static uint32_t calculate_i2s_prescaler(uint32_t sample_rate, uint8_t channel_bi
   return (best_i2sdiv << 16) | (best_odd << 24);
 }
 
-bool i2s6_lld_init(const i2s6_config_t* config) {
+bool init(const i2s6_config_t* config) {
   if (config == NULL) {
     config = &default_config;
   }
@@ -269,9 +280,9 @@ bool i2s6_lld_init(const i2s6_config_t* config) {
   return true;
 }
 
-void i2s6_lld_enable(void) {
+void enable(void) {
   if (!i2s6_initialized) {
-    i2s6_lld_init(NULL);
+    init(NULL);
   }
 
   ULOG_INFO("I2S6: Enabling peripheral");
@@ -366,7 +377,7 @@ void i2s6_lld_enable(void) {
   }
 }
 
-void i2s6_lld_disable(void) {
+void disable(void) {
   /* Stop transmission */
   SPI6->CR1 &= ~SPI_CR1_CSTART;
 
@@ -374,7 +385,7 @@ void i2s6_lld_disable(void) {
   SPI6->CR1 &= ~SPI_CR1_SPE;
 }
 
-bool i2s6_lld_tx_ready(void) {
+bool tx_ready(void) {
   /* Check if transmit buffer is empty */
   uint32_t sr = SPI6->SR;
 
@@ -392,7 +403,7 @@ bool i2s6_lld_tx_ready(void) {
 }
 
 /* Optimized version without logging for performance-critical paths */
-static bool i2s6_lld_tx_ready_fast(void) {
+static bool tx_ready_fast(void) {
   /* Check if transmit buffer is empty - minimal version */
   uint32_t sr = SPI6->SR;
 
@@ -405,9 +416,9 @@ static bool i2s6_lld_tx_ready_fast(void) {
   return (sr & SPI_SR_TXP) != 0;
 }
 
-void i2s6_lld_send_sample(int16_t left_sample, int16_t right_sample) {
+void send_sample(int16_t left_sample, int16_t right_sample) {
   /* Wait for transmit buffer to be empty - optimized version */
-  while (!i2s6_lld_tx_ready_fast()) {
+  while (!tx_ready_fast()) {
     /* Busy wait - minimal overhead */
   }
 
@@ -425,7 +436,7 @@ void i2s6_lld_send_sample(int16_t left_sample, int16_t right_sample) {
 }
 
 /* Optimized version for high-performance audio playback */
-void i2s6_lld_send_sample_fast(int16_t left_sample, int16_t right_sample) {
+void send_sample_fast(int16_t left_sample, int16_t right_sample) {
   /* Wait for transmit buffer to be empty - ultra-fast version */
   while (!(SPI6->SR & SPI_SR_TXP)) {
     /* Busy wait - check only TXP flag */
@@ -440,9 +451,9 @@ void i2s6_lld_send_sample_fast(int16_t left_sample, int16_t right_sample) {
   SPI6->TXDR = ((uint32_t)right_sample << 16) | ((uint32_t)left_sample & 0xFFFF);
 }
 
-void i2s6_lld_send_sample_32(int32_t left_sample, int32_t right_sample) {
+void send_sample_32(int32_t left_sample, int32_t right_sample) {
   /* Wait for transmit buffer to be empty */
-  while (!i2s6_lld_tx_ready()) {
+  while (!tx_ready()) {
     /* Busy wait */
   }
 
@@ -453,39 +464,21 @@ void i2s6_lld_send_sample_32(int32_t left_sample, int32_t right_sample) {
   SPI6->TXDR = (uint32_t)right_sample;
 
   /* Wait for next transmit buffer to be empty */
-  while (!i2s6_lld_tx_ready()) {
+  while (!tx_ready()) {
     /* Busy wait */
   }
 
   SPI6->TXDR = (uint32_t)left_sample;
 }
 
-uint32_t i2s6_lld_get_status(void) {
+uint32_t get_status(void) {
   return SPI6->SR;
-}
-
-/**
- * @brief Simple sine wave generator for test tone using fixed-point phase
- */
-static int16_t generate_sine_sample_fp(uint32_t phase) {
-  /* 64-entry sine table (one full period) */
-  static const int16_t sine_table[64] = {
-      0,      3212,   6393,   9512,   12540,  15446,  18205,  20787,  23170,  25330,  27246,  28899,  30273,
-      31357,  32138,  32610,  32767,  32610,  32138,  31357,  30273,  28899,  27246,  25330,  23170,  20787,
-      18205,  15446,  12540,  9512,   6393,   3212,   0,      -3212,  -6393,  -9512,  -12540, -15446, -18205,
-      -20787, -23170, -25330, -27246, -28899, -30273, -31357, -32138, -32610, -32767, -32610, -32138, -31357,
-      -30273, -28899, -27246, -25330, -23170, -20787, -18205, -15446, -12540, -9512,  -6393,  -3212};
-
-  /* Extract table index from upper 6 bits of phase (after the 16-bit fractional part) */
-  uint32_t phase_index = (phase >> 16) & 0x3F;
-
-  return sine_table[phase_index];
 }
 
 /**
  * @brief Test function: Generate 440Hz sine wave using fixed-point phase
  */
-void i2s6_test_tone_440hz(void) {
+void test_tone_440hz(void) {
   static uint32_t phase = 0;
   const uint32_t frequency = 440; /* 440 Hz */
   const uint32_t sample_rate = 44100;
@@ -494,10 +487,10 @@ void i2s6_test_tone_440hz(void) {
   static uint32_t phase_increment = ((uint64_t)frequency * 64 * 65536) / sample_rate;
 
   /* Generate sine wave sample using fixed-point phase */
-  int16_t sample = generate_sine_sample_fp(phase);
+  int16_t sample = xbot::driver::sound::samples::generate_sine_sample_fp(phase);
 
   /* Send same sample to both channels (mono) */
-  i2s6_lld_send_sample(sample, sample);
+  send_sample(sample, sample);
 
   /* Update phase (wraps automatically due to 32-bit overflow) */
   phase += phase_increment;
@@ -506,7 +499,7 @@ void i2s6_test_tone_440hz(void) {
 /**
  * @brief Test function: Generate square wave
  */
-void i2s6_test_square_wave(void) {
+void test_square_wave(void) {
   static bool high = true;
   static uint32_t counter = 0;
   const uint32_t sample_rate = 44100;
@@ -516,7 +509,7 @@ void i2s6_test_square_wave(void) {
   int16_t sample = high ? 30000 : -30000;
 
   /* Send same sample to both channels (mono) */
-  i2s6_lld_send_sample(sample, sample);
+  send_sample(sample, sample);
 
   /* Update counter and toggle state */
   counter++;
@@ -530,27 +523,29 @@ void i2s6_test_square_wave(void) {
  * @brief Simple test function to verify I2S6 functionality
  * This function should be called in a loop to generate continuous audio
  */
-void i2s6_test_continuous(void) {
+void test_continuous(void) {
   /* Initialize I2S6 if not already done */
   if (!i2s6_initialized) {
-    i2s6_lld_init(NULL);
-    i2s6_lld_enable();
+    init(NULL);
+    enable();
   }
 
   /* Generate test tone */
-  i2s6_test_tone_440hz();
+  test_tone_440hz();
 }
 
 /**
  * @brief Simple test function with square wave
  */
-void i2s6_test_square_wave_continuous(void) {
+void test_square_wave_continuous(void) {
   /* Initialize I2S6 if not already done */
   if (!i2s6_initialized) {
-    i2s6_lld_init(NULL);
-    i2s6_lld_enable();
+    init(NULL);
+    enable();
   }
 
   /* Generate square wave */
-  i2s6_test_square_wave();
+  test_square_wave();
 }
+
+}  // namespace xbot::driver::sound::i2s6

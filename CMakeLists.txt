@@ -112,8 +112,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/input/worx_input_driver.cpp
         $<$<BOOL:${DEBUG_BUILD}>:src/drivers/input/simulated_input_driver.cpp>
         # Sound
-        src/drivers/sound/i2s6_lld.c
-        src/drivers/sound/sound_driver.c
+        src/drivers/sound/i2s6_lld.cpp
+        src/drivers/sound/sound_driver.cpp
         # Sabo driver
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp

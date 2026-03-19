@@ -1,9 +1,17 @@
 /*
- * sound_driver.h - High-Level Sound Driver for STM32H723 with MAX98357
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
  *
- * This provides a simple API for audio playback using I2S6.
+ * Copyright (C) 2026 The OpenMower Contributors
  *
- * Copyright (c) 2025 OpenMower Project
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/**
+ * @file sound_driver.hpp
+ * @brief High-Level Sound Driver for STM32H723 with MAX98357
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2026-03-19
  */
 
 #ifndef SOUND_DRIVER_H
@@ -12,9 +20,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace xbot::driver::sound {
 
 /**
  * @brief Sound driver configuration
@@ -40,24 +46,24 @@ typedef struct {
  * @param config Configuration (NULL for defaults)
  * @return true if successful, false otherwise
  */
-bool sound_init(const sound_config_t* config);
+bool init(const sound_config_t* config);
 
 /**
  * @brief Start audio playback
  */
-void sound_start(void);
+void start(void);
 
 /**
  * @brief Stop audio playback
  */
-void sound_stop(void);
+void stop(void);
 
 /**
  * @brief Set volume level
  *
  * @param volume Volume level (0-100)
  */
-void sound_set_volume(uint8_t volume);
+void set_volume(uint8_t volume);
 
 /**
  * @brief Play audio buffer
@@ -65,7 +71,7 @@ void sound_set_volume(uint8_t volume);
  * @param buffer Audio buffer to play
  * @note This is a blocking call for simple polling mode
  */
-void sound_play_buffer(const audio_buffer_t* buffer);
+void play_buffer(const audio_buffer_t* buffer);
 
 /**
  * @brief Play simple beep
@@ -74,51 +80,54 @@ void sound_play_buffer(const audio_buffer_t* buffer);
  * @param duration_ms Duration in milliseconds
  * @param volume Volume (0-100)
  */
-void sound_beep(uint32_t frequency, uint32_t duration_ms, uint8_t volume);
+void beep(uint32_t frequency, uint32_t duration_ms, uint8_t volume);
 
 /**
  * @brief Play test tone (440Hz)
  */
-void sound_test_tone(void);
+void test_tone(void);
 
 /**
  * @brief Play error beep (short high-pitched beep)
  */
-void sound_error_beep(void);
+void error_beep(void);
 
 /**
  * @brief Play success beep (short low-pitched beep)
  */
-void sound_success_beep(void);
+void success_beep(void);
 
 /**
  * @brief Play warning beep (two short beeps)
  */
-void sound_warning_beep(void);
+void warning_beep(void);
 
 /**
  * @brief Check if sound is currently playing
  *
  * @return true if playing, false if idle
  */
-bool sound_is_playing(void);
+bool is_playing(void);
 
 /**
  * @brief Simple polling-based audio playback handler
  *
  * This should be called in the main loop for continuous playback
  */
-void sound_poll(void);
+void poll(void);
 
 /**
  * @brief Simple demonstration of sound driver
  *
  * Plays a sequence of beeps and a test tone
  */
-void sound_demo(void);
+void demo(void);
 
-#ifdef __cplusplus
-}
+/**
+ * @brief Generate simple test tone (440Hz, 1 second)
+ */
+void play_test_tone(void);
+
+}  // namespace xbot::driver::sound
+
 #endif
-
-#endif /* SOUND_DRIVER_H */
