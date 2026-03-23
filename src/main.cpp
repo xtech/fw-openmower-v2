@@ -19,7 +19,7 @@
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
-#include "drivers/sound/sound_driver.hpp"
+#include "drivers/sound/sound_player.hpp"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
@@ -127,10 +127,24 @@ int main() {
 
   SetStatusLedColor(GREEN);
 
-  // Sound driver test - play demo sequence
-  sound::demo();
-  sound::demo();
-  //  sound::test_tone();
+  sound::player_init();
+  sound::play_sound_id(sound::SoundId::BOOT);
+  chThdSleep(TIME_MS2I(500));
+  sound::play_sound_id(sound::SoundId::CHARGING_DONE);
+  chThdSleep(TIME_MS2I(500));
+  sound::play_sound_id(sound::SoundId::CHARGING_START);
+  chThdSleep(TIME_MS2I(500));
+  sound::play_sound_id(sound::SoundId::COUNT);
+  chThdSleep(TIME_MS2I(500));
+  sound::play_sound_id(sound::SoundId::EMERGENCY);
+  chThdSleep(TIME_MS2I(500));
+  sound::play_sound_id(sound::SoundId::LOW_BATTERY);
+  chThdSleep(TIME_MS2I(500));
+  sound::play_sound_id(sound::SoundId::SUCCESS);
+  chThdSleep(TIME_MS2I(500));
+  sound::play_sound_id(sound::SoundId::WARNING);
+  chThdSleep(TIME_MS2I(500));
+  sound::play_sound_id(sound::SoundId::ERROR);
 
   DispatchEvents();
 }
