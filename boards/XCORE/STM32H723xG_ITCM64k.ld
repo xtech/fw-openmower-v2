@@ -125,6 +125,15 @@ SECTIONS
         . = ALIGN(4);
         __eth_end__ = .;
     } > ETH_RAM
+
+    /* SRAM4 (D3 domain) — accessible by BDMA only.
+     * Audio DMA buffers that must reside here use __attribute__((section(".sram4"))). */
+    .sram4 (NOLOAD) : ALIGN(4)
+    {
+        *(.sram4)
+        *(.sram4.*)
+        . = ALIGN(4);
+    } > ram4
 }
 
 /* Code rules inclusion.*/

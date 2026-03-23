@@ -422,6 +422,15 @@
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
 
 /*
+ * I2S driver (SPI6 in I2S master TX mode, D3 domain, BDMA).
+ */
+#define STM32_I2S_USE_SPI6                  TRUE
+#define STM32_I2S_SPI6_TX_BDMA_STREAM       STM32_BDMA_STREAM_ID_ANY
+#define STM32_I2S_SPI6_BDMA_PRIORITY        1
+#define STM32_I2S_SPI6_IRQ_PRIORITY         10
+#define STM32_I2S_DMA_ERROR_HOOK(i2sp)      osalSysHalt("DMA failure")
+
+/*
  * ST driver system settings.
  */
 #define STM32_ST_IRQ_PRIORITY               8

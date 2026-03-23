@@ -12,338 +12,266 @@
  * @brief High-Level Sound Driver for STM32H723 with MAX98357
  * @author Apehaenger <joerg@ebeling.ws>
  * @date 2026-03-19
+ *
+ * @note  Audio playback is driven by BDMA via the ChibiOS I2S HAL (I2SD6).
+ *        The DMA buffer resides in SRAM4 (D3 domain) as required by BDMA.
+ *        Blocking calls (beep, play_buffer) suspend the calling thread and
+ *        resume it from the BDMA end-of-buffer ISR callback.
  */
 
 #include "sound_driver.hpp"
 
-#include <cstddef>
-
-#include "i2s6_lld.hpp"
-#include "sound_samples.hpp"
-
-/* Debug logging */
 #include <ulog.h>
+
+#include "hal.h"
+#include "sound_samples.hpp"
 
 namespace xbot::driver::sound {
 
-/* Default configuration - Updated for MAX98357 I2S mode */
-/* 16kHz sample rate according to architecture documentation */
-static const sound_config_t default_config = {
-    .sample_rate = 16000, /* 16 kHz - according to architecture documentation */
-    .volume = 80,         /* 80% volume */
-    .stereo = true,
+/*===========================================================================*/
+/* Driver constants.                                                         */
+/*===========================================================================*/
+
+/** Total int16_t elements in the double-buffer (two halves for DMA ping-pong). */
+static constexpr size_t SOUND_BUFFER_SIZE = 1024U;
+/** Elements per DMA half (512 = 256 stereo frames = 16 ms at 16 kHz). */
+static constexpr size_t SOUND_HALF_SIZE = SOUND_BUFFER_SIZE / 2U;
+
+/*===========================================================================*/
+/* DMA buffer — MUST reside in SRAM4 (D3 domain) for BDMA.                  */
+/*===========================================================================*/
+
+static int16_t audio_buffer[SOUND_BUFFER_SIZE] __attribute__((section(".sram4")));
+
+/*===========================================================================*/
+/* I2S configuration and driver state.                                       */
+/*===========================================================================*/
+
+static void i2s_end_cb(I2SDriver *i2sp);
+
+static I2SConfig i2s_cfg = {
+    /* tx_buffer / rx_buffer / size / end_cb come first (portable fields). */
+    .tx_buffer = audio_buffer,
+    .rx_buffer = nullptr,
+    .size = SOUND_BUFFER_SIZE,
+    .end_cb = i2s_end_cb,
+    /* LLD-specific fields (from i2s_lld_config_fields). */
+    .sample_rate = 16000U,
+    .i2scfgr = 0U, /* Philips, DATLEN=16-bit, CHLEN=16-bit */
 };
 
-/* Current configuration */
-static sound_config_t current_config = default_config;
+/*===========================================================================*/
+/* Playback state (shared between thread and ISR callback).                  */
+/*===========================================================================*/
 
-/* Current playback state */
-static const audio_buffer_t* current_buffer = NULL;
-static uint32_t buffer_position = 0;
-static bool playing_state = false;
+enum class PlayMode : uint8_t { NONE, TONE, BUFFER };
+
+static struct {
+  PlayMode mode;
+  /* TONE fields */
+  uint32_t phase;
+  uint32_t phase_increment;
+  uint32_t samples_remaining;
+  /* BUFFER fields */
+  const audio_buffer_t *buffer;
+  uint32_t buffer_pos;
+  /* Common */
+  uint8_t volume;
+} playback;
+
+static sound_config_t current_config = {.sample_rate = 16000U, .volume = 80U, .stereo = true};
 static bool is_initialized = false;
+static bool signal_pending = false;
+static binary_semaphore_t done_sem;
 
-/* I2S6 configuration - Updated for MAX98357 I2S mode (SD_MODE=0, GAIN_SLOT=0) */
-static i2s6_config_t i2s_config = {
-    .sample_rate = 16000, /* 16 kHz - according to architecture documentation */
-    .data_bits = 16,
-    .channel_bits = 16,
-    .master_mode = true,
-    .i2s_standard = true, /* I2S Philips standard */
-    .i2s_mode = true,     /* I2S mode (not PCM) */
-};
+/*===========================================================================*/
+/* Internal helpers.                                                         */
+/*===========================================================================*/
 
-bool init(const sound_config_t* config) {
-  ULOG_INFO("Sound: Initializing sound driver");
+/**
+ * @brief   Fill @p count int16_t slots (stereo L+R pairs) from the current
+ *          playback source.  Writes silence once the source is exhausted and
+ *          marks playback.mode = NONE on the first exhausted half.
+ */
+static void fill_half(int16_t *buf, size_t count) {
+  for (size_t i = 0U; i < count; i += 2U) {
+    int16_t sample = 0;
 
-  if (config != NULL) {
+    if (playback.mode == PlayMode::TONE) {
+      if (playback.samples_remaining > 0U) {
+        sample = samples::generate_sine_sample_fp(playback.phase);
+        sample = samples::apply_volume(sample, playback.volume);
+        playback.phase += playback.phase_increment;
+        --playback.samples_remaining;
+      } else {
+        playback.mode = PlayMode::NONE;
+      }
+
+    } else if (playback.mode == PlayMode::BUFFER && playback.buffer != nullptr) {
+      if (playback.buffer_pos < playback.buffer->length) {
+        sample = playback.buffer->data[playback.buffer_pos];
+        sample = samples::apply_volume(sample, playback.volume);
+        ++playback.buffer_pos;
+        if (playback.buffer->loop && playback.buffer_pos >= playback.buffer->length) {
+          playback.buffer_pos = 0U;
+        }
+      } else {
+        playback.mode = PlayMode::NONE;
+      }
+    }
+
+    buf[i] = sample;     /* Left  channel */
+    buf[i + 1] = sample; /* Right channel */
+  }
+}
+
+/**
+ * @brief   I2S BDMA end-of-half / end-of-buffer callback (ISR context).
+ *
+ * @details Called by the portable ChibiOS I2S layer:
+ *            - HTIF (half done, state=I2S_ACTIVE)    → refill second half
+ *            - TCIF (full done, state=I2S_COMPLETE)  → refill first half
+ */
+static void i2s_end_cb(I2SDriver *i2sp) {
+  /* Determine which half the DMA just finished playing and needs refilling. */
+  int16_t *half = i2sIsBufferComplete(i2sp) ? audio_buffer                      /* TCIF: refill first half  */
+                                            : (audio_buffer + SOUND_HALF_SIZE); /* HTIF: refill second half */
+
+  fill_half(half, SOUND_HALF_SIZE);
+
+  /* Signal the blocked thread once when the source is exhausted. */
+  if (playback.mode == PlayMode::NONE && !signal_pending) {
+    signal_pending = true;
+    chSysLockFromISR();
+    chBSemSignalI(&done_sem);
+    chSysUnlockFromISR();
+  }
+}
+
+/*===========================================================================*/
+/* Public API.                                                               */
+/*===========================================================================*/
+
+bool init(const sound_config_t *config) {
+  if (config != nullptr) {
     current_config = *config;
-    ULOG_INFO("Sound: Using custom config: sample_rate=%u, volume=%u, stereo=%s", current_config.sample_rate,
-              current_config.volume, current_config.stereo ? "true" : "false");
-  } else {
-    current_config = default_config;
-    ULOG_INFO("Sound: Using default config: sample_rate=%u, volume=%u, stereo=%s", current_config.sample_rate,
-              current_config.volume, current_config.stereo ? "true" : "false");
   }
 
-  /* Update I2S configuration */
-  i2s_config.sample_rate = current_config.sample_rate;
-  ULOG_INFO("Sound: Configuring I2S6 with sample_rate=%u", i2s_config.sample_rate);
+  i2s_cfg.sample_rate = current_config.sample_rate;
+  playback.mode = PlayMode::NONE;
 
-  /* Initialize I2S6 */
-  if (!i2s6::init(&i2s_config)) {
-    ULOG_ERROR("Sound: Failed to initialize I2S6");
-    return false;
-  }
+  chBSemObjectInit(&done_sem, true); /* Initially taken — thread will wait on it. */
 
+  i2sStart(&I2SD6, &i2s_cfg);
   is_initialized = true;
-  ULOG_INFO("Sound: Initialization complete");
+
+  ULOG_INFO("Sound: initialized (sample_rate=%u, volume=%u)", current_config.sample_rate, current_config.volume);
   return true;
 }
 
 void start(void) {
-  ULOG_INFO("Sound: Starting audio playback");
-
   if (!is_initialized) {
-    ULOG_INFO("Sound: Not initialized, initializing first");
-    init(NULL);
+    init(nullptr);
   }
-
-  i2s6::enable();
-  playing_state = true;
-  ULOG_INFO("Sound: Audio playback started");
 }
 
 void stop(void) {
-  ULOG_INFO("Sound: Stopping audio playback");
-  i2s6::disable();
-  playing_state = false;
-  current_buffer = NULL;
-  buffer_position = 0;
-  ULOG_INFO("Sound: Audio playback stopped");
+  if (is_initialized) {
+    i2sStop(&I2SD6);
+    is_initialized = false;
+    playback.mode = PlayMode::NONE;
+  }
 }
 
 void set_volume(uint8_t volume) {
-  if (volume > 100) volume = 100;
-  ULOG_INFO("Sound: Setting volume from %u to %u", current_config.volume, volume);
+  if (volume > 100U) volume = 100U;
   current_config.volume = volume;
 }
 
-void play_buffer(const audio_buffer_t* buffer) {
-  if (buffer == NULL || buffer->data == NULL || buffer->length == 0) {
-    ULOG_INFO("Sound: play_buffer called with invalid buffer");
-    return;
-  }
-
-  ULOG_INFO("Sound: Playing buffer: length=%u samples, loop=%s, stereo=%s", buffer->length,
-            buffer->loop ? "true" : "false", current_config.stereo ? "true" : "false");
-
-  /* Ensure sound is initialized */
-  if (!is_initialized) {
-    ULOG_INFO("Sound: Not initialized, initializing first");
-    init(NULL);
-    start();
-  }
-
-  /* Set current buffer */
-  current_buffer = buffer;
-  buffer_position = 0;
-  playing_state = true;
-
-  ULOG_INFO("Sound: Starting buffer playback at position 0");
-
-  /* Play the buffer (blocking) - use fast version for performance */
-  while (buffer_position < buffer->length) {
-    /* Get sample from buffer */
-    int16_t sample = buffer->data[buffer_position];
-
-    /* Apply volume */
-    sample = samples::apply_volume(sample, current_config.volume);
-
-    /* Send to I2S (stereo or mono) using fast version */
-    if (current_config.stereo) {
-      i2s6::send_sample_fast(sample, sample);
-    } else {
-      /* Mono: send to left channel only, right channel silent */
-      i2s6::send_sample_fast(sample, 0);
-    }
-
-    buffer_position++;
-
-    /* Check for loop */
-    if (buffer_position >= buffer->length && buffer->loop) {
-      ULOG_INFO("Sound: Buffer loop, resetting to position 0");
-      buffer_position = 0;
-    }
-  }
-
-  /* Reset playback state */
-  current_buffer = NULL;
-  buffer_position = 0;
-  playing_state = false;
-
-  ULOG_INFO("Sound: Buffer playback complete");
+bool is_playing(void) {
+  return playback.mode != PlayMode::NONE;
 }
 
 void beep(uint32_t frequency, uint32_t duration_ms, uint8_t volume) {
-  if (frequency == 0 || duration_ms == 0) {
-    ULOG_INFO("Sound: beep called with invalid parameters: frequency=%u, duration=%u", frequency, duration_ms);
-    return;
+  if (frequency == 0U || duration_ms == 0U) return;
+  if (!is_initialized) init(nullptr);
+
+  /* Set up tone playback state. */
+  playback.mode = PlayMode::TONE;
+  playback.phase = 0U;
+  playback.phase_increment = samples::calculate_phase_increment(frequency, current_config.sample_rate);
+  playback.samples_remaining = (current_config.sample_rate * duration_ms) / 1000U;
+  playback.volume = (volume <= 100U) ? volume : current_config.volume;
+  signal_pending = false;
+
+  /* Pre-fill both halves so DMA has valid data from the first moment. */
+  fill_half(audio_buffer, SOUND_HALF_SIZE);
+  fill_half(audio_buffer + SOUND_HALF_SIZE, SOUND_HALF_SIZE);
+
+  /* Start DMA and block the calling thread until playback is complete. */
+  i2sStartExchange(&I2SD6);
+  chBSemWait(&done_sem);
+  i2sStopExchange(&I2SD6);
+}
+
+void play_buffer(const audio_buffer_t *buffer) {
+  if (buffer == nullptr || buffer->data == nullptr || buffer->length == 0U) return;
+  if (!is_initialized) init(nullptr);
+
+  /* Set up buffer playback state. */
+  playback.mode = PlayMode::BUFFER;
+  playback.buffer = buffer;
+  playback.buffer_pos = 0U;
+  playback.volume = current_config.volume;
+  signal_pending = false;
+
+  /* Pre-fill both halves before starting DMA. */
+  fill_half(audio_buffer, SOUND_HALF_SIZE);
+  fill_half(audio_buffer + SOUND_HALF_SIZE, SOUND_HALF_SIZE);
+
+  i2sStartExchange(&I2SD6);
+
+  if (!buffer->loop) {
+    /* Blocking: wait until all samples are played. */
+    chBSemWait(&done_sem);
+    i2sStopExchange(&I2SD6);
   }
-
-  ULOG_INFO("Sound: Playing beep: frequency=%u Hz, duration=%u ms, volume=%u", frequency, duration_ms, volume);
-
-  /* Ensure sound is initialized */
-  if (!is_initialized) {
-    ULOG_INFO("Sound: Not initialized, initializing first");
-    init(NULL);
-    start();
-  }
-
-  /* Calculate number of samples */
-  uint32_t num_samples = (current_config.sample_rate * duration_ms) / 1000;
-
-  /* Calculate phase increment using 16.16 fixed-point arithmetic
-   * phase_increment = (frequency * 64 * 65536) / sample_rate
-   * This gives us the amount to add to phase each sample to achieve the desired frequency
-   * The "64" is because we have a 64-entry sine table, and 65536 is for 16-bit fractional part
-   */
-  uint32_t phase = 0;
-  uint32_t phase_increment = ((uint64_t)frequency * 64 * 65536) / current_config.sample_rate;
-
-  ULOG_INFO("Sound: Generating %u samples, phase_increment=0x%08X", num_samples, phase_increment);
-
-  /* Temporary volume override */
-  uint8_t original_volume = current_config.volume;
-  if (volume <= 100) {
-    current_config.volume = volume;
-    ULOG_INFO("Sound: Temporary volume override: %u -> %u", original_volume, current_config.volume);
-  }
-
-  /* Generate and play beep - use fast version for performance */
-  for (uint32_t i = 0; i < num_samples; i++) {
-    /* Generate sine wave sample using fixed-point phase */
-    int16_t sample = samples::generate_sine_sample_fp(phase);
-
-    /* Apply volume */
-    sample = samples::apply_volume(sample, current_config.volume);
-
-    /* Send to I2S using fast version */
-    if (current_config.stereo) {
-      i2s6::send_sample_fast(sample, sample);
-    } else {
-      i2s6::send_sample_fast(sample, 0);
-    }
-
-    /* Update phase (wraps automatically due to 32-bit overflow) */
-    phase += phase_increment;
-  }
-
-  /* Restore original volume */
-  current_config.volume = original_volume;
-  ULOG_INFO("Sound: Beep complete, volume restored to %u", current_config.volume);
-}
-
-void test_tone(void) {
-  ULOG_INFO("Sound: Playing test tone (440Hz, 1s, 90%% volume)");
-  beep(440, 1000, 90); /* 440Hz for 1 second at 90% volume */
-}
-
-void error_beep(void) {
-  ULOG_INFO("Sound: Playing error beep (1000Hz, 200ms, 90%% volume)");
-  beep(1000, 200, 90); /* High-pitched short beep */
-}
-
-void success_beep(void) {
-  ULOG_INFO("Sound: Playing success beep (300Hz, 300ms, 80%% volume)");
-  beep(300, 300, 80); /* Low-pitched medium beep */
-}
-
-void warning_beep(void) {
-  ULOG_INFO("Sound: Playing warning beep (two 600Hz, 150ms, 85%% volume)");
-  /* Two short beeps */
-  beep(600, 150, 85);
-
-  /* Small delay between beeps */
-  for (volatile uint32_t i = 0; i < 10000; i++)
-    ; /* Simple delay */
-
-  beep(600, 150, 85);
-}
-
-bool is_playing(void) {
-  return playing_state;
+  /* Looping buffers play indefinitely; caller must invoke stop() to halt. */
 }
 
 void poll(void) {
-  /* Simple polling implementation for background playback */
-  if (!playing_state || current_buffer == NULL) {
-    return;
-  }
-
-  /* Check if we have more samples to play */
-  if (buffer_position >= current_buffer->length) {
-    if (current_buffer->loop) {
-      ULOG_INFO("Sound: poll - buffer loop, resetting to position 0");
-      buffer_position = 0;
-    } else {
-      ULOG_INFO("Sound: poll - buffer playback complete");
-      playing_state = false;
-      current_buffer = NULL;
-      buffer_position = 0;
-      return;
-    }
-  }
-
-  /* Get sample from buffer */
-  int16_t sample = current_buffer->data[buffer_position];
-
-  /* Apply volume */
-  sample = samples::apply_volume(sample, current_config.volume);
-
-  /* Send to I2S using fast version */
-  if (current_config.stereo) {
-    i2s6::send_sample_fast(sample, sample);
-  } else {
-    i2s6::send_sample_fast(sample, 0);
-  }
-
-  /* Log progress occasionally */
-  if ((buffer_position % 1000) == 0) {
-    ULOG_INFO("Sound: poll - playing sample %u/%u", buffer_position, current_buffer->length);
-  }
-
-  buffer_position++;
+  /* No-op: playback is now driven by BDMA ISR callbacks. */
 }
 
-/**
- * @brief Generate simple test tone (440Hz, 1 second)
- */
+void test_tone(void) {
+  beep(440, 1000, 90);
+}
+void error_beep(void) {
+  beep(1000, 200, 90);
+}
+void success_beep(void) {
+  beep(300, 300, 80);
+}
+
+void warning_beep(void) {
+  beep(600, 150, 85);
+  chThdSleepMilliseconds(50);
+  beep(600, 150, 85);
+}
+
 void play_test_tone(void) {
-  ULOG_INFO("Sound: play_test_tone called");
-  test_tone(); /* Uses the existing 440Hz test tone */
+  test_tone();
 }
 
-/**
- * @brief Simple demonstration of sound driver
- */
 void demo(void) {
-  ULOG_INFO("Sound: Starting sound demo");
-
-  /* Initialize sound driver */
-  init(NULL);
-  start();
-
-  ULOG_INFO("Sound: Demo - Playing success beep");
-  /* Play different beeps */
+  init(nullptr);
   success_beep();
-
-  ULOG_INFO("Sound: Demo - Delay between beeps");
-  /* Small delay */
-  for (volatile uint32_t i = 0; i < 50000; i++)
-    ;
-
-  ULOG_INFO("Sound: Demo - Playing warning beep");
+  chThdSleepMilliseconds(100);
   warning_beep();
-
-  ULOG_INFO("Sound: Demo - Delay between beeps");
-  /* Small delay */
-  for (volatile uint32_t i = 0; i < 50000; i++)
-    ;
-
-  ULOG_INFO("Sound: Demo - Playing error beep");
+  chThdSleepMilliseconds(100);
   error_beep();
-
-  ULOG_INFO("Sound: Demo - Delay between beeps");
-  /* Small delay */
-  for (volatile uint32_t i = 0; i < 50000; i++)
-    ;
-
-  ULOG_INFO("Sound: Demo - Playing test tone");
-  /* Play test tone */
+  chThdSleepMilliseconds(100);
   test_tone();
-
-  ULOG_INFO("Sound: Demo complete");
 }
 
 }  // namespace xbot::driver::sound

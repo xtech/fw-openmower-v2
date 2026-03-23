@@ -51,6 +51,9 @@ target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
 add_subdirectory(ext)
 target_compile_definitions(ulog PUBLIC ULOG_ENABLED)
 
+# Expose project-specific ChibiOS LLD implementations (hal_i2s.c needs hal_i2s_lld.h, etc.)
+target_include_directories(ChibiOS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/chibios_lld)
+
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -112,7 +115,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/input/worx_input_driver.cpp
         $<$<BOOL:${DEBUG_BUILD}>:src/drivers/input/simulated_input_driver.cpp>
         # Sound
-        src/drivers/sound/i2s6_lld.cpp
+        src/chibios_lld/hal_i2s_lld.c
         src/drivers/sound/sound_driver.cpp
         # Sabo driver
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
