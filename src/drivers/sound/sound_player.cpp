@@ -109,7 +109,7 @@ static inline int16_t scale_volume(int16_t sample, uint8_t volume) {
 /*===========================================================================*/
 
 struct SoundRequest {
-  enum class Type : uint8_t { TONE, FILE } type;
+  enum class Type : uint8_t { TONE, FILE, SEQUENCE } type;
   union {
     struct {
       uint32_t freq;
@@ -117,6 +117,11 @@ struct SoundRequest {
       uint8_t volume;
     } tone;
     char path[64];
+    struct {
+      const Note* notes;  ///< Pointer into .rodata — safe to copy by value
+      uint8_t count;
+      uint8_t volume;
+    } sequence;
   };
 };
 
@@ -124,14 +129,22 @@ struct SoundRequest {
 /* Active source state (owned by player thread).                             */
 /*===========================================================================*/
 
-enum class SourceType : uint8_t { NONE, TONE, WAV };
+enum class SourceType : uint8_t { NONE, TONE, WAV, SEQUENCE };
 
 struct ActiveSource {
   SourceType type = SourceType::NONE;
-  /* TONE fields */
+  /* TONE / SEQUENCE oscillator fields */
   uint32_t phase = 0U;
-  uint32_t phase_inc = 0U;
-  uint32_t samples_left = 0U;
+  uint32_t phase_inc = 0U;     ///< Base phase increment for current note
+  uint32_t samples_left = 0U;  ///< Samples remaining in current note (or tone)
+  /* SEQUENCE-specific fields */
+  const Note* seq_notes = nullptr;
+  uint8_t seq_count = 0U;
+  uint8_t seq_idx = 0U;
+  /* LFO (SEQUENCE only; all zero when inactive) */
+  uint32_t lfo_phase = 0U;
+  uint32_t lfo_inc = 0U;
+  int32_t lfo_depth_inc = 0;  ///< Modulation depth in phase_inc units (pre-calculated)
   /* WAV fields */
   File wav_file;
   /* Common */
@@ -224,6 +237,50 @@ static void fill_half(int16_t* buf, size_t count) {
       buf[2U * i + 1] = 0; /* R — always silent */
     }
 
+  } else if (s_source.type == SourceType::SEQUENCE) {
+    for (size_t i = 0U; i < frames; ++i) {
+      /* Advance to the next note whenever the current one has been exhausted. */
+      while (s_source.samples_left == 0U && s_source.seq_idx < s_source.seq_count) {
+        const Note& n = s_source.seq_notes[s_source.seq_idx++];
+        s_source.samples_left = (SAMPLE_RATE * n.duration_ms) / 1000U;
+        s_source.phase = 0U;
+        s_source.phase_inc = (n.freq > 0U) ? calc_phase_increment(n.freq) : 0U;
+        if (n.lfo_hz_x10 > 0U && n.freq > 0U) {
+          s_source.lfo_phase = 0U;
+          /* LFO phase increment: same formula as calc_phase_increment but divided by 10
+             to convert lfo_hz_x10 (rate × 10) back to Hz. */
+          s_source.lfo_inc =
+              static_cast<uint32_t>(static_cast<uint64_t>(n.lfo_hz_x10) * 64U * 65536U / (SAMPLE_RATE * 10U));
+          /* Depth in phase_inc units — pre-calculated to avoid per-sample division. */
+          s_source.lfo_depth_inc =
+              static_cast<int32_t>(calc_phase_increment(n.freq + n.lfo_depth) - s_source.phase_inc);
+        } else {
+          s_source.lfo_inc = 0U;
+          s_source.lfo_depth_inc = 0;
+        }
+      }
+
+      int16_t s = 0;
+      if (s_source.samples_left > 0U) {
+        if (s_source.phase_inc > 0U) {
+          /* Apply LFO frequency modulation (no-op when lfo_inc == 0). */
+          uint32_t eff_inc = s_source.phase_inc;
+          if (s_source.lfo_inc > 0U) {
+            eff_inc += static_cast<uint32_t>(
+                (static_cast<int64_t>(s_source.lfo_depth_inc) * sine_sample(s_source.lfo_phase)) >> 15);
+            s_source.lfo_phase += s_source.lfo_inc;
+          }
+          s = scale_volume(sine_sample(s_source.phase), s_source.volume);
+          s_source.phase += eff_inc;
+        }
+        if (--s_source.samples_left == 0U && s_source.seq_idx >= s_source.seq_count) {
+          s_source.type = SourceType::NONE; /* sequence finished */
+        }
+      }
+      buf[2U * i] = s;
+      buf[2U * i + 1] = 0;
+    }
+
   } else if (s_source.type == SourceType::WAV) {
     for (size_t i = 0U; i < frames; ++i) {
       int16_t s = 0;
@@ -263,6 +320,20 @@ static void start_source(const SoundRequest& req) {
     s_source.phase_inc = calc_phase_increment(req.tone.freq);
     s_source.samples_left = (SAMPLE_RATE * req.tone.duration_ms) / 1000U;
     s_source.volume = req.tone.volume;
+
+  } else if (req.type == SoundRequest::Type::SEQUENCE) {
+    s_source.type = SourceType::SEQUENCE;
+    s_source.seq_notes = req.sequence.notes;
+    s_source.seq_count = req.sequence.count;
+    s_source.seq_idx = 0U;
+    s_source.volume = req.sequence.volume;
+    /* Reset oscillator and LFO — first note is loaded by fill_half on first call. */
+    s_source.phase = 0U;
+    s_source.phase_inc = 0U;
+    s_source.samples_left = 0U;
+    s_source.lfo_phase = 0U;
+    s_source.lfo_inc = 0U;
+    s_source.lfo_depth_inc = 0;
 
   } else {
     if (s_source.wav_file.open(req.path, LFS_O_RDONLY) != LFS_ERR_OK) {
@@ -458,7 +529,16 @@ void play_sound_id(SoundId id, bool high_priority) {
     play_file(path, high_priority);
   } else {
     const SoundFallback& fb = kFallbackTones[idx];
-    play_tone(fb.freq, fb.duration_ms, fb.volume, high_priority);
+    SoundRequest req;
+    req.type = SoundRequest::Type::SEQUENCE;
+    req.sequence.notes = fb.notes;
+    req.sequence.count = fb.count;
+    req.sequence.volume = fb.volume;
+    if (high_priority) {
+      enqueue_high(req);
+    } else {
+      enqueue_normal(req);
+    }
   }
 }
 
