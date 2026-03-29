@@ -59,6 +59,7 @@ class SaboBmsDriver : public BmsDriver {
   const xbot::driver::sabo::config::Bms* bms_cfg_;
 
   SbsProtocol sbs_{};
+  uint16_t battery_status_{0};  // Our BMS is not SBS-compliant, so we like to track the battery status for publishing
 
   bool configured_{false};
   bool probe();
