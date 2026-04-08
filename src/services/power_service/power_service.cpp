@@ -109,13 +109,13 @@ void PowerService::charger_tick() {
     if (charger_->init()) {
       // Set the currents low
       bool success = true;
-      if (PrechargeCurrent.valid && PrechargeCurrent.value > 0) {
-        success &= charger_->setPreChargeCurrent(PrechargeCurrent.value);
+      if (PreA.valid && PreA.value > 0) {
+        success &= charger_->setPreChargeCurrent(PreA.value);
       } else {
         success &= charger_->setPreChargeCurrent(robot->Power_GetDefaultPreChargeCurrent());
       }
-      if (TerminationCurrent.valid && TerminationCurrent.value > 0) {
-        success &= charger_->setTerminationCurrent(TerminationCurrent.value);
+      if (TrmA.valid && TrmA.value > 0) {
+        success &= charger_->setTerminationCurrent(TrmA.value);
       } else {
         success &= charger_->setTerminationCurrent(robot->Power_GetDefaultTerminationCurrent());
       }
@@ -125,8 +125,7 @@ void PowerService::charger_tick() {
         success &= charger_->setChargingCurrent(robot->Power_GetDefaultChargeCurrent(), false);
       }
       {
-        float target_v = (ChargeVoltage.valid && ChargeVoltage.value > 0) ? ChargeVoltage.value
-                                                                          : robot->Power_GetDefaultChargeVoltage();
+        float target_v = (ChgV.valid && ChgV.value > 0) ? ChgV.value : robot->Power_GetDefaultChargeVoltage();
         if (target_v > 0) {
           success &= charger_->setChargeVoltage(target_v);
         }
