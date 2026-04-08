@@ -14,7 +14,15 @@ using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
 
 class BQ2576 : public ChargerDriver {
  public:
-  explicit BQ2576(float r_ac_sense = 0.0f) : ChargerDriver(), r_ac_sense_(r_ac_sense) {
+  // Internal FBG pull-down resistor to PGND, typic 33 Ohm (max. 55 Ohm)
+  static constexpr uint32_t INTERNAL_RFBG = 33;
+
+  // r_top: external resistor VBAT->FB (Ohm), r_bot: external resistor FB->FBG (Ohm)
+  // vfb_ratio_ = VFB/VBATREG = (r_bot - RFBG) / (r_bot - RFBG + r_top)
+  explicit BQ2576(uint32_t r_top, uint32_t r_bot, float r_ac_sense = 0.0f)
+      : ChargerDriver(),
+        vfb_ratio_(static_cast<float>(r_bot - INTERNAL_RFBG) / static_cast<float>(r_bot - INTERNAL_RFBG + r_top)),
+        r_ac_sense_(r_ac_sense) {
   }
 
  private:
@@ -45,7 +53,9 @@ class BQ2576 : public ChargerDriver {
   static constexpr uint8_t REG_Gate_Driver_Strength_Control = 0x3B;
   static constexpr uint8_t REG_Precharge_Current_Limit = 0x10;
   static constexpr uint8_t REG_Precharge_and_Termination_Control = 0x14;
+  static constexpr uint8_t REG_Charge_Voltage_Limit = 0x00;
 
+  const float vfb_ratio_;   // VFB/VBATREG
   const float r_ac_sense_;  // 0 = No Rac_sns
 
   bool readRegister(uint8_t reg, uint8_t &result);
@@ -60,6 +70,7 @@ class BQ2576 : public ChargerDriver {
   uint8_t readFaults();
 
  public:
+  bool setChargeVoltage(float voltage_v) override;
   bool setAdapterCurrent(float current_amps) override;
   bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) override;
   bool setPreChargeCurrent(float current_amps) override;
