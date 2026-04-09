@@ -1,6 +1,7 @@
 //
 // Created by clemens on 7/14/24.
 //
+#include <string.h>
 #include <ulog.h>
 
 #include <xbot-service/Io.hpp>
@@ -99,7 +100,8 @@ bool Io::getEndpoint(char* ip, size_t ip_len, uint16_t* port) {
   return sock::getEndpoint(&udp_socket_, ip, ip_len, port);
 }
 
-bool Io::start() {
+bool Io::start(const char* bind_ip) {
+  chDbgAssert(strcmp(bind_ip, "0.0.0.0") == 0, "bind_ip not supported on this platform");
   if (!sock::initialize(&udp_socket_, false)) {
     return false;
   }
