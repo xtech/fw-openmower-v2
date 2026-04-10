@@ -1,0 +1,28 @@
+#ifndef UNIVERSAL_ROBOT_HPP
+#define UNIVERSAL_ROBOT_HPP
+
+#include <drivers/charger/bq_2576/bq_2576.hpp>
+
+#include "robot.hpp"
+
+/**
+ * @class UniversalRobot
+ * @brief Intermediate base class for Universal robot platform variants.
+ */
+class UniversalRobot : public MowerRobot {
+ public:
+  void InitPlatform() override;
+  bool IsHardwareSupported() override;
+
+  float Power_GetDefaultChargeCurrent() override {
+    return 0.5;
+  }
+
+ protected:
+  UniversalRobot() = default;  // Intermediate/abstract class
+
+ private:
+  BQ2576 charger_{};
+};
+
+#endif  // UNIVERSAL_ROBOT_HPP
