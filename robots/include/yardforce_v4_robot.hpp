@@ -35,7 +35,7 @@ class YardForce_V4Robot : public MowerRobot {
   }
 
  private:
-  BQ2576 charger_{};
+  BQ2576 charger_{249000, 14040};
 };
 
 #endif  // YARDFORCE_V4_ROBOT_HPP

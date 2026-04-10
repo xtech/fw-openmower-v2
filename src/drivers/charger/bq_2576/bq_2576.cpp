@@ -162,6 +162,17 @@ bool BQ2576::readBatteryVoltage(float& result) {
   return true;
 }
 
+bool BQ2576::setChargeVoltage(float voltage_v) {
+  if (vfb_ratio_ <= 0.0f) return false;
+
+  float vfb_mv = voltage_v * 1000.0f * vfb_ratio_;
+  vfb_mv = std::max(1504.0f, std::min(1566.0f, vfb_mv));  // Clamp to 1504mV - 1566mV
+  uint16_t reg_val = static_cast<uint16_t>((vfb_mv - 1504.0f) / 2.0f);
+  reg_val &= 0b11111;  // Mask [4:0]
+
+  return writeRegister16(REG_Charge_Voltage_Limit, reg_val);
+}
+
 bool BQ2576::resetWatchdog() {
   // TODO, if the REG_Charger_Control is used, we need to either store the value
   // or read it here before resetting the watchdog.
@@ -241,6 +252,7 @@ bool BQ2576::setTerminationCurrent(float current_amps) {
   uint16_t value = static_cast<uint16_t>(current_amps * 1000.0f / 50.0f) << 2;
   return writeRegister16(REG_Termination_Current_Limit, value);
 }
+
 CHARGER_STATUS BQ2576::getChargerStatus() {
   uint8_t status1, status2, status3;
   bool s = getChargerStatus(status1, status2, status3);
@@ -260,6 +272,7 @@ CHARGER_STATUS BQ2576::getChargerStatus() {
     case 2: return CHARGER_STATUS::PRE_CHARGE;
     case 3: return CHARGER_STATUS::CC;
     case 4: return CHARGER_STATUS::CV;
+    case 5: return CHARGER_STATUS::UNKNOWN;  // Reserved as per datasheet, not an error
     case 6: return CHARGER_STATUS::TOP_OFF;
     case 7: return CHARGER_STATUS::DONE;
     default: return CHARGER_STATUS::COMMS_ERROR;
