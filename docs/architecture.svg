@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 620" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="1" dy="2" stdDeviation="3" flood-opacity="0.15"/>
+    </filter>
+    <linearGradient id="gradCM4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A90D9"/>
+      <stop offset="100%" stop-color="#357ABD"/>
+    </linearGradient>
+    <linearGradient id="gradXCore" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2ECC71"/>
+      <stop offset="100%" stop-color="#27AE60"/>
+    </linearGradient>
+    <linearGradient id="gradService" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F0F4F0"/>
+    </linearGradient>
+    <linearGradient id="gradHW" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E67E22"/>
+      <stop offset="100%" stop-color="#D35400"/>
+    </linearGradient>
+    <linearGradient id="gradHWBox" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FDF2E9"/>
+      <stop offset="100%" stop-color="#FDEBD0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="820" height="620" rx="12" fill="#FAFBFC"/>
+
+  <!-- Title -->
+  <text x="410" y="35" text-anchor="middle" font-size="18" font-weight="700" fill="#2C3E50">OpenMower V2 — System Architecture</text>
+
+  <!-- ==================== CM4 TIER ==================== -->
+  <rect x="60" y="55" width="700" height="105" rx="10" fill="url(#gradCM4)" filter="url(#shadow)"/>
+  <text x="410" y="80" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">Raspberry Pi Compute Module 4</text>
+
+  <!-- ROS box -->
+  <rect x="80" y="90" width="660" height="55" rx="6" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="410" y="112" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">open_mower_ros  (ROS 2)</text>
+  <text x="410" y="133" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.85)">Navigation  ·  Path Planning  ·  Map Management  ·  RTK Corrections  ·  Web UI  ·  Home Assistant</text>
+
+  <!-- Connection: CM4 <-> xCore -->
+  <line x1="410" y1="160" x2="410" y2="195" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
+  <polygon points="410,195 405,185 415,185" fill="#7F8C8D"/>
+  <polygon points="410,160 405,170 415,170" fill="#7F8C8D"/>
+  <rect x="320" y="167" width="180" height="20" rx="10" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="1"/>
+  <text x="410" y="181" text-anchor="middle" font-size="10" font-weight="600" fill="#7F8C8D">Ethernet (xbot_framework)</text>
+
+  <!-- ==================== xCORE TIER ==================== -->
+  <rect x="60" y="200" width="700" height="220" rx="10" fill="url(#gradXCore)" filter="url(#shadow)"/>
+  <text x="410" y="225" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">xCore Board  (STM32H723 Cortex-M7)</text>
+
+  <!-- Firmware box -->
+  <rect x="80" y="237" width="660" height="170" rx="8" fill="rgba(255,255,255,0.92)" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
+  <text x="410" y="258" text-anchor="middle" font-size="12" font-weight="700" fill="#27AE60">fw-openmower-v2  ·  ChibiOS RTOS</text>
+
+  <!-- Service grid: 2 rows x 4 cols -->
+  <!-- Row 1 -->
+  <rect x="100" y="270" width="148" height="52" rx="5" fill="url(#gradService)" stroke="#27AE60" stroke-width="1.5"/>
+  <text x="174" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">EmergencyService</text>
+  <text x="174" y="306" text-anchor="middle" font-size="9" fill="#7F8C8D">Safety &amp; Timeouts</text>
+
+  <rect x="260" y="270" width="148" height="52" rx="5" fill="url(#gradService)" stroke="#27AE60" stroke-width="1.5"/>
+  <text x="334" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">DiffDriveService</text>
+  <text x="334" y="306" text-anchor="middle" font-size="9" fill="#7F8C8D">L/R Wheel Motors</text>
+
+  <rect x="420" y="270" width="148" height="52" rx="5" fill="url(#gradService)" stroke="#27AE60" stroke-width="1.5"/>
+  <text x="494" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">MowerService</text>
+  <text x="494" y="306" text-anchor="middle" font-size="9" fill="#7F8C8D">Blade Motor</text>
+
+  <rect x="580" y="270" width="148" height="52" rx="5" fill="url(#gradService)" stroke="#27AE60" stroke-width="1.5"/>
+  <text x="654" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">PowerService</text>
+  <text x="654" y="306" text-anchor="middle" font-size="9" fill="#7F8C8D">Battery &amp; Charger</text>
+
+  <!-- Row 2 -->
+  <rect x="100" y="335" width="148" height="52" rx="5" fill="url(#gradService)" stroke="#27AE60" stroke-width="1.5"/>
+  <text x="174" y="355" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">GpsService</text>
+  <text x="174" y="371" text-anchor="middle" font-size="9" fill="#7F8C8D">UBX / NMEA / RTK</text>
+
+  <rect x="260" y="335" width="148" height="52" rx="5" fill="url(#gradService)" stroke="#27AE60" stroke-width="1.5"/>
+  <text x="334" y="355" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">InputService</text>
+  <text x="334" y="371" text-anchor="middle" font-size="9" fill="#7F8C8D">GPIO / Buttons</text>
+
+  <rect x="420" y="335" width="148" height="52" rx="5" fill="url(#gradService)" stroke="#27AE60" stroke-width="1.5"/>
+  <text x="494" y="355" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">ImuService</text>
+  <text x="494" y="371" text-anchor="middle" font-size="9" fill="#7F8C8D">Accel / Gyro</text>
+
+  <rect x="580" y="335" width="148" height="52" rx="5" fill="url(#gradService)" stroke="#27AE60" stroke-width="1.5"/>
+  <text x="654" y="355" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">HighLevelService</text>
+  <text x="654" y="371" text-anchor="middle" font-size="9" fill="#7F8C8D">Mission State</text>
+
+  <!-- Connection: xCore <-> Hardware -->
+  <line x1="200" y1="420" x2="200" y2="460" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
+  <polygon points="200,460 195,450 205,450" fill="#7F8C8D"/>
+  <text x="200" y="447" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">UART</text>
+
+  <line x1="410" y1="420" x2="410" y2="460" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
+  <polygon points="410,460 405,450 415,450" fill="#7F8C8D"/>
+  <text x="410" y="447" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">I2C / SPI / ADC</text>
+
+  <line x1="620" y1="420" x2="620" y2="460" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
+  <polygon points="620,460 615,450 625,450" fill="#7F8C8D"/>
+  <text x="620" y="447" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">UART</text>
+
+  <!-- ==================== HARDWARE TIER ==================== -->
+  <!-- xESC Motors -->
+  <rect x="60" y="465" width="260" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
+  <text x="190" y="490" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">3x xESC mini  (VESC)</text>
+  <rect x="78" y="500" width="224" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
+  <text x="190" y="520" text-anchor="middle" font-size="11" fill="#6D4C2F">Left Motor  ·  Right Motor  ·  Mower</text>
+  <text x="190" y="540" text-anchor="middle" font-size="10" fill="#A0784C">BLDC / FOC  ·  Position Feedback</text>
+
+  <!-- Sensors -->
+  <rect x="340" y="465" width="140" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
+  <text x="410" y="490" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">Sensors</text>
+  <rect x="352" y="500" width="116" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
+  <text x="410" y="518" text-anchor="middle" font-size="10" fill="#6D4C2F">IMU (LSM6DS3TR-C)</text>
+  <text x="410" y="533" text-anchor="middle" font-size="10" fill="#6D4C2F">Charger (BQ257x)</text>
+  <text x="410" y="548" text-anchor="middle" font-size="10" fill="#6D4C2F">BMS  ·  ADC  ·  UI</text>
+
+  <!-- GPS -->
+  <rect x="500" y="465" width="260" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
+  <text x="630" y="490" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">RTK GPS Module</text>
+  <rect x="518" y="500" width="224" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
+  <text x="630" y="520" text-anchor="middle" font-size="11" fill="#6D4C2F">UBX Binary  /  NMEA Protocol</text>
+  <text x="630" y="540" text-anchor="middle" font-size="10" fill="#A0784C">RTCM Corrections  ·  cm Accuracy</text>
+
+  <!-- Footer -->
+  <text x="410" y="605" text-anchor="middle" font-size="10" fill="#BDC3C7">github.com/xtech/fw-openmower-v2</text>
+</svg>
