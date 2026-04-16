@@ -91,18 +91,10 @@ Output: `build/Release/openmower.elf`, `openmower.bin`, `openmower.hex`
 
 ### Docker Build (All Platforms)
 
-Builds all 6 platform binaries in one step:
+Builds all 6 platform binaries in one step and extracts them directly to `./out/`:
 
 ```bash
-docker build -t openmower .
-```
-
-Extract the binaries:
-
-```bash
-docker create --name tmp openmower
-docker cp tmp:/ ./out
-docker rm tmp
+docker build -o ./out .
 ```
 
 ### Firmware Upload via Network
@@ -112,7 +104,7 @@ cd build/Release
 make upload
 ```
 
-This uses Docker with the `fw-xcore-boot` image to upload firmware to the xCore board over the network via the `tap0` interface. The bootloader must be in dev mode.
+This uses Docker with the `fw-xcore-boot` image to upload firmware to the xCore board over the network via the `tap0` interface. The xCore board must be running the bootloader.
 
 ## Development Setup
 

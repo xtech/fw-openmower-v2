@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 620" font-family="Segoe UI, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" font-family="Segoe UI, Arial, sans-serif">
   <defs>
     <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
       <feDropShadow dx="1" dy="2" stdDeviation="3" flood-opacity="0.15"/>
@@ -23,13 +23,21 @@
       <stop offset="0%" stop-color="#FDF2E9"/>
       <stop offset="100%" stop-color="#FDEBD0"/>
     </linearGradient>
+    <linearGradient id="gradNTRIP" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9B59B6"/>
+      <stop offset="100%" stop-color="#7D3C98"/>
+    </linearGradient>
+    <linearGradient id="gradGamepad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#95A5A6"/>
+      <stop offset="100%" stop-color="#7F8C8D"/>
+    </linearGradient>
   </defs>
 
   <!-- Background -->
-  <rect width="820" height="620" rx="12" fill="#FAFBFC"/>
+  <rect width="1000" height="680" rx="12" fill="#FAFBFC"/>
 
   <!-- Title -->
-  <text x="410" y="35" text-anchor="middle" font-size="18" font-weight="700" fill="#2C3E50">OpenMower V2 — System Architecture</text>
+  <text x="500" y="35" text-anchor="middle" font-size="18" font-weight="700" fill="#2C3E50">OpenMower V2 — System Architecture</text>
 
   <!-- ==================== CM4 TIER ==================== -->
   <rect x="60" y="55" width="700" height="105" rx="10" fill="url(#gradCM4)" filter="url(#shadow)"/>
@@ -40,6 +48,27 @@
   <text x="410" y="112" text-anchor="middle" font-size="13" font-weight="600" fill="#FFFFFF">open_mower_ros  (ROS 2)</text>
   <text x="410" y="133" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.85)">Navigation  ·  Path Planning  ·  Map Management  ·  RTK Corrections  ·  Web UI  ·  Home Assistant</text>
 
+  <!-- NTRIP Caster (right of CM4, top half) -->
+  <rect x="780" y="55" width="175" height="48" rx="8" fill="url(#gradNTRIP)" filter="url(#shadow)"/>
+  <text x="867" y="75" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">NTRIP Caster</text>
+  <text x="867" y="93" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">RTK Correction Stream</text>
+  <!-- WiFi arrow: CM4 right edge ↔ NTRIP (dashed, bidirectional) -->
+  <line x1="761" y1="79" x2="779" y2="79" stroke="#9B59B6" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <polygon points="780,79 773,76 773,82" fill="#9B59B6"/>
+  <polygon points="760,79 767,76 767,82" fill="#9B59B6"/>
+  <rect x="752" y="72" width="36" height="14" rx="7" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="1"/>
+  <text x="770" y="82" text-anchor="middle" font-size="8" font-weight="600" fill="#7F8C8D">WiFi</text>
+
+  <!-- Gamepad (right of CM4, bottom half) -->
+  <rect x="780" y="112" width="175" height="48" rx="8" fill="url(#gradGamepad)" filter="url(#shadow)"/>
+  <text x="867" y="132" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">Gamepad</text>
+  <text x="867" y="150" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">User Input</text>
+  <!-- USB arrow: Gamepad → CM4 -->
+  <line x1="762" y1="136" x2="779" y2="136" stroke="#7F8C8D" stroke-width="1.5"/>
+  <polygon points="760,136 767,133 767,139" fill="#7F8C8D"/>
+  <rect x="752" y="129" width="36" height="14" rx="7" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="1"/>
+  <text x="770" y="139" text-anchor="middle" font-size="8" font-weight="600" fill="#7F8C8D">USB</text>
+
   <!-- Connection: CM4 <-> xCore -->
   <line x1="410" y1="160" x2="410" y2="195" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
   <polygon points="410,195 405,185 415,185" fill="#7F8C8D"/>
@@ -48,7 +77,7 @@
   <text x="410" y="181" text-anchor="middle" font-size="10" font-weight="600" fill="#7F8C8D">Ethernet (xbot_framework)</text>
 
   <!-- ==================== xCORE TIER ==================== -->
-  <rect x="60" y="200" width="700" height="220" rx="10" fill="url(#gradXCore)" filter="url(#shadow)"/>
+  <rect x="60" y="200" width="700" height="250" rx="10" fill="url(#gradXCore)" filter="url(#shadow)"/>
   <text x="410" y="225" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">xCore Board  (STM32H723 Cortex-M7)</text>
 
   <!-- Firmware box -->
@@ -90,42 +119,48 @@
   <text x="654" y="355" text-anchor="middle" font-size="11" font-weight="700" fill="#2C3E50">HighLevelService</text>
   <text x="654" y="371" text-anchor="middle" font-size="9" fill="#7F8C8D">Mission State</text>
 
+  <!-- On-board IMU row (outside firmware box, inside xCore — hardware on the board) -->
+  <rect x="80" y="416" width="660" height="26" rx="4" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.55)" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="410" y="433" text-anchor="middle" font-size="10" font-weight="600" fill="#FFFFFF">On-Board Hardware:  IMU (LSM6DS3TR-C, 6-axis, SPI)</text>
+
   <!-- Connection: xCore <-> Hardware -->
-  <line x1="200" y1="420" x2="200" y2="460" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
-  <polygon points="200,460 195,450 205,450" fill="#7F8C8D"/>
-  <text x="200" y="447" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">UART</text>
+  <line x1="200" y1="450" x2="200" y2="490" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
+  <polygon points="200,490 195,480 205,480" fill="#7F8C8D"/>
+  <rect x="180" y="466" width="40" height="14" rx="7" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="1"/>
+  <text x="200" y="477" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">UART</text>
 
-  <line x1="410" y1="420" x2="410" y2="460" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
-  <polygon points="410,460 405,450 415,450" fill="#7F8C8D"/>
-  <text x="410" y="447" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">I2C / SPI / ADC</text>
+  <line x1="410" y1="450" x2="410" y2="490" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
+  <polygon points="410,490 405,480 415,480" fill="#7F8C8D"/>
+  <rect x="355" y="466" width="110" height="14" rx="7" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="1"/>
+  <text x="410" y="477" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">I2C / SPI / ADC</text>
 
-  <line x1="620" y1="420" x2="620" y2="460" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
-  <polygon points="620,460 615,450 625,450" fill="#7F8C8D"/>
-  <text x="620" y="447" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">UART</text>
+  <line x1="620" y1="450" x2="620" y2="490" stroke="#7F8C8D" stroke-width="2" stroke-dasharray="6,3"/>
+  <polygon points="620,490 615,480 625,480" fill="#7F8C8D"/>
+  <rect x="600" y="466" width="40" height="14" rx="7" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="1"/>
+  <text x="620" y="477" text-anchor="middle" font-size="9" font-weight="600" fill="#7F8C8D">UART</text>
 
   <!-- ==================== HARDWARE TIER ==================== -->
   <!-- xESC Motors -->
-  <rect x="60" y="465" width="260" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
-  <text x="190" y="490" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">3x xESC mini  (VESC)</text>
-  <rect x="78" y="500" width="224" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
-  <text x="190" y="520" text-anchor="middle" font-size="11" fill="#6D4C2F">Left Motor  ·  Right Motor  ·  Mower</text>
-  <text x="190" y="540" text-anchor="middle" font-size="10" fill="#A0784C">BLDC / FOC  ·  Position Feedback</text>
+  <rect x="60" y="495" width="260" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
+  <text x="190" y="520" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">3x xESC mini  (VESC)</text>
+  <rect x="78" y="530" width="224" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
+  <text x="190" y="550" text-anchor="middle" font-size="11" fill="#6D4C2F">Left Motor  ·  Right Motor  ·  Mower</text>
+  <text x="190" y="570" text-anchor="middle" font-size="10" fill="#A0784C">BLDC / FOC  ·  Position Feedback</text>
 
-  <!-- Sensors -->
-  <rect x="340" y="465" width="140" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
-  <text x="410" y="490" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">Sensors</text>
-  <rect x="352" y="500" width="116" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
-  <text x="410" y="518" text-anchor="middle" font-size="10" fill="#6D4C2F">IMU (LSM6DS3TR-C)</text>
-  <text x="410" y="533" text-anchor="middle" font-size="10" fill="#6D4C2F">Charger (BQ257x)</text>
-  <text x="410" y="548" text-anchor="middle" font-size="10" fill="#6D4C2F">BMS  ·  ADC  ·  UI</text>
+  <!-- Electronics (carrier board peripherals, no IMU) -->
+  <rect x="340" y="495" width="140" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
+  <text x="410" y="520" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">Electronics</text>
+  <rect x="352" y="530" width="116" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
+  <text x="410" y="552" text-anchor="middle" font-size="10" fill="#6D4C2F">Charger (BQ257x)</text>
+  <text x="410" y="567" text-anchor="middle" font-size="10" fill="#6D4C2F">BMS  ·  ADC  ·  UI</text>
 
   <!-- GPS -->
-  <rect x="500" y="465" width="260" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
-  <text x="630" y="490" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">RTK GPS Module</text>
-  <rect x="518" y="500" width="224" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
-  <text x="630" y="520" text-anchor="middle" font-size="11" fill="#6D4C2F">UBX Binary  /  NMEA Protocol</text>
-  <text x="630" y="540" text-anchor="middle" font-size="10" fill="#A0784C">RTCM Corrections  ·  cm Accuracy</text>
+  <rect x="500" y="495" width="260" height="110" rx="10" fill="url(#gradHW)" filter="url(#shadow)"/>
+  <text x="630" y="520" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">RTK GPS Module</text>
+  <rect x="518" y="530" width="224" height="60" rx="6" fill="url(#gradHWBox)" stroke="rgba(230,126,34,0.3)" stroke-width="1"/>
+  <text x="630" y="550" text-anchor="middle" font-size="11" fill="#6D4C2F">UBX Binary  /  NMEA Protocol</text>
+  <text x="630" y="570" text-anchor="middle" font-size="10" fill="#A0784C">RTCM Corrections  ·  cm Accuracy</text>
 
   <!-- Footer -->
-  <text x="410" y="605" text-anchor="middle" font-size="10" fill="#BDC3C7">github.com/xtech/fw-openmower-v2</text>
+  <text x="500" y="660" text-anchor="middle" font-size="10" fill="#BDC3C7">github.com/xtech/fw-openmower-v2</text>
 </svg>
