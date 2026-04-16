@@ -4,7 +4,7 @@ Real-time embedded firmware for the xCore board -- the low-level controller in t
 
 [![License: GPL-2.0](https://img.shields.io/badge/License-GPL%202.0-blue.svg)](LICENSE)
 [![CI](https://github.com/xtech/fw-openmower-v2/actions/workflows/ci.yaml/badge.svg)](https://github.com/xtech/fw-openmower-v2/actions/workflows/ci.yaml)
-[![Discord](https://img.shields.io/discord/958292773805907978?label=Discord&logo=discord)](https://discord.gg/jE7QNaSxW7)
+[![Discord](https://img.shields.io/discord/958476543846412329?label=Discord&logo=discord)](https://discord.gg/jE7QNaSxW7)
 
 ## Overview
 
