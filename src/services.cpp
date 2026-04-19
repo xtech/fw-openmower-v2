@@ -12,6 +12,7 @@ EmergencyService emergency_service{xbot::service_ids::EMERGENCY};
 DiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
 MowerService mower_service{xbot::service_ids::MOWER};
 ImuService imu_service{xbot::service_ids::IMU};
+BmsService bms_service{xbot::service_ids::BMS};
 PowerService power_service{xbot::service_ids::POWER};
 GpsService gps_service{xbot::service_ids::GPS};
 InputService input_service{xbot::service_ids::INPUT};
@@ -32,6 +33,7 @@ void StartServices() {
 #endif
   }
 
+  START_IF_NEEDED(bms_service, BMS)
   START_IF_NEEDED(emergency_service, EMERGENCY)
   START_IF_NEEDED(imu_service, IMU)
   START_IF_NEEDED(power_service, POWER)

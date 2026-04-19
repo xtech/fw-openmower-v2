@@ -9,6 +9,7 @@
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
 #include <globals.hpp>
 
+#include "../services/service_ids.h"
 #include "robot.hpp"
 #include "sabo_common.hpp"
 
@@ -27,6 +28,11 @@ class SaboRobot : public MowerRobot {
 
   void InitPlatform() override;
   bool IsHardwareSupported() override;
+
+  bool NeedsService(uint16_t id) override {
+    if (id == xbot::service_ids::BMS) return hardware_config.bms != nullptr;
+    return Robot::NeedsService(id);
+  }
 
   UARTDriver* GPS_GetUartPort() override {
 #ifndef STM32_UART_USE_USART6

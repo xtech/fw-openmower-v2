@@ -4,6 +4,7 @@
 #include <drivers/motor/vesc/VescDriver.h>
 #include <drivers/motor/yfr4esc/YFR4escDriver.h>
 #include <hal.h>
+#include <service_ids.h>
 
 #include <debug/debug_tcp_interface.hpp>
 #include <limits>
@@ -17,8 +18,7 @@ class Robot {
   virtual bool IsHardwareSupported() = 0;
 
   virtual bool NeedsService(uint16_t id) {
-    (void)id;
-    return true;
+    return id != xbot::service_ids::BMS;  // BMS is opt-in, all other services are required by default
   }
 
   virtual UARTDriver* GPS_GetUartPort() {

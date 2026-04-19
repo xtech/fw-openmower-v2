@@ -280,11 +280,6 @@ const char* SaboBmsDriver::GetExtraDataJson() const {
                       ",\"serial_number\":%u,\"design_capacity_ah\":%.3f,\"design_voltage_v\":%.3f",
                       (unsigned)data_.serial_number, (double)data_.design_capacity_ah, (double)data_.design_voltage_v);
 
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars,
-                      ",\"full_charge_capacity_ah\":%.3f,\"remaining_capacity_ah\":%.3f,\"cycle_count\":%u",
-                      (double)data_.full_charge_capacity_ah, (double)data_.remaining_capacity_ah,
-                      (unsigned)data_.cycle_count);
-
   // Status
   chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"status\":\"%u\"", battery_status_);
 
