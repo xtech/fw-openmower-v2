@@ -58,6 +58,10 @@ class BQ2576 : public ChargerDriver {
   const float vfb_ratio_;   // VFB/VBATREG
   const float r_ac_sense_;  // 0 = No Rac_sns
 
+  // Charger control (0x17) persistent state
+  // Defaults: VRECHG=95.2%, DIS_CE_PIN=1, EN_CHG_BIT_RESET_BEHAVIOR=1, EN_CHG=1
+  uint8_t charger_control_reg_ = 0b10011001;
+
   bool readRegister(uint8_t reg, uint8_t &result);
   bool readRegister(uint8_t reg, uint16_t &result);
   bool writeRegister8(uint8_t reg, uint8_t value);
@@ -80,6 +84,8 @@ class BQ2576 : public ChargerDriver {
   bool init() override;
   bool resetWatchdog() override;
 
+  // VRECHG enum values are 0=93%, 1=94.3%, 2=95.2%, 3=97.6%
+  bool setReChargeVoltage(uint8_t recharge_voltage) override;
   bool setTsEnabled(bool enabled) override;
 
   bool readAdapterCurrent(float &result) override;

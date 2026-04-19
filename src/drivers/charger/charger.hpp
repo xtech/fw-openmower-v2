@@ -55,6 +55,13 @@ class ChargerDriver {
   virtual bool init() = 0;
   virtual bool resetWatchdog() = 0;
   virtual bool setTsEnabled(bool enabled) = 0;
+
+  // VRECHG enum values are 0=93%, 1=94.3%, 2=95.2%, 3=97.6%
+  virtual bool setReChargeVoltage(uint8_t recharge_voltage) {
+    (void)recharge_voltage;
+    return false;
+  }
+
   virtual bool readChargeCurrent(float &result) = 0;
   virtual bool readAdapterVoltage(float &result) = 0;
   virtual bool readAdapterCurrent(float &result) = 0;

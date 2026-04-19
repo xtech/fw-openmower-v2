@@ -21,6 +21,10 @@ void PowerService::SetDriver(ChargerDriver* charger_driver) {
 
 bool PowerService::OnStart() {
   charger_configured_ = false;
+
+  if (ReChargeVoltage.valid && charger_) {
+    charger_->setReChargeVoltage(static_cast<uint8_t>(ReChargeVoltage.value));
+  }
   return true;
 }
 
@@ -106,7 +110,7 @@ void PowerService::update_charger_() {
           success &= charger_->setChargeVoltage(target_v);
         }
       }
-      // Disable temperature sense, the battery doesnt have it
+      // Disable temperature sense, the battery doesn't have it
       success &= charger_->setTsEnabled(false);
       charger_configured_ = success;
     }

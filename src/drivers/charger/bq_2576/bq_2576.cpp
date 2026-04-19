@@ -174,12 +174,12 @@ bool BQ2576::setChargeVoltage(float voltage_v) {
 }
 
 bool BQ2576::resetWatchdog() {
-  // TODO, if the REG_Charger_Control is used, we need to either store the value
-  // or read it here before resetting the watchdog.
-  // Tektek test with 94.3% VRECHG
-  // uint8_t val = 0b11111001;
-  uint8_t val = 0b01111001;
-  return writeRegister8(REG_Charger_Control, val);
+  return writeRegister8(REG_Charger_Control, charger_control_reg_ | (1 << 5));  // Set WD_RST
+}
+
+bool BQ2576::setReChargeVoltage(uint8_t recharge_voltage) {
+  charger_control_reg_ = (charger_control_reg_ & 0b00111111) | ((recharge_voltage & 0x03) << 6);
+  return writeRegister8(REG_Charger_Control, charger_control_reg_);
 }
 
 bool BQ2576::getChargerStatus(uint8_t& status1, uint8_t& status2, uint8_t& status3) {
