@@ -42,10 +42,10 @@ class SaboRobot : public MowerRobot {
   }
 
   float Power_GetDefaultChargeVoltage() override {
-    // This is not recommended for older (10+ year) cells like ours and should only be used for new packs
+    // This is not recommended for older (10+ year) cells like ours and should only be used for fresh packs
     // return 7.0f * 4.2f;  // = 29.4V
     // For older cells, we should not expect the full capacity and also not overstress them
-    return 7.0f * 4.15f;  // = 29.05V. You may lower via powerservice register for more aged packs
+    return 7.0f * 4.157f;  // = ~29.1V. You may lower via powerservice register for more aged packs
   }
 
   float Power_GetDefaultBatteryFullVoltage() override {
@@ -75,6 +75,11 @@ class SaboRobot : public MowerRobot {
 
   float Power_GetDefaultPreChargeCurrent() override {
     return 0.5f;  // 500mA
+  }
+
+  ChargerDriver::ReChargeVoltage Power_GetDefaultReChargeVoltage() override {
+    // Sabo batteries are mostly around 10 years old. Be nice to them for a longer life.
+    return ChargerDriver::ReChargeVoltage::PERCENT_95_2;
   }
 
   bool SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) override;

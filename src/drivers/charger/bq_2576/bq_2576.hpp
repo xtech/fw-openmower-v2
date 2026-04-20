@@ -74,7 +74,7 @@ class BQ2576 : public ChargerDriver {
   uint8_t readFaults();
 
  public:
-  bool setChargeVoltage(float voltage_v) override;
+  bool setChargingVoltage(float voltage_v) override;
   bool setAdapterCurrent(float current_amps) override;
   bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) override;
   bool setPreChargeCurrent(float current_amps) override;
@@ -84,8 +84,7 @@ class BQ2576 : public ChargerDriver {
   bool init() override;
   bool resetWatchdog() override;
 
-  // VRECHG enum values are 0=93%, 1=94.3%, 2=95.2%, 3=97.6%
-  bool setReChargeVoltage(uint8_t recharge_voltage) override;
+  bool setReChargeVoltage(ReChargeVoltage recharge_voltage) override;
   bool setTsEnabled(bool enabled) override;
 
   bool readAdapterCurrent(float &result) override;

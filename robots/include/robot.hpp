@@ -7,6 +7,7 @@
 #include <service_ids.h>
 
 #include <debug/debug_tcp_interface.hpp>
+#include <drivers/charger/charger.hpp>
 #include <limits>
 
 // Forward declare ProtocolType from GpsServiceBase.hpp
@@ -63,6 +64,10 @@ class Robot {
    */
   virtual float Power_GetDefaultPreChargeCurrent() {
     return 0.250f;
+  }
+
+  virtual ChargerDriver::ReChargeVoltage Power_GetDefaultReChargeVoltage() {
+    return ChargerDriver::ReChargeVoltage::PERCENT_97_6;
   }
 
   /**

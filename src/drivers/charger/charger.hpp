@@ -42,13 +42,15 @@ class ChargerDriver {
                     static_cast<size_t>(CHARGER_STATUS::UNKNOWN) + 1,
                 "CHARGER_STATUS_STRINGS size must match CHARGER_STATUS enum count");
 
+  enum class ReChargeVoltage : uint8_t { PERCENT_93_0 = 0, PERCENT_94_3 = 1, PERCENT_95_2 = 2, PERCENT_97_6 = 3 };
+
   virtual ~ChargerDriver() = default;
-  virtual bool setChargeVoltage(float voltage_v) {
-    (void)voltage_v;
-    return false;
-  }
   virtual bool setAdapterCurrent(float current_amps) = 0;
   virtual bool setChargingCurrent(float current_amps, bool overwrite_hardware_limit) = 0;
+  virtual bool setChargingVoltage(float voltage_v) {
+    (void)voltage_v;
+    return true;
+  }
   virtual bool setPreChargeCurrent(float current_amps) = 0;
   virtual bool setTerminationCurrent(float current_amps) = 0;
   virtual CHARGER_STATUS getChargerStatus() = 0;
@@ -56,10 +58,9 @@ class ChargerDriver {
   virtual bool resetWatchdog() = 0;
   virtual bool setTsEnabled(bool enabled) = 0;
 
-  // VRECHG enum values are 0=93%, 1=94.3%, 2=95.2%, 3=97.6%
-  virtual bool setReChargeVoltage(uint8_t recharge_voltage) {
+  virtual bool setReChargeVoltage(ReChargeVoltage recharge_voltage) {
     (void)recharge_voltage;
-    return false;
+    return true;
   }
 
   virtual bool readChargeCurrent(float &result) = 0;

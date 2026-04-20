@@ -162,7 +162,7 @@ bool BQ2576::readBatteryVoltage(float& result) {
   return true;
 }
 
-bool BQ2576::setChargeVoltage(float voltage_v) {
+bool BQ2576::setChargingVoltage(float voltage_v) {
   if (vfb_ratio_ <= 0.0f) return false;
 
   float vfb_mv = voltage_v * 1000.0f * vfb_ratio_;
@@ -177,8 +177,8 @@ bool BQ2576::resetWatchdog() {
   return writeRegister8(REG_Charger_Control, charger_control_reg_ | (1 << 5));  // Set WD_RST
 }
 
-bool BQ2576::setReChargeVoltage(uint8_t recharge_voltage) {
-  charger_control_reg_ = (charger_control_reg_ & 0b00111111) | ((recharge_voltage & 0x03) << 6);
+bool BQ2576::setReChargeVoltage(ReChargeVoltage recharge_voltage) {
+  charger_control_reg_ = (charger_control_reg_ & 0b00111111) | ((static_cast<uint8_t>(recharge_voltage) & 0x03) << 6);
   return writeRegister8(REG_Charger_Control, charger_control_reg_);
 }
 

@@ -15,6 +15,12 @@
 
 using namespace xbot::driver;
 
+// Static assertions to ensure ChargerDriver::ReChargeVoltage enum matches PowerService ReChargeVoltages enum
+static_assert(static_cast<uint8_t>(ChargerDriver::ReChargeVoltage::PERCENT_93_0) == 0, "ReChargeVoltage enum mismatch");
+static_assert(static_cast<uint8_t>(ChargerDriver::ReChargeVoltage::PERCENT_94_3) == 1, "ReChargeVoltage enum mismatch");
+static_assert(static_cast<uint8_t>(ChargerDriver::ReChargeVoltage::PERCENT_95_2) == 2, "ReChargeVoltage enum mismatch");
+static_assert(static_cast<uint8_t>(ChargerDriver::ReChargeVoltage::PERCENT_97_6) == 3, "ReChargeVoltage enum mismatch");
+
 void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
 }
@@ -22,9 +28,6 @@ void PowerService::SetDriver(ChargerDriver* charger_driver) {
 bool PowerService::OnStart() {
   charger_configured_ = false;
 
-  if (ReChargeVoltage.valid && charger_) {
-    charger_->setReChargeVoltage(static_cast<uint8_t>(ReChargeVoltage.value));
-  }
   return true;
 }
 
@@ -93,23 +96,27 @@ void PowerService::update_charger_() {
       } else {
         success &= charger_->setPreChargeCurrent(robot->Power_GetDefaultPreChargeCurrent());
       }
-      if (TerminationCurrent.valid && TerminationCurrent.value > 0) {
-        success &= charger_->setTerminationCurrent(TerminationCurrent.value);
-      } else {
-        success &= charger_->setTerminationCurrent(robot->Power_GetDefaultTerminationCurrent());
-      }
       if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
         success &= charger_->setChargingCurrent(ChargeCurrent.value, false);
       } else {
         success &= charger_->setChargingCurrent(robot->Power_GetDefaultChargeCurrent(), false);
       }
-      {
-        float target_v = (ChargeVoltage.valid && ChargeVoltage.value > 0) ? ChargeVoltage.value
-                                                                          : robot->Power_GetDefaultChargeVoltage();
-        if (target_v > 0) {
-          success &= charger_->setChargeVoltage(target_v);
-        }
+      if (ChargeVoltage.valid && ChargeVoltage.value > 0) {
+        success &= charger_->setChargingVoltage(ChargeVoltage.value);
+      } else {
+        success &= charger_->setChargingVoltage(robot->Power_GetDefaultChargeVoltage());
       }
+      if (TerminationCurrent.valid && TerminationCurrent.value > 0) {
+        success &= charger_->setTerminationCurrent(TerminationCurrent.value);
+      } else {
+        success &= charger_->setTerminationCurrent(robot->Power_GetDefaultTerminationCurrent());
+      }
+      if (ReChargeVoltage.valid) {
+        success &= charger_->setReChargeVoltage(static_cast<ChargerDriver::ReChargeVoltage>(ReChargeVoltage.value));
+      } else {
+        success &= charger_->setReChargeVoltage(robot->Power_GetDefaultReChargeVoltage());
+      }
+
       // Disable temperature sense, the battery doesn't have it
       success &= charger_->setTsEnabled(false);
       charger_configured_ = success;
