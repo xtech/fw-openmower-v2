@@ -77,7 +77,7 @@ class Robot {
 
   /**
    * Set the max. allowed system current in Amps.
-   * This is to limit e.g. the charger current for not overloading the power supply.
+   * This is to limit e.g. the charger current for not overloading the wall power supply.
    * Only usefull for systems that do have some kind of system current sense.
    */
   virtual void Power_SetSystemCurrent(float system_current) {

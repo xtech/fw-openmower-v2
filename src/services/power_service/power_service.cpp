@@ -37,13 +37,13 @@ void PowerService::service_tick_() {
   StartTransaction();
   if (charger_configured_) {
     const char* status_text = ChargerDriver::statusToString(charger_status);
-    SendChargerStatus(status_text, strlen(status_text));
+    SendChargingStatus(status_text, strlen(status_text));
   } else {
-    SendChargerStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
+    SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
   }
   SendBatteryVoltage(battery_volts);
-  SendChargingVoltage(adapter_volts);
-  SendChargingCurrent(charge_current);
+  SendChargeVoltage(adapter_volts);
+  SendChargeCurrent(charge_current);
   SendChargerEnabled(true);
   if (BatteryFullVoltage.valid && BatteryEmptyVoltage.valid) {
     battery_percent =
@@ -57,7 +57,7 @@ void PowerService::service_tick_() {
 
   // ADC values
   SendBatteryVoltageADC(battery_volts_adc);
-  SendChargingVoltageADC(adapter_volts_adc);
+  SendChargeVoltageADC(adapter_volts_adc);
   SendDCDCInputCurrent(dcdc_current);
 
   CommitTransaction();
