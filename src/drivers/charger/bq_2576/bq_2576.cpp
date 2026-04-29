@@ -15,39 +15,74 @@
 bool BQ2576::init() {
   uint8_t result = 0;
 
-  bool readOk = readRegister(REG_PART_INFORMATION, result);
-  bool charger_connected = readOk && (result & 0b01111000) == 0b010000;
-  bool success = charger_connected;
+  ULOG_INFO("BQ2576: Starting init...");
 
-  // Reset the charger settings
-  {
-    bool writeOk = writeRegister8(REG_Power_Path_and_Reverse_Mode_Control, 0b10100000);
-    if (!writeOk) {
-      return false;
-    }
+  if (i2c_driver_ == nullptr) {
+    ULOG_ERROR("BQ2576: I2C driver is null! setI2C() was not called.");
+    return false;
+  }
+
+  bool readOk = readRegister(REG_PART_INFORMATION, result);
+  if (!readOk) {
+    ULOG_ERROR("BQ2576: Failed to read PART_INFORMATION register");
+    return false;
+  }
+
+  bool charger_connected = (result & 0b01111000) == 0b010000;
+  if (!charger_connected) {
+    ULOG_ERROR("BQ2576: Chip ID mismatch! Expected 0x40 in bits 6:3, got 0x%02X", (result & 0b01111000));
+    return false;
+  }
+
+  bool writeOk = writeRegister8(REG_Power_Path_and_Reverse_Mode_Control, 0b10100000);
+  if (!writeOk) {
+    ULOG_ERROR("BQ2576: Failed to write reset command to REG_Power_Path_and_Reverse_Mode_Control");
+    return false;
   }
 
   // Wait for reset done
   bool reset_done;
+  uint32_t reset_iterations = 0;
   do {
     // Wait 100ms
     chThdSleep(TIME_MS2I(100));
+    reset_iterations++;
     readOk = readRegister(REG_Power_Path_and_Reverse_Mode_Control, result);
     if (!readOk) {
+      ULOG_ERROR("BQ2576: Failed to read REG_Power_Path_and_Reverse_Mode_Control during reset wait (iteration %u)",
+                 reset_iterations);
       return false;
     }
     reset_done = (result & 0b1000000) == 0;
+    if (!reset_done && (reset_iterations % 10 == 0)) {
+      ULOG_INFO("BQ2576: Still waiting for reset... (iteration %u, register=0x%02X)", reset_iterations, result);
+    }
   } while (!reset_done);
+  ULOG_INFO("BQ2576: Reset completed after %u iterations (~%u ms)", reset_iterations, reset_iterations * 100);
 
   // Disable PFM
-  success &= writeRegister8(REG_Power_Path_and_Reverse_Mode_Control, 0);
+  bool success = writeRegister8(REG_Power_Path_and_Reverse_Mode_Control, 0);
+  if (!success) {
+    ULOG_ERROR("BQ2576: Failed to disable PFM");
+    return false;
+  }
 
   // Enable automatic ADC sampling
-  success &= writeRegister8(REG_ADC_Control, 0b10000000);
+  success = writeRegister8(REG_ADC_Control, 0b10000000);
+  if (!success) {
+    ULOG_ERROR("BQ2576: Failed to enable ADC sampling");
+    return false;
+  }
 
-  resetWatchdog();
+  // Reset watchdog
+  success = resetWatchdog();
+  if (!success) {
+    ULOG_ERROR("BQ2576: Failed to reset watchdog");
+    return false;
+  }
 
-  return success;
+  ULOG_INFO("BQ2576: Init completed successfully!");
+  return true;
 }
 
 bool BQ2576::setTsEnabled(bool enabled) {

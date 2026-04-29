@@ -110,15 +110,29 @@ void PowerService::charger_tick() {
       // Set the currents low
       bool success = true;
       success &= charger_->setPreChargeCurrent(0.250f);
+      if (!success) {
+        ULOG_ARG_ERROR(&service_id_, "Failed to set pre-charge current");
+      }
       success &= charger_->setTerminationCurrent(0.250f);
+      if (!success) {
+        ULOG_ARG_ERROR(&service_id_, "Failed to set termination current");
+      }
       if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
         success &= charger_->setChargingCurrent(ChargeCurrent.value, false);
       } else {
         success &= charger_->setChargingCurrent(robot->Power_GetDefaultChargeCurrent(), false);
       }
+      if (!success) {
+        ULOG_ARG_ERROR(&service_id_, "Failed to set charging current");
+      }
       // Disable temperature sense, the battery doesnt have it
       success &= charger_->setTsEnabled(false);
+      if (!success) {
+        ULOG_ARG_ERROR(&service_id_, "Failed to disable temperature sense");
+      }
       charger_configured_ = success;
+    } else {
+      ULOG_ARG_ERROR(&service_id_, "Charger init() failed - will retry");
     }
 
     if (charger_configured_) {
