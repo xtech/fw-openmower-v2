@@ -36,7 +36,7 @@ class BmsService : public BmsServiceBase {
   const Data* bms_data_ = nullptr;
   const char* bms_extra_data_ = nullptr;
 
-  THD_WORKING_AREA(wa, 1000){};
+  THD_WORKING_AREA(wa, 512){};
 };
 
 #endif  // BMS_SERVICE_HPP
