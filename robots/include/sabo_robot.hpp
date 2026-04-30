@@ -151,6 +151,11 @@ class SaboRobot : public MowerRobot {
     }
   }
 
+  // Charger driver access for direct hardware readings
+  BQ2576& GetCharger() {
+    return charger_;
+  }
+
   bool HasInvertedHallSensors() const;
 
  private:
