@@ -37,8 +37,8 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
  public:
   explicit SaboCoverUICaboDriverV03(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
       : SaboCoverUICaboDriverBase(cover_ui_cfg),
-        gpio_exp_leds_(&cover_ui_cfg->gpio_expander.leds),
-        gpio_exp_btns_(&cover_ui_cfg->gpio_expander.btns),
+        gpio_exp_leds_(&cover_ui_cfg->gpio_expander.v03.leds),
+        gpio_exp_btns_(&cover_ui_cfg->gpio_expander.v03.btns),
         pins_(cover_ui_cfg_->pins.v03) {
   }
 
