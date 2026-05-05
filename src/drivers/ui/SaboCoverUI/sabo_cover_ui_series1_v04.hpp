@@ -1,9 +1,21 @@
-//
-// Created by Apehaenger on 6/14/25.
-//
+/*
+ * OpenMower V2 Firmware
+ * Part of the OpenMower V2 Firmware (https://github.com/xtech/fw-openmower-v2)
+ *
+ * Copyright (C) 2026 The OpenMower Contributors
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
 
-#ifndef OPENMOWER_SABO_COVER_UI_SERIES1_V03_HPP
-#define OPENMOWER_SABO_COVER_UI_SERIES1_V03_HPP
+/**
+ * @file sabo_cover_ui_series1_v04.hpp
+ * @brief Sabo CoverUI Series1 Driver for Hardware v0.4 with one TCA9535 GPIO expander
+ * @author Apehaenger <joerg@ebeling.ws>
+ * @date 2026-05-03
+ */
+
+#ifndef OPENMOWER_SABO_COVER_UI_SERIES1_V04_HPP
+#define OPENMOWER_SABO_COVER_UI_SERIES1_V04_HPP
 
 #include "ch.h"
 #include "hal.h"
@@ -13,15 +25,15 @@ namespace xbot::driver::ui {
 
 using namespace xbot::driver::sabo::types;
 
-/** CoverUI Series-I driver for Carrierboard v0.3.
+/** CoverUI Series-I driver for Carrierboard v0.4.
  *
  * Yes, we need a separate driver for CoverUI Series-I for each Carrierboard implementation, because CoverUI Series-I is
  * fully dump and highly depends on the Carrierboard wiring.
  */
-class SaboCoverUISeries1V03 : public SaboCoverUISeriesInterface {
+class SaboCoverUISeries1V04 : public SaboCoverUISeriesInterface {
  public:
   // clang-format off
-  static constexpr uint8_t GPIO_LED_PINS     = 0b00011111;  // The lower 5 bits are used for LEDs, in the same order as sabo::types::LedId
+  static constexpr uint16_t GPIO_LED_PINS     = 0b0011111000000000;  // Bits [9:13] are used for LEDs, in the same order as sabo::types::LedId
 
   // Button bits of GPIO Buttons expander (TCA9535)
   static constexpr uint16_t GPIO_BTNS_MASK_BTN_UP_L     = (1 << 0);
@@ -70,9 +82,9 @@ class SaboCoverUISeries1V03 : public SaboCoverUISeriesInterface {
 
  protected:
   uint16_t MapLedIdToMask(const LedId id) const override {
-    return 1 << static_cast<uint8_t>(id);  // Direct 1:1 mapping of LedId to GPIO_LED_PINS bitmask
+    return 1 << (static_cast<uint8_t>(id) + 9);  // 9 bit shifted 1:1 mapping of LedId to GPIO_LED_PINS bitmask
   }
 };
 
 }  // namespace xbot::driver::ui
-#endif  // OPENMOWER_SABO_COVER_UI_SERIES1_V03_HPP
+#endif  // OPENMOWER_SABO_COVER_UI_SERIES1_V04_HPP

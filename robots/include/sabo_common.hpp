@@ -102,6 +102,8 @@ struct CoverUi {
     struct {
       const ioline_t s2_latch;  // Series-II Latch (HEF4794BT STR)
       const ioline_t s2_load;   // Series-II SH/LD (HC165 SH/LD)
+      const ioline_t s1_con;    // Series-I /Connected (active low)
+      const ioline_t s2_con;    // Series-II /Connected (active low)
     } v04;
   } pins;
   // Optional GPIO expander. Only >= v0.3 have them
@@ -176,7 +178,8 @@ inline const CoverUi COVER_UI_V0_3 = {
 inline const CoverUi COVER_UI_V0_4 = {
     .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},  // SPI, SCK, MISO, MOSI, CS
 
-    .pins = {.v04 = {LINE_GPIO1, LINE_GPIO9}},  // HEF4794BT STR, HC165 SH/LD
+    .pins = {.v04 = {LINE_GPIO1, LINE_GPIO9,       // HEF4794BT STR, HC165 SH/LD
+                     LINE_UART7_RX, LINE_GPIO8}},  // S1-/CON, S2-/CON
     .gpio_expander = {.v04 = {.expander = {.i2c = &I2CD4, .address = 0x20}}}};
 
 inline const Lcd LCD_V0_2 = {

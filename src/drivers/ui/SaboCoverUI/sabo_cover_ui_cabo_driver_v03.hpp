@@ -123,7 +123,7 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
   TCA9534Driver gpio_exp_leds_;  // GPIO expander for Series-I LEDs (and Series-I connection detection))
   TCA9535Driver gpio_exp_btns_;  // GPIO expander for Series-I buttons as well as Series-II /con and OE
 
-  uint8_t MapLedIdToMask(const LedId id) const override {
+  uint16_t MapLedIdToMask(const LedId id) const override {
     //  LedId ENUM matches LEDs pin position for both series now
     return (1 << uint8_t(id)) & 0b11111;  // Safety mask to only use the connected LEDs
   }
