@@ -45,7 +45,9 @@ class SaboCoverUISeries1V04 : public SaboCoverUISeriesInterface {
   static constexpr uint16_t GPIO_BTNS_MASK_BTN_MENUE_L  = (1 << 6);
   static constexpr uint16_t GPIO_BTNS_MASK_BTN_BACK_L   = (1 << 7);
   static constexpr uint16_t GPIO_BTNS_MASK_BTN_SELECT_L = (1 << 8);  // Series-I Button "Select"
-  static constexpr uint16_t GPIO_BTNS_MASK_BTN_ALL_L    = (GPIO_BTNS_MASK_BTN_SELECT_L | GPIO_BTNS_MASK_BTN_MENUE_L | GPIO_BTNS_MASK_BTN_PLAY_L | GPIO_BTNS_MASK_BTN_RIGHT_L | GPIO_BTNS_MASK_BTN_BACK_L | GPIO_BTNS_MASK_BTN_LEFT_L | GPIO_BTNS_MASK_BTN_UP_L | GPIO_BTNS_MASK_BTN_DOWN_L | GPIO_BTNS_MASK_BTN_OK_L);
+  static constexpr uint16_t GPIO_BTNS_MASK_BTN_ALL_L    = (GPIO_BTNS_MASK_BTN_UP_L | GPIO_BTNS_MASK_BTN_DOWN_L | GPIO_BTNS_MASK_BTN_LEFT_L | GPIO_BTNS_MASK_BTN_RIGHT_L |
+                                                           GPIO_BTNS_MASK_BTN_OK_L | GPIO_BTNS_MASK_BTN_PLAY_L | GPIO_BTNS_MASK_BTN_MENUE_L | GPIO_BTNS_MASK_BTN_BACK_L |
+                                                           GPIO_BTNS_MASK_BTN_SELECT_L);
   // clang-format on
 
   SeriesType GetType() const override {

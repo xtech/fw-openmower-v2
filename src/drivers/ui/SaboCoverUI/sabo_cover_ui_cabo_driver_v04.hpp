@@ -77,18 +77,16 @@ class SaboCoverUICaboDriverV04 : public SaboCoverUICaboDriverBase {
 
     switch (series_->GetType()) {
       case SeriesType::Series1:
-        /* FIXME
         gpio_exp_.WritePort(~current_led_mask_);  // Series-I LEDs are active low, so invert the mask
 
         // Buttons
         uint16_t btns;
-        gpio_exp_btns_.ReadPort(&btns);
-        btns &= SaboCoverUISeries1V03::GPIO_BTNS_MASK_BTN_ALL_L;   // Mask out buttons
-        btns |= ~SaboCoverUISeries1V03::GPIO_BTNS_MASK_BTN_ALL_L;  // Set non-button bits to 1 for easier diagnostics
-        DebounceRawButtons(btns);*/
+        gpio_exp_.ReadPort(&btns);
+        btns &= SaboCoverUISeries1V04::GPIO_BTNS_MASK_BTN_ALL_L;   // Mask out buttons
+        btns |= ~SaboCoverUISeries1V04::GPIO_BTNS_MASK_BTN_ALL_L;  // Set non-button bits to 1 for easier diagnostics
+        DebounceRawButtons(btns);
         break;
       case SeriesType::Series2:
-        // Series2LatchSSR(current_led_mask_ | series_->GetButtonRowMask());  // Latch LEDs and button row
         btn_cols = Series2LatchLoad(current_led_mask_ |
                                     series_->GetButtonRowMask());  // Latch LEDs and button row, return button columns
         DebounceRawButtons(series_->ProcessButtonCol(btn_cols));   // Process received button column
@@ -100,10 +98,9 @@ class SaboCoverUICaboDriverV04 : public SaboCoverUICaboDriverBase {
  protected:
   TCA9535Driver gpio_exp_;  // GPIO expander for Series-I buttons and LEDs
 
-  uint16_t MapLedIdToMask(const LedId id) const override {
-    //  LedId ENUM matches LEDs pin position for both series now
-    return (1 << uint8_t(id)) & 0b11111;  // Safety mask to only use the connected LEDs
-  }
+  uint16_t MapLedIdToMask(LedId id) const override {
+    return series_ ? series_->MapLedIdToMask(id) : 0;
+  };
 
   /**
    * @brief Send tx_data to Series-II (HEF4794) "Shift and Store Register" and latch it.
@@ -139,7 +136,7 @@ class SaboCoverUICaboDriverV04 : public SaboCoverUICaboDriverBase {
     }
     next_process_time = chVTGetSystemTimeX() + TIME_S2I(2);  // Process only every 2nd second
 
-    // Series-II CoverUI has it's /Connected signal on GPIO port
+    // Series-I CoverUI has it's /Connected signal on GPIO port
     if (palReadLine(pins_.s1_con) == PAL_LOW) {
       ULOG_INFO("Detected Sabo Series-I CoverUI");
       static SaboCoverUISeries1V04 series1_driver;
