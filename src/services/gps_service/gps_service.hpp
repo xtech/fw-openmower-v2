@@ -16,7 +16,8 @@ class GpsService : public GpsServiceBase {
   THD_WORKING_AREA(wa, 1536){};
 
  public:
-  explicit GpsService(const uint16_t service_id) : GpsServiceBase(service_id, wa, sizeof(wa)) {
+  explicit GpsService(const uint16_t service_id, uint16_t debug_interface_port)
+      : GpsServiceBase(service_id, wa, sizeof(wa)), debug_interface_{debug_interface_port, nullptr} {
   }
 
   const GpsDriver::GpsState& GetGpsState() const {
@@ -47,7 +48,7 @@ class GpsService : public GpsServiceBase {
 
  private:
   GpsDriver* gps_driver_ = nullptr;
-  DebugTCPInterface debug_interface_{10000, nullptr};
+  DebugTCPInterface debug_interface_;
 
   // Keep track of the configuration used by the gps_driver_ loaded (initial values don't matter)
   // ATTN: Might become problematic as soon as GpsServiceBase.Uart defaults to != 0

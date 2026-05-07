@@ -13,7 +13,7 @@ DiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
 MowerService mower_service{xbot::service_ids::MOWER};
 ImuService imu_service{xbot::service_ids::IMU};
 PowerService power_service{xbot::service_ids::POWER};
-GpsService gps_service{xbot::service_ids::GPS};
+GpsService gps_service{xbot::service_ids::GPS, 10000};
 InputService input_service{xbot::service_ids::INPUT};
 HighLevelService high_level_service{xbot::service_ids::HIGH_LEVEL};
 
