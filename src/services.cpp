@@ -44,4 +44,8 @@ void StartServices() {
   START_IF_NEEDED(gps_service, GPS)
   START_IF_NEEDED(input_service, INPUT)
   START_IF_NEEDED(high_level_service, HIGH_LEVEL)
+
+  // Don't forget to start our new services
+  gps_service_recording_1.start();
+  gps_service_recording_2.start();
 }
