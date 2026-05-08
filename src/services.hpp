@@ -16,6 +16,8 @@ extern MowerService mower_service;
 extern ImuService imu_service;
 extern PowerService power_service;
 extern GpsService gps_service;
+extern GpsService gps_service_recording_1;
+extern GpsService gps_service_recording_2;
 extern InputService input_service;
 extern HighLevelService high_level_service;
 

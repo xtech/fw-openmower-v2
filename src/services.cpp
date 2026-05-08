@@ -13,7 +13,11 @@ DiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
 MowerService mower_service{xbot::service_ids::MOWER};
 ImuService imu_service{xbot::service_ids::IMU};
 PowerService power_service{xbot::service_ids::POWER};
-GpsService gps_service{xbot::service_ids::GPS};
+GpsService gps_service{xbot::service_ids::GPS, 10000};
+// Add two more GPS service instances for our recording purposes
+// Add some hard coded IDs, so that we can bind ROS to the new services.
+GpsService gps_service_recording_1{1001, 10001};
+GpsService gps_service_recording_2{1002, 10002};
 InputService input_service{xbot::service_ids::INPUT};
 HighLevelService high_level_service{xbot::service_ids::HIGH_LEVEL};
 
@@ -40,4 +44,8 @@ void StartServices() {
   START_IF_NEEDED(gps_service, GPS)
   START_IF_NEEDED(input_service, INPUT)
   START_IF_NEEDED(high_level_service, HIGH_LEVEL)
+
+  // Don't forget to start our new services
+  gps_service_recording_1.start();
+  gps_service_recording_2.start();
 }
