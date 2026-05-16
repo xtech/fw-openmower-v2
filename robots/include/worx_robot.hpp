@@ -32,7 +32,7 @@ class WorxRobot : public MowerRobot {
   }
 
  private:
-  BQ2576 charger_{};
+  BQ2576 charger_{249000, 20000};  // FIXME: Assumed Universal Board
   WorxInputDriver worx_driver_{};
 };
 

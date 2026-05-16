@@ -28,7 +28,7 @@ class Lyfco_E1600Robot : public MowerRobot {
   }
 
  private:
-  BQ2576 charger_{};
+  BQ2576 charger_{249000, 14040};  // FIXME: Assumed Universal Board
 };
 
 #endif  // LYFCO_E1600_ROBOT_HPP
