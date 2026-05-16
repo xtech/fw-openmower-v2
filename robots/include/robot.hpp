@@ -42,6 +42,30 @@ class Robot {
   virtual float Power_GetDefaultChargeCurrent() = 0;
 
   /**
+   * Return the charge voltage target (VREG) in Volts.
+   * Returns 0 to leave the hardware-pin configured voltage unchanged.
+   */
+  virtual float Power_GetDefaultChargeVoltage() {
+    return 0.0f;
+  }
+
+  /**
+   * Return the termination current (ITERM) in Amps.
+   * Charging is considered done when CV current drops below this value.
+   */
+  virtual float Power_GetDefaultTerminationCurrent() {
+    return 0.250f;
+  }
+
+  /**
+   * Return the pre-charge current (IPRECHG) in Amps.
+   * Used when VBAT < VBAT_LOWV (pre-charge region).
+   */
+  virtual float Power_GetDefaultPreChargeCurrent() {
+    return 0.250f;
+  }
+
+  /**
    * Return the minimum voltage before shutting down as much as possible
    */
   virtual float Power_GetAbsoluteMinVoltage() = 0;

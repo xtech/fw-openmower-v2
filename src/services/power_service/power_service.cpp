@@ -109,12 +109,26 @@ void PowerService::charger_tick() {
     if (charger_->init()) {
       // Set the currents low
       bool success = true;
-      success &= charger_->setPreChargeCurrent(0.250f);
-      success &= charger_->setTerminationCurrent(0.250f);
+      if (PreA.valid && PreA.value > 0) {
+        success &= charger_->setPreChargeCurrent(PreA.value);
+      } else {
+        success &= charger_->setPreChargeCurrent(robot->Power_GetDefaultPreChargeCurrent());
+      }
+      if (TrmA.valid && TrmA.value > 0) {
+        success &= charger_->setTerminationCurrent(TrmA.value);
+      } else {
+        success &= charger_->setTerminationCurrent(robot->Power_GetDefaultTerminationCurrent());
+      }
       if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
         success &= charger_->setChargingCurrent(ChargeCurrent.value, false);
       } else {
         success &= charger_->setChargingCurrent(robot->Power_GetDefaultChargeCurrent(), false);
+      }
+      {
+        float target_v = (ChgV.valid && ChgV.value > 0) ? ChgV.value : robot->Power_GetDefaultChargeVoltage();
+        if (target_v > 0) {
+          success &= charger_->setChargeVoltage(target_v);
+        }
       }
       // Disable temperature sense, the battery doesnt have it
       success &= charger_->setTsEnabled(false);

@@ -35,25 +35,40 @@ class SaboRobot : public MowerRobot {
     return &UARTD6;
   }
 
+  float Power_GetDefaultChargeVoltage() override {
+    // This is not recommended for older (10+ year) cells like ours and should only be used for new packs
+    // return 7.0f * 4.2f;  // = 29.4V
+    // For older cells, we should not expect the full capacity and also not overstress them
+    return 7.0f * 4.15f;  // = 29.05V. You may lower via powerservice register for more aged packs
+  }
+
   float Power_GetDefaultBatteryFullVoltage() override {
-    return 29.0f;  // Conservative. Rated on battery pack is 29.4V
+    return Power_GetDefaultChargeVoltage() * 0.9f;
   }
 
   float Power_GetDefaultBatteryEmptyVoltage() override {
-    return 7.0f * 3.36f;  // 23.52V
+    return 7.0f * 3.5f;  // 24.5V
   }
 
   float Power_GetAbsoluteMinVoltage() override {
     // Stock Sabo battery pack has INR18650-13L (Samsung) which are specified as:
-    // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save and use 3.15V,
+    // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save,
     // because most packages are > 10 years old now and cells may be a bit worn out.
-    return 7.0f * 3.2;  // 22.4V
+    return 7.0f * 3.45f;  // 24.15V
   }
 
   float Power_GetDefaultChargeCurrent() override {
     // Battery pack is 7S3P, so max. would be 1.3Ah * 3 = 3.9A
     // 3.9A would be also approx. the max. charge current for the stock 90W PSU!
     return 2.5f;  // Lets stay save and conservative for now
+  }
+
+  float Power_GetDefaultTerminationCurrent() override {
+    return 0.3f;  // 300mA
+  }
+
+  float Power_GetDefaultPreChargeCurrent() override {
+    return 0.5f;  // 500mA
   }
 
   bool SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) override;
@@ -128,7 +143,9 @@ class SaboRobot : public MowerRobot {
   bool HasInvertedHallSensors() const;
 
  private:
-  BQ2576 charger_{0.005f};  // All Sabo's do have an 5mΩ Rac_sns
+  // r_top=249k, r_bot=13.7k per Sabo schematic
+  // Power_GetDefaultChargeVoltage() fine-tunes to 29.4V via VFB_REG on each init.
+  BQ2576 charger_{249000, 13700, 0.005f};  // All Sabo's do have an 5mΩ Rac_sns
   SaboCoverUIController cover_ui_{hardware_config};
   SaboInputDriver sabo_input_driver_{hardware_config};
   SaboBmsDriver bms_{hardware_config.bms};

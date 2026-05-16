@@ -106,7 +106,6 @@ bool SaboBmsDriver::Init() {
 
 void SaboBmsDriver::Tick() {
   static uint8_t check_cnt = 100;  // Need some retries to detect presence
-  static systime_t last_log_time = 0;
 
   if (!configured_ || (!IsPresent() && !check_cnt)) return;
 
@@ -206,25 +205,27 @@ void SaboBmsDriver::Tick() {
 
   // BatteryStatus (0x16) word
   // "FSM-BMZ, 30710, V2.00" seem to support only some of the status bits.
-  if (ReadRegister(0x16, u16) == MSG_OK) {
+  if (ReadRegister(0x16, battery_status_) == MSG_OK) {
     // Bit 11, 0x0800 looks like a TERMINATE_DISCHARGE_ALARM flag, SoC < 5% ?
-    (u16 & 0b0000100000000000)
+    (battery_status_ & 0b0000100000000000)
         ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge)
         : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge);
     // Bit 7-6 looks like a CHARGING flag => /DISCHARGING
-    ((u16 & 0b11000000) && data_.pack_current_a > 0.0f)
+    ((battery_status_ & 0b11000000) && data_.pack_current_a > 0.0f)
         ? SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusDischarging)
         : SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusDischarging);
-    // Bit 5 looks like a /FULLY_CHARGED flag
-    (u16 & 0b00100000)
-        ? SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged)
-        : SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged);
+    // Bit 5: CHARGE_ACCEPTED_N (active-low) — CLEAR = charger accepted, SET = charger absent/rejected.
+    // Map to StatusFullyCharged only when charger is actually accepted AND SOC confirms full.
+    const bool charge_accepted = !(battery_status_ & (1 << 5));
+    (charge_accepted && data_.battery_soc >= 0.99f)
+        ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged)
+        : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged);
     // Bit 1 looks like a FULLY_DISCHARGED flag, SoC < 20% ?
-    (u16 & 0b00000010)
+    (battery_status_ & 0b00000010)
         ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyDischarged)
         : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyDischarged);
     // Bit 0 looks like a TERMINATE_DISCHARGE_ALARM flag, SoC < 5% ?
-    /*(u16 & 0b00000001)
+    /*(battery_status_ & 0b00000001)
         ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge)
         : SbsProtocol::ResetBatteryStatus(data_.battery_status,
        SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge);*/
@@ -245,28 +246,10 @@ void SaboBmsDriver::Tick() {
     }
   }
 
-  // Log BMS data every minute for analysis and BatteryStatus monitoring
-  const systime_t now = chVTGetSystemTimeX();
-  if (chVTTimeElapsedSinceX(last_log_time) > TIME_S2I(60)) {
-    last_log_time = now;
-
-    // Format battery_status as hex and binary
-    char status_bin[17];
-    for (int i = 0; i < 16; i++) {
-      status_bin[i] = (data_.battery_status & (1 << (15 - i))) ? '1' : '0';
-    }
-    status_bin[16] = '\0';
-
-    ULOG_INFO("BMS Data: t=%lu V=%.2f I=%.3f T=%.1f SOC=%.1f%% RemCap=%.3fAh FullCap=%.3fAh Status=0x%04X (%s)",
-              (unsigned long)TIME_I2MS(now), (double)data_.pack_voltage_v, (double)data_.pack_current_a,
-              (double)data_.temperature_c, (double)(data_.battery_soc * 100.0f), (double)data_.remaining_capacity_ah,
-              (double)data_.full_charge_capacity_ah, (unsigned)data_.battery_status, status_bin);
-  }
   i2cReleaseBus(bms_cfg_->i2c);
 }
 
 const char* SaboBmsDriver::GetExtraDataJson() const {
-  // FIXME: Quite large JSON buffer. Optimize as streamed output?
   static char json_buf[512];
 
   json_buf[0] = '\0';
@@ -301,6 +284,9 @@ const char* SaboBmsDriver::GetExtraDataJson() const {
                       ",\"full_charge_capacity_ah\":%.3f,\"remaining_capacity_ah\":%.3f,\"cycle_count\":%u",
                       (double)data_.full_charge_capacity_ah, (double)data_.remaining_capacity_ah,
                       (unsigned)data_.cycle_count);
+
+  // Status
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"status\":\"%u\"", battery_status_);
 
   // Cell voltages
   chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"cell_count\":%u,\"cell_voltage_v\": [",
