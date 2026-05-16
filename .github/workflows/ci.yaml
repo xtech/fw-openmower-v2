@@ -4,10 +4,10 @@ on:
   pull_request:
   push:
     tags:
-      - 'v*'
+      - "v*"
     branches:
-      - 'main'
-      - 'feature/*'
+      - "main"
+      - "feature/*"
 
 jobs:
   pre-commit:
@@ -50,6 +50,8 @@ jobs:
           cp ./out/openmower-lyfco-e1600.elf ./artifacts
           cp ./out/openmower-sabo.bin ./artifacts
           cp ./out/openmower-sabo.elf ./artifacts
+          cp ./out/openmower-universal-5s.bin ./artifacts
+          cp ./out/openmower-universal-5s.elf ./artifacts
           cp ./out/openmower-universal-7s.bin ./artifacts
           cp ./out/openmower-universal-7s.elf ./artifacts
           cp ./out/ram-info.html ./artifacts
