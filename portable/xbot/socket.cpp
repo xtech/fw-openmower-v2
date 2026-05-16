@@ -15,8 +15,9 @@
 using namespace xbot::service::sock;
 using namespace xbot::service::packet;
 
-bool xbot::service::sock::initialize(SocketPtr socket_ptr, bool bind_multicast) {
+bool xbot::service::sock::initialize(SocketPtr socket_ptr, bool bind_multicast, const char* bind_address) {
   chDbgAssert(!bind_multicast, "Multicast is not supported on the MAC implementation");
+  chDbgAssert(strcmp(bind_address, "0.0.0.0") == 0, "bind_address not supported on this platform");
   *socket_ptr = -1;
   // Create a UDP socket
 
