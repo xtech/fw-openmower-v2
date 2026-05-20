@@ -29,6 +29,7 @@ RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Sabo -BSabo && cd Sab
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=xBot -BxBot && cd xBot && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Universal5S -BUniversal5S && cd Universal5S && make -j$(nproc)
 RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Universal7S -BUniversal7S && cd Universal7S && make -j$(nproc)
+RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Robot310MKII -BRobot310MKII && cd Robot310MKII && make -j$(nproc)
 # Use Sabo build for RAM and ROM analysis for now - it has the most libraries
 RUN elf-size-analyze -H -R -t arm-none-eabi- ./build/Sabo/openmower.elf -W > build/ram-info.html
 RUN elf-size-analyze -H -F -t arm-none-eabi- ./build/Sabo/openmower.elf -W > build/flash-info.html
@@ -62,3 +63,6 @@ COPY --from=builder /project/build/Universal5S/openmower.elf /openmower-universa
 
 COPY --from=builder /project/build/Universal7S/openmower.bin /openmower-universal-7s.bin
 COPY --from=builder /project/build/Universal7S/openmower.elf /openmower-universal-7s.elf
+
+COPY --from=builder /project/build/Robot310MKII/openmower.bin /openmower-robot-310mkii.bin
+COPY --from=builder /project/build/Robot310MKII/openmower.elf /openmower-robot-310mkii.elf
