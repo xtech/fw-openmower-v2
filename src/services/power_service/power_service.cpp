@@ -112,7 +112,9 @@ void PowerService::charger_tick() {
       success &= charger_->setPreChargeCurrent(0.250f);
       success &= charger_->setTerminationCurrent(0.250f);
       if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
-        success &= charger_->setChargingCurrent(ChargeCurrent.value, false);
+        bool override_limit =
+            DangerouslyOverrideHardwareCurrentLimit.valid && DangerouslyOverrideHardwareCurrentLimit.value;
+        success &= charger_->setChargingCurrent(ChargeCurrent.value, override_limit);
       } else {
         success &= charger_->setChargingCurrent(robot->Power_GetDefaultChargeCurrent(), false);
       }
