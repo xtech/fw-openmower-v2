@@ -11,6 +11,7 @@
 #include "services/meta_service/meta_service.hpp"
 #include "services/mower_service/mower_service.hpp"
 #include "services/power_service/power_service.hpp"
+#include "services/remote_gpio_service/remote_gpio_service.hpp"
 
 extern MetaService meta_service;
 extern EmergencyService emergency_service;
@@ -22,6 +23,7 @@ extern PowerService power_service;
 extern GpsService gps_service;
 extern InputService input_service;
 extern HighLevelService high_level_service;
+extern RemoteGPIOService remote_gpio_service;
 
 void StartServices();
 
