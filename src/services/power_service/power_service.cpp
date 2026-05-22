@@ -25,6 +25,10 @@ void PowerService::SetDriver(BmsDriver* bms_driver) {
 
 bool PowerService::OnStart() {
   charger_configured_ = false;
+  if (DangerouslyOverrideHardwareCurrentLimit.valid && DangerouslyOverrideHardwareCurrentLimit.value) {
+    ULOG_ARG_WARNING(&service_id_,
+                     "DangerouslyOverrideHardwareCurrentLimit is set - hardware current limits will be bypassed!");
+  }
   return true;
 }
 
