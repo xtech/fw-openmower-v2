@@ -25,9 +25,10 @@ void PowerService::SetDriver(BmsDriver* bms_driver) {
 
 bool PowerService::OnStart() {
   charger_configured_ = false;
-  if (DangerouslyOverrideHardwareCurrentLimit.valid && DangerouslyOverrideHardwareCurrentLimit.value) {
-    ULOG_ARG_WARNING(&service_id_,
-                     "DangerouslyOverrideHardwareCurrentLimit is set - hardware current limits will be bypassed!");
+  if (DangerouslyOverrideHardwareChargeCurrentLimit.valid && DangerouslyOverrideHardwareChargeCurrentLimit.value) {
+    ULOG_ARG_WARNING(
+        &service_id_,
+        "DangerouslyOverrideHardwareChargeCurrentLimit is set - hardware current limits will be bypassed!");
   }
   return true;
 }
@@ -117,7 +118,7 @@ void PowerService::charger_tick() {
       success &= charger_->setTerminationCurrent(0.250f);
       if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
         bool override_limit =
-            DangerouslyOverrideHardwareCurrentLimit.valid && DangerouslyOverrideHardwareCurrentLimit.value;
+            DangerouslyOverrideHardwareChargeCurrentLimit.valid && DangerouslyOverrideHardwareChargeCurrentLimit.value;
         success &= charger_->setChargingCurrent(ChargeCurrent.value, override_limit);
       } else {
         success &= charger_->setChargingCurrent(robot->Power_GetDefaultChargeCurrent(), false);
