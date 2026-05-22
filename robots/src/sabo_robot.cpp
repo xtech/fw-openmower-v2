@@ -46,9 +46,8 @@ bool SaboRobot::IsHardwareSupported() {
   // Accept Sabo 0.1|2|3.x boards
   if (strncmp("hw-openmower-sabo", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
       strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 && board_info.version_major == 1 &&
-      carrier_board_info.version_major == 0 &&
-      (carrier_board_info.version_minor == 1 || carrier_board_info.version_minor == 2 ||
-       carrier_board_info.version_minor == 3)) {
+      carrier_board_info.version_major == 0 && carrier_board_info.version_minor >= 1 &&
+      carrier_board_info.version_minor <= 4) {
     return true;
   }
 

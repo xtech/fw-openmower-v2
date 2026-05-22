@@ -25,7 +25,7 @@ bool SaboCoverUICaboDriverBase::Init() {
 }
 
 void SaboCoverUICaboDriverBase::SetLed(LedId id, LedMode mode) {
-  const uint8_t bit = MapLedIdToMask(id);
+  const uint16_t bit = MapLedIdToMask(id);
 
   // Clear existing state
   leds_.on_mask &= ~bit;

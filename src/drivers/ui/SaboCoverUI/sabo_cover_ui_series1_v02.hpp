@@ -76,7 +76,7 @@ class SaboCoverUISeries1V02 : public SaboCoverUISeriesInterface {
   };
 
  protected:
-  uint8_t MapLedIdToMask(const LedId id) const override {
+  uint16_t MapLedIdToMask(const LedId id) const override {
     switch (id) {
       case LedId::AUTO: return SR_MASK_LED_AUTO_L;
       case LedId::HOME: return SR_MASK_LED_HOME_L;

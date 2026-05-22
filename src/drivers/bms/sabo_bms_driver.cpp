@@ -91,12 +91,12 @@ msg_t SaboBmsDriver::SbsReadBlock(uint8_t cmd, uint8_t* data, size_t data_capaci
 
 bool SaboBmsDriver::Init() {
   if (bms_cfg_ == nullptr) {
-    ULOG_ERROR("SaboBmsDriver: BMS config not set\n");
+    ULOG_ERROR("SaboBmsDriver: BMS config not set");
     return false;
   }
 
   if (bms_cfg_->i2c == nullptr) {
-    ULOG_ERROR("SaboBmsDriver: I2C driver not set\n");
+    ULOG_ERROR("SaboBmsDriver: I2C driver not set");
     return false;
   }
 
