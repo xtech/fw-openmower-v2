@@ -2,6 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cmake-build-debug/_deps/lvgl-src" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ext/littlefs" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ext/minmea" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ext/xbot_framework" vcs="Git" />
