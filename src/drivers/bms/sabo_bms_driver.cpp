@@ -281,7 +281,7 @@ const char* SaboBmsDriver::GetExtraDataJson() const {
                       (unsigned)data_.serial_number, (double)data_.design_capacity_ah, (double)data_.design_voltage_v);
 
   // Status
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"status\":\"%u\"", battery_status_);
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"status\":%u", battery_status_);
 
   // Cell voltages
   chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"cell_count\":%u,\"cell_voltage_v\": [",
