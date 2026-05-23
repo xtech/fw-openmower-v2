@@ -36,6 +36,7 @@
 #include "../screen_base.hpp"
 #include "../widget_icon.hpp"
 #include "../widget_textbar.hpp"
+#include "drivers/charger/charger.hpp"
 #include "robots/include/sabo_common.hpp"
 #include "robots/include/sabo_robot.hpp"
 #include "services.hpp"
@@ -56,6 +57,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     if (robot != nullptr) {
       sabo_robot_ = static_cast<SaboRobot*>(robot);
       bms_data_ = sabo_robot_->GetBmsData();
+      charger_ = &sabo_robot_->GetCharger();
     }
   }
 
@@ -209,6 +211,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
  private:
   SaboRobot* sabo_robot_ = nullptr;
   const xbot::driver::bms::Data* bms_data_ = nullptr;
+  ChargerDriver* charger_ = nullptr;
 
   static constexpr lv_coord_t TOPBAR_HEIGHT = 19;
   static constexpr lv_coord_t STATELABEL_HEIGHT = 23;
@@ -428,10 +431,16 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     static WidgetIcon::Icon last_battery_icon = WidgetIcon::Icon::BATTERY_FULL;
     static WidgetIcon::State last_battery_state = WidgetIcon::State::ON;
 
-    // Prefer BMS pack voltage over power-service voltage. Reduced precision (0.1V resolution)
-    const float battery_volts = bms_data_ != nullptr && bms_data_->pack_voltage_v > 10.0f
-                                    ? std::round(bms_data_->pack_voltage_v * 10.0f) / 10.0f
-                                    : std::round(power_service.GetBatteryVolts() * 10.0f) / 10.0f;
+    float battery_volts = 0.0f;
+    // Prefer BMS pack voltage, then driver-based charger reading, then power-service
+    if (bms_data_ != nullptr && bms_data_->pack_voltage_v > 2.0f) {
+      battery_volts = std::round(bms_data_->pack_voltage_v * 10.0f) / 10.0f;
+    } else if (charger_ != nullptr) {
+      float charger_batt_volts = 0.0f;
+      if (charger_->readBatteryVoltage(charger_batt_volts)) {
+        battery_volts = std::round(charger_batt_volts * 10.0f) / 10.0f;
+      }
+    }
 
     // Prefer calculated battery percentage over BMS battery_soc (BMS SoC is waste)
     const auto battery_percent = GetPercent(battery_volts, sabo_robot_->Power_GetAbsoluteMinVoltage(),
@@ -489,9 +498,16 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       return;  // Not docked and, no BMS current available, skip update
     }
 
-    // Get current values with reduced precision (0.1V / 0.01A resolution)
-    const float current = has_bms_current_ ? std::round(bms_data_->pack_current_a * 100.0f) / 100.0f
-                                           : std::round(power_service.GetChargeCurrent() * 100.0f) / 100.0f;
+    float current = 0.0f;
+    // Prefer BMS pack current, then driver-based charger reading
+    if (has_bms_current_) {
+      current = std::round(bms_data_->pack_current_a * 100.0f) / 100.0f;
+    } else if (charger_ != nullptr) {
+      float charger_current = 0.0f;
+      if (charger_->readChargeCurrent(charger_current)) {
+        current = std::round(charger_current * 100.0f) / 100.0f;
+      }
+    }
 
     if (current != last_current) {
       chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.2fA", current);
@@ -506,16 +522,23 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
    * @brief Update dock-related widgets (docked state, adapter voltage, charge current, charger status)
    */
   void UpdateDockWidgets() {
-    if (sabo_robot_ == nullptr) return;
+    if (sabo_robot_ == nullptr || charger_ == nullptr) return;
 
     // Static variables for caching and change detection
     static float last_adapter_volts;
     static CHARGER_STATUS last_charger_status = CHARGER_STATUS::UNKNOWN;
 
-    // Get current values with reduced precision (0.1V / 0.01A resolution)
-    const float adapter_volts = std::round(power_service.GetAdapterVolts() * 10.0f) / 10.0f;
-    const CHARGER_STATUS charger_status = power_service.GetChargerStatus();
-    is_docked_ = adapter_volts > 10.0f;
+    // Get values directly from charger driver
+    float adapter_volts = 0.0f;
+    float charge_current = 0.0f;
+    CHARGER_STATUS charger_status = CHARGER_STATUS::UNKNOWN;
+
+    if (charger_->readAdapterVoltage(adapter_volts)) {
+      adapter_volts = std::round(adapter_volts * 10.0f) / 10.0f;
+      is_docked_ = adapter_volts > 10.0f;
+    }
+    charger_->readChargeCurrent(charge_current);
+    charger_status = charger_->getChargerStatus();
 
     // Update docked state
     icon_docked_->SetState(is_docked_ ? WidgetIcon::State::ON : WidgetIcon::State::OFF);

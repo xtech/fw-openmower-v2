@@ -21,6 +21,14 @@ class Universal7SRobot : public UniversalRobot {
     // 3.3V min, 7s pack
     return 7.0f * 3.0;
   }
+
+ protected:
+  BQ2576* GetCharger() override {
+    return &charger_;
+  }
+
+ private:
+  BQ2576 charger_{249000, 14040};
 };
 
 #endif  // UNIVERSAL_7S_ROBOT_HPP

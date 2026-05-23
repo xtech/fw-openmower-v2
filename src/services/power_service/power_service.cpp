@@ -15,20 +15,23 @@
 
 using namespace xbot::driver;
 
+// Static assertions to ensure ChargerDriver::ReChargeVoltage enum matches PowerService ReChargeVoltages enum
+static_assert(static_cast<uint8_t>(ChargerDriver::ReChargeVoltage::PERCENT_93_0) == 0, "ReChargeVoltage enum mismatch");
+static_assert(static_cast<uint8_t>(ChargerDriver::ReChargeVoltage::PERCENT_94_3) == 1, "ReChargeVoltage enum mismatch");
+static_assert(static_cast<uint8_t>(ChargerDriver::ReChargeVoltage::PERCENT_95_2) == 2, "ReChargeVoltage enum mismatch");
+static_assert(static_cast<uint8_t>(ChargerDriver::ReChargeVoltage::PERCENT_97_6) == 3, "ReChargeVoltage enum mismatch");
+
 void PowerService::SetDriver(ChargerDriver* charger_driver) {
   charger_ = charger_driver;
 }
 
-void PowerService::SetDriver(BmsDriver* bms_driver) {
-  bms_ = bms_driver;
-}
-
 bool PowerService::OnStart() {
   charger_configured_ = false;
+
   return true;
 }
 
-void PowerService::tick() {
+void PowerService::service_tick_() {
   xbot::service::Lock lk{&mtx_};
   // Send the sensor values
   StartTransaction();
@@ -38,11 +41,10 @@ void PowerService::tick() {
   } else {
     SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
   }
-  SendBatteryVoltageCHG(battery_volts);
-  SendChargeVoltageCHG(adapter_volts);
+  SendBatteryVoltage(battery_volts);
+  SendChargeVoltage(adapter_volts);
   SendChargeCurrent(charge_current);
   SendChargerEnabled(true);
-  float battery_percent;
   if (BatteryFullVoltage.valid && BatteryEmptyVoltage.valid) {
     battery_percent =
         (battery_volts - BatteryEmptyVoltage.value) / (BatteryFullVoltage.value - BatteryEmptyVoltage.value);
@@ -53,18 +55,6 @@ void PowerService::tick() {
   SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
   SendChargerInputCurrent(adapter_current);
 
-  // BMS values
-  if (bms_data_ != nullptr) {
-    SendBatteryCurrent(bms_data_->pack_current_a);
-    SendBatteryVoltageBMS(bms_data_->pack_voltage_v);
-    SendBatterySoC(bms_data_->battery_soc);
-    SendBatteryTemperature(bms_data_->temperature_c);
-    SendBatteryStatus(bms_data_->battery_status);
-  }
-  if (bms_extra_data_ != nullptr) {
-    SendBMSExtraData(bms_extra_data_, (uint32_t)strlen(bms_extra_data_));
-  }
-
   // ADC values
   SendBatteryVoltageADC(battery_volts_adc);
   SendChargeVoltageADC(adapter_volts_adc);
@@ -73,32 +63,24 @@ void PowerService::tick() {
   CommitTransaction();
 }
 
-void PowerService::drivers_tick() {
-  charger_tick();
-
-  // Optional BMS tick and data retrieval
-  if (bms_ != nullptr) {
-    bms_->Tick();
-    if (bms_->IsPresent()) {
-      bms_data_ = bms_->GetData();
-      bms_extra_data_ = bms_->GetExtraDataJson();
-    }
-  }
-
-  // ADC readings (for debugging use e.g.: adc1::DumpBenchmarkMeasurement(Adc1ConversionId::V_BATTERY, "V-BAT");
-  {
-    xbot::service::Lock lk{&mtx_};
-    adapter_volts_adc = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100);
-    battery_volts_adc = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100);
-    dcdc_current = adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100);
-  }
+void PowerService::driver_tick_() {
+  update_charger_();
+  read_adc_();
 
   if (charger_configured_ && power_management_callback_) {
     power_management_callback_();
   }
 }
 
-void PowerService::charger_tick() {
+void PowerService::read_adc_() {
+  // Debugging: adc1::DumpBenchmarkMeasurement(Adc1ConversionId::V_BATTERY, "V-BAT");
+  xbot::service::Lock lk{&mtx_};
+  adapter_volts_adc = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100);
+  battery_volts_adc = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100);
+  dcdc_current = adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100);
+}
+
+void PowerService::update_charger_() {
   if (charger_ == nullptr) {
     ULOG_ARG_ERROR(&service_id_, "Charger is null!");
     return;
@@ -109,14 +91,33 @@ void PowerService::charger_tick() {
     if (charger_->init()) {
       // Set the currents low
       bool success = true;
-      success &= charger_->setPreChargeCurrent(0.250f);
-      success &= charger_->setTerminationCurrent(0.250f);
+      if (PreChargeCurrent.valid && PreChargeCurrent.value > 0) {
+        success &= charger_->setPreChargeCurrent(PreChargeCurrent.value);
+      } else {
+        success &= charger_->setPreChargeCurrent(robot->Power_GetDefaultPreChargeCurrent());
+      }
       if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
         success &= charger_->setChargingCurrent(ChargeCurrent.value, false);
       } else {
         success &= charger_->setChargingCurrent(robot->Power_GetDefaultChargeCurrent(), false);
       }
-      // Disable temperature sense, the battery doesnt have it
+      if (ChargeVoltage.valid && ChargeVoltage.value > 0) {
+        success &= charger_->setChargingVoltage(ChargeVoltage.value);
+      } else {
+        success &= charger_->setChargingVoltage(robot->Power_GetDefaultChargeVoltage());
+      }
+      if (TerminationCurrent.valid && TerminationCurrent.value > 0) {
+        success &= charger_->setTerminationCurrent(TerminationCurrent.value);
+      } else {
+        success &= charger_->setTerminationCurrent(robot->Power_GetDefaultTerminationCurrent());
+      }
+      if (ReChargeVoltage.valid) {
+        success &= charger_->setReChargeVoltage(static_cast<ChargerDriver::ReChargeVoltage>(ReChargeVoltage.value));
+      } else {
+        success &= charger_->setReChargeVoltage(robot->Power_GetDefaultReChargeVoltage());
+      }
+
+      // Disable temperature sense, the battery doesn't have it
       success &= charger_->setTsEnabled(false);
       charger_configured_ = success;
     }
