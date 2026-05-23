@@ -535,12 +535,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     if (charger_->readAdapterVoltage(adapter_volts)) {
       adapter_volts = std::round(adapter_volts * 10.0f) / 10.0f;
+      is_docked_ = adapter_volts > 10.0f;
     }
     charger_->readChargeCurrent(charge_current);
     charger_status = charger_->getChargerStatus();
-
-    // Update docked state detection (using adapter voltage)
-    is_docked_ = adapter_volts > 10.0f;
 
     // Update docked state
     icon_docked_->SetState(is_docked_ ? WidgetIcon::State::ON : WidgetIcon::State::OFF);
