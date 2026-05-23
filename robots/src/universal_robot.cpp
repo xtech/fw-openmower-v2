@@ -4,8 +4,8 @@
 
 void UniversalRobot::InitPlatform() {
   InitMotors();
-  charger_.setI2C(&I2CD1);
-  power_service.SetDriver(&charger_);
+  GetCharger()->setI2C(&I2CD1);
+  power_service.SetDriver(GetCharger());
 }
 
 bool UniversalRobot::IsHardwareSupported() {
