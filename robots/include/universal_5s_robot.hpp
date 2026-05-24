@@ -21,6 +21,14 @@ class Universal5SRobot : public UniversalRobot {
     // 3.3V min, 5s pack
     return 5.0f * 3.0;
   }
+
+ protected:
+  BQ2576* GetCharger() override {
+    return &charger_;
+  }
+
+ private:
+  BQ2576 charger_{249000, 20000};
 };
 
 #endif  // UNIVERSAL_5S_ROBOT_HPP

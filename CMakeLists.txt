@@ -82,6 +82,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/filesystem/filesystem.cpp
         src/services/imu_service/imu_service.cpp
         src/services/power_service/power_service.cpp
+        src/services/bms_service/bms_service.cpp
         src/services/emergency_service/emergency_service.cpp
         src/services/diff_drive_service/diff_drive_service.cpp
         src/services/mower_service/mower_service.cpp
@@ -159,6 +160,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} PowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/power_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} BmsService ${CMAKE_CURRENT_SOURCE_DIR}/services/bms_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} EmergencyService ${CMAKE_CURRENT_SOURCE_DIR}/services/emergency_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} DiffDriveService ${CMAKE_CURRENT_SOURCE_DIR}/services/diff_drive_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_service.json)

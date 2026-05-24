@@ -21,8 +21,7 @@ class UniversalRobot : public MowerRobot {
  protected:
   UniversalRobot() = default;  // Intermediate/abstract class
 
- private:
-  BQ2576 charger_{};
+  virtual BQ2576* GetCharger() = 0;
 };
 
 #endif  // UNIVERSAL_ROBOT_HPP
