@@ -6,3 +6,4 @@ out/
 .continue/rules/**
 CMakeUserPresets.json
 .idea/
+.build-wizard-cache
