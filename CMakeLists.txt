@@ -180,8 +180,10 @@ add_custom_command(TARGET ${CMAKE_PROJECT_NAME}
         COMMAND ${CMAKE_OBJCOPY} --pad-to=0x8020000 -O binary ${CMAKE_CURRENT_SOURCE_DIR}/bootloader/xcore-boot-unsafe.elf ${CMAKE_PROJECT_NAME}-with-unsafe-bootloader.bin && cat ${CMAKE_PROJECT_NAME}.bin>>${CMAKE_PROJECT_NAME}-with-unsafe-bootloader.bin
 )
 
+set(UPLOAD_INTERFACE "tap0" CACHE STRING "Network interface for firmware upload")
+
 add_custom_target(upload
-        COMMAND docker run --rm --network=host -v ${CMAKE_BINARY_DIR}:/workdir ghcr.io/xtech/fw-xcore-boot:latest -i tap0 upload /workdir/${CMAKE_PROJECT_NAME}.bin
+        COMMAND docker run --rm --network=host -v ${CMAKE_BINARY_DIR}:/workdir ghcr.io/xtech/fw-xcore-boot:latest -i ${UPLOAD_INTERFACE} upload /workdir/${CMAKE_PROJECT_NAME}.bin
         DEPENDS ${CMAKE_PROJECT_NAME}
 )
 
