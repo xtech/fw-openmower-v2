@@ -37,6 +37,10 @@ struct Input {
         xbot::driver::sabo::types::ButtonId button_id;
       } id;
     } sabo;
+
+    struct {
+      uint8_t channel;  ///< YFCoverUIChannel value: bit 7=button flag, bits[6:0]=button_id or emergency bit
+    } yf_cover_ui;
   };
 
   // State
