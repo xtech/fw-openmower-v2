@@ -98,38 +98,39 @@ void YFCoverUI::ThreadHelper(void* instance) {
 }
 
 void YFCoverUI::ThreadFunc() {
-  systime_t next_version_poll = chVTGetSystemTimeX();
-  systime_t version_timeout   = 0;  // 0 = no pending timeout
-  systime_t next_led_update   = chVTGetSystemTimeX() + TIME_MS2I(500);
+  // Schedule the first version poll immediately and the first LED update after 500 ms.
+  systime_t last_version_poll = chVTGetSystemTimeX() - TIME_MS2I(VERSION_POLL_MS);
+  systime_t version_request   = 0;     // systime of the pending version request
+  bool      version_pending   = false;  // true while awaiting a version response
+  systime_t last_led_update   = chVTGetSystemTimeX() - TIME_MS2I(500);
 
   while (true) {
     // --- Read incoming bytes (10 ms timeout keeps the loop responsive) ---
     ReadByte(TIME_MS2I(10));
 
-    const systime_t now = chVTGetSystemTimeX();
-
-    // --- Version timeout: mark UI unavailable if no response within 100 ms ---
-    if (version_timeout != 0 && chTimeDiffX(version_timeout, now) >= 0) {
+    // --- Version timeout: mark UI unavailable if no response within VERSION_TIMEOUT_MS ---
+    if (version_pending && chVTTimeElapsedSinceX(version_request) >= TIME_MS2I(VERSION_TIMEOUT_MS)) {
       if (ui_available_.load()) {
         ULOG_INFO("YFCoverUI: UI timeout, marking unavailable");
         ui_available_.store(false);
         emergency_state_.store(0);
         UpdateEmergencyInputs();
       }
-      version_timeout = 0;
+      version_pending = false;
     }
 
     // --- Periodic version poll (every 5 s) ---
-    if (chTimeDiffX(next_version_poll, now) >= 0) {
+    if (chVTTimeElapsedSinceX(last_version_poll) >= TIME_MS2I(VERSION_POLL_MS)) {
       SendVersionRequest();
-      next_version_poll = now + TIME_MS2I(VERSION_POLL_MS);
-      version_timeout   = now + TIME_MS2I(VERSION_TIMEOUT_MS);
+      last_version_poll = chVTGetSystemTimeX();
+      version_request   = last_version_poll;
+      version_pending   = true;
     }
 
     // --- Periodic LED update ---
-    if (chTimeDiffX(next_led_update, now) >= 0) {
+    if (chVTTimeElapsedSinceX(last_led_update) >= TIME_MS2I(ui_interval_)) {
       SendLeds();
-      next_led_update = now + TIME_MS2I(ui_interval_);
+      last_led_update = chVTGetSystemTimeX();
     }
   }
 }
