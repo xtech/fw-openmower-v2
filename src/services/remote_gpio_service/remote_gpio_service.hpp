@@ -57,9 +57,8 @@ class RemoteGPIOService : public RemoteGPIOServiceBase {
   GpioPin* FindGpio(uint8_t id);
   I2CBus* FindBus(uint8_t id);
   void EmitGpioEvent(uint8_t gpio_id, uint8_t old_val, uint8_t new_val, uint8_t flags);
-  bool HasAnyPeriodicSubscription() const;
+  bool HasAnySubscribedInput() const;
   void SetUpHardware();
-  void TearDownHardware();
   void ClearSubscriptions();
   bool ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data);
 
