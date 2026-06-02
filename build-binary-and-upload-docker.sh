@@ -66,6 +66,10 @@ PRESET=$(select_option "Select build type:" "$CACHED_PRESET" "${PRESETS[@]}")
 
 # --- Interface ---
 mapfile -t INTERFACES < <(ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$' | sort)
+if [[ ${#INTERFACES[@]} -eq 0 ]]; then
+    echo "Error: no non-loopback network interfaces found." >&2
+    exit 1
+fi
 INTERFACE=$(select_option "Select upload interface:" "$CACHED_INTERFACE" "${INTERFACES[@]}")
 
 save_cache
