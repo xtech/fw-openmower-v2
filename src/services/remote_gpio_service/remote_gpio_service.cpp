@@ -12,12 +12,6 @@ using xbot::service::HeatshrinkDataSource;
 
 extern RemoteGPIOService remote_gpio_service;
 
-// ─── GPIO interrupt callback (ISR-safe) ─────────────────────────────────────
-
-static void RemoteGpioLineCallback(void*) {
-  remote_gpio_service.SendEvent(Events::REMOTE_GPIO_TRIGGERED);
-}
-
 // ─── Config JSON parsing state ───────────────────────────────────────────────
 
 struct RemoteGpioConfigJsonData : public json_data_t {
@@ -189,17 +183,7 @@ void RemoteGPIOService::SetUpHardware() {
       pin.last_value = pin.default_value;
     } else {
       palSetLineMode(pin.line, PAL_MODE_INPUT);
-      palSetLineCallback(pin.line, RemoteGpioLineCallback, nullptr);
-      palEnableLineEvent(pin.line, PAL_EVENT_MODE_BOTH_EDGES);
       pin.last_value = palReadLine(pin.line) == PAL_HIGH ? 1 : 0;
-    }
-  }
-}
-
-void RemoteGPIOService::TearDownHardware() {
-  for (auto& pin : gpios_) {
-    if (!pin.is_output) {
-      palDisableLineEvent(pin.line);
     }
   }
 }
@@ -215,7 +199,6 @@ void RemoteGPIOService::ClearSubscriptions() {
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 
 bool RemoteGPIOService::OnRegisterGPIOConfigsChanged(const void* data, size_t length) {
-  TearDownHardware();
   ClearSubscriptions();
   gpios_.clear();
   i2c_buses_.clear();
@@ -244,43 +227,46 @@ bool RemoteGPIOService::OnStart() {
 }
 
 void RemoteGPIOService::OnStop() {
-  TearDownHardware();
   ClearSubscriptions();
 }
 
 // ─── Main loop ───────────────────────────────────────────────────────────────
 
 uint32_t RemoteGPIOService::OnLoop(uint32_t now_micros, uint32_t) {
-  // Check GPIO interrupt events
-  eventmask_t events = chEvtGetAndClearEvents(Events::ids_to_mask({Events::REMOTE_GPIO_TRIGGERED}));
-  if (events & EVENT_MASK(Events::REMOTE_GPIO_TRIGGERED)) {
+  if (!HasAnySubscribedInput()) {
+    return UINT32_MAX;
+  }
+
+  // Edge detection: runs every tick (10ms polling rate)
+  for (auto& pin : gpios_) {
+    if (!pin.subscribed || pin.is_output) continue;
+    uint8_t current_val = palReadLine(pin.line) == PAL_HIGH ? 1 : 0;
+    if (current_val != pin.last_value) {
+      EmitGpioEvent(pin.id, pin.last_value, current_val, 0u);
+      pin.last_value = current_val;
+    }
+  }
+
+  // Periodic heartbeat: runs at PeriodicUpdateInterval
+  uint32_t interval_us = PeriodicUpdateInterval.value * 1000u;
+  if (now_micros - last_periodic_us_ >= interval_us) {
+    last_periodic_us_ = now_micros;
+    bool tx_started = false;
     for (auto& pin : gpios_) {
-      if (!pin.subscribed || pin.is_output) continue;
-      uint8_t new_val = palReadLine(pin.line) == PAL_HIGH ? 1 : 0;
-      if (new_val != pin.last_value) {
-        EmitGpioEvent(pin.id, pin.last_value, new_val, 0u);
-        pin.last_value = new_val;
+      if (!pin.periodic || pin.is_output) continue;
+      if (!tx_started) {
+        StartTransaction();
+        tx_started = true;
       }
+      // use last_value, otherwise we could miss an edge transition in polling
+      EmitGpioEvent(pin.id, pin.last_value, pin.last_value, static_cast<uint8_t>(GPIOEventFlags::PERIODIC));
+    }
+    if (tx_started) {
+      CommitTransaction();
     }
   }
 
-  // Periodic updates
-  if (HasAnyPeriodicSubscription()) {
-    uint32_t interval_us = PeriodicUpdateInterval.value * 1000u;
-    if (now_micros - last_periodic_us_ >= interval_us) {
-      last_periodic_us_ = now_micros;
-      for (auto& pin : gpios_) {
-        if (!pin.periodic) continue;
-        uint8_t current_val = pin.is_output ? pin.last_value : (palReadLine(pin.line) == PAL_HIGH ? 1 : 0);
-        EmitGpioEvent(pin.id, pin.last_value, current_val, static_cast<uint8_t>(GPIOEventFlags::PERIODIC));
-        pin.last_value = current_val;
-      }
-    }
-    uint32_t elapsed = now_micros - last_periodic_us_;
-    return interval_us > elapsed ? interval_us - elapsed : 0u;
-  }
-
-  return UINT32_MAX;
+  return 10000u;  // wake every 10ms for edge detection
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -304,9 +290,9 @@ void RemoteGPIOService::EmitGpioEvent(uint8_t gpio_id, uint8_t old_val, uint8_t 
   SendGPIOEvent(event, 4);
 }
 
-bool RemoteGPIOService::HasAnyPeriodicSubscription() const {
+bool RemoteGPIOService::HasAnySubscribedInput() const {
   for (const auto& pin : gpios_) {
-    if (pin.periodic) return true;
+    if (pin.subscribed && !pin.is_output) return true;
   }
   return false;
 }
