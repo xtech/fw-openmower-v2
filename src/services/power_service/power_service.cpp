@@ -110,7 +110,10 @@ void PowerService::update_charger_() {
       if (ChargeVoltage.valid && ChargeVoltage.value > 0) {
         success &= charger_->setChargingVoltage(ChargeVoltage.value);
       } else {
-        success &= charger_->setChargingVoltage(robot->Power_GetDefaultChargeVoltage());
+        // Only set a custom value, if the robot implementation provides one.
+        if (robot->Power_GetDefaultChargeVoltage() > 0.0) {
+          success &= charger_->setChargingVoltage(robot->Power_GetDefaultChargeVoltage());
+        }
       }
       if (TerminationCurrent.valid && TerminationCurrent.value > 0) {
         success &= charger_->setTerminationCurrent(TerminationCurrent.value);

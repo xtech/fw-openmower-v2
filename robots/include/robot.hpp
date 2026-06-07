@@ -44,10 +44,10 @@ class Robot {
 
   /**
    * Return the charge voltage target (VREG) in Volts.
-   * Returns 0 to leave the hardware-pin configured voltage unchanged.
+   * Returns -1.0 to leave the hardware-pin configured voltage unchanged.
    */
   virtual float Power_GetDefaultChargeVoltage() {
-    return 0.0f;
+    return -1.0f;
   }
 
   /**
