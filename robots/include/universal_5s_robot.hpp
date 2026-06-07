@@ -22,6 +22,10 @@ class Universal5SRobot : public UniversalRobot {
     return 5.0f * 3.0;
   }
 
+  float Power_GetDefaultTerminationCurrent() override {
+    return 0.5f;
+  }
+
  protected:
   BQ2576* GetCharger() override {
     return &charger_;

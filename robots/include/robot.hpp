@@ -55,7 +55,7 @@ class Robot {
    * Charging is considered done when CV current drops below this value.
    */
   virtual float Power_GetDefaultTerminationCurrent() {
-    return 0.250f;
+    return 0.3f;
   }
 
   /**

@@ -26,6 +26,10 @@ class WorxRobot : public MowerRobot {
     return 1.0;
   }
 
+  float Power_GetDefaultTerminationCurrent() override {
+    return 0.5f;
+  }
+
   float Power_GetAbsoluteMinVoltage() override {
     // 3.3V min, 5s pack
     return 5.0f * 3.0;
