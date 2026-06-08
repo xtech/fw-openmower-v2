@@ -40,29 +40,29 @@ void PowerService::service_tick_() {
   // Send the sensor values
   StartTransaction();
   if (charger_configured_) {
-    const char* status_text = ChargerDriver::statusToString(charger_status);
+    const char* status_text = ChargerDriver::statusToString(charger_status_);
     SendChargingStatus(status_text, strlen(status_text));
   } else {
     SendChargingStatus(CHARGE_STATUS_NOT_FOUND_STR, strlen(CHARGE_STATUS_NOT_FOUND_STR));
   }
-  SendBatteryVoltage(battery_volts);
-  SendChargeVoltage(adapter_volts);
-  SendChargeCurrent(charge_current);
+  SendBatteryVoltage(battery_volts_);
+  SendChargeVoltage(adapter_volts_);
+  SendChargeCurrent(charge_current_);
   SendChargerEnabled(true);
   if (BatteryFullVoltage.valid && BatteryEmptyVoltage.valid) {
-    battery_percent =
-        (battery_volts - BatteryEmptyVoltage.value) / (BatteryFullVoltage.value - BatteryEmptyVoltage.value);
+    battery_percent_ =
+        (battery_volts_ - BatteryEmptyVoltage.value) / (BatteryFullVoltage.value - BatteryEmptyVoltage.value);
   } else {
-    battery_percent = (battery_volts - robot->Power_GetDefaultBatteryEmptyVoltage()) /
+    battery_percent_ = (battery_volts_ - robot->Power_GetDefaultBatteryEmptyVoltage()) /
                       (robot->Power_GetDefaultBatteryFullVoltage() - robot->Power_GetDefaultBatteryEmptyVoltage());
   }
-  SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent)));
-  SendChargerInputCurrent(adapter_current);
+  SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent_)));
+  SendChargerInputCurrent(adapter_current_);
 
   // ADC values
-  SendBatteryVoltageADC(battery_volts_adc);
-  SendChargeVoltageADC(adapter_volts_adc);
-  SendDCDCInputCurrent(dcdc_current);
+  SendBatteryVoltageADC(battery_volts_adc_);
+  SendChargeVoltageADC(adapter_volts_adc_);
+  SendDCDCInputCurrent(dcdc_current_);
 
   CommitTransaction();
 }
@@ -79,9 +79,9 @@ void PowerService::driver_tick_() {
 void PowerService::read_adc_() {
   // Debugging: adc1::DumpBenchmarkMeasurement(Adc1ConversionId::V_BATTERY, "V-BAT");
   xbot::service::Lock lk{&mtx_};
-  adapter_volts_adc = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100);
-  battery_volts_adc = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100);
-  dcdc_current = adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100);
+  adapter_volts_adc_ = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100);
+  battery_volts_adc_ = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100);
+  dcdc_current_ = adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100);
 }
 
 void PowerService::update_charger_() {
@@ -148,47 +148,47 @@ void PowerService::update_charger_() {
       success &= s;
     }
     {
-      bool s = charger_->readChargeCurrent(charge_current);
+      bool s = charger_->readChargeCurrent(charge_current_);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Charge Current");
       }
       success &= s;
     }
     {
-      bool s = charger_->readBatteryVoltage(battery_volts);
+      bool s = charger_->readBatteryVoltage(battery_volts_);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Battery Voltage");
       }
       success &= s;
     }
     {
-      bool s = charger_->readAdapterVoltage(adapter_volts);
+      bool s = charger_->readAdapterVoltage(adapter_volts_);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Adapter Voltage");
       }
       success &= s;
     }
     {
-      bool s = charger_->readAdapterCurrent(adapter_current);
+      bool s = charger_->readAdapterCurrent(adapter_current_);
       if (!s) {
         ULOG_ARG_WARNING(&service_id_, "Error Reading Adapter Current");
       }
       success &= s;
     }
-    charger_status = charger_->getChargerStatus();
+    charger_status_ = charger_->getChargerStatus();
 
-    if (!success || charger_status == CHARGER_STATUS::COMMS_ERROR) {
+    if (!success || charger_status_ == CHARGER_STATUS::COMMS_ERROR) {
       // Error during comms or watchdog timer expired, reconfigure charger
       charger_configured_ = false;
       ULOG_ARG_ERROR(&service_id_, "Error during charging comms - reconfiguring");
     } else {
-      if (battery_volts < robot->Power_GetAbsoluteMinVoltage()) {
-        critical_count++;
-        if (critical_count > 10) {
+      if (battery_volts_ < robot->Power_GetAbsoluteMinVoltage()) {
+        critical_count_++;
+        if (critical_count_ > 10) {
           palClearLine(LINE_HIGH_LEVEL_GLOBAL_EN);
         }
       } else {
-        critical_count = 0;
+        critical_count_ = 0;
         palSetLine(LINE_HIGH_LEVEL_GLOBAL_EN);
       }
     }
