@@ -26,7 +26,11 @@ class YardForceRobot : public MowerRobot {
   }
 
   float Power_GetDefaultChargeCurrent() override {
-    return 0.5;
+    return 1.0;
+  }
+
+  float Power_GetMaxChargeCurrent() override {
+    return 1.0;
   }
 
   float Power_GetAbsoluteMinVoltage() override {

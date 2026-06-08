@@ -22,6 +22,10 @@ class Lyfco_E1600Robot : public MowerRobot {
     return 2.5;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 4.0;
+  }
+
   float Power_GetAbsoluteMinVoltage() override {
     // 3.3V min, 7s pack
     return 7.0f * 3.0f;
