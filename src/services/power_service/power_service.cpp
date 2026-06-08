@@ -54,7 +54,7 @@ void PowerService::service_tick_() {
         (battery_volts_ - BatteryEmptyVoltage.value) / (BatteryFullVoltage.value - BatteryEmptyVoltage.value);
   } else {
     battery_percent_ = (battery_volts_ - robot->Power_GetDefaultBatteryEmptyVoltage()) /
-                      (robot->Power_GetDefaultBatteryFullVoltage() - robot->Power_GetDefaultBatteryEmptyVoltage());
+                       (robot->Power_GetDefaultBatteryFullVoltage() - robot->Power_GetDefaultBatteryEmptyVoltage());
   }
   SendBatteryPercentage(etl::max(0.0f, etl::min(1.0f, battery_percent_)));
   SendChargerInputCurrent(adapter_current_);
@@ -101,7 +101,7 @@ void PowerService::update_charger_() {
         success &= charger_->setPreChargeCurrent(robot->Power_GetDefaultPreChargeCurrent());
       }
 
-      float software_charge_current =  robot->Power_GetDefaultChargeCurrent();
+      float software_charge_current = robot->Power_GetDefaultChargeCurrent();
 
       // Check, if the user has provided custom current. If so, use it
       if (ChargeCurrent.valid && ChargeCurrent.value > 0) {
@@ -109,20 +109,19 @@ void PowerService::update_charger_() {
       }
 
       // Check, if the user feels dangerous and allows higher charging currents
-      bool override_limit = DangerouslyOverrideHardwareChargeCurrentLimit.valid && DangerouslyOverrideHardwareChargeCurrentLimit.value;
+      bool override_limit =
+          DangerouslyOverrideHardwareChargeCurrentLimit.valid && DangerouslyOverrideHardwareChargeCurrentLimit.value;
 
       if (!override_limit) {
         // Limit the current to the max value provided by the robot
         software_charge_current = std::min(robot->Power_GetMaxChargeCurrent(), software_charge_current);
       }
 
-
       // Hardware resistor is the default setting when not using software-control.
       // It's a very conservative choice so that charging without firmware is safe.
       // Therefore, we set "overwrite_hardware_limit" to true here, so that we can go for a higher current.
       // On watchdog timeout, the charger will automatically switch to hardware resistor.
       success &= charger_->setChargingCurrent(software_charge_current, true);
-
 
       if (ChargeVoltage.valid && ChargeVoltage.value > 0) {
         success &= charger_->setChargingVoltage(ChargeVoltage.value);
