@@ -73,7 +73,6 @@ class SaboRobot : public MowerRobot {
     return 3.9;
   }
 
-
   float Power_GetDefaultTerminationCurrent() override {
     return 0.3f;  // 300mA
   }
