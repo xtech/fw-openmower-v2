@@ -26,6 +26,10 @@ class WorxRobot : public MowerRobot {
     return 1.0;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 2.0;
+  }
+
   float Power_GetDefaultTerminationCurrent() override {
     return 0.5f;
   }

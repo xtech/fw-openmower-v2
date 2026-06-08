@@ -18,6 +18,10 @@ class UniversalRobot : public MowerRobot {
     return 0.5;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 5.0;
+  }
+
  protected:
   UniversalRobot() = default;  // Intermediate/abstract class
 

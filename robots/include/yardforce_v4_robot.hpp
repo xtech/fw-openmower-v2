@@ -29,6 +29,10 @@ class YardForce_V4Robot : public MowerRobot {
     return 0.5;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 1.0;
+  }
+
   float Power_GetAbsoluteMinVoltage() override {
     // 3.3V min, 7s pack
     return 7.0f * 3.0;
