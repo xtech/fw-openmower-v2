@@ -26,6 +26,7 @@
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
 #include "sabo_cover_ui_cabo_driver_v03.hpp"
 #include "sabo_cover_ui_cabo_driver_v04.hpp"
+#include "sabo_cover_ui_cabo_driver_v05.hpp"
 #include "sabo_cover_ui_display.hpp"
 
 namespace xbot::driver::ui {
@@ -38,6 +39,7 @@ union CaboDriverStorage {
   SaboCoverUICaboDriverV02 v02;
   SaboCoverUICaboDriverV03 v03;
   SaboCoverUICaboDriverV04 v04;
+  SaboCoverUICaboDriverV05 v05;
   CaboDriverStorage() {
   }
   ~CaboDriverStorage() {
@@ -72,9 +74,12 @@ SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardw
 
       // Carrier v0.3 and later have TCA953x GPIO expanders and need a different driver implementation
       cabo_ = new (&cabo_driver_storage.v03) SaboCoverUICaboDriverV03(hardware_config.cover_ui);
-    } else {
-      // Carrier v0.4 and later have one TCA9535 GPIO expander and need a different driver implementation
+    } else if (version == types::HardwareVersion::V0_4) {
+      // Carrier v0.4 has one TCA9535 GPIO expander with dedicated /CON GPIO pins for CoverUI Series detection
       cabo_ = new (&cabo_driver_storage.v04) SaboCoverUICaboDriverV04(hardware_config.cover_ui);
+    } else {
+      // Carrier v0.5 and later has CoverUI Series detection via TCA9535 instead of dedicated GPIO pins
+      cabo_ = new (&cabo_driver_storage.v05) SaboCoverUICaboDriverV05(hardware_config.cover_ui);
     }
   }
 

@@ -184,6 +184,9 @@ bool BQ2576::setChargingVoltage(float voltage_v) {
   uint16_t reg_val = static_cast<uint16_t>((vfb_mv - 1504.0f) / 2.0f);
   reg_val &= 0b11111;  // Mask [4:0]
 
+  // Cache the actual clamped voltage that the hardware will achieve
+  charge_voltage_ = vfb_mv / (1000.0f * vfb_ratio_);
+
   return writeRegister16(REG_Charge_Voltage_Limit, reg_val);
 }
 

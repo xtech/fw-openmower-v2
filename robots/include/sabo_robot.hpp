@@ -159,9 +159,8 @@ class SaboRobot : public MowerRobot {
   bool HasInvertedHallSensors() const;
 
  private:
-  // r_top=249k, r_bot=13.7k per Sabo schematic
-  // Power_GetDefaultChargeVoltage() fine-tunes to 29.4V via VFB_REG on each init.
-  BQ2576 charger_{249000, 13700, 0.005f};  // All Sabo's do have an 5mΩ Rac_sns
+  // Charger voltage divider resistors are version-dependent, see sabo_common.hpp CHARGER_V0_x
+  BQ2576 charger_;
   SaboCoverUIController cover_ui_{hardware_config};
   SaboInputDriver sabo_input_driver_{hardware_config};
   SaboBmsDriver bms_{hardware_config.bms};

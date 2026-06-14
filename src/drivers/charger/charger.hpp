@@ -7,6 +7,8 @@
 
 #include <hal.h>
 
+#include <limits>
+
 class ChargerDriver {
  protected:
   I2CDriver *i2c_driver_ = nullptr;
@@ -67,6 +69,10 @@ class ChargerDriver {
   virtual bool readAdapterVoltage(float &result) = 0;
   virtual bool readAdapterCurrent(float &result) = 0;
   virtual bool readBatteryVoltage(float &result) = 0;
+
+  virtual float getChargeVoltageTarget() const {
+    return std::numeric_limits<float>::quiet_NaN();
+  }
 
   void setI2C(I2CDriver *i2c) {
     i2c_driver_ = i2c;

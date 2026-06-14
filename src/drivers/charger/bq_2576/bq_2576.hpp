@@ -55,8 +55,9 @@ class BQ2576 : public ChargerDriver {
   static constexpr uint8_t REG_Precharge_and_Termination_Control = 0x14;
   static constexpr uint8_t REG_Charge_Voltage_Limit = 0x00;
 
-  const float vfb_ratio_;   // VFB/VBATREG
-  const float r_ac_sense_;  // 0 = No Rac_sns
+  const float vfb_ratio_;                                           // VFB/VBATREG
+  const float r_ac_sense_;                                          // 0 = No Rac_sns
+  float charge_voltage_ = std::numeric_limits<float>::quiet_NaN();  // Cached charge voltage set-point
 
   // Charger control (0x17) persistent state
   // Defaults: VRECHG=95.2%, DIS_CE_PIN=1, EN_CHG_BIT_RESET_BEHAVIOR=1, EN_CHG=1
@@ -91,6 +92,10 @@ class BQ2576 : public ChargerDriver {
   bool readChargeCurrent(float &result) override;
   bool readAdapterVoltage(float &result) override;
   bool readBatteryVoltage(float &result) override;
+
+  float getChargeVoltageTarget() const override {
+    return charge_voltage_;
+  }
 };
 
 #endif  // BQ_2576_HPP

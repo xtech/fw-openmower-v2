@@ -28,7 +28,7 @@ namespace xbot::driver::sabo {
 // Main types and enums
 namespace types {
 // Hardware versions are "as of" versions
-enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2_0, V0_2_1, V0_3, V0_4 };
+enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2_0, V0_2_1, V0_3, V0_4, V0_5 };
 
 enum class InputType : uint8_t { SENSOR, BUTTON };
 
@@ -105,6 +105,12 @@ struct CoverUi {
       const ioline_t s1_con;    // Series-I /Connected (active low)
       const ioline_t s2_con;    // Series-II /Connected (active low)
     } v04;
+    struct {
+      const ioline_t s2_latch;         // Series-II Latch (HEF4794BT STR)
+      const ioline_t s2_load;          // Series-II SH/LD (HC165 SH/LD)
+      const uint16_t tca_s1_con_mask;  // TCA9535 Bitmask für Series-I /Connected (active low)
+      const uint16_t tca_s2_con_mask;  // TCA9535 Bitmask für Series-II /Connected (active low)
+    } v05;
   } pins;
   // Optional GPIO expander. Only >= v0.3 have them
   union {
@@ -150,17 +156,24 @@ struct Limits {
   const float max_charge_current;   // Max allowed charge current in Amperes
 };
 
+// Charger voltage divider configuration (BQ2576)
+struct Charger {
+  const uint32_t r_top;    // external resistor VBAT->FB
+  const uint32_t r_bot;    // external resistor FB->FBG
+  const float r_ac_sense;  // Rac sense resistor
+};
+
 #ifndef STM32_SPI_USE_SPI1
 #error STM32_SPI_USE_SPI1 must be enabled for CoverUI support
 #endif
 
 inline const CoverUi COVER_UI_V0_1 = {
-    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
-    .pins = {.v01 = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1}}  // Latch/Load, OE, Btn /CS
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI}},  // SPI, SCK, MISO, MOSI, CS
+    .pins = {.v01 = {LINE_GPIO9, LINE_GPIO8, LINE_GPIO1}}              // Latch/Load, OE, Btn /CS
 };
 
 inline const CoverUi COVER_UI_V0_2 = {
-    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI}},     // SPI, SCK, MISO, MOSI, CS
     .pins = {.v02 = {LINE_GPIO9, LINE_GPIO1, LINE_GPIO8, LINE_UART7_RX}}  // Latch/Load, Inp /CS, S2-Latch, S2-Load
 };
 
@@ -169,17 +182,21 @@ inline const CoverUi COVER_UI_V0_2 = {
 #endif
 
 inline const CoverUi COVER_UI_V0_3 = {
-    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},  // SPI, SCK, MISO, MOSI, CS
-
-    .pins = {.v03 = {LINE_GPIO1, LINE_GPIO9,       // HEF4794BT STR, HC165 SH/LD
-                     LINE_GPIO8, LINE_UART7_RX}},  // SPI-MOSI switch, SPI-MISO switch
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI}},  // SPI, SCK, MISO, MOSI, CS
+    .pins = {.v03 = {LINE_GPIO1, LINE_GPIO9,                           // HEF4794BT STR, HC165 SH/LD
+                     LINE_GPIO8, LINE_UART7_RX}},                      // SPI-MOSI switch, SPI-MISO switch
     .gpio_expander = {.v03 = {.leds = {.i2c = &I2CD4, .address = 0x21}, .btns = {.i2c = &I2CD4, .address = 0x20}}}};
 
 inline const CoverUi COVER_UI_V0_4 = {
-    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, PAL_NOLINE}},  // SPI, SCK, MISO, MOSI, CS
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI}},  // SPI, SCK, MISO, MOSI, CS
+    .pins = {.v04 = {LINE_GPIO1, LINE_GPIO9,                           // HEF4794BT STR, HC165 SH/LD
+                     LINE_UART7_RX, LINE_GPIO8}},                      // S1-/CON, S2-/CON
+    .gpio_expander = {.v04 = {.expander = {.i2c = &I2CD4, .address = 0x20}}}};
 
-    .pins = {.v04 = {LINE_GPIO1, LINE_GPIO9,       // HEF4794BT STR, HC165 SH/LD
-                     LINE_UART7_RX, LINE_GPIO8}},  // S1-/CON, S2-/CON
+inline const CoverUi COVER_UI_V0_5 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI}},  // SPI, SCK, MISO, MOSI, CS
+    .pins = {.v05 = {LINE_GPIO1, LINE_GPIO9,                           // HEF4794BT STR, HC165 SH/LD
+                     (1 << 14), (1 << 15)}},                           // TCA S1-/CON, TCA S2-/CON
     .gpio_expander = {.v04 = {.expander = {.i2c = &I2CD4, .address = 0x20}}}};
 
 inline const Lcd LCD_V0_2 = {
@@ -200,16 +217,21 @@ inline const Adc ADC_V0_4 = {.charger_voltage_scale_factor = 16.4047f,    // (59
                              .battery_voltage_scale_factor = 11.0f,       // (32k4 Rtop + 3k24 Rbot)/3k24 Rbot
                              .dcdc_in_current_scale_factor = 1.0f};       // 1/(20gain * Rshunt 0.05)
 
+inline const Charger CHARGER_V0_1 = {.r_top = 249000, .r_bot = 13700, .r_ac_sense = 0.005f};
+inline const Charger CHARGER_V0_5 = {.r_top = 249000, .r_bot = 14300, .r_ac_sense = 0.005f};
+
 inline const Limits LIMITS_V0_1 = {.max_adapter_current = 4.2f, .max_charge_current = 5.0f};
 inline const Limits LIMITS_V0_2 = {.max_adapter_current = 4.9f, .max_charge_current = 4.9f};
 inline const Limits LIMITS_V0_3 = {.max_adapter_current = 4.8f, .max_charge_current = 5.5f};
 inline const Limits LIMITS_V0_4 = {.max_adapter_current = 6.0f, .max_charge_current = 9.0f};
+inline const Limits LIMITS_V0_5 = {.max_adapter_current = 10.0f, .max_charge_current = 9.0f};
 
 // Hardware configuration references
 struct HardwareConfig {
   const Limits* limits;
   etl::array_view<const ioline_t> sensors;
   const CoverUi* cover_ui;
+  const Charger* charger;
   const Lcd* lcd = nullptr;  // Optional LCD, not all hardware versions have it
   const Bms* bms = nullptr;  // Optional BMS, not all hardware versions have it
   const Adc* adc = nullptr;  // Optional ADC, only V0.2.1 and later have it
@@ -218,17 +240,22 @@ struct HardwareConfig {
 // Hardware version to configuration array which need to be in sync with HardwareVersion enum
 inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
     // V0_1
-    {.limits = &LIMITS_V0_1, .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1), .cover_ui = &COVER_UI_V0_1},
+    {.limits = &LIMITS_V0_1,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
+     .cover_ui = &COVER_UI_V0_1,
+     .charger = &CHARGER_V0_1},
     // V0_2_0
     {.limits = &LIMITS_V0_2,
      .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
+     .charger = &CHARGER_V0_1,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_2},
     // V0_2_1
     {.limits = &LIMITS_V0_2,
      .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_2,
+     .charger = &CHARGER_V0_1,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_2,
      .adc = &ADC_V0_2_1},
@@ -236,6 +263,7 @@ inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
     {.limits = &LIMITS_V0_3,
      .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_3,
+     .charger = &CHARGER_V0_1,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_3,
      .adc = &ADC_V0_2_1},
@@ -243,6 +271,15 @@ inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
     {.limits = &LIMITS_V0_4,
      .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_4,
+     .charger = &CHARGER_V0_1,
+     .lcd = &LCD_V0_2,
+     .bms = &BMS_V0_3,
+     .adc = &ADC_V0_4},
+    // V0_5
+    {.limits = &LIMITS_V0_5,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
+     .cover_ui = &COVER_UI_V0_5,
+     .charger = &CHARGER_V0_5,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_3,
      .adc = &ADC_V0_4}};
@@ -326,12 +363,12 @@ static_assert(sizeof(GPSSettings) == 8, "GPSSettings must be 8 bytes (2 version 
 }  // namespace settings
 
 // Compile-time validation for supported hardware versions
-static_assert(static_cast<uint8_t>(types::HardwareVersion::V0_4) + 1 ==
+static_assert(static_cast<uint8_t>(types::HardwareVersion::V0_5) + 1 ==
                   sizeof(config::HARDWARE_CONFIGS) / sizeof(config::HARDWARE_CONFIGS[0]),
               "HardwareVersion enum count must match HARDWARE_CONFIGS array size");
 
 inline types::HardwareVersion GetHardwareVersion(const struct carrier_board_info& board_info) {
-  types::HardwareVersion version = types::HardwareVersion::V0_4;  // Default fallback
+  types::HardwareVersion version = types::HardwareVersion::V0_5;  // Default fallback
 
   if (board_info.version_major == 0) {
     switch (board_info.version_minor) {
@@ -344,6 +381,7 @@ inline types::HardwareVersion GetHardwareVersion(const struct carrier_board_info
         break;
       case 3: version = types::HardwareVersion::V0_3; break;
       case 4: version = types::HardwareVersion::V0_4; break;
+      case 5: version = types::HardwareVersion::V0_5; break;
     }
   }
   return version;
