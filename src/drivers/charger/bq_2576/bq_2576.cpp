@@ -179,6 +179,8 @@ bool BQ2576::readBatteryVoltage(float& result) {
 bool BQ2576::setChargingVoltage(float voltage_v) {
   if (vfb_ratio_ <= 0.0f) return false;
 
+  charge_voltage_ = voltage_v;
+
   float vfb_mv = voltage_v * 1000.0f * vfb_ratio_;
   vfb_mv = std::max(1504.0f, std::min(1566.0f, vfb_mv));  // Clamp to 1504mV - 1566mV
   uint16_t reg_val = static_cast<uint16_t>((vfb_mv - 1504.0f) / 2.0f);

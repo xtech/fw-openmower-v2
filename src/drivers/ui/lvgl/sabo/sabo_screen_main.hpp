@@ -443,8 +443,15 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     }
 
     // Prefer calculated battery percentage over BMS battery_soc (BMS SoC is waste)
-    const auto battery_percent = GetPercent(battery_volts, sabo_robot_->Power_GetAbsoluteMinVoltage(),
-                                            sabo_robot_->Power_GetDefaultBatteryFullVoltage());
+    // Use charger's configured charge voltage as 100% reference if available, fall back to robot default
+    float battery_full_v = sabo_robot_->Power_GetDefaultChargeVoltage();
+    if (charger_ != nullptr) {
+      float charger_charge_v = charger_->getChargeVoltageTarget();
+      if (!isnan(charger_charge_v) && charger_charge_v > 0.0f) {
+        battery_full_v = charger_charge_v;
+      }
+    }
+    const auto battery_percent = GetPercent(battery_volts, sabo_robot_->Power_GetAbsoluteMinVoltage(), battery_full_v);
 
     if (battery_percent != last_battery_percent) {
       // Determine battery icon and state based on percentage
