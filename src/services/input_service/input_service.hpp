@@ -39,7 +39,8 @@ class InputService : public InputServiceBase {
  private:
   MUTEX_DECL(mutex_);
 
-  etl::flat_map<etl::string<10>, InputDriver*, 3> drivers_;
+  // Key must be long enough for the longest driver name (e.g. "yf_cover_ui" = 11 chars).
+  etl::flat_map<etl::string<15>, InputDriver*, 3> drivers_;
 
   // Must not have more than 64 inputs due to the size of various bitmasks.
   constexpr static uint8_t NUM_VIRTUAL_INPUTS = 1;
