@@ -199,6 +199,9 @@ void RemoteGPIOService::ClearSubscriptions() {
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 
 bool RemoteGPIOService::OnRegisterGPIOConfigsChanged(const void* data, size_t length) {
+  for (auto& pin : gpios_) {
+    palSetLineMode(pin.line, PAL_MODE_INPUT);
+  }
   ClearSubscriptions();
   gpios_.clear();
   i2c_buses_.clear();
@@ -210,17 +213,10 @@ bool RemoteGPIOService::OnRegisterGPIOConfigsChanged(const void* data, size_t le
 
   if (!ProcessJson(source, json_data)) {
     ULOG_ERROR("RemoteGPIO: Config parsing failed");
-    gpios_.clear();
-    i2c_buses_.clear();
     return false;
   }
 
   if (IsRunning()) {
-    for (auto& old_pin : old_gpios) {
-      if (!FindGpio(old_pin.id)) {
-        palSetLineMode(old_pin.line, PAL_MODE_INPUT);
-      }
-    }
     SetUpHardware();
   }
   return true;
@@ -381,13 +377,23 @@ static uint8_t MsgToI2cResult(msg_t msg) {
 // count_or_error >= 0: bytes received; < 0: negated I2cResult error code.
 static void FillReceiveResponse(msg_t msg, const uint8_t* rx_buf, uint8_t count, uint8_t* data,
                                 uint16_t* response_length) {
-  auto* hdr = reinterpret_cast<int32_t*>(data);
+  const uint16_t max_len = *response_length;
+  if (max_len < sizeof(int32_t)) {
+    *response_length = 0;
+    return;
+  }
+  int32_t hdr_val;
   if (msg == MSG_OK) {
-    *hdr = static_cast<int32_t>(count);
-    memcpy(data + sizeof(int32_t), rx_buf, count);
-    *response_length = static_cast<uint16_t>(sizeof(int32_t) + count);
+    uint8_t safe_count = (static_cast<uint16_t>(sizeof(int32_t)) + count <= max_len)
+                             ? count
+                             : static_cast<uint8_t>(max_len - sizeof(int32_t));
+    hdr_val = static_cast<int32_t>(safe_count);
+    memcpy(data, &hdr_val, sizeof(hdr_val));
+    memcpy(data + sizeof(int32_t), rx_buf, safe_count);
+    *response_length = static_cast<uint16_t>(sizeof(int32_t) + safe_count);
   } else {
-    *hdr = -static_cast<int32_t>(MsgToI2cResult(msg));
+    hdr_val = -static_cast<int32_t>(MsgToI2cResult(msg));
+    memcpy(data, &hdr_val, sizeof(hdr_val));
     *response_length = sizeof(int32_t);
   }
 }
@@ -413,8 +419,13 @@ void RemoteGPIOService::RPCI2cReceive(uint16_t call_id, uint8_t BusID, uint8_t A
   (void)call_id;
   auto* bus = FindBus(BusID);
   if (!bus) {
-    *reinterpret_cast<int32_t*>(data) = -static_cast<int32_t>(I2cResult::ERR_BUS);
-    *response_length = sizeof(int32_t);
+    if (*response_length >= sizeof(int32_t)) {
+      int32_t hdr_val = -static_cast<int32_t>(I2cResult::ERR_BUS);
+      memcpy(data, &hdr_val, sizeof(hdr_val));
+      *response_length = sizeof(int32_t);
+    } else {
+      *response_length = 0;
+    }
     return;
   }
   uint8_t rx_buf[kI2CReadBufferSize];
@@ -431,8 +442,13 @@ void RemoteGPIOService::RPCI2cTransmitReceive(uint16_t call_id, uint8_t BusID, u
   (void)call_id;
   auto* bus = FindBus(BusID);
   if (!bus) {
-    *reinterpret_cast<int32_t*>(data) = -static_cast<int32_t>(I2cResult::ERR_BUS);
-    *response_length = sizeof(int32_t);
+    if (*response_length >= sizeof(int32_t)) {
+      int32_t hdr_val = -static_cast<int32_t>(I2cResult::ERR_BUS);
+      memcpy(data, &hdr_val, sizeof(hdr_val));
+      *response_length = sizeof(int32_t);
+    } else {
+      *response_length = 0;
+    }
     return;
   }
   uint8_t rx_buf[kI2CReadBufferSize];
