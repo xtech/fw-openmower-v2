@@ -365,7 +365,7 @@
 #define STM32_SERIAL_USE_UART4              FALSE
 #define STM32_SERIAL_USE_UART5              FALSE
 #define STM32_SERIAL_USE_USART6             FALSE
-#define STM32_SERIAL_USE_UART7              TRUE   /* CoverUI on YardForce (UART7, LED_TX/LED_RX) */
+#define STM32_SERIAL_USE_UART7              FALSE
 #define STM32_SERIAL_USE_UART8              FALSE
 #define STM32_SERIAL_USE_UART9              FALSE
 #define STM32_SERIAL_USE_USART10            FALSE
@@ -441,7 +441,7 @@
 #define STM32_UART_USE_UART4                TRUE
 #define STM32_UART_USE_UART5                FALSE
 #define STM32_UART_USE_USART6               TRUE
-#define STM32_UART_USE_UART7                FALSE  /* UART7 used as SerialDriver for CoverUI */
+#define STM32_UART_USE_UART7                TRUE   /* CoverUI on YardForce */
 #define STM32_UART_USE_UART8                TRUE
 #define STM32_UART_USE_UART9                FALSE
 #define STM32_UART_USE_USART10              TRUE
