@@ -30,6 +30,10 @@ class xBotRobot : public Robot {
     return 1.0;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 1.0;
+  }
+
   float Power_GetAbsoluteMinVoltage() override {
     // 3.0V min, 4s pack
     return 4.0f * 3.0;
