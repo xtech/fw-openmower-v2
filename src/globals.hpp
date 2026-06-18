@@ -21,9 +21,6 @@ enum Events : eventid_t {
 
   // InputService
   GPIO_TRIGGERED,
-
-  // RemoteGPIOService
-  REMOTE_GPIO_TRIGGERED,
 };
 
 constexpr int ids_to_mask(std::initializer_list<eventid_t> ids) {
