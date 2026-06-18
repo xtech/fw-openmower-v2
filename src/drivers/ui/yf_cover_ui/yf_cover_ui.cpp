@@ -30,34 +30,66 @@ static constexpr uint32_t VERSION_POLL_MS = 5000;    ///< How often to poll UI v
 static constexpr uint32_t VERSION_TIMEOUT_MS = 250;  ///< How long to wait for version reply
 static constexpr uint32_t LED_UPDATE_INTERVAL_DEFAULT_MS = 1000;
 
+// Events signaled from the UART ISRs to the comms thread.
+static constexpr eventmask_t EVT_RX_DMA_WRAP = (1U << 0);    ///< DMA receive buffer full / wrapped
+static constexpr eventmask_t EVT_RX_CHAR_MATCH = (1U << 1);  ///< 0x00 COBS delimiter received
+
 // ============================================================================
 // Public
 // ============================================================================
 
-void YFCoverUI::Start(SerialDriver* sd) {
+void YFCoverUI::Start(UARTDriver* uart) {
   if (thread_ != nullptr) {
     ULOG_ERROR("YFCoverUI: Start() called twice!");
     return;
   }
-  if (sd == nullptr) {
-    ULOG_ERROR("YFCoverUI: null SerialDriver!");
+  if (uart == nullptr) {
+    ULOG_ERROR("YFCoverUI: null UARTDriver!");
     return;
   }
 
-  sd_ = sd;
+  uart_ = uart;
+  uart_config_.speed = 115200;  // 8N1 by default (cr1/cr2/cr3 left at 0 apart from char-match below)
+  uart_config_.context = this;
+  // Character-match interrupt on the COBS 0x00 frame delimiter, so the comms thread is
+  // woken promptly when a complete packet has arrived.
+  uart_config_.cr2 = ('\0' << USART_CR2_ADD_Pos);
+  uart_config_.cr1 |= USART_CR1_CMIE;
 
-  static const SerialConfig serial_cfg = {
-      .speed = 115200,
-      .cr1 = 0,
-      .cr2 = USART_CR2_STOP1_BITS,
-      .cr3 = 0,
+  // RX buffer-full (DMA wrap) callback: re-arm DMA immediately to minimise the RX gap,
+  // then wake the comms thread to drain the buffer.
+  uart_config_.rxend_cb = [](UARTDriver* uartp) {
+    chSysLockFromISR();
+    YFCoverUI* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
+    chDbgAssert(instance != nullptr, "instance cannot be null!");
+    uartStartReceiveI(uartp, DMA_RX_BUFFER_SIZE, const_cast<uint8_t*>(instance->dma_rx_buffer_));
+    if (instance->thread_) chEvtSignalI(instance->thread_, EVT_RX_DMA_WRAP);
+    chSysUnlockFromISR();
   };
-  sdStart(sd_, &serial_cfg);
+
+  // Character-match callback: only wakes the thread; byte processing happens there.
+  uart_config_.rx_cm_cb = [](UARTDriver* uartp) {
+    chSysLockFromISR();
+    YFCoverUI* instance = reinterpret_cast<const UARTConfigEx*>(uartp->config)->context;
+    chDbgAssert(instance != nullptr, "instance cannot be null!");
+    if (instance->thread_) chEvtSignalI(instance->thread_, EVT_RX_CHAR_MATCH);
+    chSysUnlockFromISR();
+  };
+
+  if (uartStart(uart_, &uart_config_) != MSG_OK) {
+    ULOG_ERROR("YFCoverUI: uartStart() failed!");
+    uart_ = nullptr;
+    return;
+  }
 
   thread_ = chThdCreateStatic(&wa_, sizeof(wa_), NORMALPRIO - 1, ThreadHelper, this);
 #ifdef USE_SEGGER_SYSTEMVIEW
   thread_->name = "YFCoverUI";
 #endif
+
+  // Arm continuous DMA reception (thread_ is set first so the ISRs can signal it).
+  rx_seen_len_ = 0;
+  uartStartReceive(uart_, DMA_RX_BUFFER_SIZE, const_cast<uint8_t*>(dma_rx_buffer_));
 }
 
 bool YFCoverUI::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
@@ -92,8 +124,10 @@ bool YFCoverUI::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key,
       return true;
     }
     if (ch == "button") {
-      // Set the button flag bit; the button_id bits [6:0] will be filled by the "button_id" key.
-      input.yf_cover_ui.channel = static_cast<uint8_t>(YFCoverUIChannel::BUTTON_FLAG);
+      // Set the button flag bit while preserving any button_id bits [6:0] already
+      // parsed (JSON key order is not guaranteed, so "button_id" may precede "channel").
+      input.yf_cover_ui.channel =
+          static_cast<uint8_t>(YFCoverUIChannel::BUTTON_FLAG) | (input.yf_cover_ui.channel & 0x7F);
       return true;
     }
     ULOG_ERROR("YFCoverUI: unknown channel \"%s\"", jsp->data.str.buff);
@@ -129,8 +163,23 @@ void YFCoverUI::ThreadFunc() {
   const systime_t probe_start = chVTGetSystemTimeX();
 
   while (true) {
-    // --- Read incoming bytes (10 ms timeout keeps the loop responsive) ---
-    ReadByte(TIME_MS2I(10));
+    // --- Wait for RX events; the 10 ms timeout keeps the periodic poll/LED timing responsive ---
+    chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, TIME_MS2I(10));
+
+    // --- Drain newly received DMA bytes using NDTR deltas (handles buffer wrap) ---
+    const uint32_t ndtr_now = uart_->dmarx->stream->NDTR;
+    if (ndtr_now <= DMA_RX_BUFFER_SIZE) {
+      const size_t received_so_far = DMA_RX_BUFFER_SIZE - ndtr_now;
+      if (received_so_far < rx_seen_len_) {
+        // Buffer wrapped (rxend_cb re-armed): process the tail, then resume from the start.
+        ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, DMA_RX_BUFFER_SIZE - rx_seen_len_);
+        rx_seen_len_ = 0;
+      }
+      if (received_so_far > rx_seen_len_) {
+        ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, received_so_far - rx_seen_len_);
+        rx_seen_len_ = received_so_far;
+      }
+    }
 
     // --- Startup presence verdict (logged exactly once) ---
     if (!presence_determined_.load() && !ui_present_.load() &&
@@ -173,16 +222,17 @@ void YFCoverUI::ThreadFunc() {
 // ============================================================================
 
 void YFCoverUI::SendMessage(const void* msg, size_t size) {
-  if (sd_ == nullptr) return;
+  if (uart_ == nullptr) return;
 
-  // Encode with COBS into a local buffer (max encoded size = size + 2 overhead + 1 delimiter)
-  static constexpr size_t ENC_BUF_SIZE = 32;
-  uint8_t enc[ENC_BUF_SIZE];
+  // Encode with COBS into the DMA-safe member buffer (max encoded = size + overhead + 1 delimiter).
+  size_t enc_len = CobsEncode(static_cast<const uint8_t*>(msg), size, tx_buf_);
+  if (enc_len + 1 > TX_BUF_SIZE) {
+    ULOG_WARNING("YFCoverUI: TX frame too large (%u)", (unsigned)enc_len);
+    return;
+  }
+  tx_buf_[enc_len++] = 0x00;  // COBS packet delimiter
 
-  size_t enc_len = CobsEncode(static_cast<const uint8_t*>(msg), size, enc);
-  enc[enc_len++] = 0x00;  // COBS packet delimiter
-
-  sdWrite(sd_, enc, enc_len);
+  uartSendFullTimeout(uart_, &enc_len, tx_buf_, TIME_INFINITE);
 }
 
 void YFCoverUI::SendVersionRequest() {
@@ -305,32 +355,28 @@ void YFCoverUI::BuildLedMessage(msg_set_leds& msg) {
 // Protocol RX
 // ============================================================================
 
-void YFCoverUI::ReadByte(sysinterval_t timeout) {
-  msg_t byte = sdGetTimeout(sd_, timeout);
-  if (byte == MSG_TIMEOUT || byte == MSG_RESET) {
-    return;
-  }
-
-  const uint8_t b = static_cast<uint8_t>(byte);
-
-  if (b == 0x00) {
-    // End of COBS packet — decode and dispatch if we have data
-    if (rx_len_ > 0) {
-      size_t decoded_len = 0;
-      if (CobsDecode(rx_buf_, rx_len_, decode_buf_, decoded_len)) {
-        HandleMessage(decode_buf_, decoded_len);
-      } else {
-        ULOG_WARNING("YFCoverUI: COBS decode error (len=%u)", (unsigned)rx_len_);
+void YFCoverUI::ProcessRxBytes(const volatile uint8_t* data, size_t len) {
+  for (size_t i = 0; i < len; ++i) {
+    const uint8_t b = data[i];
+    if (b == 0x00) {
+      // End of COBS packet — decode and dispatch if we have data
+      if (rx_len_ > 0) {
+        size_t decoded_len = 0;
+        if (CobsDecode(rx_buf_, rx_len_, decode_buf_, decoded_len)) {
+          HandleMessage(decode_buf_, decoded_len);
+        } else {
+          ULOG_WARNING("YFCoverUI: COBS decode error (len=%u)", (unsigned)rx_len_);
+        }
+        rx_len_ = 0;
       }
-      rx_len_ = 0;
-    }
-  } else {
-    if (rx_len_ < RX_BUF_SIZE) {
-      rx_buf_[rx_len_++] = b;
     } else {
-      // Buffer overflow — discard accumulated data and start over
-      ULOG_WARNING("YFCoverUI: RX buffer overflow, discarding");
-      rx_len_ = 0;
+      if (rx_len_ < RX_BUF_SIZE) {
+        rx_buf_[rx_len_++] = b;
+      } else {
+        // Buffer overflow — discard accumulated data and start over
+        ULOG_WARNING("YFCoverUI: RX buffer overflow, discarding");
+        rx_len_ = 0;
+      }
     }
   }
 }
@@ -425,8 +471,10 @@ void YFCoverUI::HandleRain(const msg_event_rain* msg) {
 
 void YFCoverUI::HandleSubscribe(const msg_event_subscribe* msg) {
   ULOG_DEBUG("YFCoverUI: subscribe topics=0x%02X interval=%u ms", msg->topic_bitmask, msg->interval);
-  if (msg->interval > 0) {
+  if (msg->interval >= 100 && msg->interval <= 10000) {
     ui_interval_ = msg->interval;
+  } else if (msg->interval > 0) {
+    ULOG_WARNING("YFCoverUI: ignoring out-of-range interval %u ms", msg->interval);
   }
 }
 
