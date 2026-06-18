@@ -26,6 +26,15 @@ class WorxRobot : public MowerRobot {
     return 1.0;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 2.0;
+  }
+
+  virtual ChargerDriver::ReChargeVoltage Power_GetDefaultReChargeVoltage() {
+    // Allow the voltage to drop a bit more, since we have a load attached during charging
+    return ChargerDriver::ReChargeVoltage::PERCENT_95_2;
+  }
+
   float Power_GetDefaultTerminationCurrent() override {
     return 0.5f;
   }

@@ -43,6 +43,14 @@ class Robot {
   virtual float Power_GetDefaultChargeCurrent() = 0;
 
   /**
+   * Return the default maximum charging current for this robot.
+   * This is usually for the provided power supply and battery.
+   *
+   * The user can override this value using the DangerouslyOverrideHardwareChargeCurrentLimit parameter.
+   */
+  virtual float Power_GetMaxChargeCurrent() = 0;
+
+  /**
    * Return the charge voltage target (VREG) in Volts.
    * Returns -1.0 to leave the hardware-pin configured voltage unchanged.
    */
@@ -55,7 +63,7 @@ class Robot {
    * Charging is considered done when CV current drops below this value.
    */
   virtual float Power_GetDefaultTerminationCurrent() {
-    return 0.3f;
+    return 0.250f;
   }
 
   /**

@@ -22,6 +22,15 @@ class Lyfco_E1600Robot : public MowerRobot {
     return 2.5;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 4.0;
+  }
+
+  virtual ChargerDriver::ReChargeVoltage Power_GetDefaultReChargeVoltage() {
+    // Allow the voltage to drop a bit more, since we have a load attached during charging
+    return ChargerDriver::ReChargeVoltage::PERCENT_95_2;
+  }
+
   float Power_GetAbsoluteMinVoltage() override {
     // 3.3V min, 7s pack
     return 7.0f * 3.0f;

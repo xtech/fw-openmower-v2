@@ -18,6 +18,15 @@ class UniversalRobot : public MowerRobot {
     return 0.5;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 5.0;
+  }
+
+  virtual ChargerDriver::ReChargeVoltage Power_GetDefaultReChargeVoltage() {
+    // Allow the voltage to drop a bit more, since we have a load attached during charging
+    return ChargerDriver::ReChargeVoltage::PERCENT_95_2;
+  }
+
  protected:
   UniversalRobot() = default;  // Intermediate/abstract class
 

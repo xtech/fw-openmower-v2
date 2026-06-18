@@ -69,6 +69,10 @@ class SaboRobot : public MowerRobot {
     return 2.5f;  // Lets stay save and conservative for now
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 3.9;
+  }
+
   float Power_GetDefaultTerminationCurrent() override {
     return 0.3f;  // 300mA
   }
