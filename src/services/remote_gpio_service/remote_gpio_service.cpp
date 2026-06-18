@@ -216,6 +216,11 @@ bool RemoteGPIOService::OnRegisterGPIOConfigsChanged(const void* data, size_t le
   }
 
   if (IsRunning()) {
+    for (auto& old_pin : old_gpios) {
+      if (!FindGpio(old_pin.id)) {
+        palSetLineMode(old_pin.line, PAL_MODE_INPUT);
+      }
+    }
     SetUpHardware();
   }
   return true;
@@ -228,6 +233,9 @@ bool RemoteGPIOService::OnStart() {
 
 void RemoteGPIOService::OnStop() {
   ClearSubscriptions();
+  for (auto& pin : gpios_) {
+    palSetLineMode(pin.line, PAL_MODE_INPUT);
+  }
 }
 
 // ─── Main loop ───────────────────────────────────────────────────────────────
@@ -332,6 +340,9 @@ void RemoteGPIOService::RPCSubscribeGPIO(uint16_t call_id, uint8_t GPIOID, uint8
     uint8_t result = 0;
     SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
     return;
+  }
+  if (!pin->is_output) {
+    pin->last_value = palReadLine(pin->line) == PAL_HIGH ? 1 : 0;
   }
   pin->subscribed = true;
   pin->periodic = Periodic != 0;
