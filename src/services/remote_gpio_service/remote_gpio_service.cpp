@@ -366,6 +366,8 @@ void RemoteGPIOService::RPCUnsubscribeAll(uint16_t call_id) {
 
 // ─── I2C RPCs ────────────────────────────────────────────────────────────────
 
+static constexpr sysinterval_t kI2CTimeout = TIME_MS2I(1000);
+
 static uint8_t MsgToI2cResult(msg_t msg) {
   if (msg == MSG_OK) return static_cast<uint8_t>(I2cResult::OK);
   if (msg == MSG_TIMEOUT) return static_cast<uint8_t>(I2cResult::ERR_TIMEOUT);
@@ -407,7 +409,7 @@ void RemoteGPIOService::RPCI2cTransmit(uint16_t call_id, uint8_t BusID, uint8_t 
     return;
   }
   i2cAcquireBus(bus->driver);
-  msg_t msg = i2cMasterTransmit(bus->driver, Address, Data, DataLen, nullptr, 0);
+  msg_t msg = i2cMasterTransmitTimeout(bus->driver, Address, Data, DataLen, nullptr, 0, kI2CTimeout);
   i2cReleaseBus(bus->driver);
   uint8_t result = MsgToI2cResult(msg);
   RpcStatus status = (msg == MSG_OK) ? RpcStatus::SUCCESS : RpcStatus::ERROR;
@@ -431,7 +433,7 @@ void RemoteGPIOService::RPCI2cReceive(uint16_t call_id, uint8_t BusID, uint8_t A
   uint8_t rx_buf[kI2CReadBufferSize];
   uint8_t count = etl::min<uint8_t>(Count, kI2CReadBufferSize);
   i2cAcquireBus(bus->driver);
-  msg_t msg = i2cMasterReceive(bus->driver, Address, rx_buf, count);
+  msg_t msg = i2cMasterReceiveTimeout(bus->driver, Address, rx_buf, count, kI2CTimeout);
   i2cReleaseBus(bus->driver);
   FillReceiveResponse(msg, rx_buf, count, data, response_length);
 }
@@ -454,7 +456,7 @@ void RemoteGPIOService::RPCI2cTransmitReceive(uint16_t call_id, uint8_t BusID, u
   uint8_t rx_buf[kI2CReadBufferSize];
   uint8_t rx_count = etl::min<uint8_t>(RxCount, kI2CReadBufferSize);
   i2cAcquireBus(bus->driver);
-  msg_t msg = i2cMasterTransmit(bus->driver, Address, TxData, TxDataLen, rx_buf, rx_count);
+  msg_t msg = i2cMasterTransmitTimeout(bus->driver, Address, TxData, TxDataLen, rx_buf, rx_count, kI2CTimeout);
   i2cReleaseBus(bus->driver);
   FillReceiveResponse(msg, rx_buf, rx_count, data, response_length);
 }
