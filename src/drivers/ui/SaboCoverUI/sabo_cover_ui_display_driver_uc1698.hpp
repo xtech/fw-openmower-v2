@@ -128,6 +128,7 @@ class SaboCoverUIDisplayDriverUC1698 {
   void SetWindowProgramAreaRaw(uint8_t t_x1, uint8_t t_x2, uint8_t t_y1, uint8_t t_y2, bool t_outside_mode = false);
 
   static void ThreadHelper(void* instance) {
+    chRegSetThreadName("SaboCoverUIDisp");
     auto* i = static_cast<SaboCoverUIDisplayDriverUC1698*>(instance);
     i->ThreadFunc();
   }

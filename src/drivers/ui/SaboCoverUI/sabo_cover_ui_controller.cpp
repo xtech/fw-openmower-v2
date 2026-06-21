@@ -121,6 +121,7 @@ void SaboCoverUIController::Start() {
 }
 
 void SaboCoverUIController::ThreadHelper(void* instance) {
+  chRegSetThreadName("SaboCoverUICtrl");
   auto* i = static_cast<SaboCoverUIController*>(instance);
   i->ThreadFunc();
 }
