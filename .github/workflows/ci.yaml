@@ -37,6 +37,9 @@ jobs:
         with:
           push: false
           context: .
+          # Debug build for pull requests, Release build for main / tagged releases.
+          build-args: |
+            BUILD_PRESET=${{ github.event_name == 'pull_request' && 'Debug' || 'Release' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           outputs: type=local,dest=./out
