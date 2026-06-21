@@ -64,8 +64,6 @@ int main() {
   InitGlobals();
   InitHeartbeat();
   InitStatusLed();
-  // Debug-only: periodically log per-thread stack watermark (no-op in release).
-  InitThreadWatermark();
 
   SetStatusLedMode(LED_MODE_ON);
   SetStatusLedColor(RED);
@@ -91,6 +89,8 @@ int main() {
   // Safe to do before checking the carrier board, needed for logging
   xbot::service::system::initSystem();
   xbot::service::startRemoteLogging();
+  // Debug-only: periodically log per-thread stack watermark (no-op in release).
+  InitThreadWatermark();
 
   // Try opening the filesystem, on error fail
   if (!InitFS()) {

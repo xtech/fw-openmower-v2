@@ -73,6 +73,7 @@ class YFR4escDriver : public DebuggableDriver, public MotorDriver {
 
   void threadFunc();
   static void threadHelper(void* instance) {
+    chRegSetThreadName("YFR4escDriver");
     static_cast<YFR4escDriver*>(instance)->threadFunc();
   };
 

@@ -24,6 +24,9 @@ static THD_WORKING_AREA(watermark_wa, 512);
 // area. used = total - free.
 static size_t ThreadFreeStack(const thread_t *tp) {
   const uint8_t *base = (const uint8_t *)chThdGetWorkingAreaX((thread_t *)tp);
+#if PORT_ENABLE_GUARD_PAGES == TRUE
+  base += PORT_GUARD_PAGE_SIZE; /* skip the no-access guard region */
+#endif
   // The thread_t structure lives at the top of the working area, so it marks
   // the end of the usable stack region.
   const uint8_t *end = (const uint8_t *)tp;
@@ -38,11 +41,16 @@ static THD_FUNCTION(WatermarkThread, arg) {
   (void)arg;
   chRegSetThreadName("watermark");
 
+  chThdSleepMilliseconds(1000);
+
   while (true) {
     ULOG_INFO("=== Thread stack watermark ===");
     thread_t *tp = chRegFirstThread();
     while (tp != NULL) {
       const uint8_t *base = (const uint8_t *)chThdGetWorkingAreaX(tp);
+#if PORT_ENABLE_GUARD_PAGES == TRUE
+      base += PORT_GUARD_PAGE_SIZE; /* skip the no-access guard region */
+#endif
       size_t total = (const uint8_t *)tp - base;
       size_t free = ThreadFreeStack(tp);
       const char *name = chRegGetThreadNameX(tp);
