@@ -163,8 +163,8 @@ void YFCoverUI::ThreadFunc() {
   const systime_t probe_start = chVTGetSystemTimeX();
 
   while (true) {
-    // --- Wait for RX events; the 10 ms timeout keeps the periodic poll/LED timing responsive ---
-    chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, TIME_MS2I(10));
+    // --- Wait for RX events; the 100 ms timeout keeps the periodic poll/LED timing responsive ---
+    chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, TIME_MS2I(100));
 
     // --- Drain newly received DMA bytes using NDTR deltas (handles buffer wrap) ---
     const uint32_t ndtr_now = uart_->dmarx->stream->NDTR;

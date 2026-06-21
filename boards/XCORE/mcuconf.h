@@ -441,7 +441,7 @@
 #define STM32_UART_USE_UART4                TRUE
 #define STM32_UART_USE_UART5                FALSE
 #define STM32_UART_USE_USART6               TRUE
-#define STM32_UART_USE_UART7                TRUE   /* CoverUI on YardForce */
+#define STM32_UART_USE_UART7                TRUE
 #define STM32_UART_USE_UART8                TRUE
 #define STM32_UART_USE_UART9                FALSE
 #define STM32_UART_USE_USART10              TRUE
