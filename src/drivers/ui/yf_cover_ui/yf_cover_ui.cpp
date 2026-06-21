@@ -94,12 +94,6 @@ void YFCoverUI::Start(UARTDriver* uart) {
 
 bool YFCoverUI::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                                    Input& input) {
-  // If the boot probe already determined the panel is absent, silently accept (and ignore)
-  // any CoverUI input config from ROS instead of registering inputs that can never fire.
-  if (presence_determined_.load() && !ui_present_.load()) {
-    return true;
-  }
-
   if (strcmp(key, "channel") == 0) {
     JsonExpectType(STRING);
     etl::string_view ch{jsp->data.str.buff};
