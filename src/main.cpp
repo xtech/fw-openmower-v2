@@ -19,6 +19,7 @@
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
+#include "debug/thread_watermark.h"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
@@ -63,6 +64,8 @@ int main() {
   InitGlobals();
   InitHeartbeat();
   InitStatusLed();
+  // Debug-only: periodically log per-thread stack watermark (no-op in release).
+  InitThreadWatermark();
 
   SetStatusLedMode(LED_MODE_ON);
   SetStatusLedColor(RED);

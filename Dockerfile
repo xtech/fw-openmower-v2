@@ -24,6 +24,10 @@ ENV CCACHE_NOHASHDIR="true"
 
 RUN pip install elf-size-analyze
 
+# Build preset to use for all platforms. CI passes "Debug" for pull requests and
+# "Release" for main / tagged releases.
+ARG BUILD_PRESET=Release
+
 COPY . /project
 
 WORKDIR /project
@@ -32,14 +36,14 @@ RUN mkdir build
 # deps like lwjson are fetched from GitHub once instead of once per platform
 # (avoids tripping codeload's transient 500s / rate limiting).
 ENV FETCHCONTENT_BASE_DIR=/project/build/_deps
-RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=YardForce -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BYardForce && cd YardForce && make -j$(nproc)
-RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=YardForce_V4 -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BYardForce_V4 && cd YardForce_V4 && make -j$(nproc)
-RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Worx -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BWorx && cd Worx && make -j$(nproc)
-RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Lyfco_E1600 -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BLyfco_E1600 && cd Lyfco_E1600 && make -j$(nproc)
-RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Sabo -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BSabo && cd Sabo && make -j$(nproc)
-RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=xBot -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BxBot && cd xBot && make -j$(nproc)
-RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Universal5S -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BUniversal5S && cd Universal5S && make -j$(nproc)
-RUN cd build && cmake .. --preset=Release -DROBOT_PLATFORM=Universal7S -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BUniversal7S && cd Universal7S && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DROBOT_PLATFORM=YardForce -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BYardForce && cd YardForce && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DROBOT_PLATFORM=YardForce_V4 -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BYardForce_V4 && cd YardForce_V4 && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DROBOT_PLATFORM=Worx -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BWorx && cd Worx && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DROBOT_PLATFORM=Lyfco_E1600 -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BLyfco_E1600 && cd Lyfco_E1600 && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DROBOT_PLATFORM=Sabo -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BSabo && cd Sabo && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DROBOT_PLATFORM=xBot -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BxBot && cd xBot && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DROBOT_PLATFORM=Universal5S -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BUniversal5S && cd Universal5S && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DROBOT_PLATFORM=Universal7S -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -BUniversal7S && cd Universal7S && make -j$(nproc)
 # Use Sabo build for RAM and ROM analysis for now - it has the most libraries
 RUN elf-size-analyze -H -R -t arm-none-eabi- ./build/Sabo/openmower.elf -W > build/ram-info.html
 RUN elf-size-analyze -H -F -t arm-none-eabi- ./build/Sabo/openmower.elf -W > build/flash-info.html

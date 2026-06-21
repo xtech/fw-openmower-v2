@@ -126,6 +126,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
         src/debug/debuggable_driver.cpp
+        src/debug/thread_watermark.c
         robots/src/robot.cpp
         ${PLATFORM_SOURCES}
         ${LVGL_ASSETS_SRC}
