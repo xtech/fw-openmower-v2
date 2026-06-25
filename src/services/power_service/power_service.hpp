@@ -6,6 +6,7 @@
 #define POWER_SERVICE_HPP
 
 #include <ch.h>
+#include <etl/atomic.h>
 
 #include <PowerServiceBase.hpp>
 #include <drivers/charger/charger.hpp>
@@ -81,6 +82,10 @@ class PowerService : public PowerServiceBase {
     power_management_callback_ = callback;
   }
 
+  bool IsHealthy() override {
+    return IsRunning() && charger_configured_.load();
+  }
+
  protected:
   bool OnStart() override;
 
@@ -99,7 +104,7 @@ class PowerService : public PowerServiceBase {
   Schedule driver_schedule_{scheduler_, true, 1'000'000,
                             XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::driver_tick_, this)};
 
-  bool charger_configured_ = false;
+  etl::atomic<bool> charger_configured_{false};
   float charge_current_ = 0;
   float adapter_volts_ = 0;
   float battery_volts_ = 0;
