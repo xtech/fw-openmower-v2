@@ -6,6 +6,7 @@
 #define MOWER_SERVICE_HPP
 
 #include <ch.h>
+#include <etl/atomic.h>
 
 #include <MowerServiceBase.hpp>
 #include <debug/debug_tcp_interface.hpp>
@@ -27,6 +28,10 @@ class MowerService : public MowerServiceBase {
   void SetDriver(MotorDriver* motor_driver);
 
   void OnEmergencyChangedEvent();
+
+  bool IsHealthy() override {
+    return IsRunning() && esc_ever_connected_;
+  }
 
  protected:
   void OnCreate() override;
@@ -54,6 +59,7 @@ class MowerService : public MowerServiceBase {
 
   float mower_duty_ = 0;
   bool duty_sent_ = false;
+  etl::atomic<bool> esc_ever_connected_{false};
   MotorDriver* mower_driver_ = nullptr;
 };
 

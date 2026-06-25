@@ -350,6 +350,7 @@ void VescDriver::threadFunc() {
 }
 
 void VescDriver::threadHelper(void* instance) {
+  chRegSetThreadName("VescDriver");
   auto* i = static_cast<VescDriver*>(instance);
   i->threadFunc();
 }

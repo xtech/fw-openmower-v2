@@ -28,6 +28,10 @@ class InputService : public InputServiceBase {
     SendStatus();
   }
 
+  bool IsHealthy() override {
+    return IsRunning() && inputs_configured_;
+  }
+
   void OnInputChanged(Input& input, const bool active, const uint32_t duration);
 
   etl::pair<uint16_t, uint32_t> GetEmergencyReasons(uint32_t now);
@@ -37,6 +41,7 @@ class InputService : public InputServiceBase {
   }
 
  private:
+  etl::atomic<bool> inputs_configured_{false};
   MUTEX_DECL(mutex_);
 
   // Key must be long enough for the longest driver name (e.g. "yf_cover_ui" = 11 chars).
