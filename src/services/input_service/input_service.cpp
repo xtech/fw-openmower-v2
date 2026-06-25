@@ -22,6 +22,7 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
   HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
   Lock lk(&mutex_);
 
+  inputs_configured_ = false;
   all_inputs_.clear();
   for (auto& driver : drivers_) {
     driver.second->ClearInputs();
@@ -36,7 +37,8 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
 
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
-  return ProcessJson(source, json_data);
+  inputs_configured_ = ProcessJson(source, json_data);
+  return inputs_configured_;
 }
 
 bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type,

@@ -6,6 +6,7 @@
 #define DIFF_DRIVE_SERVICE_HPP
 
 #include <drivers/gps/nmea_gps_driver.h>
+#include <etl/atomic.h>
 
 #include <DiffDriveServiceBase.hpp>
 #include <drivers/motor/motor_driver.hpp>
@@ -26,6 +27,9 @@ class DiffDriveService : public DiffDriveServiceBase {
   bool left_esc_state_valid_ = false;
   bool right_esc_state_valid_ = false;
   uint32_t last_valid_esc_state_micros_ = 0;
+  static constexpr uint8_t ESC_LEFT = 1 << 0;
+  static constexpr uint8_t ESC_RIGHT = 1 << 1;
+  etl::atomic<uint8_t> escs_connected_{0};
   uint32_t last_duty_received_micros_ = 0;
 
   uint32_t last_ticks_left = 0;
@@ -44,6 +48,10 @@ class DiffDriveService : public DiffDriveServiceBase {
   void OnEmergencyChangedEvent();
 
   void SetDrivers(MotorDriver *left_driver, MotorDriver *right_driver);
+
+  bool IsHealthy() override {
+    return IsRunning() && (escs_connected_.load() == (ESC_LEFT | ESC_RIGHT));
+  }
 
  protected:
   bool OnStart() override;

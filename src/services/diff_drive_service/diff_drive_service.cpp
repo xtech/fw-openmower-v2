@@ -66,6 +66,7 @@ void DiffDriveService::OnCreate() {
 void DiffDriveService::OnStop() {
   speed_l_ = speed_r_ = 0;
   last_ticks_valid = false;
+  escs_connected_ = 0;
 }
 
 void DiffDriveService::tick() {
@@ -117,6 +118,7 @@ void DiffDriveService::LeftESCCallback(const MotorDriver::ESCState& state) {
   chMtxLock(&state_mutex_);
   left_esc_state_ = state;
   left_esc_state_valid_ = true;
+  escs_connected_ |= ESC_LEFT;
   if (right_esc_state_valid_) {
     ProcessStatusUpdate();
   }
@@ -127,6 +129,7 @@ void DiffDriveService::RightESCCallback(const MotorDriver::ESCState& state) {
   chMtxLock(&state_mutex_);
   right_esc_state_ = state;
   right_esc_state_valid_ = true;
+  escs_connected_ |= ESC_RIGHT;
   if (left_esc_state_valid_) {
     ProcessStatusUpdate();
   }

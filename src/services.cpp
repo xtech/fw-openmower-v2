@@ -34,6 +34,23 @@ void StartServices() {
   }
 
   START_IF_NEEDED(bms_service, BMS)
+
+  if (robot->NeedsService(xbot::service_ids::INPUT)) {
+    emergency_service.RequireService(&input_service);
+  }
+  if (robot->NeedsService(xbot::service_ids::DIFF_DRIVE)) {
+    emergency_service.RequireService(&diff_drive);
+  }
+  if (robot->NeedsService(xbot::service_ids::MOWER)) {
+    emergency_service.RequireService(&mower_service);
+  }
+  if (robot->NeedsService(xbot::service_ids::IMU)) {
+    emergency_service.RequireService(&imu_service);
+  }
+  if (robot->NeedsService(xbot::service_ids::POWER)) {
+    emergency_service.RequireService(&power_service);
+  }
+
   START_IF_NEEDED(emergency_service, EMERGENCY)
   START_IF_NEEDED(imu_service, IMU)
   START_IF_NEEDED(power_service, POWER)

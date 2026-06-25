@@ -16,7 +16,7 @@ void EmergencyService::OnStop() {
 }
 
 uint32_t EmergencyService::OnLoop(uint32_t now_micros, uint32_t) {
-  return etl::min(CheckInputs(now_micros), CheckTimeouts(now_micros));
+  return etl::min(CheckInputs(now_micros), etl::min(CheckTimeouts(now_micros), CheckRequiredServices()));
 }
 
 uint32_t EmergencyService::CheckInputs(uint32_t now) {
@@ -33,7 +33,7 @@ void EmergencyService::OnHighLevelEmergencyChanged(const uint16_t* new_value, ui
     Lock lk(&mtx_);
     last_high_level_emergency_message_ = xbot::service::system::getTimeMicros();
   }
-  UpdateEmergency(new_value[0], new_value[1]);
+  UpdateEmergency(new_value[0], new_value[1] & ~EmergencyReason::SERVICE_NOT_READY);
 }
 
 uint32_t EmergencyService::CheckTimeouts(uint32_t now) {
@@ -67,6 +67,30 @@ void EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {
 uint16_t EmergencyService::GetEmergencyReasons() {
   Lock lk{&mtx_};
   return reasons_;
+}
+
+void EmergencyService::RequireService(ServiceExt* svc) {
+  Lock lk{&mtx_};
+  required_services_.push_back(svc);
+  reasons_ |= EmergencyReason::SERVICE_NOT_READY;
+}
+
+uint32_t EmergencyService::CheckRequiredServices() {
+  if (required_services_.empty()) {
+    // Nothing to do, no re-query
+    return UINT32_MAX;
+  }
+  bool all_ready = true;
+  for (auto* svc : required_services_) {
+    if (!svc->IsHealthy()) {
+      all_ready = false;
+      break;
+    }
+  }
+  // Retry in 100ms
+  constexpr uint32_t retry_interval = 100'000;
+  UpdateEmergency(all_ready ? 0 : EmergencyReason::SERVICE_NOT_READY, EmergencyReason::SERVICE_NOT_READY);
+  return all_ready ? UINT32_MAX : retry_interval;
 }
 
 void EmergencyService::SendStatus() {
