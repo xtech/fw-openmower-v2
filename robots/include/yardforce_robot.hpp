@@ -2,6 +2,7 @@
 #define YARDFORCE_ROBOT_HPP
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/ui/yf_cover_ui/yf_cover_ui.hpp>
 
 #include "robot.hpp"
 
@@ -40,6 +41,7 @@ class YardForceRobot : public MowerRobot {
 
  private:
   BQ2576 charger_{249000, 14040};
+  xbot::driver::ui::YFCoverUI yf_cover_ui_{};
 };
 
 #endif  // YARDFORCE_ROBOT_HPP

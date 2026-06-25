@@ -112,6 +112,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/input/sabo_input_driver.cpp
         src/drivers/input/worx_input_driver.cpp
         $<$<BOOL:${DEBUG_BUILD}>:src/drivers/input/simulated_input_driver.cpp>
+        # YardForce Cover UI driver (yf_cover_ui — YardForce 500 panel via UART7)
+        src/drivers/ui/yf_cover_ui/yf_cover_ui.cpp
         # Sabo driver
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
