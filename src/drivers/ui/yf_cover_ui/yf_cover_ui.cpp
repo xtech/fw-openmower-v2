@@ -219,14 +219,25 @@ void YFCoverUI::ThreadFunc() {
 // ============================================================================
 
 void YFCoverUI::SendMessage(const void* msg, size_t size) {
+  // Verify at compile time that every known protocol message fits in tx_buf_ after COBS encoding.
+  static constexpr size_t kMaxMsg =
+      std::max(sizeof(msg_get_version),
+               std::max(sizeof(msg_set_buzzer),
+                        std::max(sizeof(msg_set_leds),
+                                 std::max(sizeof(msg_event_button),
+                                          std::max(sizeof(msg_event_emergency),
+                                                   std::max(sizeof(msg_event_rain), sizeof(msg_event_subscribe)))))));
+  static_assert(kMaxMsg + (kMaxMsg / 254) + 2 <= TX_BUF_SIZE,
+                "TX_BUF_SIZE too small for largest protocol message after COBS encoding");
+
   if (uart_ == nullptr) return;
 
-  // Encode with COBS into the DMA-safe member buffer (max encoded = size + overhead + 1 delimiter).
-  size_t enc_len = CobsEncode(static_cast<const uint8_t*>(msg), size, tx_buf_);
-  if (enc_len + 1 > TX_BUF_SIZE) {
-    ULOG_WARNING("YFCoverUI: TX frame too large (%u)", (unsigned)enc_len);
+  // COBS worst-case overhead: 1 extra byte per 254 input bytes, rounded up, plus 1 delimiter.
+  if (size + (size / 254) + 2 > TX_BUF_SIZE) {
+    ULOG_WARNING("YFCoverUI: TX frame too large (%u)", (unsigned)size);
     return;
   }
+  size_t enc_len = CobsEncode(static_cast<const uint8_t*>(msg), size, tx_buf_);
   tx_buf_[enc_len++] = 0x00;  // COBS packet delimiter
 
   uartSendFullTimeout(uart_, &enc_len, tx_buf_, TIME_INFINITE);
