@@ -158,17 +158,20 @@ void YFCoverUI::ThreadFunc() {
 
   while (true) {
     // --- Wait for RX events; the 100 ms timeout keeps the periodic poll/LED timing responsive ---
-    chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, TIME_MS2I(100));
+    const eventmask_t evt = chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, TIME_MS2I(100));
 
-    // --- Drain newly received DMA bytes using NDTR deltas (handles buffer wrap) ---
+    // --- Drain newly received DMA bytes ---
+    // EVT_RX_DMA_WRAP signals that rxend_cb fired and re-armed the DMA buffer.
+    // Handle the wrap explicitly from the event rather than inferring it from NDTR: by the time
+    // NDTR is read, re-arming has already reset it, so received_so_far >= rx_seen_len_ even
+    // after a wrap, making the NDTR-delta inference unreliable.
+    if (evt & EVT_RX_DMA_WRAP) {
+      ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, DMA_RX_BUFFER_SIZE - rx_seen_len_);
+      rx_seen_len_ = 0;
+    }
     const uint32_t ndtr_now = uart_->dmarx->stream->NDTR;
     if (ndtr_now <= DMA_RX_BUFFER_SIZE) {
       const size_t received_so_far = DMA_RX_BUFFER_SIZE - ndtr_now;
-      if (received_so_far < rx_seen_len_) {
-        // Buffer wrapped (rxend_cb re-armed): process the tail, then resume from the start.
-        ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, DMA_RX_BUFFER_SIZE - rx_seen_len_);
-        rx_seen_len_ = 0;
-      }
       if (received_so_far > rx_seen_len_) {
         ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, received_so_far - rx_seen_len_);
         rx_seen_len_ = received_so_far;
