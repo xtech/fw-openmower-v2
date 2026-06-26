@@ -33,8 +33,12 @@ class husq310MKIIRobot : public MowerRobot {
     return 5.0f * 3.0f;
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 0.5f;
+  }
+
  private:
-  BQ2576 charger_{};
+  BQ2576 charger_{249000, 20100};
 };
 
 #endif  // ROBOT_310MKII_ROBOT_HPP
