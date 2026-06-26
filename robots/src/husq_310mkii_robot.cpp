@@ -9,6 +9,6 @@ void husq310MKIIRobot::InitPlatform() {
 }
 
 bool husq310MKIIRobot::IsHardwareSupported() {
-  return strncmp("hw-openmower-310mkii", carrier_board_info.board_id,
+  return strncmp("hw-openmower-310mk2", carrier_board_info.board_id,
                  sizeof(carrier_board_info.board_id)) == 0;
 }
