@@ -81,5 +81,5 @@ COPY --from=builder /project/build/Universal5S/openmower.elf /openmower-universa
 COPY --from=builder /project/build/Universal7S/openmower.bin /openmower-universal-7s.bin
 COPY --from=builder /project/build/Universal7S/openmower.elf /openmower-universal-7s.elf
 
-COPY --from=builder /project/build/husq310MKII/openmower.bin /openmower-husq-310mkii.bin
-COPY --from=builder /project/build/husq310MKII/openmower.elf /openmower-husq-310mkii.elf
+COPY --from=builder /project/build/husq310MKII/openmower.bin /openmower-husq310MKII.bin
+COPY --from=builder /project/build/husq310MKII/openmower.elf /openmower-husq310MKII.elf
