@@ -4,8 +4,10 @@
 #include <drivers/motor/vesc/VescDriver.h>
 #include <drivers/motor/yfr4esc/YFR4escDriver.h>
 #include <hal.h>
+#include <service_ids.h>
 
 #include <debug/debug_tcp_interface.hpp>
+#include <drivers/charger/charger.hpp>
 #include <limits>
 
 // Forward declare ProtocolType from GpsServiceBase.hpp
@@ -17,8 +19,7 @@ class Robot {
   virtual bool IsHardwareSupported() = 0;
 
   virtual bool NeedsService(uint16_t id) {
-    (void)id;
-    return true;
+    return id != xbot::service_ids::BMS;  // BMS is opt-in, all other services are required by default
   }
 
   virtual UARTDriver* GPS_GetUartPort() {
@@ -42,13 +43,49 @@ class Robot {
   virtual float Power_GetDefaultChargeCurrent() = 0;
 
   /**
+   * Return the default maximum charging current for this robot.
+   * This is usually for the provided power supply and battery.
+   *
+   * The user can override this value using the DangerouslyOverrideHardwareChargeCurrentLimit parameter.
+   */
+  virtual float Power_GetMaxChargeCurrent() = 0;
+
+  /**
+   * Return the charge voltage target (VREG) in Volts.
+   * Returns -1.0 to leave the hardware-pin configured voltage unchanged.
+   */
+  virtual float Power_GetDefaultChargeVoltage() {
+    return -1.0f;
+  }
+
+  /**
+   * Return the termination current (ITERM) in Amps.
+   * Charging is considered done when CV current drops below this value.
+   */
+  virtual float Power_GetDefaultTerminationCurrent() {
+    return 0.250f;
+  }
+
+  /**
+   * Return the pre-charge current (IPRECHG) in Amps.
+   * Used when VBAT < VBAT_LOWV (pre-charge region).
+   */
+  virtual float Power_GetDefaultPreChargeCurrent() {
+    return 0.250f;
+  }
+
+  virtual ChargerDriver::ReChargeVoltage Power_GetDefaultReChargeVoltage() {
+    return ChargerDriver::ReChargeVoltage::PERCENT_97_6;
+  }
+
+  /**
    * Return the minimum voltage before shutting down as much as possible
    */
   virtual float Power_GetAbsoluteMinVoltage() = 0;
 
   /**
    * Set the max. allowed system current in Amps.
-   * This is to limit e.g. the charger current for not overloading the power supply.
+   * This is to limit e.g. the charger current for not overloading the wall power supply.
    * Only usefull for systems that do have some kind of system current sense.
    */
   virtual void Power_SetSystemCurrent(float system_current) {

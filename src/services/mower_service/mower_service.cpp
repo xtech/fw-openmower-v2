@@ -23,6 +23,7 @@ bool MowerService::OnStart() {
 
 void MowerService::OnStop() {
   mower_duty_ = 0;
+  esc_ever_connected_ = false;
 }
 
 void MowerService::tick() {
@@ -73,6 +74,7 @@ void MowerService::ESCCallback(const MotorDriver::ESCState& state) {
   chMtxLock(&state_mutex_);
   esc_state_ = state;
   esc_state_valid_ = true;
+  esc_ever_connected_ = true;
   last_valid_esc_state_micros_ = xbot::service::system::getTimeMicros();
   chMtxUnlock(&state_mutex_);
 }

@@ -6,15 +6,14 @@
 #define POWER_SERVICE_HPP
 
 #include <ch.h>
+#include <etl/atomic.h>
 
 #include <PowerServiceBase.hpp>
-#include <drivers/bms/bms_driver.hpp>
 #include <drivers/charger/charger.hpp>
 #include <limits>
 #include <xbot-service/Lock.hpp>
 
 using namespace xbot::service;
-using namespace xbot::driver::bms;
 
 using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
 
@@ -24,51 +23,50 @@ class PowerService : public PowerServiceBase {
   }
 
   void SetDriver(ChargerDriver* charger_driver);
-  void SetDriver(BmsDriver* bms_driver);
 
   [[nodiscard]] float GetChargeCurrent() {
     xbot::service::Lock lk{&mtx_};
-    return charge_current;
+    return charge_current_;
   }
 
   [[nodiscard]] float GetAdapterVolts() {
     xbot::service::Lock lk{&mtx_};
-    return adapter_volts;
+    return adapter_volts_;
   }
 
   [[nodiscard]] float GetBatteryVolts() {
     xbot::service::Lock lk{&mtx_};
-    return battery_volts;
+    return battery_volts_;
   }
 
   [[nodiscard]] float GetBatteryPercent() {
     xbot::service::Lock lk{&mtx_};
-    return battery_percent;
+    return battery_percent_;
   }
 
   [[nodiscard]] CHARGER_STATUS GetChargerStatus() {
     xbot::service::Lock lk{&mtx_};
-    return charger_status;
+    return charger_status_;
   }
 
   [[nodiscard]] float GetAdapterCurrent() {
     xbot::service::Lock lk{&mtx_};
-    return adapter_current;
+    return adapter_current_;
   }
 
   [[nodiscard]] float GetDCDCCurrent() {
     xbot::service::Lock lk{&mtx_};
-    return dcdc_current;
+    return dcdc_current_;
   }
 
   [[nodiscard]] float GetAdcAdapterVolts() {
     xbot::service::Lock lk{&mtx_};
-    return adapter_volts_adc;
+    return adapter_volts_adc_;
   }
 
   [[nodiscard]] float GetAdcBatteryVolts() {
     xbot::service::Lock lk{&mtx_};
-    return battery_volts_adc;
+    return battery_volts_adc_;
   }
 
   float GetConfiguredChargeCurrent() const {
@@ -84,6 +82,10 @@ class PowerService : public PowerServiceBase {
     power_management_callback_ = callback;
   }
 
+  bool IsHealthy() override {
+    return IsRunning() && charger_configured_.load();
+  }
+
  protected:
   bool OnStart() override;
 
@@ -92,34 +94,31 @@ class PowerService : public PowerServiceBase {
 
   static constexpr auto CHARGE_STATUS_NOT_FOUND_STR = "Charger Not Found";
 
-  void tick();          // Service tick
-  void drivers_tick();  // Tick for all drivers (i.e charger, BMS, ...)
-  void charger_tick();  // Charger specific tick
+  void service_tick_();
+  void driver_tick_();
+  void update_charger_();
+  void read_adc_();
 
-  ServiceSchedule tick_schedule_{*this, 1'000'000, XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::tick, this)};
+  ServiceSchedule tick_schedule_{*this, 1'000'000,
+                                 XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::service_tick_, this)};
   Schedule driver_schedule_{scheduler_, true, 1'000'000,
-                            XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::drivers_tick, this)};
+                            XBOT_FUNCTION_FOR_METHOD(PowerService, &PowerService::driver_tick_, this)};
 
-  bool charger_configured_ = false;
-  float charge_current = 0;
-  float adapter_volts = 0;
-  float battery_volts = 0;
-  float battery_percent = 0;
-
-  // BMS data
-  const Data* bms_data_ = nullptr;
-  const char* bms_extra_data_ = nullptr;
+  etl::atomic<bool> charger_configured_{false};
+  float charge_current_ = 0;
+  float adapter_volts_ = 0;
+  float battery_volts_ = 0;
+  float battery_percent_ = 0;
 
   // Most designs don't have these
-  float adapter_volts_adc = std::numeric_limits<float>::quiet_NaN();
-  float battery_volts_adc = std::numeric_limits<float>::quiet_NaN();
-  float adapter_current = std::numeric_limits<float>::quiet_NaN();
-  float dcdc_current = std::numeric_limits<float>::quiet_NaN();
+  float adapter_volts_adc_ = std::numeric_limits<float>::quiet_NaN();
+  float battery_volts_adc_ = std::numeric_limits<float>::quiet_NaN();
+  float adapter_current_ = std::numeric_limits<float>::quiet_NaN();
+  float dcdc_current_ = std::numeric_limits<float>::quiet_NaN();
 
-  int critical_count = 0;
-  CHARGER_STATUS charger_status = CHARGER_STATUS::COMMS_ERROR;
+  int critical_count_ = 0;
+  CHARGER_STATUS charger_status_ = CHARGER_STATUS::COMMS_ERROR;
   ChargerDriver* charger_ = nullptr;
-  BmsDriver* bms_ = nullptr;
 
   PowerManagementCallback power_management_callback_;
 

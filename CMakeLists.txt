@@ -82,6 +82,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/filesystem/filesystem.cpp
         src/services/imu_service/imu_service.cpp
         src/services/power_service/power_service.cpp
+        src/services/bms_service/bms_service.cpp
         src/services/emergency_service/emergency_service.cpp
         src/services/diff_drive_service/diff_drive_service.cpp
         src/services/mower_service/mower_service.cpp
@@ -111,6 +112,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/input/sabo_input_driver.cpp
         src/drivers/input/worx_input_driver.cpp
         $<$<BOOL:${DEBUG_BUILD}>:src/drivers/input/simulated_input_driver.cpp>
+        # YardForce Cover UI driver (yf_cover_ui — YardForce 500 panel via UART7)
+        src/drivers/ui/yf_cover_ui/yf_cover_ui.cpp
         # Sabo driver
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
@@ -125,6 +128,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
         src/debug/debuggable_driver.cpp
+        src/debug/thread_watermark.c
         robots/src/robot.cpp
         ${PLATFORM_SOURCES}
         ${LVGL_ASSETS_SRC}
@@ -159,6 +163,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} PowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/power_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} BmsService ${CMAKE_CURRENT_SOURCE_DIR}/services/bms_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} EmergencyService ${CMAKE_CURRENT_SOURCE_DIR}/services/emergency_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} DiffDriveService ${CMAKE_CURRENT_SOURCE_DIR}/services/diff_drive_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_service.json)

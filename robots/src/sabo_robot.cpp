@@ -10,16 +10,19 @@ using namespace xbot::driver::sabo;
 using namespace xbot::driver::gps;
 using namespace xbot::driver;
 
-SaboRobot::SaboRobot() : hardware_config(GetHardwareConfig(GetHardwareVersion(carrier_board_info))) {
+SaboRobot::SaboRobot()
+    : hardware_config(GetHardwareConfig(GetHardwareVersion(carrier_board_info))),
+      charger_(hardware_config.charger->r_top, hardware_config.charger->r_bot, hardware_config.charger->r_ac_sense) {
 }
 
 void SaboRobot::InitPlatform() {
   InitMotors();
   charger_.setI2C(&I2CD1);
-  bms_.Init();
-
   power_service.SetDriver(&charger_);
-  power_service.SetDriver(&bms_);
+  if (hardware_config.bms != nullptr) {
+    bms_.Init();
+    bms_service.SetDriver(&bms_);
+  }
   input_service.RegisterInputDriver("sabo", &sabo_input_driver_);
 
   if (hardware_config.adc != nullptr) {
@@ -42,11 +45,11 @@ void SaboRobot::InitPlatform() {
 }
 
 bool SaboRobot::IsHardwareSupported() {
-  // Accept Sabo 0.1|2|3.x boards
+  // Accept Sabo 0.1 through 0.5.x boards
   if (strncmp("hw-openmower-sabo", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
       strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 && board_info.version_major == 1 &&
       carrier_board_info.version_major == 0 && carrier_board_info.version_minor >= 1 &&
-      carrier_board_info.version_minor <= 4) {
+      carrier_board_info.version_minor <= 5) {
     return true;
   }
 

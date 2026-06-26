@@ -6,6 +6,7 @@
 #define EMERGENCY_SERVICE_HPP
 
 #include <etl/string.h>
+#include <etl/vector.h>
 
 #include <EmergencyServiceBase.hpp>
 
@@ -24,6 +25,8 @@ class EmergencyService : public EmergencyServiceBase {
   uint16_t GetEmergencyReasons();
   uint32_t CheckInputs(uint32_t now);
 
+  void RequireService(ServiceExt* svc);
+
  protected:
   void OnStop() override;
   uint32_t OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
@@ -31,6 +34,7 @@ class EmergencyService : public EmergencyServiceBase {
 
  private:
   uint32_t CheckTimeouts(uint32_t now);
+  uint32_t CheckRequiredServices();
   void SendStatus();
   ServiceSchedule status_schedule_{*this, 1'000'000,
                                    XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::SendStatus, this)};
@@ -41,6 +45,8 @@ class EmergencyService : public EmergencyServiceBase {
 
   uint16_t reasons_ = EmergencyReason::TIMEOUT_INPUTS | EmergencyReason::TIMEOUT_HIGH_LEVEL;
   uint32_t last_high_level_emergency_message_ = 0;
+
+  etl::vector<ServiceExt*, 16> required_services_{};
 };
 
 #endif  // EMERGENCY_SERVICE_HPP

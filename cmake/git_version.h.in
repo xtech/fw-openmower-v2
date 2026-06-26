@@ -12,10 +12,10 @@ extern "C" {
 #endif
 
 /**
- * @brief Git commit hash (short form, 7 characters)
- * May include "-dirty" suffix if repository had uncommitted changes at build time
+ * @brief Build version string from git describe --tags --dirty --always
+ * Format: tag[-N-g<hash>][-dirty] (e.g. v0.5.0, v0.5.0-3-gabc1234, abc1234-dirty)
  */
-#define BUILD_GIT_HASH "@GIT_HASH@"
+#define BUILD_VERSION "@BUILD_VERSION@"
 
 /**
  * @brief Build date and time in ISO 8601 format (UTC)

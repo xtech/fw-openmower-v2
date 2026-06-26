@@ -19,6 +19,7 @@
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
+#include "debug/thread_watermark.h"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
@@ -88,6 +89,8 @@ int main() {
   // Safe to do before checking the carrier board, needed for logging
   xbot::service::system::initSystem();
   xbot::service::startRemoteLogging();
+  // Debug-only: periodically log per-thread stack watermark (no-op in release).
+  InitThreadWatermark();
 
   // Try opening the filesystem, on error fail
   if (!InitFS()) {

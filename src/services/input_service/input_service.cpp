@@ -22,6 +22,7 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
   HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
   Lock lk(&mutex_);
 
+  inputs_configured_ = false;
   all_inputs_.clear();
   for (auto& driver : drivers_) {
     driver.second->ClearInputs();
@@ -36,7 +37,8 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
 
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
-  return ProcessJson(source, json_data);
+  inputs_configured_ = ProcessJson(source, json_data);
+  return inputs_configured_;
 }
 
 bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type,
@@ -52,13 +54,16 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
       if (strlen(driver) <= decltype(drivers_)::key_type::MAX_SIZE) {
         auto it = drivers_.find(driver);
         if (it == drivers_.end()) {
-          ULOG_ERROR("Unknown input driver \"%s\"", driver);
-          return false;
+          // Unknown driver: warn once and skip its inputs, but keep parsing the
+          // rest of the configuration instead of failing.
+          ULOG_WARNING("Unknown input driver \"%s\", skipping its inputs", driver);
+          data->driver = nullptr;
+        } else {
+          data->driver = it->second;
         }
-        data->driver = it->second;
       } else {
-        ULOG_ERROR("Unknown input driver \"%s\"", driver);
-        return false;
+        ULOG_WARNING("Unknown input driver \"%s\", skipping its inputs", driver);
+        data->driver = nullptr;
       }
       break;
     }
@@ -69,6 +74,11 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
     // Start/end of one InputConfig
     case 3: {
       JsonExpectTypeOrEnd(OBJECT);
+      // Skip inputs belonging to an unknown driver.
+      if (data->driver == nullptr) {
+        data->current_input = nullptr;
+        break;
+      }
       if (type == LWJSON_STREAM_TYPE_OBJECT) {
         if (all_inputs_.full()) {
           ULOG_ERROR("Too many inputs (max. %d)", all_inputs_.max_size() - NUM_VIRTUAL_INPUTS);
@@ -86,6 +96,8 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
 
     // Value inside InputConfig (key in 4, value in 5)
     case 5: {
+      // Skip values for inputs belonging to an unknown driver.
+      if (data->current_input == nullptr) break;
       const char* key = jsp->stack[4].meta.name;
       if (strcmp(key, "invert") == 0) {
         return JsonGetBool(type, data->current_input->invert);
@@ -102,6 +114,8 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
 
     // Value inside "emergency" (key in 6, value in 7)
     case 7: {
+      // Skip values for inputs belonging to an unknown driver.
+      if (data->current_input == nullptr) break;
       const char* parent_key = jsp->stack[4].meta.name;
       const char* key = jsp->stack[6].meta.name;
       if (strcmp(parent_key, "emergency") == 0) {
