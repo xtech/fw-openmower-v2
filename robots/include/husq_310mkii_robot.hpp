@@ -1,11 +1,11 @@
-#ifndef ROBOT_310MKII_ROBOT_HPP
-#define ROBOT_310MKII_ROBOT_HPP
+#ifndef HUSQ_310MKII_ROBOT_HPP
+#define HUSQ_310MKII_ROBOT_HPP
 
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 
 #include "robot.hpp"
 
-class Robot310MKIIRobot : public MowerRobot {
+class husq310MKIIRobot : public MowerRobot {
  public:
   void InitPlatform() override;
   bool IsHardwareSupported() override;

@@ -10,7 +10,7 @@
 #include "../include/xbot_robot.hpp"
 #include "../include/yardforce_robot.hpp"
 #include "../include/yardforce_v4_robot.hpp"
-#include "../include/robot_310mkii_robot.hpp"
+#include "../include/husq_310mkii_robot.hpp"
 
 #define EXPAND(x) x
 #define ROBOT_CLASS_NAME(platform) platform##Robot
