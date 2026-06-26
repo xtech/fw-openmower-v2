@@ -2,6 +2,7 @@
 
 #include <services.hpp>
 
+#include "../include/husq_310mkii_robot.hpp"
 #include "../include/lyfco_e1600_robot.hpp"
 #include "../include/sabo_robot.hpp"
 #include "../include/universal_5s_robot.hpp"
@@ -10,7 +11,6 @@
 #include "../include/xbot_robot.hpp"
 #include "../include/yardforce_robot.hpp"
 #include "../include/yardforce_v4_robot.hpp"
-#include "../include/husq_310mkii_robot.hpp"
 
 #define EXPAND(x) x
 #define ROBOT_CLASS_NAME(platform) platform##Robot
