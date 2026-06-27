@@ -15,6 +15,7 @@
 
 #include <EmergencyServiceBase.hpp>
 #include <HighLevelServiceBase.hpp>
+#include <globals.hpp>
 #include <json_stream.hpp>
 #include <services.hpp>
 
@@ -29,6 +30,8 @@ using namespace xbot::driver::input;
 static constexpr uint32_t VERSION_POLL_MS = 5000;    ///< How often to poll UI version
 static constexpr uint32_t VERSION_TIMEOUT_MS = 250;  ///< How long to wait for version reply
 static constexpr uint32_t LED_UPDATE_INTERVAL_DEFAULT_MS = 1000;
+
+static const ioline_t HALL_MUX_LINE = LINE_GPIO7;  ///< Hall- MUX selector GPIO
 
 // Events signaled from the UART ISRs to the comms thread.
 static constexpr eventmask_t EVT_RX_DMA_WRAP = (1U << 0);    ///< DMA receive buffer full / wrapped
@@ -134,8 +137,50 @@ bool YFCoverUI::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key,
     input.yf_cover_ui.channel = static_cast<uint8_t>(YFCoverUIChannel::BUTTON_FLAG) | (button_id & 0x7F);
     return true;
   }
+
+  // Hall MUX setup entry (id instead of channel)
+  if (strcmp(key, "id") == 0) {
+    JsonExpectType(STRING);
+    if (strcmp(jsp->data.str.buff, "hall_mux") == 0) {
+      input.yf_cover_ui.is_hall_mux = true;
+      return true;
+    }
+    ULOG_ERROR("YFCoverUI: unknown id \"%s\"", jsp->data.str.buff);
+    return false;
+  }
+  if (strcmp(key, "value") == 0) {
+    JsonExpectType(STRING);
+    if (strcmp(jsp->data.str.buff, "om") == 0) {
+      hall_mux_value_ = 0;
+      return true;
+    }
+    if (strcmp(jsp->data.str.buff, "oem_idc") == 0) {
+      hall_mux_value_ = 1;
+      return true;
+    }
+    ULOG_ERROR("YFCoverUI: unknown value \"%s\"", jsp->data.str.buff);
+    return false;
+  }
   ULOG_ERROR("YFCoverUI: unknown attribute \"%s\"", key);
   return false;
+}
+
+bool YFCoverUI::OnStart() {
+  const bool is_pre_v120 = carrier_board_info.version_major < 1 ||
+                           (carrier_board_info.version_major == 1 && carrier_board_info.version_minor < 2);
+
+  // Refuse OEM IDC on pre-1.2.0 boards that don't have the MUX hardware
+  if (is_pre_v120 && hall_mux_value_ != 0) {
+    ULOG_ERROR("YFCoverUI: hall_mux set to OEM IDC but carrier board is pre v1.2.0");
+    return false;
+  }
+
+  // Always set MUX for v1.2.0+ (even if no hall_mux was configured, default to OM-XHST/robot-adaptor plug)
+  if (!is_pre_v120) {
+    palSetLineMode(HALL_MUX_LINE, PAL_MODE_OUTPUT_PUSHPULL);
+    palWriteLine(HALL_MUX_LINE, hall_mux_value_);
+  }
+  return true;
 }
 
 // ============================================================================
@@ -489,6 +534,7 @@ void YFCoverUI::HandleSubscribe(const msg_event_subscribe* msg) {
 void YFCoverUI::UpdateEmergencyInputs() {
   const uint8_t state = emergency_state_.load();
   for (auto& input : Inputs()) {
+    if (input.yf_cover_ui.is_hall_mux) continue;  // skip setup-only entries
     const uint8_t ch = input.yf_cover_ui.channel;
     if (!YFCoverUIChannelIsButton(ch)) {
       // Emergency channel (bit 7 = 0) — update based on corresponding bit in state

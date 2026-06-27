@@ -119,8 +119,10 @@ class YFCoverUI : public InputDriver {
    */
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
+  bool OnStart() override;
 
  private:
+  uint8_t hall_mux_value_ = 0;  ///< 0=OM-XHST's or robot-adaptor plug, 1=OEM IDC
   // Extend the UART config with a back-pointer to this instance so the (static) UART
   // ISR callbacks can recover the owning driver from uartp->config.
   struct UARTConfigEx : UARTConfig {

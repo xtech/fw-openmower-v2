@@ -39,14 +39,9 @@ struct Input {
     } sabo;
 
     struct {
-      uint8_t channel;  ///< YFCoverUIChannel value: bit 7=button flag, bits[6:0]=button_id or emergency bit
+      uint8_t channel;   ///< YFCoverUIChannel value: bit 7=button flag, bits[6:0]=button_id or emergency bit
+      bool is_hall_mux;  ///< True if this is a hall_mux setup entry (not a button/emergency input)
     } yf_cover_ui;
-
-    struct {
-      ioline_t line;
-      uint8_t value;     ///< Output value written to the line in OnStart()
-      bool is_hall_mux;  ///< True if id == "hall_mux", for pre-1.2.0 board check
-    } setup;
   };
 
   // State
