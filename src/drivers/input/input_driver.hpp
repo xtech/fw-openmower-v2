@@ -44,7 +44,8 @@ struct Input {
 
     struct {
       ioline_t line;
-      uint8_t value;  ///< Output value written to the line in OnStart()
+      uint8_t value;     ///< Output value written to the line in OnStart()
+      bool is_hall_mux;  ///< True if id == "hall_mux", for pre-1.2.0 board check
     } setup;
   };
 

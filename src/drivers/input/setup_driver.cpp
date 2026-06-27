@@ -11,6 +11,7 @@
 #include <ulog.h>
 
 #include <board_utils.hpp>
+#include <globals.hpp>
 #include <json_stream.hpp>
 
 namespace xbot::driver::input {
@@ -33,14 +34,27 @@ bool SetupDriver::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* ke
     return JsonGetNumber(jsp, type, input.setup.value);
   }
 
+  // Parse "id": driver-unique identifier (e.g. "hall_mux")
+  if (strcmp(key, "id") == 0) {
+    JsonExpectType(STRING);
+    input.setup.is_hall_mux = (strcmp(jsp->data.str.buff, "hall_mux") == 0);
+    return true;
+  }
+
   ULOG_ERROR("Unknown attribute \"%s\"", key);
   return false;
 }
 
 bool SetupDriver::OnStart() {
-  // Configure each setup line as push-pull output and write its value,
-  // e.g. setting a MUX selector before input drivers read their pins.
   for (auto& input : Inputs()) {
+    // Refuse to set MUX to OEM IDC on carrier boards that don't have it
+    if (input.setup.is_hall_mux && input.setup.value != 0 &&
+        (carrier_board_info.version_major < 1 ||
+         (carrier_board_info.version_major == 1 && carrier_board_info.version_minor < 2))) {
+      ULOG_ERROR("hall_mux set to OEM IDC but carrier board pre v1.2.0");
+      return false;
+    }
+
     palSetLineMode(input.setup.line, PAL_MODE_OUTPUT_PUSHPULL);
     palWriteLine(input.setup.line, input.setup.value);
   }
