@@ -108,6 +108,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         ext/minmea/minmea.c
         # Input driver
         src/drivers/input/input_driver.cpp
+        src/drivers/input/setup_driver.cpp
         src/drivers/input/gpio_input_driver.cpp
         src/drivers/input/sabo_input_driver.cpp
         src/drivers/input/worx_input_driver.cpp

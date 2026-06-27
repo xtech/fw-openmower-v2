@@ -41,6 +41,11 @@ struct Input {
     struct {
       uint8_t channel;  ///< YFCoverUIChannel value: bit 7=button flag, bits[6:0]=button_id or emergency bit
     } yf_cover_ui;
+
+    struct {
+      ioline_t line;
+      uint8_t value;  ///< Output value written to the line in OnStart()
+    } setup;
   };
 
   // State
