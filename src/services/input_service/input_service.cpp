@@ -32,6 +32,7 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
     driver.second->ClearInputs();
   }
   num_active_lift_ = 0;
+  num_active_collision_ = 0;
 
   // Reset redundancy group refcounts.
   for (auto& rc : redundancy_group_refcount_) rc = 0;
@@ -41,6 +42,11 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
   lift_multiple_input_->idx = Input::VIRTUAL;
   lift_multiple_input_->emergency_reason = EmergencyReason::LIFT_MULTIPLE | EmergencyReason::LATCH;
   lift_multiple_input_->emergency_delay_ms = LiftMultipleDelay.value;
+
+  collision_multiple_input_ = &all_inputs_.emplace_back();
+  collision_multiple_input_->idx = Input::VIRTUAL;
+  collision_multiple_input_->emergency_reason = EmergencyReason::COLLISION_MULTIPLE | EmergencyReason::LATCH;
+  collision_multiple_input_->emergency_delay_ms = CollisionMultipleDelay.value;
 
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
@@ -243,6 +249,11 @@ void InputService::OnInputChanged(Input& input, const bool active, const uint32_
       }
     }
     lift_multiple_input_->Update(num_active_lift_ >= 2);
+  }
+
+  if ((input.emergency_reason & EmergencyReason::COLLISION) != 0) {
+    uint8_t num_active_collision = active ? ++num_active_collision_ : --num_active_collision_;
+    collision_multiple_input_->Update(num_active_collision >= 2);
   }
 
   // TODO: This will be called in the middle of the driver's update loop.

@@ -51,11 +51,14 @@ class InputService : public InputServiceBase {
   etl::flat_map<etl::string<15>, InputDriver*, 3> drivers_;
 
   // Must not have more than 64 inputs due to the size of various bitmasks.
-  constexpr static uint8_t NUM_VIRTUAL_INPUTS = 1;
+  constexpr static uint8_t NUM_VIRTUAL_INPUTS = 2;
   etl::vector<Input, 30 + NUM_VIRTUAL_INPUTS> all_inputs_;
 
   etl::atomic<uint8_t> num_active_lift_{0};
   Input* lift_multiple_input_ = nullptr;
+
+  etl::atomic<uint8_t> num_active_collision_{0};
+  Input* collision_multiple_input_ = nullptr;
 
   etl::array<uint8_t, MAX_REDUNDANCY_GROUPS + 1> redundancy_group_refcount_{};
 
