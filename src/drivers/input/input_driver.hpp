@@ -17,6 +17,7 @@ struct Input {
   // Configuration
   uint8_t idx;
   bool invert = false;
+  uint8_t redundancy_group = 0;  // Multiple inputs can be grouped together to form a single logical input
   uint16_t emergency_reason = 0;
   uint16_t emergency_delay_ms = 0;
 
