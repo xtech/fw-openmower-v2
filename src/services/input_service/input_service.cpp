@@ -235,7 +235,10 @@ void InputService::OnInputChanged(Input& input, const bool active, const uint32_
     uint8_t group = input.redundancy_group;
     if (group == 0) {
       // No redundancy group: count input directly
-      if (active) num_active_lift_++ else num_active_lift_--;
+      if (active)
+        num_active_lift_++;
+      else
+        num_active_lift_--;
     } else {
       // Redundancy group: count the group as one lift, regardless of how many
       // members are active. Uses a refcount to handle multiple active members.
