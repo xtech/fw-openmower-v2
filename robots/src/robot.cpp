@@ -7,6 +7,7 @@
 #include "../include/sabo_robot.hpp"
 #include "../include/universal_5s_robot.hpp"
 #include "../include/universal_7s_robot.hpp"
+#include "../include/universal_8s_robot.hpp"
 #include "../include/worx_robot.hpp"
 #include "../include/xbot_robot.hpp"
 #include "../include/yardforce_robot.hpp"
