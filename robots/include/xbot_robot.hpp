@@ -11,8 +11,8 @@ using xbot::driver::motor::PwmMotorDriver;
 
 class xBotRobot : public Robot {
  public:
+  static bool IsAutoDetected();
   void InitPlatform() override;
-  bool IsHardwareSupported() override;
 
   bool NeedsService(uint16_t id) {
     return id != xbot::service_ids::MOWER;

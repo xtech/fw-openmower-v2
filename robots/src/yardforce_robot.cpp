@@ -7,6 +7,8 @@
 #include <globals.hpp>
 #include <services.hpp>
 
+#include "../include/yardforce_v4_robot.hpp"
+
 void YardForceRobot::InitPlatform() {
   InitMotors();
   charger_.setI2C(&I2CD1);
@@ -24,19 +26,10 @@ void YardForceRobot::InitPlatform() {
   palSetLine(LINE_GPIO4);
 }
 
-bool YardForceRobot::IsHardwareSupported() {
-  // Accept YardForce 1.x.x boards
-  if (strncmp("hw-openmower-yardforce", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
-      carrier_board_info.version_major == 1) {
-    return true;
-  }
-
-  // Accept early testing boards
-  if (strncmp("hw-xbot-devkit", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0) {
-    return true;
-  }
-
-  return false;
+bool YardForceRobot::BoardIsCompatible() {
+  return (strncmp("hw-openmower-yardforce", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
+          carrier_board_info.version_major == 1) ||
+         strncmp("hw-xbot-devkit", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0;
 }
 
 void YardForceRobot::RegisterAdcSensors() {
@@ -86,4 +79,14 @@ void YardForceRobot::RegisterAdcSensors() {
       },
       const_cast<float*>(&ADC_BATTERY_VOLTAGE_SCALE), EmaFilterConfig{0.3f, 0.7f, 0.5f, true});
   RegisterConversionGroup(v_battery_cg);
+}
+
+bool YardForce_V4Robot::BoardIsCompatible() {
+  return YardForceRobot::BoardIsCompatible();
+}
+
+void YardForce_V4Robot::InitMowerEsc() {
+  yfr4_mower_driver_.SetUART(&UARTD2, 115200);
+  yfr4_mower_debug_.Start();
+  mower_service.SetDriver(&yfr4_mower_driver_);
 }

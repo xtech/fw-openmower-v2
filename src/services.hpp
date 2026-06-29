@@ -8,9 +8,11 @@
 #include "services/high_level_service/high_level_service.hpp"
 #include "services/imu_service/imu_service.hpp"
 #include "services/input_service/input_service.hpp"
+#include "services/meta_service/meta_service.hpp"
 #include "services/mower_service/mower_service.hpp"
 #include "services/power_service/power_service.hpp"
 
+extern MetaService meta_service;
 extern EmergencyService emergency_service;
 extern DiffDriveService diff_drive;
 extern MowerService mower_service;

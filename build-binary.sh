@@ -2,14 +2,13 @@
 set -euo pipefail
 
 PRESET=${1:-Release}
-ROBOT=${2:-YardForce}
 
 mkdir -p build out
 
 cd build
-cmake .. --preset=$PRESET -DROBOT_PLATFORM=$ROBOT
+cmake .. --preset=$PRESET
 cd $PRESET
 make -j$(nproc)
 
-cp -v openmower.elf ../../out/openmower-$ROBOT.elf
-cp -v openmower.bin ../../out/openmower-$ROBOT.bin
+cp -v openmower.elf ../../out/openmower.elf
+cp -v openmower.bin ../../out/openmower.bin
