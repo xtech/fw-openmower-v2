@@ -11,8 +11,8 @@
  */
 class UniversalRobot : public MowerRobot {
  public:
+  static bool BoardIsCompatible();
   void InitPlatform() override;
-  bool IsHardwareSupported() override;
 
   float Power_GetDefaultChargeCurrent() override {
     return 0.5;

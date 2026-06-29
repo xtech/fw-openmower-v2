@@ -8,7 +8,7 @@ void Lyfco_E1600Robot::InitPlatform() {
   power_service.SetDriver(&charger_);
 }
 
-bool Lyfco_E1600Robot::IsHardwareSupported() {
+bool Lyfco_E1600Robot::BoardIsCompatible() {
   // First batch of universal boards have a non-working EEPROM
   // so we assume that the firmware is compatible, if the xcore is the first batch and no carrier was found.
   if (carrier_board_info.board_info_version == 0 &&

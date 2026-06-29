@@ -26,12 +26,16 @@ class SaboRobot : public MowerRobot {
 
   SaboRobot();
 
+  static bool IsAutoDetected();
   void InitPlatform() override;
-  bool IsHardwareSupported() override;
 
   bool NeedsService(uint16_t id) override {
     if (id == xbot::service_ids::BMS) return hardware_config.bms != nullptr;
     return Robot::NeedsService(id);
+  }
+
+  bool NeedsGpioInputDriver() const override {
+    return false;
   }
 
   UARTDriver* GPS_GetUartPort() override {

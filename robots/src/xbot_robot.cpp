@@ -88,7 +88,7 @@ void xBotRobot::InitPlatform() {
   power_service.SetDriver(&charger_);
 }
 
-bool xBotRobot::IsHardwareSupported() {
+bool xBotRobot::IsAutoDetected() {
   // Accept YardForce 1.x.x boards
   return strncmp("hw-xbot-mainboard", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
          carrier_board_info.version_major == 0;

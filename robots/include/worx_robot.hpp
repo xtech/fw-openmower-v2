@@ -11,8 +11,11 @@ using namespace xbot::driver::input;
 
 class WorxRobot : public MowerRobot {
  public:
+  static bool BoardIsCompatible();
+  static const char* FirmwareName() {
+    return "Worx";
+  }
   void InitPlatform() override;
-  bool IsHardwareSupported() override;
 
   float Power_GetDefaultBatteryFullVoltage() override {
     return 5.0f * 4.2f;

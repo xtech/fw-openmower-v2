@@ -7,8 +7,11 @@
 
 class Lyfco_E1600Robot : public MowerRobot {
  public:
+  static bool BoardIsCompatible();
+  static const char* FirmwareName() {
+    return "Lyfco-E1600";
+  }
   void InitPlatform() override;
-  bool IsHardwareSupported() override;
 
   float Power_GetDefaultBatteryFullVoltage() override {
     return 7.0f * 4.2f;

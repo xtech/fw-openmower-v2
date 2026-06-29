@@ -8,6 +8,7 @@
 #endif
 #include "globals.hpp"
 
+MetaService meta_service{xbot::service_ids::META};
 EmergencyService emergency_service{xbot::service_ids::EMERGENCY};
 DiffDriveService diff_drive{xbot::service_ids::DIFF_DRIVE};
 MowerService mower_service{xbot::service_ids::MOWER};
@@ -25,14 +26,15 @@ void StartServices() {
   }
 
   if (robot->NeedsService(xbot::service_ids::INPUT)) {
-#ifndef ROBOT_PLATFORM_Sabo
-    input_service.RegisterInputDriver("gpio", new GpioInputDriver{});
-#endif
+    if (robot->NeedsGpioInputDriver()) {
+      input_service.RegisterInputDriver("gpio", new GpioInputDriver{});
+    }
 #ifdef DEBUG_BUILD
     input_service.RegisterInputDriver("simulated", new SimulatedInputDriver{});
 #endif
   }
 
+  // meta_service is always started early in main() before robot detection.
   START_IF_NEEDED(bms_service, BMS)
   START_IF_NEEDED(emergency_service, EMERGENCY)
   START_IF_NEEDED(imu_service, IMU)

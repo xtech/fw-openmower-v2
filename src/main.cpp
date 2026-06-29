@@ -55,6 +55,10 @@ int main() {
   SYSVIEW_ChibiOS_Start(STM32_SYS_CK, STM32_SYS_CK, "I#15=SysTick");
 #endif
 
+#ifndef RELEASE_BUILD
+  chThdSleepMilliseconds(1000);
+#endif
+
   /*
    * InitGlobals() sets up global variables shared by threads. (e.g. mutex)
    * InitHeartbeat() starts the heartbeat timer to blink an LED as long as the
@@ -99,29 +103,46 @@ int main() {
     }
   }
 
-  robot = GetRobot();
-  if (!robot->IsHardwareSupported()) {
-    SetStatusLedMode(LED_MODE_BLINK_FAST);
+  // Io and MetaService always start before robot detection so that
+  // Stage 2 (ROS-assisted config) can communicate from the beginning.
+  xbot::service::Io::start();
+  meta_service.start();
+
+  // Stage 1: unique-board robots self-identify from carrier EEPROM.
+  robot = TryAutoDetectRobot();
+
+  if (robot == nullptr) {
+    if (!BoardSupportsStage2()) {
+      // Completely unknown hardware — refuse to boot.
+      SetStatusLedMode(LED_MODE_BLINK_FAST);
+      SetStatusLedColor(RED);
+      while (true) {
+        ULOG_ERROR("Unknown hardware, cannot boot: carrier=%s v%u.%u.%u  core=%s v%u.%u.%u",
+                   carrier_board_info.board_id, carrier_board_info.version_major, carrier_board_info.version_minor,
+                   carrier_board_info.version_patch, board_info.board_id, board_info.version_major,
+                   board_info.version_minor, board_info.version_patch);
+        chThdSleep(TIME_S2I(1));
+      }
+    }
+
+    // Stage 2: board is known but needs ROS to supply the firmware variant.
+    SetStatusLedMode(LED_MODE_BLINK_SLOW);
     SetStatusLedColor(RED);
 
-    etl::string<100> info{};
-    info += "Carrier board not supported for this firmware: ";
-    info += carrier_board_info.board_id;
-    info += " v";
-    etl::to_string(carrier_board_info.version_major, info, true);
-    info += ".";
-    etl::to_string(carrier_board_info.version_minor, info, true);
-    info += ".";
-    etl::to_string(carrier_board_info.version_patch, info, true);
-
-    while (true) {
-      ULOG_ERROR(info.c_str());
-      chThdSleep(TIME_S2I(1));
+    while (robot == nullptr) {
+      ULOG_INFO("Waiting for Robot Firmware configuration via MetaService (carrier=%s)...",
+                carrier_board_info.board_id);
+      if (meta_service.HasRobotFirmware()) {
+        robot = GetRobotByName(meta_service.GetRobotFirmware());
+        if (robot == nullptr) {
+          ULOG_ERROR("Robot Firmware '%s' is invalid for this hardware, ignoring", meta_service.GetRobotFirmware());
+        }
+      }
+      chThdSleepMilliseconds(1000);
     }
   }
 
   robot->InitPlatform();
-  xbot::service::Io::start();
   StartServices();
   SetStatusLedColor(GREEN);
   DispatchEvents();

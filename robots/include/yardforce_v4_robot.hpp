@@ -1,14 +1,19 @@
 #ifndef YARDFORCE_V4_ROBOT_HPP
 #define YARDFORCE_V4_ROBOT_HPP
 
+#include <drivers/motor/yfr4esc/YFR4escDriver.h>
+
 #include <drivers/charger/bq_2576/bq_2576.hpp>
 
 #include "robot.hpp"
 
 class YardForce_V4Robot : public MowerRobot {
  public:
+  static bool BoardIsCompatible();
+  static const char* FirmwareName() {
+    return "YardForce-V4";
+  }
   void InitPlatform() override;
-  bool IsHardwareSupported() override;
 
   UARTDriver* GPS_GetUartPort() override {
 #ifndef STM32_UART_USE_USART6
@@ -38,7 +43,12 @@ class YardForce_V4Robot : public MowerRobot {
     return 7.0f * 3.0;
   }
 
+ protected:
+  void InitMowerEsc() override;
+
  private:
+  xbot::driver::motor::YFR4escDriver yardforce_mower_driver_{};
+  DebugTCPInterface yardforce_mower_debug_{65103, &yardforce_mower_driver_};
   BQ2576 charger_{249000, 14040};
 };
 
