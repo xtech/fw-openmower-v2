@@ -1,6 +1,7 @@
 #ifndef INPUT_SERVICE_HPP
 #define INPUT_SERVICE_HPP
 
+#include <etl/array.h>
 #include <etl/flat_map.h>
 #include <etl/string.h>
 #include <etl/utility.h>
@@ -32,6 +33,8 @@ class InputService : public InputServiceBase {
     return IsRunning() && inputs_configured_;
   }
 
+  static constexpr uint8_t MAX_REDUNDANCY_GROUPS = 4;
+
   void OnInputChanged(Input& input, const bool active, const uint32_t duration);
 
   etl::pair<uint16_t, uint32_t> GetEmergencyReasons(uint32_t now);
@@ -48,11 +51,16 @@ class InputService : public InputServiceBase {
   etl::flat_map<etl::string<15>, InputDriver*, 3> drivers_;
 
   // Must not have more than 64 inputs due to the size of various bitmasks.
-  constexpr static uint8_t NUM_VIRTUAL_INPUTS = 1;
+  constexpr static uint8_t NUM_VIRTUAL_INPUTS = 2;
   etl::vector<Input, 30 + NUM_VIRTUAL_INPUTS> all_inputs_;
 
   etl::atomic<uint8_t> num_active_lift_{0};
   Input* lift_multiple_input_ = nullptr;
+
+  etl::atomic<uint8_t> num_active_collision_{0};
+  Input* collision_multiple_input_ = nullptr;
+
+  etl::array<uint8_t, MAX_REDUNDANCY_GROUPS + 1> redundancy_group_refcount_{};
 
   bool OnRegisterInputConfigsChanged(const void* data, size_t length) override;
   bool InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data);

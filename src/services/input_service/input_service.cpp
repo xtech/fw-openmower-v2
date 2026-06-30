@@ -16,6 +16,10 @@ struct input_config_json_data_t : public json_data_t {
   InputDriver* driver = nullptr;
   Input* current_input = nullptr;
   uint8_t next_idx = 0;
+
+  // Redundancy group name→id mapping, built during config parse.
+  etl::flat_map<etl::string<10>, uint8_t, InputService::MAX_REDUNDANCY_GROUPS> redundancy_group_map;
+  uint8_t next_redundancy_group_id = 1;
 };
 
 bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length) {
@@ -28,12 +32,21 @@ bool InputService::OnRegisterInputConfigsChanged(const void* data, size_t length
     driver.second->ClearInputs();
   }
   num_active_lift_ = 0;
+  num_active_collision_ = 0;
+
+  // Reset redundancy group refcounts.
+  for (auto& rc : redundancy_group_refcount_) rc = 0;
 
   // Add virtual inputs.
   lift_multiple_input_ = &all_inputs_.emplace_back();
   lift_multiple_input_->idx = Input::VIRTUAL;
   lift_multiple_input_->emergency_reason = EmergencyReason::LIFT_MULTIPLE | EmergencyReason::LATCH;
   lift_multiple_input_->emergency_delay_ms = LiftMultipleDelay.value;
+
+  collision_multiple_input_ = &all_inputs_.emplace_back();
+  collision_multiple_input_->idx = Input::VIRTUAL;
+  collision_multiple_input_->emergency_reason = EmergencyReason::COLLISION_MULTIPLE | EmergencyReason::LATCH;
+  collision_multiple_input_->emergency_delay_ms = CollisionMultipleDelay.value;
 
   input_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<InputService, &InputService::InputConfigsJsonCallback>(*this);
@@ -101,6 +114,22 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
       const char* key = jsp->stack[4].meta.name;
       if (strcmp(key, "invert") == 0) {
         return JsonGetBool(type, data->current_input->invert);
+      } else if (strcmp(key, "redundancy_group") == 0) {
+        JsonExpectType(STRING);
+        etl::string<10> name = jsp->data.str.buff;
+        auto it = data->redundancy_group_map.find(name);
+        if (it == data->redundancy_group_map.end()) {
+          if (data->next_redundancy_group_id > InputService::MAX_REDUNDANCY_GROUPS) {
+            ULOG_ERROR("Too many redundancy groups (max. %d)", InputService::MAX_REDUNDANCY_GROUPS);
+            return false;
+          }
+          uint8_t id = data->next_redundancy_group_id++;
+          data->redundancy_group_map[name] = id;
+          data->current_input->redundancy_group = id;
+        } else {
+          data->current_input->redundancy_group = it->second;
+        }
+        return true;
       } else if (strcmp(key, "emergency") == 0) {
         JsonExpectTypeOrEnd(OBJECT);
         if (type == LWJSON_STREAM_TYPE_OBJECT) {
@@ -203,8 +232,31 @@ void InputService::OnInputChanged(Input& input, const bool active, const uint32_
   if (input.idx == Input::VIRTUAL) return;
 
   if ((input.emergency_reason & EmergencyReason::LIFT) != 0) {
-    uint8_t num_active_lift = active ? ++num_active_lift_ : --num_active_lift_;
-    lift_multiple_input_->Update(num_active_lift >= 2);
+    uint8_t group = input.redundancy_group;
+    if (group == 0) {
+      // No redundancy group: count input directly
+      if (active)
+        num_active_lift_++;
+      else
+        num_active_lift_--;
+    } else {
+      // Redundancy group: count the group as one lift, regardless of how many
+      // members are active. Uses a refcount to handle multiple active members.
+      uint8_t& rc = redundancy_group_refcount_[group];
+      if (active) {
+        if (rc == 0) num_active_lift_++;
+        rc++;
+      } else {
+        rc--;
+        if (rc == 0) num_active_lift_--;
+      }
+    }
+    lift_multiple_input_->Update(num_active_lift_ >= 2);
+  }
+
+  if ((input.emergency_reason & EmergencyReason::COLLISION) != 0) {
+    uint8_t num_active_collision = active ? ++num_active_collision_ : --num_active_collision_;
+    collision_multiple_input_->Update(num_active_collision >= 2);
   }
 
   // TODO: This will be called in the middle of the driver's update loop.

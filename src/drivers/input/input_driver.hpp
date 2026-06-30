@@ -17,6 +17,7 @@ struct Input {
   // Configuration
   uint8_t idx;
   bool invert = false;
+  uint8_t redundancy_group = 0;  // Multiple inputs can be grouped together to form a single logical input
   uint16_t emergency_reason = 0;
   uint16_t emergency_delay_ms = 0;
 
@@ -39,7 +40,8 @@ struct Input {
     } sabo;
 
     struct {
-      uint8_t channel;  ///< YFCoverUIChannel value: bit 7=button flag, bits[6:0]=button_id or emergency bit
+      uint8_t channel;   ///< YFCoverUIChannel value: bit 7=button flag, bits[6:0]=button_id or emergency bit
+      bool is_hall_mux;  ///< True if this is a hall_mux setup entry (not a button/emergency input)
     } yf_cover_ui;
   };
 
