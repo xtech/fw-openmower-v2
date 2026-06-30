@@ -60,6 +60,8 @@ jobs:
           cp ./out/openmower-universal-5s.elf ./artifacts
           cp ./out/openmower-universal-7s.bin ./artifacts
           cp ./out/openmower-universal-7s.elf ./artifacts
+          cp ./out/openmower-universal-8s.bin ./artifacts
+          cp ./out/openmower-universal-8s.elf ./artifacts
           cp ./out/openmower-husq310MKII.bin ./artifacts
           cp ./out/openmower-husq310MKII.elf ./artifacts
           cp ./out/ram-info.html ./artifacts
