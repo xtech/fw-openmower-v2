@@ -5,13 +5,22 @@
 #ifndef CHARGER_HPP
 #define CHARGER_HPP
 
+#include <ch.h>
 #include <hal.h>
 
 #include <limits>
 
+#include "i2c_utils.hpp"
+
 class ChargerDriver {
  protected:
   I2CDriver *i2c_driver_ = nullptr;
+
+  // Wraps i2cMasterTransmit with bus-storm recovery. The caller must already
+  // hold the I2C bus.
+  msg_t i2cTransmitChecked(uint8_t addr, const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len) {
+    return xbot::i2c::TransmitWithRecovery(i2c_driver_, addr, tx, tx_len, rx, rx_len, "Charger");
+  }
 
  public:
   enum class CHARGER_STATUS : uint8_t {
