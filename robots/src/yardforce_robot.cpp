@@ -62,7 +62,7 @@ void YardForceRobot::RegisterAdcSensors() {
         float voltage = info.RawToVoltage(self->sample_buffer[0], vref_voltage);
         return voltage * scale_factor;
       },
-      const_cast<float*>(&ADC_CHARGER_VOLTAGE_SCALE));
+      const_cast<float*>(&ADC_CHARGER_VOLTAGE_SCALE), EmaFilterConfig{0.2f, 0.5f, 0.1f, true});
   RegisterConversionGroup(v_charge_cg);
 
   // V-Battery sensor (ADC_CHANNEL_IN16)
@@ -80,6 +80,6 @@ void YardForceRobot::RegisterAdcSensors() {
         float voltage = info.RawToVoltage(self->sample_buffer[0], vref_voltage);
         return voltage * scale_factor;
       },
-      const_cast<float*>(&ADC_BATTERY_VOLTAGE_SCALE));
+      const_cast<float*>(&ADC_BATTERY_VOLTAGE_SCALE), EmaFilterConfig{0.3f, 0.7f, 0.5f, true});
   RegisterConversionGroup(v_battery_cg);
 }
