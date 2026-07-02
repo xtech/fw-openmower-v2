@@ -77,11 +77,22 @@ void PowerService::driver_tick_() {
 }
 
 void PowerService::read_adc_() {
-  // Debugging: adc1::DumpBenchmarkMeasurement(Adc1ConversionId::V_BATTERY, "V-BAT");
   xbot::service::Lock lk{&mtx_};
+
+  // ADC-Accuracy Debugging:
+  // adc1::DumpBenchmarkMeasurement(adc1::Adc1ConversionId::V_BATTERY, "V-BAT", 20, true);
+  // adc1::DumpBenchmarkMeasurement(adc1::Adc1ConversionId::V_CHARGER, "V-CHG", 20, true);
+
   adapter_volts_adc_ = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_CHARGER, 100);
   battery_volts_adc_ = adc1::GetValueOrNaN(adc1::Adc1ConversionId::V_BATTERY, 100);
   dcdc_current_ = adc1::GetValueOrNaN(adc1::Adc1ConversionId::I_IN_DCDC, 100);
+
+  // Debug: VREF monitoring every 2 seconds
+  /*static uint32_t vref_debug_count = 0;
+  if (++vref_debug_count % 2 == 0) {
+    ULOG_INFO("adc-debug: VREF=%.4fV V-BAT=%.4f V-CHG=%.4f", adc3::GetLastVref(), battery_volts_adc_,
+              adapter_volts_adc_);
+  }*/
 }
 
 void PowerService::update_charger_() {
