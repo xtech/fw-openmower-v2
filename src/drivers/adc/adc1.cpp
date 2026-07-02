@@ -147,6 +147,9 @@ float GetValueOrNaN(Adc1ConversionId conv_id, uint16_t max_age_ms) {
   // Call the conversion group's delegate to process the raw data
   float value = cg->convert(cg, vref);
 
+  // Apply EMA filter if enabled for this conversion group
+  value = cg->ApplyEma(value);
+
   // Update cache
   cg->UpdateCache(value);
 
