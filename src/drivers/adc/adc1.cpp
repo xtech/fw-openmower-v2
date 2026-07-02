@@ -217,7 +217,7 @@ void DumpBenchmarkMeasurement(Adc1ConversionId conv_id, const char* sensor_name,
     }
 
     if (verbose) {
-      ULOG_INFO("adc1:%s #%2u: %.4fV, Δ%.4fV, %u cycles", sensor_name, i, value, value - prev_value, cycles);
+      ULOG_INFO("adc1:%s #%2u: %.4fV, d%.4fV, %u cycles", sensor_name, i, value, value - prev_value, cycles);
     }
 
     prev_value = value;
@@ -229,7 +229,7 @@ void DumpBenchmarkMeasurement(Adc1ConversionId conv_id, const char* sensor_name,
   float avg_seq_diff = (num_seq_diffs > 0) ? (sum_seq_diff / num_seq_diffs) : 0;
 
   // Dump summary
-  ULOG_INFO("adc1:%s %u reads: avg %.4f (%.4f - %.4f), avg Δ%.5f (%.5f - %.5f), avg %ucyc (%u - %u)", sensor_name,
+  ULOG_INFO("adc1:%s %u reads: avg %.4f (%.4f - %.4f), avg d%.5f (%.5f - %.5f), avg %ucyc (%u - %u)", sensor_name,
             num_samples, avg_value, min_val, max_val, avg_seq_diff, min_seq_diff, max_seq_diff, avg_cycles, min_cycles,
             max_cycles);
 }
