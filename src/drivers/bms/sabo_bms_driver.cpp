@@ -343,7 +343,10 @@ bool SaboBmsDriver::DumpDevice() {
   opt.list_unknown_nonzero = true;
   opt.suppress_cmds_0x3c_0x42 = true;  // printed separately as cell voltages
 
+  i2cAcquireBus(bms_cfg_->i2c);
+
   if (!debug::DumpSbsDevice(sbs_, cb, opt)) {
+    i2cReleaseBus(bms_cfg_->i2c);
     return false;
   }
 
@@ -390,6 +393,8 @@ bool SaboBmsDriver::DumpDevice() {
       BmsPrintLine(line);
     }
   }
+
+  i2cReleaseBus(bms_cfg_->i2c);
 
   return true;
 }
