@@ -342,7 +342,7 @@ static void i2c_lld_serve_interrupt(I2CDriver *i2cp, uint32_t isr) {
      re-fire forever (IRQ storm -> tick starvation -> IWDG reset). Abort cleanly
      so the high-level timeout can recover the bus. Root-cause-agnostic. */
   if ((((isr & I2C_ISR_TXIS) != 0U) && (i2cp->state != I2C_ACTIVE_TX)) ||
-      (((isr & I2C_ISR_RXNE) != 0U) && (i2cp->state == I2C_ACTIVE_TX))) {
+      (((isr & I2C_ISR_RXNE) != 0U) && (i2cp->state != I2C_ACTIVE_RX))) {
     dp->CR2 |= I2C_CR2_STOP;
     dp->CR1 &= ~(I2C_CR1_TCIE | I2C_CR1_TXIE | I2C_CR1_RXIE);
     i2cp->errors |= I2C_BUS_ERROR;
