@@ -337,6 +337,19 @@ static void i2c_lld_serve_interrupt(I2CDriver *i2cp, uint32_t isr) {
     return;
   }
 
+  /* Self-heal: direction desync. A per-byte flag is asserted that the current
+     software state cannot service -> the flag is not ICR-clearable and would
+     re-fire forever (IRQ storm -> tick starvation -> IWDG reset). Abort cleanly
+     so the high-level timeout can recover the bus. Root-cause-agnostic. */
+  if ((((isr & I2C_ISR_TXIS) != 0U) && (i2cp->state != I2C_ACTIVE_TX)) ||
+      (((isr & I2C_ISR_RXNE) != 0U) && (i2cp->state != I2C_ACTIVE_RX))) {
+    dp->CR2 |= I2C_CR2_STOP;
+    dp->CR1 &= ~(I2C_CR1_TCIE | I2C_CR1_TXIE | I2C_CR1_RXIE);
+    i2cp->errors |= I2C_BUS_ERROR;
+    _i2c_wakeup_error_isr(i2cp);
+    return;
+  }
+
 #if STM32_I2C_USE_DMA == FALSE
   /* Handling of data transfer if the DMA mode is disabled.*/
   {
@@ -1077,6 +1090,7 @@ void i2c_lld_stop(I2CDriver *i2cp) {
 msg_t i2c_lld_master_receive_timeout(I2CDriver *i2cp, i2caddr_t addr,
                                      uint8_t *rxbuf, size_t rxbytes,
                                      sysinterval_t timeout) {
+  chDbgAssert(i2cp->mutex.owner == chThdGetSelfX(), "MUTEX FAILED");
   msg_t msg;
   I2C_TypeDef *dp = i2cp->i2c;
   systime_t start, end;
@@ -1203,6 +1217,7 @@ msg_t i2c_lld_master_transmit_timeout(I2CDriver *i2cp, i2caddr_t addr,
                                       const uint8_t *txbuf, size_t txbytes,
                                       uint8_t *rxbuf, size_t rxbytes,
                                       sysinterval_t timeout) {
+  chDbgAssert(i2cp->mutex.owner == chThdGetSelfX(), "MUTEX FAILED");
   msg_t msg;
   I2C_TypeDef *dp = i2cp->i2c;
   systime_t start, end;
