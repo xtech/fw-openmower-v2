@@ -126,7 +126,6 @@ int main() {
 
   robot->InitPlatform();
   xbot::service::Io::start();
-  InitChecksumTestInterface();
   StartServices();
   SetStatusLedColor(GREEN);
   DispatchEvents();
