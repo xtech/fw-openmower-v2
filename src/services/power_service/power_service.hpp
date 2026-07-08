@@ -7,6 +7,7 @@
 
 #include <ch.h>
 #include <etl/atomic.h>
+#include <ulog.h>
 
 #include <PowerServiceBase.hpp>
 #include <drivers/charger/charger.hpp>
@@ -84,6 +85,16 @@ class PowerService : public PowerServiceBase {
 
   bool IsHealthy() override {
     return IsRunning() && charger_configured_.load();
+  }
+
+  // Logs the given message at INFO level, but only if the "Log Debug" register is valid and set to true.
+  // If the register is invalid or false, this does nothing.
+  template <typename... Args>
+  void LogDebugMessage(const char* fmt, Args... args) {
+    if (!LogDebug.valid || !LogDebug.value) {
+      return;
+    }
+    ULOG_ARG_INFO(&service_id_, fmt, args...);
   }
 
  protected:
