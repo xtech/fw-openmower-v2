@@ -1,9 +1,10 @@
 # Network corruption / checksum test
 
 Characterises whether the firmware's network stack (lwIP + STM32 MAC) drops or
-delivers corrupted UDP packets. Use it to capture a **baseline** of the current
-software-checksum implementation, then re-run after enabling hardware
-checksumming and the D-cache to confirm nothing regresses.
+delivers corrupted UDP packets. The current config offloads RX checksum
+verification to the STM32H7 ETH DMA (software checks disabled in `lwipopts.h`)
+and disables IP reassembly. Use it to confirm corrupted packets are still
+dropped and nothing regresses.
 
 ## Pieces
 
@@ -12,6 +13,8 @@ checksumming and the D-cache to confirm nothing regresses.
 - Firmware side: `src/debug/checksum_test_interface.cpp`, a thread bound to UDP
   port **4500**. It validates each packet (magic / declared length / CRC32) and
   replies with a verdict. It also logs each result via `ULOG_INFO`.
+  Opt-in only: build the firmware with `-DENABLE_CHECKSUM_TEST_INTERFACE` to
+  compile it in. It is not present in normal firmware (not even debug builds).
 
 ## Wire format (little-endian uint32 fields)
 
@@ -47,21 +50,17 @@ would silently "fix" the corruptions we are trying to test — in particular
 `bad_ip_csum`. Sending the full Ethernet frame ourselves puts the bytes on the
 wire verbatim.
 
-## Test cases and expected outcome (current, software-checksum config)
+## Test cases and expected outcome (current, HW-offload config)
 
 | case | what it sends | expected |
 |------|----------------|----------|
 | `baseline` | fully valid packet | `OK` |
-| `bad_udp_csum` | valid payload, corrupted UDP checksum | `DROP` (CHECKSUM_CHECK_UDP) |
-| `udp_csum_zero_bad_payload` | UDP checksum 0 + corrupted payload | `CRC_MISMATCH` — the hole: lwIP skips the check |
-| `bad_ip_csum` | corrupted IP header checksum | `DROP` (CHECKSUM_CHECK_IP) |
+| `bad_udp_csum` | valid payload, corrupted UDP checksum | `DROP` (MAC L4 offload) |
+| `udp_csum_zero_bad_payload` | UDP checksum 0 + corrupted payload | `CRC_MISMATCH` — the hole: checksum 0 skips the check |
+| `bad_ip_csum` | corrupted IP header checksum | `DROP` (MAC L3 offload) |
 | `valid_csum_bad_payload` | payload ≠ crc field, UDP checksum valid | `CRC_MISMATCH` — app CRC catches it |
 | `len_field_lie` | declared_len ≠ actual length | `LEN_MISMATCH` |
 | `bad_magic` | wrong magic | `BAD_MAGIC` |
 | `large_within_mtu` | 1400-byte payload, under MTU | `OK` |
 | `max_packet_size` | UDP payload = `max_packet_size` (1472); IP total exactly 1500, single frame | `OK` (rx_len=1472) |
-| `fragmented` | 1600-byte payload, IP-fragmented | `OK` (reassembly) |
-
-When hardware checksum offload is later enabled, watch especially
-`udp_csum_zero_bad_payload` and `fragmented` — those are where the MAC's L4
-offload behaviour differs from software checks.
+| `fragmented` | 1600-byte payload, IP-fragmented | `DROP` — IP reassembly is disabled |

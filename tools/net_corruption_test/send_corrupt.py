@@ -286,8 +286,10 @@ def find_iface_for_ip(src_ip):
     raise RuntimeError(f"no interface found for source IP {src_ip}")
 
 
-def resolve_dst_mac(dst_ip):
+def resolve_dst_mac(dst_ip, iface):
     # Prime the ARP cache with a throwaway datagram, then read /proc/net/arp.
+    # Scope the lookup to `iface`: on a multi-homed host the same IP could have
+    # a stale/foreign entry on another device, which would yield the wrong MAC.
     p = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         p.sendto(b"\x00", (dst_ip, 9))  # discard port
@@ -295,14 +297,16 @@ def resolve_dst_mac(dst_ip):
         pass
     finally:
         p.close()
+    # /proc/net/arp columns: IP address, HW type, Flags, HW address, Mask, Device
     for _ in range(20):
         with open("/proc/net/arp") as f:
             for line in f.read().splitlines()[1:]:
                 cols = line.split()
-                if cols and cols[0] == dst_ip and cols[3] != "00:00:00:00:00:00":
+                if len(cols) >= 6 and cols[0] == dst_ip and cols[5] == iface \
+                        and cols[3] != "00:00:00:00:00:00":
                     return bytes(int(x, 16) for x in cols[3].split(":"))
         time.sleep(0.1)
-    raise RuntimeError(f"could not resolve MAC for {dst_ip} (is it reachable?)")
+    raise RuntimeError(f"could not resolve MAC for {dst_ip} on {iface} (is it reachable?)")
 
 
 def mac_str(mac):
@@ -320,13 +324,18 @@ def main():
     ap.add_argument("--only", help="run only the named test case")
     args = ap.parse_args()
 
+    if args.only:
+        known = [name for name, _, _ in TEST_CASES]
+        if args.only not in known:
+            sys.exit(f"unknown test case '{args.only}'; known cases: {', '.join(known)}")
+
     src_ip = args.src_ip or detect_src_ip(args.dst_ip)
     iface = args.iface or find_iface_for_ip(src_ip)
     src_mac = get_if_hwaddr(iface)
     if args.dst_mac:
         dst_mac = bytes(int(x, 16) for x in args.dst_mac.split(":"))
     else:
-        dst_mac = resolve_dst_mac(args.dst_ip)
+        dst_mac = resolve_dst_mac(args.dst_ip, iface)
     eth_hdr = dst_mac + src_mac + struct.pack("!H", ETH_P_IP)
 
     print(f"iface {iface}  src {src_ip}:{args.src_port} ({mac_str(src_mac)})")
