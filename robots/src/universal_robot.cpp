@@ -19,6 +19,11 @@ bool UniversalRobot::IsHardwareSupported() {
     return true;
   }
 
-  // Else, we accept universal boards
-  return strncmp("hw-openmower-universal", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0;
+  // Legacy style universal boards
+  if (strncmp("hw-openmower-universal", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0) {
+    return true;
+  }
+
+  // New style hw-module-logic
+  return (strncmp("hw-module-logic", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0);
 }
