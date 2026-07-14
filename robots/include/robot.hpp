@@ -75,7 +75,7 @@ class Robot {
   }
 
   virtual ChargerDriver::ReChargeVoltage Power_GetDefaultReChargeVoltage() {
-    return ChargerDriver::ReChargeVoltage::PERCENT_97_6;
+    return ChargerDriver::ReChargeVoltage::PERCENT_94_3;
   }
 
   /**

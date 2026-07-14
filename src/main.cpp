@@ -19,6 +19,7 @@
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
 
+#include "debug/checksum_test_interface.hpp"
 #include "debug/thread_watermark.h"
 #include "globals.hpp"
 #include "heartbeat.h"

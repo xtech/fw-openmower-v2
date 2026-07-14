@@ -52,7 +52,7 @@
  * allocation and deallocation.
  */
 #ifndef SYS_LIGHTWEIGHT_PROT
-#define SYS_LIGHTWEIGHT_PROT            0
+#define SYS_LIGHTWEIGHT_PROT            1
 #endif
 
 /** 
@@ -517,8 +517,10 @@
  * this option does not affect outgoing packet sizes, which can be controlled
  * via IP_FRAG.
  */
+/* Disabled: no fragmented traffic expected, and HW checksum offload cannot
+   insert L4 checksums across IP fragments. See STM32_MAC_IP_CHECKSUM_OFFLOAD. */
 #ifndef IP_REASSEMBLY
-#define IP_REASSEMBLY                   1
+#define IP_REASSEMBLY                   0
 #endif
 
 /**
@@ -527,7 +529,7 @@
  * controlled via IP_REASSEMBLY.
  */
 #ifndef IP_FRAG
-#define IP_FRAG                         1
+#define IP_FRAG                         0
 #endif
 
 /**
@@ -1784,50 +1786,61 @@
 /**
  * CHECKSUM_GEN_IP==1: Generate checksums in software for outgoing IP packets.
  */
+/* HW checksum offload: STM32H7 ETH DMA inserts this checksum on TX
+   (STM32_MAC_IP_CHECKSUM_OFFLOAD=3 in mcuconf.h). */
 #ifndef CHECKSUM_GEN_IP
-#define CHECKSUM_GEN_IP                 1
+#define CHECKSUM_GEN_IP                 0
 #endif
  
 /**
  * CHECKSUM_GEN_UDP==1: Generate checksums in software for outgoing UDP packets.
  */
 #ifndef CHECKSUM_GEN_UDP
-#define CHECKSUM_GEN_UDP                1
+#define CHECKSUM_GEN_UDP                0
 #endif
  
 /**
  * CHECKSUM_GEN_TCP==1: Generate checksums in software for outgoing TCP packets.
  */
 #ifndef CHECKSUM_GEN_TCP
-#define CHECKSUM_GEN_TCP                1
+#define CHECKSUM_GEN_TCP                0
 #endif
 
 /**
  * CHECKSUM_GEN_ICMP==1: Generate checksums in software for outgoing ICMP packets.
  */
 #ifndef CHECKSUM_GEN_ICMP
-#define CHECKSUM_GEN_ICMP               1
+#define CHECKSUM_GEN_ICMP               0
 #endif
  
 /**
  * CHECKSUM_CHECK_IP==1: Check checksums in software for incoming IP packets.
  */
+/* HW checksum offload: STM32H7 ETH DMA verifies RX checksums; the MAC driver
+   drops frames flagged with IPHE/IPCE before they reach lwIP. */
 #ifndef CHECKSUM_CHECK_IP
-#define CHECKSUM_CHECK_IP               1
+#define CHECKSUM_CHECK_IP               0
 #endif
  
 /**
  * CHECKSUM_CHECK_UDP==1: Check checksums in software for incoming UDP packets.
  */
 #ifndef CHECKSUM_CHECK_UDP
-#define CHECKSUM_CHECK_UDP              1
+#define CHECKSUM_CHECK_UDP              0
 #endif
 
 /**
  * CHECKSUM_CHECK_TCP==1: Check checksums in software for incoming TCP packets.
  */
 #ifndef CHECKSUM_CHECK_TCP
-#define CHECKSUM_CHECK_TCP              1
+#define CHECKSUM_CHECK_TCP              0
+#endif
+
+/**
+ * CHECKSUM_CHECK_ICMP==1: Check checksums in software for incoming ICMP packets.
+ */
+#ifndef CHECKSUM_CHECK_ICMP
+#define CHECKSUM_CHECK_ICMP            0
 #endif
 
 /**

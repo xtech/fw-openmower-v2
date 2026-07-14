@@ -107,8 +107,10 @@ void PowerService::update_charger_() {
       // Set the currents low
       bool success = true;
       if (PreChargeCurrent.valid && PreChargeCurrent.value > 0) {
+        LogDebugMessage("Setting PreCharge Current to %f A", PreChargeCurrent.value);
         success &= charger_->setPreChargeCurrent(PreChargeCurrent.value);
       } else {
+        LogDebugMessage("Setting PreCharge Current to default %f A", robot->Power_GetDefaultPreChargeCurrent());
         success &= charger_->setPreChargeCurrent(robot->Power_GetDefaultPreChargeCurrent());
       }
 
@@ -126,34 +128,46 @@ void PowerService::update_charger_() {
       if (!override_limit) {
         // Limit the current to the max value provided by the robot
         software_charge_current = std::min(robot->Power_GetMaxChargeCurrent(), software_charge_current);
+      } else {
+        LogDebugMessage("Overriding hardware charge current limit");
       }
 
       // Hardware resistor is the default setting when not using software-control.
       // It's a very conservative choice so that charging without firmware is safe.
       // Therefore, we set "overwrite_hardware_limit" to true here, so that we can go for a higher current.
       // On watchdog timeout, the charger will automatically switch to hardware resistor.
+      LogDebugMessage("Setting Charge Current to %f A", software_charge_current);
       success &= charger_->setChargingCurrent(software_charge_current, true);
 
       if (ChargeVoltage.valid && ChargeVoltage.value > 0) {
+        LogDebugMessage("Setting Charge Voltage to %f V", ChargeVoltage.value);
         success &= charger_->setChargingVoltage(ChargeVoltage.value);
       } else {
         // Only set a custom value, if the robot implementation provides one.
         if (robot->Power_GetDefaultChargeVoltage() > 0.0) {
+          LogDebugMessage("Setting Charge Voltage to default %f V", robot->Power_GetDefaultChargeVoltage());
           success &= charger_->setChargingVoltage(robot->Power_GetDefaultChargeVoltage());
+        } else {
+          LogDebugMessage("Not setting Charge Voltage");
         }
       }
       if (TerminationCurrent.valid && TerminationCurrent.value > 0) {
+        LogDebugMessage("Setting Termination Current to %f A", TerminationCurrent.value);
         success &= charger_->setTerminationCurrent(TerminationCurrent.value);
       } else {
+        LogDebugMessage("Setting Termination Current to default %f A", robot->Power_GetDefaultTerminationCurrent());
         success &= charger_->setTerminationCurrent(robot->Power_GetDefaultTerminationCurrent());
       }
       if (ReChargeVoltage.valid) {
+        LogDebugMessage("Setting ReCharge Voltage to %d", static_cast<int>(ReChargeVoltage.value));
         success &= charger_->setReChargeVoltage(static_cast<ChargerDriver::ReChargeVoltage>(ReChargeVoltage.value));
       } else {
+        LogDebugMessage("Setting ReCharge Voltage to default");
         success &= charger_->setReChargeVoltage(robot->Power_GetDefaultReChargeVoltage());
       }
 
       // Disable temperature sense, the battery doesn't have it
+      LogDebugMessage("Disabling temperature sense");
       success &= charger_->setTsEnabled(false);
       charger_configured_ = success;
     }

@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "i2c_utils.hpp"
 #include "json_utils.hpp"
 #include "sbs_debug.hpp"
 
@@ -342,7 +343,10 @@ bool SaboBmsDriver::DumpDevice() {
   opt.list_unknown_nonzero = true;
   opt.suppress_cmds_0x3c_0x42 = true;  // printed separately as cell voltages
 
+  i2cAcquireBus(bms_cfg_->i2c);
+
   if (!debug::DumpSbsDevice(sbs_, cb, opt)) {
+    i2cReleaseBus(bms_cfg_->i2c);
     return false;
   }
 
@@ -390,15 +394,24 @@ bool SaboBmsDriver::DumpDevice() {
     }
   }
 
+  i2cReleaseBus(bms_cfg_->i2c);
+
   return true;
 }
 
+msg_t SaboBmsDriver::I2cMasterTransmit(const uint8_t* tx, size_t tx_len, uint8_t* rx, size_t rx_len) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
+  return xbot::i2c::TransmitWithRecovery(bms_cfg_->i2c, DEVICE_ADDRESS, tx, tx_len, rx, rx_len, "BMS",
+                                         i2c_retry_delay_ms);
+}
+
 msg_t SaboBmsDriver::ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   if (bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr || rx == nullptr || rx_len == 0) return MSG_RESET;
 
   msg_t last_msg = MSG_RESET;
   for (unsigned attempt = 0; attempt < i2c_retries; attempt++) {
-    const msg_t msg = i2cMasterTransmit(bms_cfg_->i2c, DEVICE_ADDRESS, &reg, 1, rx, rx_len);
+    const msg_t msg = I2cMasterTransmit(&reg, 1, rx, rx_len);
     last_msg = msg;
     if (msg == MSG_OK) break;
     chThdSleepMilliseconds(i2c_retry_delay_ms);
@@ -408,6 +421,7 @@ msg_t SaboBmsDriver::ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len) {
 }
 
 msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint8_t& result) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   uint8_t rx = 0;
   const msg_t msg = ReadRegisterRaw(reg, &rx, 1);
   if (msg == MSG_OK) result = rx;
@@ -415,6 +429,7 @@ msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint8_t& result) {
 }
 
 msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint16_t& result) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   uint8_t rx[2] = {0, 0};
   const msg_t msg = ReadRegisterRaw(reg, rx, 2);
   if (msg == MSG_OK) result = (uint16_t)rx[0] | (uint16_t)((uint16_t)rx[1] << 8);
@@ -422,6 +437,7 @@ msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint16_t& result) {
 }
 
 msg_t SaboBmsDriver::ReadRegister(uint8_t reg, int16_t& result) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   uint16_t u = 0;
   const msg_t msg = ReadRegister(reg, u);
   if (msg == MSG_OK) result = (int16_t)u;
@@ -429,6 +445,7 @@ msg_t SaboBmsDriver::ReadRegister(uint8_t reg, int16_t& result) {
 }
 
 msg_t SaboBmsDriver::ReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity, size_t& out_len) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   out_len = 0;
   if (!bms_cfg_ || !bms_cfg_->i2c || !data || !data_capacity) return MSG_RESET;
 
@@ -440,7 +457,7 @@ msg_t SaboBmsDriver::ReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity,
 
   for (unsigned attempt = 0; attempt < i2c_retries; attempt++) {
     memset(data, 0, rx_max);
-    const msg_t msg = i2cMasterTransmit(bms_cfg_->i2c, DEVICE_ADDRESS, &cmd, 1, data, rx_max);
+    const msg_t msg = I2cMasterTransmit(&cmd, 1, data, rx_max);
     last_msg = msg;
     if (msg != MSG_OK) {
       chThdSleepMilliseconds(i2c_retry_delay_ms);

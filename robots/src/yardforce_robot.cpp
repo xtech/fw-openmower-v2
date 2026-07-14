@@ -18,6 +18,10 @@ void YardForceRobot::InitPlatform() {
 #endif
   input_service.RegisterInputDriver("yf_cover_ui", &yf_cover_ui_);
   yf_cover_ui_.Start(&UARTD7);
+
+  // Enable aux power supply
+  palSetLineMode(LINE_GPIO4, PAL_MODE_OUTPUT_PUSHPULL);
+  palSetLine(LINE_GPIO4);
 }
 
 bool YardForceRobot::IsHardwareSupported() {
