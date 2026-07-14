@@ -138,11 +138,17 @@ bool YFCoverUI::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key,
     return true;
   }
 
-  // Hall MUX setup entry (id instead of channel)
+  // Global driver configuration (id instead of channel)
   if (strcmp(key, "id") == 0) {
     JsonExpectType(STRING);
+    // Hall MUX setup entry
     if (strcmp(jsp->data.str.buff, "hall_mux") == 0) {
-      input.yf_cover_ui.is_hall_mux = true;
+      input.yf_cover_ui.flags |= Input::YF_FLAG_HALL_MUX;
+      return true;
+    }
+    // Protocol selection
+    if (strcmp(jsp->data.str.buff, "protocol") == 0) {
+      input.yf_cover_ui.flags |= Input::YF_FLAG_PROTOCOL;
       return true;
     }
     ULOG_ERROR("YFCoverUI: unknown id \"%s\"", jsp->data.str.buff);
@@ -150,6 +156,21 @@ bool YFCoverUI::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key,
   }
   if (strcmp(key, "value") == 0) {
     JsonExpectType(STRING);
+    // Protocol selection value
+    if (input.yf_cover_ui.flags & Input::YF_FLAG_PROTOCOL) {
+      if (strcmp(jsp->data.str.buff, "om") == 0) {
+        protocol_ = YFCoverUIProtocol::OM;
+        return true;
+      }
+      if (strcmp(jsp->data.str.buff, "oem") == 0) {
+        protocol_ = YFCoverUIProtocol::OEM;
+        ULOG_WARNING("YFCoverUI: OEM protocol not yet implemented, disabling UART");
+        return true;
+      }
+      ULOG_ERROR("YFCoverUI: unknown protocol value \"%s\"", jsp->data.str.buff);
+      return false;
+    }
+    // Hall MUX value
     if (strcmp(jsp->data.str.buff, "om") == 0) {
       hall_mux_value_ = 0;
       return true;
@@ -171,8 +192,16 @@ bool YFCoverUI::OnStart() {
 
   // Refuse OEM IDC on pre-1.2.0 boards that don't have the MUX hardware
   if (is_pre_v120 && hall_mux_value_ != 0) {
-    ULOG_ERROR("YFCoverUI: hall_mux set to OEM IDC but carrier board is pre v1.2.0");
+    ULOG_ERROR("YFCoverUI: hall_mux is set to OEM IDC but carrier board is pre v1.2.0 and don't have the MUX hardware");
     return false;
+  }
+
+  // Enforce protocol configuration: must be explicitly set to "om" for UART to operate
+  if (protocol_ != YFCoverUIProtocol::OM) {
+    if (protocol_ == YFCoverUIProtocol::UNCONFIGURED) {
+      ULOG_WARNING("YFCoverUI: no protocol configured, disabling UART");
+    }
+    uartStopReceive(uart_);
   }
 
   // Always set MUX for v1.2.0+ (even if no hall_mux was configured, default to OM-XHST/robot-adaptor plug)
@@ -201,65 +230,66 @@ void YFCoverUI::ThreadFunc() {
   // panel "not found" once. HandleVersion() logs "connected" if it responds first.
   const systime_t probe_start = chVTGetSystemTimeX();
 
+  // If protocol is not OM, skip all UART activity (OnStart() already stopped receive)
+  const bool uart_active = (protocol_ == YFCoverUIProtocol::OM);
+
   while (true) {
     // --- Wait for RX events; the 100 ms timeout keeps the periodic poll/LED timing responsive ---
-    const eventmask_t evt = chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, TIME_MS2I(100));
+    const eventmask_t evt = chEvtWaitAnyTimeout(uart_active ? EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH : 0, TIME_MS2I(100));
 
-    // --- Drain newly received DMA bytes ---
-    // EVT_RX_DMA_WRAP signals that rxend_cb fired and re-armed the DMA buffer.
-    // Handle the wrap explicitly from the event rather than inferring it from NDTR: by the time
-    // NDTR is read, re-arming has already reset it, so received_so_far >= rx_seen_len_ even
-    // after a wrap, making the NDTR-delta inference unreliable.
-    if (evt & EVT_RX_DMA_WRAP) {
-      ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, DMA_RX_BUFFER_SIZE - rx_seen_len_);
-      rx_seen_len_ = 0;
-    }
-    const uint32_t ndtr_now = uart_->dmarx->stream->NDTR;
-    if (ndtr_now <= DMA_RX_BUFFER_SIZE) {
-      const size_t received_so_far = DMA_RX_BUFFER_SIZE - ndtr_now;
-      if (received_so_far > rx_seen_len_) {
-        ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, received_so_far - rx_seen_len_);
-        rx_seen_len_ = received_so_far;
+    if (uart_active) {
+      // --- Drain newly received DMA bytes ---
+      // EVT_RX_DMA_WRAP signals that rxend_cb fired and re-armed the DMA buffer.
+      // Handle the wrap explicitly from the event rather than inferring it from NDTR: by the time
+      // NDTR is read, re-arming has already reset it, so received_so_far >= rx_seen_len_ even
+      // after a wrap, making the NDTR-delta inference unreliable.
+
+      if (evt & EVT_RX_DMA_WRAP) {
+        ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, DMA_RX_BUFFER_SIZE - rx_seen_len_);
+        rx_seen_len_ = 0;
       }
-    }
-
-    // --- Startup presence verdict (logged exactly once) ---
-    if (!presence_determined_.load() && !ui_present_.load() &&
-        chVTTimeElapsedSinceX(probe_start) >= TIME_MS2I(PRESENCE_PROBE_MS)) {
-      // We've two types of CoverUI: The custom (or MODded OEM) one whit OM COBS based protocol,
-      // as well as the unmodified OEM one with a different, yet unsupported protocol.
-      // Let's stop spamming logs as well as UART traffic if COBS based protocol is not detected in PRESENCE_PROBE_MS.
-      // TODO: Implemented OEM protocol support and autodetection
-      ULOG_WARNING("yf_cover_ui not found - disabling COBS UART to stop decode errors");
-      presence_determined_.store(true);
-      uartStopReceive(uart_);
-    }
-
-    // --- Version timeout: mark UI unavailable if no response within VERSION_TIMEOUT_MS ---
-    // HandleVersion() clears version_pending_ as soon as a reply arrives, so this only
-    // fires when the panel genuinely failed to answer the last poll.
-    if (version_pending_ && chVTTimeElapsedSinceX(version_request) >= TIME_MS2I(VERSION_TIMEOUT_MS)) {
-      if (ui_available_.load()) {
-        ULOG_INFO("YFCoverUI: UI timeout, marking unavailable");
-        ui_available_.store(false);
-        emergency_state_.store(0);
-        UpdateEmergencyInputs();
+      const uint32_t ndtr_now = uart_->dmarx->stream->NDTR;
+      if (ndtr_now <= DMA_RX_BUFFER_SIZE) {
+        const size_t received_so_far = DMA_RX_BUFFER_SIZE - ndtr_now;
+        if (received_so_far > rx_seen_len_) {
+          ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, received_so_far - rx_seen_len_);
+          rx_seen_len_ = received_so_far;
+        }
       }
-      version_pending_ = false;
-    }
 
-    // --- Periodic version poll (every 5 s) ---
-    if (chVTTimeElapsedSinceX(last_version_poll) >= TIME_MS2I(VERSION_POLL_MS)) {
-      SendVersionRequest();
-      last_version_poll = chVTGetSystemTimeX();
-      version_request = last_version_poll;
-      version_pending_ = true;
-    }
+      // --- Startup presence verdict (logged exactly once) ---
+      if (!presence_determined_.load() && !ui_present_.load() &&
+          chVTTimeElapsedSinceX(probe_start) >= TIME_MS2I(PRESENCE_PROBE_MS)) {
+        ULOG_WARNING("yf_cover_ui not found");
+        presence_determined_.store(true);
+      }
 
-    // --- Periodic LED update ---
-    if (chVTTimeElapsedSinceX(last_led_update) >= TIME_MS2I(ui_interval_)) {
-      SendLeds();
-      last_led_update = chVTGetSystemTimeX();
+      // --- Version timeout ---
+      // HandleVersion() clears version_pending_ as soon as a reply arrives, so this only
+      // fires when the panel genuinely failed to answer the last poll.
+      if (version_pending_ && chVTTimeElapsedSinceX(version_request) >= TIME_MS2I(VERSION_TIMEOUT_MS)) {
+        if (ui_available_.load()) {
+          ULOG_INFO("YFCoverUI: UI timeout, marking unavailable");
+          ui_available_.store(false);
+          emergency_state_.store(0);
+          UpdateEmergencyInputs();
+        }
+        version_pending_ = false;
+      }
+
+      // --- Periodic version poll (every 5 s) ---
+      if (chVTTimeElapsedSinceX(last_version_poll) >= TIME_MS2I(VERSION_POLL_MS)) {
+        SendVersionRequest();
+        last_version_poll = chVTGetSystemTimeX();
+        version_request = last_version_poll;
+        version_pending_ = true;
+      }
+
+      // --- Periodic LED update ---
+      if (chVTTimeElapsedSinceX(last_led_update) >= TIME_MS2I(ui_interval_)) {
+        SendLeds();
+        last_led_update = chVTGetSystemTimeX();
+      }
     }
   }
 }
@@ -539,7 +569,8 @@ void YFCoverUI::HandleSubscribe(const msg_event_subscribe* msg) {
 void YFCoverUI::UpdateEmergencyInputs() {
   const uint8_t state = emergency_state_.load();
   for (auto& input : Inputs()) {
-    if (input.yf_cover_ui.is_hall_mux) continue;  // skip setup-only entries
+    if (input.yf_cover_ui.flags & (Input::YF_FLAG_HALL_MUX | Input::YF_FLAG_PROTOCOL))
+      continue;  // skip setup-only entries
     const uint8_t ch = input.yf_cover_ui.channel;
     if (!YFCoverUIChannelIsButton(ch)) {
       // Emergency channel (bit 7 = 0) — update based on corresponding bit in state
