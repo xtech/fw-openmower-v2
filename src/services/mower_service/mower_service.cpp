@@ -90,6 +90,20 @@ void MowerService::SetDuty() {
   duty_sent_ = true;
 }
 
+void MowerService::OnMowerEnabledChanged(const uint8_t& new_value) {
+  chMtxLock(&mtx);
+  last_duty_received_micros_ = xbot::service::system::getTimeMicros();
+  if (new_value) {
+    mower_duty_ = 1.0;
+  } else {
+    mower_duty_ = 0;
+  }
+  if (!duty_sent_) {
+    SetDuty();
+  }
+  chMtxUnlock(&mtx);
+}
+
 void MowerService::SetDriver(MotorDriver* motor_driver) {
   mower_driver_ = motor_driver;
 }
