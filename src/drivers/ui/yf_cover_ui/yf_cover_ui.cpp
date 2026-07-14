@@ -226,8 +226,13 @@ void YFCoverUI::ThreadFunc() {
     // --- Startup presence verdict (logged exactly once) ---
     if (!presence_determined_.load() && !ui_present_.load() &&
         chVTTimeElapsedSinceX(probe_start) >= TIME_MS2I(PRESENCE_PROBE_MS)) {
-      ULOG_WARNING("yf_cover_ui not found - ignoring all CoverUI messages from ROS");
+      // We've two types of CoverUI: The custom (or MODded OEM) one whit OM COBS based protocol,
+      // as well as the unmodified OEM one with a different, yet unsupported protocol.
+      // Let's stop spamming logs as well as UART traffic if COBS based protocol is not detected in PRESENCE_PROBE_MS.
+      // TODO: Implemented OEM protocol support and autodetection
+      ULOG_WARNING("yf_cover_ui not found - disabling COBS UART to stop decode errors");
       presence_determined_.store(true);
+      uartStopReceive(uart_);
     }
 
     // --- Version timeout: mark UI unavailable if no response within VERSION_TIMEOUT_MS ---
