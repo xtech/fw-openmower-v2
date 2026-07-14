@@ -47,9 +47,6 @@ class MowerService : public MowerServiceBase {
 
   void ESCCallback(const MotorDriver::ESCState& state);
 
- protected:
-  void OnMowerEnabledChanged(const uint8_t& new_value) override;
-
  private:
   THD_WORKING_AREA(wa, 1024){};
   MotorDriver::ESCState esc_state_{};
