@@ -18,11 +18,13 @@
 
 #include <hal.h>
 
+#include <atomic>
+
 namespace xbot::driver::adc3 {
 
 namespace {
 mutex_t adc3_mutex;
-float last_vref_ = std::numeric_limits<float>::quiet_NaN();
+std::atomic<float> last_vref_{std::numeric_limits<float>::quiet_NaN()};
 
 // Initialize in Init() or first use
 void InitMutex() {
@@ -131,12 +133,13 @@ float GetVrefVoltage(uint16_t raw_value) {
   // - ADC_REFERENCE_VOLTAGE is VDDA voltage during factory calibration (3.3V)
   // - VREFINT_CAL is factory calibration value
   // - VREFINT_DATA is actual ADC reading (raw_value)
-  last_vref_ = (ADC_REFERENCE_VOLTAGE * VREFINT_CAL_VALUE_F) / static_cast<float>(raw_value);
-  return last_vref_;
+  float value = (ADC_REFERENCE_VOLTAGE * VREFINT_CAL_VALUE_F) / static_cast<float>(raw_value);
+  last_vref_.store(value, std::memory_order_relaxed);
+  return value;
 }
 
 float GetLastVref() {
-  return last_vref_;
+  return last_vref_.load(std::memory_order_relaxed);
 }
 
 void Acquire() {
