@@ -116,6 +116,10 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
         return JsonGetBool(type, data->current_input->invert);
       } else if (strcmp(key, "redundancy_group") == 0) {
         JsonExpectType(STRING);
+        if (jsp->data.str.len > 10) {
+          ULOG_ERROR("Redundancy group name too long (max 10 chars)");
+          return false;
+        }
         etl::string<10> name = jsp->data.str.buff;
         auto it = data->redundancy_group_map.find(name);
         if (it == data->redundancy_group_map.end()) {
