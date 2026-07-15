@@ -116,7 +116,7 @@ bool InputService::InputConfigsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_
         return JsonGetBool(type, data->current_input->invert);
       } else if (strcmp(key, "redundancy_group") == 0) {
         JsonExpectType(STRING);
-        if (jsp->data.str.len > 10) {
+        if (jsp->data.str.buff_pos > 10) {
           ULOG_ERROR("Redundancy group name too long (max 10 chars)");
           return false;
         }
