@@ -81,7 +81,7 @@ void SaboRobot::RegisterAdc1Sensors() {
   static const Adc1Sensor v_charge_sensors[] = {{.channel = ADC_CHANNEL_IN15, .sample_rate = ADC_SMPR_SMP_16P5}};
   static adcsample_t v_charge_buffer[sizeof(v_charge_sensors) / sizeof(v_charge_sensors[0])];
   // Create ADC conversion group and place sensor(s)
-  static const Adc1ConversionGroup v_charge_cg = Adc1ConversionGroup::Create(
+  static Adc1ConversionGroup v_charge_cg = Adc1ConversionGroup::Create(
       Adc1ConversionId::V_CHARGER,                          // Conversion ID
       etl::array_view<const Adc1Sensor>(v_charge_sensors),  // Sensor(s)/channel definition
       v_charge_buffer,                                      // ADC sampple/data buffer
@@ -104,7 +104,7 @@ void SaboRobot::RegisterAdc1Sensors() {
   static const Adc1Sensor v_battery_sensors[] = {{.channel = ADC_CHANNEL_IN16, .sample_rate = ADC_SMPR_SMP_16P5}};
   static adcsample_t v_battery_buffer[sizeof(v_battery_sensors) / sizeof(v_battery_sensors[0])];
   // Create ADC conversion group and place sensor(s)
-  static const Adc1ConversionGroup v_battery_cg = Adc1ConversionGroup::Create(
+  static Adc1ConversionGroup v_battery_cg = Adc1ConversionGroup::Create(
       Adc1ConversionId::V_BATTERY,                           // Conversion ID
       etl::array_view<const Adc1Sensor>(v_battery_sensors),  // Sensor(s)/channel definition
       v_battery_buffer,                                      // ADC sampple/data buffer
@@ -128,7 +128,7 @@ void SaboRobot::RegisterAdc1Sensors() {
   static const Adc1Sensor i_dcdc_sensors[] = {{.channel = ADC_CHANNEL_IN18, .sample_rate = ADC_SMPR_SMP_16P5}};
   static adcsample_t i_dcdc_buffer[sizeof(i_dcdc_sensors) / sizeof(i_dcdc_sensors[0])];
   // Create ADC conversion group and place sensor(s)
-  static const Adc1ConversionGroup i_dcdc_cg = Adc1ConversionGroup::Create(
+  static Adc1ConversionGroup i_dcdc_cg = Adc1ConversionGroup::Create(
       Adc1ConversionId::I_IN_DCDC,                        // Conversion ID
       etl::array_view<const Adc1Sensor>(i_dcdc_sensors),  // Sensor(s)/channel definition
       i_dcdc_buffer,                                      // ADC sampple/data buffer

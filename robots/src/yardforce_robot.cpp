@@ -54,7 +54,7 @@ void YardForceRobot::RegisterAdcSensors() {
   // V-Charge sensor (ADC_CHANNEL_IN15)
   static const Adc1Sensor v_charge_sensors[] = {{.channel = ADC_CHANNEL_IN15, .sample_rate = ADC_SMPR_SMP_16P5}};
   static adcsample_t v_charge_buffer[sizeof(v_charge_sensors) / sizeof(v_charge_sensors[0])];
-  static const Adc1ConversionGroup v_charge_cg = Adc1ConversionGroup::Create(
+  static Adc1ConversionGroup v_charge_cg = Adc1ConversionGroup::Create(
       Adc1ConversionId::V_CHARGER, etl::array_view<const Adc1Sensor>(v_charge_sensors), v_charge_buffer,
       Resolution::BITS_16, 0, 0,
       [](const Adc1ConversionGroup* self, float vref_voltage) -> float {
@@ -72,7 +72,7 @@ void YardForceRobot::RegisterAdcSensors() {
   // V-Battery sensor (ADC_CHANNEL_IN16)
   static const Adc1Sensor v_battery_sensors[] = {{.channel = ADC_CHANNEL_IN16, .sample_rate = ADC_SMPR_SMP_16P5}};
   static adcsample_t v_battery_buffer[sizeof(v_battery_sensors) / sizeof(v_battery_sensors[0])];
-  static const Adc1ConversionGroup v_battery_cg = Adc1ConversionGroup::Create(
+  static Adc1ConversionGroup v_battery_cg = Adc1ConversionGroup::Create(
       Adc1ConversionId::V_BATTERY, etl::array_view<const Adc1Sensor>(v_battery_sensors), v_battery_buffer,
       Resolution::BITS_16, 0, 0,
       [](const Adc1ConversionGroup* self, float vref_voltage) -> float {
