@@ -125,7 +125,8 @@ class YFCoverUI : public InputDriver {
   // UNCONFIGURED = no protocol specified → UART is disabled (OnStart logs a warning).
   // OM  = OpenMower COBS-based protocol.
   // OEM = OEM protocol (reserved, not yet implemented, treated as disabled).
-  YFCoverUIProtocol protocol_ = YFCoverUIProtocol::UNCONFIGURED;
+  // Written from input-service config thread, read from comms thread → atomic.
+  etl::atomic<YFCoverUIProtocol> protocol_{YFCoverUIProtocol::UNCONFIGURED};
 
  private:
   uint8_t hall_mux_value_ = 0;  ///< 0=OM-XHST's or robot-adaptor plug, 1=OEM IDC
