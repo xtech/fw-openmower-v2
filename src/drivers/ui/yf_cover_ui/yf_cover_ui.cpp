@@ -230,66 +230,67 @@ void YFCoverUI::ThreadFunc() {
   // panel "not found" once. HandleVersion() logs "connected" if it responds first.
   const systime_t probe_start = chVTGetSystemTimeX();
 
-  // If protocol is not OM, skip all UART activity (OnStart() already stopped receive)
-  const bool uart_active = (protocol_ == YFCoverUIProtocol::OM);
-
   while (true) {
+    // If protocol is not OM, skip all UART activity (OnStart() already stopped receive)
+    if (protocol_ != YFCoverUIProtocol::OM) {
+      chThdSleepMilliseconds(100);
+      continue;
+    }
+
     // --- Wait for RX events; the 100 ms timeout keeps the periodic poll/LED timing responsive ---
-    const eventmask_t evt = chEvtWaitAnyTimeout(uart_active ? EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH : 0, TIME_MS2I(100));
+    const eventmask_t evt = chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, TIME_MS2I(100));
 
-    if (uart_active) {
-      // --- Drain newly received DMA bytes ---
-      // EVT_RX_DMA_WRAP signals that rxend_cb fired and re-armed the DMA buffer.
-      // Handle the wrap explicitly from the event rather than inferring it from NDTR: by the time
-      // NDTR is read, re-arming has already reset it, so received_so_far >= rx_seen_len_ even
-      // after a wrap, making the NDTR-delta inference unreliable.
+    // --- Drain newly received DMA bytes ---
+    // EVT_RX_DMA_WRAP signals that rxend_cb fired and re-armed the DMA buffer.
+    // Handle the wrap explicitly from the event rather than inferring it from NDTR: by the time
+    // NDTR is read, re-arming has already reset it, so received_so_far >= rx_seen_len_ even
+    // after a wrap, making the NDTR-delta inference unreliable.
 
-      if (evt & EVT_RX_DMA_WRAP) {
-        ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, DMA_RX_BUFFER_SIZE - rx_seen_len_);
-        rx_seen_len_ = 0;
+    if (evt & EVT_RX_DMA_WRAP) {
+      ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, DMA_RX_BUFFER_SIZE - rx_seen_len_);
+      rx_seen_len_ = 0;
+    }
+    const uint32_t ndtr_now = uart_->dmarx->stream->NDTR;
+    if (ndtr_now <= DMA_RX_BUFFER_SIZE) {
+      const size_t received_so_far = DMA_RX_BUFFER_SIZE - ndtr_now;
+      if (received_so_far > rx_seen_len_) {
+        ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, received_so_far - rx_seen_len_);
+        rx_seen_len_ = received_so_far;
       }
-      const uint32_t ndtr_now = uart_->dmarx->stream->NDTR;
-      if (ndtr_now <= DMA_RX_BUFFER_SIZE) {
-        const size_t received_so_far = DMA_RX_BUFFER_SIZE - ndtr_now;
-        if (received_so_far > rx_seen_len_) {
-          ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, received_so_far - rx_seen_len_);
-          rx_seen_len_ = received_so_far;
-        }
-      }
+    }
 
-      // --- Startup presence verdict (logged exactly once) ---
-      if (!presence_determined_.load() && !ui_present_.load() &&
-          chVTTimeElapsedSinceX(probe_start) >= TIME_MS2I(PRESENCE_PROBE_MS)) {
-        ULOG_WARNING("yf_cover_ui not found");
-        presence_determined_.store(true);
-      }
+    // --- Startup presence verdict (logged exactly once) ---
+    if (!presence_determined_.load() && !ui_present_.load() &&
+        chVTTimeElapsedSinceX(probe_start) >= TIME_MS2I(PRESENCE_PROBE_MS)) {
+      ULOG_WARNING("yf_cover_ui not found");
+      presence_determined_.store(true);
+    }
 
-      // --- Version timeout ---
-      // HandleVersion() clears version_pending_ as soon as a reply arrives, so this only
-      // fires when the panel genuinely failed to answer the last poll.
-      if (version_pending_ && chVTTimeElapsedSinceX(version_request) >= TIME_MS2I(VERSION_TIMEOUT_MS)) {
-        if (ui_available_.load()) {
-          ULOG_INFO("YFCoverUI: UI timeout, marking unavailable");
-          ui_available_.store(false);
-          emergency_state_.store(0);
-          UpdateEmergencyInputs();
-        }
-        version_pending_ = false;
+    // --- Version timeout ---
+    // HandleVersion() clears version_pending_ as soon as a reply arrives, so this only
+    // fires when the panel genuinely failed to answer the last poll.
+    if (version_pending_ && chVTTimeElapsedSinceX(version_request) >= TIME_MS2I(VERSION_TIMEOUT_MS)) {
+      if (ui_available_.load()) {
+        ULOG_INFO("YFCoverUI: UI timeout, marking unavailable");
+        ui_available_.store(false);
+        emergency_state_.store(0);
+        UpdateEmergencyInputs();
       }
+      version_pending_ = false;
+    }
 
-      // --- Periodic version poll (every 5 s) ---
-      if (chVTTimeElapsedSinceX(last_version_poll) >= TIME_MS2I(VERSION_POLL_MS)) {
-        SendVersionRequest();
-        last_version_poll = chVTGetSystemTimeX();
-        version_request = last_version_poll;
-        version_pending_ = true;
-      }
+    // --- Periodic version poll (every 5 s) ---
+    if (chVTTimeElapsedSinceX(last_version_poll) >= TIME_MS2I(VERSION_POLL_MS)) {
+      SendVersionRequest();
+      last_version_poll = chVTGetSystemTimeX();
+      version_request = last_version_poll;
+      version_pending_ = true;
+    }
 
-      // --- Periodic LED update ---
-      if (chVTTimeElapsedSinceX(last_led_update) >= TIME_MS2I(ui_interval_)) {
-        SendLeds();
-        last_led_update = chVTGetSystemTimeX();
-      }
+    // --- Periodic LED update ---
+    if (chVTTimeElapsedSinceX(last_led_update) >= TIME_MS2I(ui_interval_)) {
+      SendLeds();
+      last_led_update = chVTGetSystemTimeX();
     }
   }
 }
