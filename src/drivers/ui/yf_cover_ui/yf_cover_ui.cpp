@@ -138,36 +138,49 @@ bool YFCoverUI::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key,
     return true;
   }
 
-  // Global driver configuration (flat keys, order-independent).
-  // YF_FLAG_PROTOCOL / YF_FLAG_HALL_MUX are set on the Input so that
-  // UpdateEmergencyInputs() skips these setup-only entries.
-  if (strcmp(key, "protocol") == 0) {
+  // Global driver configuration.
+  // id/value pair: id identifies which setting, value provides the parameter.
+  if (strcmp(key, "id") == 0) {
     JsonExpectType(STRING);
-    input.yf_cover_ui.flags |= Input::YF_FLAG_PROTOCOL;
-    if (strcmp(jsp->data.str.buff, "om") == 0) {
-      protocol_.store(YFCoverUIProtocol::OM);
+    if (strcmp(jsp->data.str.buff, "hall_mux") == 0) {
+      input.yf_cover_ui.flags |= Input::YF_FLAG_HALL_MUX;
       return true;
     }
-    if (strcmp(jsp->data.str.buff, "oem") == 0) {
-      protocol_.store(YFCoverUIProtocol::OEM);
-      ULOG_WARNING("YFCoverUI: OEM protocol not yet implemented, disabling UART");
+    if (strcmp(jsp->data.str.buff, "protocol") == 0) {
+      input.yf_cover_ui.flags |= Input::YF_FLAG_PROTOCOL;
       return true;
     }
-    ULOG_ERROR("YFCoverUI: unknown protocol value \"%s\"", jsp->data.str.buff);
+    ULOG_ERROR("YFCoverUI: unknown id \"%s\"", jsp->data.str.buff);
     return false;
   }
-  if (strcmp(key, "hall_mux") == 0) {
+  if (strcmp(key, "value") == 0) {
     JsonExpectType(STRING);
-    input.yf_cover_ui.flags |= Input::YF_FLAG_HALL_MUX;
-    if (strcmp(jsp->data.str.buff, "om") == 0) {
-      hall_mux_value_ = 0;
-      return true;
+    if (input.yf_cover_ui.flags & Input::YF_FLAG_PROTOCOL) {
+      if (strcmp(jsp->data.str.buff, "om") == 0) {
+        protocol_.store(YFCoverUIProtocol::OM);
+        return true;
+      }
+      if (strcmp(jsp->data.str.buff, "oem") == 0) {
+        protocol_.store(YFCoverUIProtocol::OEM);
+        ULOG_WARNING("YFCoverUI: OEM protocol not yet implemented, disabling UART");
+        return true;
+      }
+      ULOG_ERROR("YFCoverUI: unknown protocol value \"%s\"", jsp->data.str.buff);
+      return false;
+    } else if (input.yf_cover_ui.flags & Input::YF_FLAG_HALL_MUX) {
+      if (strcmp(jsp->data.str.buff, "om") == 0) {
+        hall_mux_value_ = 0;
+        return true;
+      }
+      if (strcmp(jsp->data.str.buff, "oem_idc") == 0) {
+        hall_mux_value_ = 1;
+        return true;
+      }
+      ULOG_ERROR("YFCoverUI: unknown hall_mux value \"%s\"", jsp->data.str.buff);
+      return false;
     }
-    if (strcmp(jsp->data.str.buff, "oem_idc") == 0) {
-      hall_mux_value_ = 1;
-      return true;
-    }
-    ULOG_ERROR("YFCoverUI: unknown hall_mux value \"%s\"", jsp->data.str.buff);
+    // "value" parsed before "id" — flags not set yet
+    ULOG_ERROR("YFCoverUI: id not set before value");
     return false;
   }
   ULOG_ERROR("YFCoverUI: unknown attribute \"%s\"", key);
