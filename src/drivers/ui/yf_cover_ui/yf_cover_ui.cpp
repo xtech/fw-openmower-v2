@@ -189,7 +189,7 @@ bool YFCoverUI::OnStart() {
     if (protocol_ == YFCoverUIProtocol::UNCONFIGURED) {
       ULOG_WARNING("YFCoverUI: no protocol configured, disabling UART");
     }
-    uartStopReceive(uart_);
+    if (uart_ != nullptr) uartStopReceive(uart_);
   }
 
   // Always set MUX for v1.2.0+ (even if no hall_mux was configured, default to OM-XHST/robot-adaptor plug)
