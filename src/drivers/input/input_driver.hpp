@@ -17,8 +17,15 @@ struct Input {
   // Configuration
   uint8_t idx;
   bool invert = false;
+  uint8_t redundancy_group = 0;  // Multiple inputs can be grouped together to form a single logical input
   uint16_t emergency_reason = 0;
   uint16_t emergency_delay_ms = 0;
+
+  enum YFCoverUIFlags : uint8_t {
+    YF_FLAG_NONE = 0,             ///< Default emergency/button input channel
+    YF_FLAG_HALL_MUX = (1 << 0),  ///< Hall MUX setup entry
+    YF_FLAG_PROTOCOL = (1 << 1),  ///< Protocol selection entry
+  };
 
   union {
     struct {
@@ -40,6 +47,7 @@ struct Input {
 
     struct {
       uint8_t channel;  ///< YFCoverUIChannel value: bit 7=button flag, bits[6:0]=button_id or emergency bit
+      uint8_t flags;    ///< YFCoverUIFlags bitmask
     } yf_cover_ui;
   };
 

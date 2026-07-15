@@ -20,8 +20,9 @@ uint32_t EmergencyService::OnLoop(uint32_t now_micros, uint32_t) {
 }
 
 uint32_t EmergencyService::CheckInputs(uint32_t now) {
-  constexpr uint16_t potential_reasons =
-      EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::LIFT_MULTIPLE | EmergencyReason::COLLISION;
+  constexpr uint16_t potential_reasons = EmergencyReason::STOP | EmergencyReason::LIFT |
+                                         EmergencyReason::LIFT_MULTIPLE | EmergencyReason::COLLISION |
+                                         EmergencyReason::COLLISION_MULTIPLE;
   auto [reasons, block_time] = input_service.GetEmergencyReasons(now);
   UpdateEmergency(reasons, potential_reasons);
   return block_time;

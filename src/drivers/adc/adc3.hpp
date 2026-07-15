@@ -81,6 +81,12 @@ uint16_t WaitForConversion();
 float GetVrefVoltage(uint16_t raw_value);
 
 /**
+ * @brief Get the last measured VREF voltage (VDDA)
+ * @return Last VDDA voltage in volts, or NaN if never measured
+ */
+float GetLastVref();
+
+/**
  * @brief Acquire ADC3 mutex for exclusive access
  * @note Must be called before using ADC3
  */

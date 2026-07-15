@@ -15,6 +15,7 @@
 
 #include <EmergencyServiceBase.hpp>
 #include <HighLevelServiceBase.hpp>
+#include <globals.hpp>
 #include <json_stream.hpp>
 #include <services.hpp>
 
@@ -29,6 +30,8 @@ using namespace xbot::driver::input;
 static constexpr uint32_t VERSION_POLL_MS = 5000;    ///< How often to poll UI version
 static constexpr uint32_t VERSION_TIMEOUT_MS = 250;  ///< How long to wait for version reply
 static constexpr uint32_t LED_UPDATE_INTERVAL_DEFAULT_MS = 1000;
+
+static const ioline_t HALL_MUX_LINE = LINE_GPIO7;  ///< Hall- MUX selector GPIO
 
 // Events signaled from the UART ISRs to the comms thread.
 static constexpr eventmask_t EVT_RX_DMA_WRAP = (1U << 0);    ///< DMA receive buffer full / wrapped
@@ -134,8 +137,80 @@ bool YFCoverUI::OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key,
     input.yf_cover_ui.channel = static_cast<uint8_t>(YFCoverUIChannel::BUTTON_FLAG) | (button_id & 0x7F);
     return true;
   }
+
+  // Global driver configuration.
+  // id/value pair: id identifies which setting, value provides the parameter.
+  if (strcmp(key, "id") == 0) {
+    JsonExpectType(STRING);
+    if (strcmp(jsp->data.str.buff, "hall_mux") == 0) {
+      input.yf_cover_ui.flags |= Input::YF_FLAG_HALL_MUX;
+      return true;
+    }
+    if (strcmp(jsp->data.str.buff, "protocol") == 0) {
+      input.yf_cover_ui.flags |= Input::YF_FLAG_PROTOCOL;
+      return true;
+    }
+    ULOG_ERROR("YFCoverUI: unknown id \"%s\"", jsp->data.str.buff);
+    return false;
+  }
+  if (strcmp(key, "value") == 0) {
+    JsonExpectType(STRING);
+    if (input.yf_cover_ui.flags & Input::YF_FLAG_PROTOCOL) {
+      if (strcmp(jsp->data.str.buff, "om") == 0) {
+        protocol_.store(YFCoverUIProtocol::OM);
+        return true;
+      }
+      if (strcmp(jsp->data.str.buff, "oem") == 0) {
+        protocol_.store(YFCoverUIProtocol::OEM);
+        ULOG_WARNING("YFCoverUI: OEM protocol not yet implemented, disabling UART");
+        return true;
+      }
+      ULOG_ERROR("YFCoverUI: unknown protocol value \"%s\"", jsp->data.str.buff);
+      return false;
+    } else if (input.yf_cover_ui.flags & Input::YF_FLAG_HALL_MUX) {
+      if (strcmp(jsp->data.str.buff, "om") == 0) {
+        hall_mux_value_ = 0;
+        return true;
+      }
+      if (strcmp(jsp->data.str.buff, "oem_idc") == 0) {
+        hall_mux_value_ = 1;
+        return true;
+      }
+      ULOG_ERROR("YFCoverUI: unknown hall_mux value \"%s\"", jsp->data.str.buff);
+      return false;
+    }
+    // "value" parsed before "id" — flags not set yet
+    ULOG_ERROR("YFCoverUI: id not set before value");
+    return false;
+  }
   ULOG_ERROR("YFCoverUI: unknown attribute \"%s\"", key);
   return false;
+}
+
+bool YFCoverUI::OnStart() {
+  const bool is_pre_v120 = carrier_board_info.version_major < 1 ||
+                           (carrier_board_info.version_major == 1 && carrier_board_info.version_minor < 2);
+
+  // Refuse OEM IDC on pre-1.2.0 boards that don't have the MUX hardware
+  if (is_pre_v120 && hall_mux_value_ != 0) {
+    ULOG_ERROR("YFCoverUI: hall_mux is set to OEM IDC but carrier board is pre v1.2.0 and don't have the MUX hardware");
+    return false;
+  }
+
+  // Enforce protocol configuration: must be explicitly set to "om" for UART to operate
+  if (protocol_ != YFCoverUIProtocol::OM) {
+    if (protocol_ == YFCoverUIProtocol::UNCONFIGURED) {
+      ULOG_WARNING("YFCoverUI: no protocol configured, disabling UART");
+    }
+    if (uart_ != nullptr) uartStopReceive(uart_);
+  }
+
+  // Always set MUX for v1.2.0+ (even if no hall_mux was configured, default to OM-XHST/robot-adaptor plug)
+  if (!is_pre_v120) {
+    palSetLineMode(HALL_MUX_LINE, PAL_MODE_OUTPUT_PUSHPULL);
+    palWriteLine(HALL_MUX_LINE, hall_mux_value_);
+  }
+  return true;
 }
 
 // ============================================================================
@@ -157,6 +232,12 @@ void YFCoverUI::ThreadFunc() {
   const systime_t probe_start = chVTGetSystemTimeX();
 
   while (true) {
+    // If protocol is not OM, skip all UART activity (OnStart() already stopped receive)
+    if (protocol_ != YFCoverUIProtocol::OM) {
+      chThdSleepMilliseconds(100);
+      continue;
+    }
+
     // --- Wait for RX events; the 100 ms timeout keeps the periodic poll/LED timing responsive ---
     const eventmask_t evt = chEvtWaitAnyTimeout(EVT_RX_DMA_WRAP | EVT_RX_CHAR_MATCH, TIME_MS2I(100));
 
@@ -165,6 +246,7 @@ void YFCoverUI::ThreadFunc() {
     // Handle the wrap explicitly from the event rather than inferring it from NDTR: by the time
     // NDTR is read, re-arming has already reset it, so received_so_far >= rx_seen_len_ even
     // after a wrap, making the NDTR-delta inference unreliable.
+
     if (evt & EVT_RX_DMA_WRAP) {
       ProcessRxBytes(dma_rx_buffer_ + rx_seen_len_, DMA_RX_BUFFER_SIZE - rx_seen_len_);
       rx_seen_len_ = 0;
@@ -181,11 +263,11 @@ void YFCoverUI::ThreadFunc() {
     // --- Startup presence verdict (logged exactly once) ---
     if (!presence_determined_.load() && !ui_present_.load() &&
         chVTTimeElapsedSinceX(probe_start) >= TIME_MS2I(PRESENCE_PROBE_MS)) {
-      ULOG_WARNING("yf_cover_ui not found - ignoring all CoverUI messages from ROS");
+      ULOG_WARNING("yf_cover_ui not found");
       presence_determined_.store(true);
     }
 
-    // --- Version timeout: mark UI unavailable if no response within VERSION_TIMEOUT_MS ---
+    // --- Version timeout ---
     // HandleVersion() clears version_pending_ as soon as a reply arrives, so this only
     // fires when the panel genuinely failed to answer the last poll.
     if (version_pending_ && chVTTimeElapsedSinceX(version_request) >= TIME_MS2I(VERSION_TIMEOUT_MS)) {
@@ -489,6 +571,8 @@ void YFCoverUI::HandleSubscribe(const msg_event_subscribe* msg) {
 void YFCoverUI::UpdateEmergencyInputs() {
   const uint8_t state = emergency_state_.load();
   for (auto& input : Inputs()) {
+    if (input.yf_cover_ui.flags & (Input::YF_FLAG_HALL_MUX | Input::YF_FLAG_PROTOCOL))
+      continue;  // skip setup-only entries
     const uint8_t ch = input.yf_cover_ui.channel;
     if (!YFCoverUIChannelIsButton(ch)) {
       // Emergency channel (bit 7 = 0) — update based on corresponding bit in state

@@ -119,8 +119,17 @@ class YFCoverUI : public InputDriver {
    */
   bool OnInputConfigValue(lwjson_stream_parser_t* jsp, const char* key, lwjson_stream_type_t type,
                           Input& input) override;
+  bool OnStart() override;
+
+  // Protocol selection: must be configured via the "protocol" input config key.
+  // UNCONFIGURED = no protocol specified → UART is disabled (OnStart logs a warning).
+  // OM  = OpenMower COBS-based protocol.
+  // OEM = OEM protocol (reserved, not yet implemented, treated as disabled).
+  // Written from input-service config thread, read from comms thread → atomic.
+  etl::atomic<YFCoverUIProtocol> protocol_{YFCoverUIProtocol::UNCONFIGURED};
 
  private:
+  uint8_t hall_mux_value_ = 0;  ///< 0=OM-XHST's or robot-adaptor plug, 1=OEM IDC
   // Extend the UART config with a back-pointer to this instance so the (static) UART
   // ISR callbacks can recover the owning driver from uartp->config.
   struct UARTConfigEx : UARTConfig {

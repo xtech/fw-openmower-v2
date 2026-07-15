@@ -23,6 +23,14 @@
 #include <cmath>
 #include <cstdint>
 
+// ---- Protocol selection ----
+
+enum class YFCoverUIProtocol : uint8_t {
+  UNCONFIGURED = 0,  ///< No protocol configured — UART will be disabled in OnStart()
+  OM = 1,            ///< OpenMower COBS-based protocol (custom or MODded OEM CoverUI)
+  OEM = 2,           ///< OEM protocol (not yet implemented — treated as disabled)
+};
+
 // ---- Message type identifiers ----
 
 enum YFCoverUIType : uint8_t {
