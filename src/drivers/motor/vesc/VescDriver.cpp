@@ -78,8 +78,9 @@ void VescDriver::ProcessPayload() {
       index += 4;                      // Skip 4 bytes - mc_interface_read_reset_avg_id()
       index += 4;                      // Skip 4 bytes - mc_interface_read_reset_avg_iq()
       latest_state_.duty_cycle = buffer_get_float16(message, 1000.0,
-                                                    &index);         // 2 bytes - mc_interface_get_duty_cycle_now()
-      latest_state_.rpm = buffer_get_float32(message, 1.0, &index);  // 4 bytes - mc_interface_get_rpm()
+                                                    &index);  // 2 bytes - mc_interface_get_duty_cycle_now()
+      // mc_interface_get_rpm() returns electrical RPM. Convert to mechanical RPM using motor pole count.
+      latest_state_.rpm = buffer_get_float32(message, 1.0, &index) / (si_motor_poles_ / 2.0f);
       latest_state_.voltage_input = buffer_get_float16(message, 10.0, &index);  // 2 bytes - GET_INPUT_VOLTAGE()
       index += 4;  // 4 bytes - mc_interface_get_amp_hours(false)
       index += 4;  // 4 bytes - mc_interface_get_amp_hours_charged(false)
@@ -96,6 +97,12 @@ void VescDriver::ProcessPayload() {
       index += 4;  // 4 bytes - mc_interface_get_pid_pos_now()
       latest_state_.direction = latest_state_.rpm < 0;
       break;
+    case COMM_GET_MCCONF_TEMP: {
+      // message[0..39] = 10× float32_auto fields, message[40] = si_motor_poles
+      si_motor_poles_ = message[40];
+      mcconf_temp_received_ = true;
+      break;
+    }
     default:
       // ignore
       break;
@@ -193,6 +200,18 @@ void VescDriver::RequestStatus() {
   chMtxUnlock(&mutex_);
 }
 
+void VescDriver::RequestMcConfTemp() {
+  if (IsRawMode()) {
+    return;
+  }
+  chMtxLock(&mutex_);
+  payload_buffer_.payload_length = 1;
+  payload_buffer_.payload[0] = COMM_GET_MCCONF_TEMP;
+  SendPacket();
+  chEvtSignal(processing_thread_, EVT_ID_EXPECT_PACKET);
+  chMtxUnlock(&mutex_);
+}
+
 void VescDriver::SetDuty(float duty) {
   if (IsRawMode()) {
     // ignore when a raw data stream is connected
@@ -269,6 +288,9 @@ bool VescDriver::Start() {
 }
 
 void VescDriver::threadFunc() {
+  // Request motor configuration (pole count) from ESC for correct RPM conversion
+  RequestMcConfTemp();
+
   bool expects_packet = false;
   uint32_t last_ndtr = 0;
   while (IsStarted()) {

@@ -23,6 +23,7 @@ class VescDriver : public DebuggableDriver, public MotorDriver {
 
   bool SetUART(UARTDriver *uart, uint32_t baudrate);
   void RequestStatus() override;
+  void RequestMcConfTemp();
   void SetDuty(float duty) override;
 
   void RawDataInput(uint8_t *data, size_t size) override;
@@ -49,6 +50,11 @@ class VescDriver : public DebuggableDriver, public MotorDriver {
   THD_WORKING_AREA(thd_wa_, 1024){};
   // Milliseconds for automatic status requests. 0 to disable
   uint32_t status_request_millis_ = 0;
+
+  // Motor pole count from ESC config. Default 2 (1 pole pair) = no conversion.
+  uint8_t si_motor_poles_ = 2;
+  // Whether we've received the mcconf_temp from ESC
+  bool mcconf_temp_received_ = false;
 
   // Extend the config struct by a pointer to this instance, so that we can access it in callbacks.
   struct UARTConfigEx : UARTConfig {
