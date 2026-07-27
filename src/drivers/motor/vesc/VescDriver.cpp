@@ -7,6 +7,7 @@
 #include "buffer.h"
 #include "crc.h"
 #include "datatypes.h"
+#include "ulog.h"
 
 static constexpr uint32_t EVT_ID_RECEIVED = 1;
 static constexpr uint32_t EVT_ID_EXPECT_PACKET = 2;
@@ -79,8 +80,8 @@ void VescDriver::ProcessPayload() {
       index += 4;                      // Skip 4 bytes - mc_interface_read_reset_avg_iq()
       latest_state_.duty_cycle = buffer_get_float16(message, 1000.0,
                                                     &index);  // 2 bytes - mc_interface_get_duty_cycle_now()
-      // mc_interface_get_rpm() returns electrical RPM. Convert to mechanical RPM using motor pole count.
-      latest_state_.rpm = buffer_get_float32(message, 1.0, &index) / (si_motor_poles_ / 2.0f);
+      // mc_interface_get_rpm() returns electrical RPM. Convert to mechanical RPM using motor pole pairs.
+      latest_state_.rpm = buffer_get_float32(message, 1.0, &index) / si_motor_pole_pairs_;
       latest_state_.voltage_input = buffer_get_float16(message, 10.0, &index);  // 2 bytes - GET_INPUT_VOLTAGE()
       index += 4;  // 4 bytes - mc_interface_get_amp_hours(false)
       index += 4;  // 4 bytes - mc_interface_get_amp_hours_charged(false)
@@ -99,8 +100,14 @@ void VescDriver::ProcessPayload() {
       break;
     case COMM_GET_MCCONF_TEMP: {
       // message[0..39] = 10× float32_auto fields, message[40] = si_motor_poles
-      si_motor_poles_ = message[40];
-      mcconf_temp_received_ = true;
+      // Validate: must be an even number in plausible range (2..20 poles)
+      uint8_t raw_poles = message[40];
+      if (raw_poles >= 2 && raw_poles <= 20 && (raw_poles % 2 == 0)) {
+        si_motor_pole_pairs_ = raw_poles / 2;
+        mcconf_temp_received_ = true;
+      } else {
+        ULOG_WARNING("VESC: Invalid pole count %u from ESC (expected 2..20, even). Using default 1 pair.", raw_poles);
+      }
       break;
     }
     default:
@@ -246,6 +253,11 @@ bool VescDriver::Start() {
   if (IsStarted()) {
     return false;
   }
+
+  // Reset pole pair count to default on (re)start, will be updated once COMM_GET_MCCONF_TEMP response arrives.
+  si_motor_pole_pairs_ = 1;
+  mcconf_temp_received_ = false;
+
   bool uartStarted = uartStart(uart_, &uart_config_) == MSG_OK;
   if (!uartStarted) {
     return false;
@@ -288,12 +300,19 @@ bool VescDriver::Start() {
 }
 
 void VescDriver::threadFunc() {
-  // Request motor configuration (pole count) from ESC for correct RPM conversion
-  RequestMcConfTemp();
-
   bool expects_packet = false;
   uint32_t last_ndtr = 0;
+  systime_t last_mcconf_request = 0;
   while (IsStarted()) {
+    // Request motor configuration (pole count) from ESC if we haven't received a valid pole count yet
+    if (!mcconf_temp_received_) {
+      systime_t now = chVTGetSystemTimeX();
+      if (TIME_I2MS(now - last_mcconf_request) >= 1000) {
+        RequestMcConfTemp();
+        last_mcconf_request = now;
+      }
+    }
+
     uint32_t events;
     if (expects_packet) {
       // read with timeout, so that if the packet is too short to fill the whole buffer (and thereby interrupting this),

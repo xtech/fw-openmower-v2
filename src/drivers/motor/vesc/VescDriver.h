@@ -51,8 +51,8 @@ class VescDriver : public DebuggableDriver, public MotorDriver {
   // Milliseconds for automatic status requests. 0 to disable
   uint32_t status_request_millis_ = 0;
 
-  // Motor pole count from ESC config. Default 2 (1 pole pair) = no conversion.
-  uint8_t si_motor_poles_ = 2;
+  // Motor pole pair count from ESC config. Default 1 (2 poles)
+  uint8_t si_motor_pole_pairs_ = 1;
   // Whether we've received the mcconf_temp from ESC
   bool mcconf_temp_received_ = false;
 
