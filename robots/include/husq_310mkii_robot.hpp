@@ -26,7 +26,7 @@ class husq310MKIIRobot : public MowerRobot {
   }
 
   float Power_GetDefaultChargeCurrent() override {
-    return 0.5f;
+    return 1.0f;
   }
 
   float Power_GetAbsoluteMinVoltage() override {
@@ -34,7 +34,7 @@ class husq310MKIIRobot : public MowerRobot {
   }
 
   float Power_GetMaxChargeCurrent() override {
-    return 0.5f;
+    return 1.0f;
   }
 
  private:
