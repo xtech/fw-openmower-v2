@@ -100,8 +100,9 @@ void VescDriver::ProcessPayload() {
       break;
     case COMM_GET_MCCONF_TEMP: {
       // message[0..39] = 10× float32_auto fields, message[40] = si_motor_poles
-      // Validate: must be an even number in plausible range (2..20 poles)
+      if (payload_length < 42) break;
       uint8_t raw_poles = message[40];
+      // Validate: must be an even number in plausible range (2..20 poles)
       if (raw_poles >= 2 && raw_poles <= 20 && (raw_poles % 2 == 0)) {
         si_motor_pole_pairs_ = raw_poles / 2;
         mcconf_temp_received_ = true;
