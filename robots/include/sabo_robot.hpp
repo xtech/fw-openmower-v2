@@ -88,6 +88,10 @@ class SaboRobot : public MowerRobot {
 
   bool SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) override;
 
+  float GetMowerMaxSafeRpm() override {
+    return 3000.0f;  // Stock RPM is 2600. All above 3000 RPM becomes dangerous!
+  }
+
   // ----- Some driver Test* functions used by Boot-Screen -----
 
   bool TestCharger() {

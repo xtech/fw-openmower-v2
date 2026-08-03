@@ -64,6 +64,9 @@ class MowerService : public MowerServiceBase {
   bool duty_sent_ = false;
   etl::atomic<bool> esc_ever_connected_{false};
   MotorDriver* mower_driver_ = nullptr;
+
+  // RPM safety limit from robot config. NAN = disabled.
+  float mower_max_safe_rpm_ = std::numeric_limits<float>::quiet_NaN();
 };
 
 #endif  // MOWER_SERVICE_HPP
