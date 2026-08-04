@@ -88,8 +88,7 @@ void MowerService::tick() {
     SendMowerStatus(static_cast<uint8_t>(esc_state_.status));
     SendMowerMotorTemperature(esc_state_.temperature_motor);
     SendMowerRunning(std::fabs(esc_state_.rpm) > 0);
-    // Sign by measured direction; not sign(rpm) (YFR4esc reports unsigned rpm).
-    SendMowerMotorRPM(esc_state_.direction > 0.5f ? -std::fabs(esc_state_.rpm) : std::fabs(esc_state_.rpm));
+    SendMowerMotorRPM(esc_state_.rpm);
   }
   CommitTransaction();
 
