@@ -138,6 +138,10 @@ void MowerService::OnMowerSpeedChanged(const float& new_value) {
     // Stop immediately (aborts any ramp).
     ramping_ = false;
     mower_duty_ = 0.0f;
+  } else if (ramping_ && !reversal_under_load) {
+    // Cancel ramp: new command matches current ESC direction, apply immediately.
+    ramping_ = false;
+    mower_duty_ = target;
   } else if (!ramping_ && reversal_under_load) {
     // Reversal while spinning: ramp it in tick() instead of snapping.
     ramping_ = true;
