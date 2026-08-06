@@ -59,14 +59,9 @@ void MowerService::tick() {
     } else {
       mower_duty_ += (delta > 0.0f) ? max_step : -max_step;
     }
-    duty_sent_ = false;  // force this step out even if a command already sent this tick
   }
 
-  if (!duty_sent_) {
-    // Send motor speed to VESC, if we havent in the meantime
-    // (e.g. due to new value or emergency)
-    SetDuty();
-  }
+  SetDuty();
 
   mower_driver_->RequestStatus();
 
@@ -95,7 +90,6 @@ void MowerService::tick() {
   }
   CommitTransaction();
 
-  duty_sent_ = false;
   chMtxUnlock(&mtx);
 }
 
@@ -124,12 +118,17 @@ void MowerService::ESCCallback(const MotorDriver::ESCState& state) {
 void MowerService::SetDuty() {
   // Get the current emergency state
   bool emergency = emergency_service.GetEmergencyReasons() != 0;
-  if (emergency) {
-    mower_driver_->SetDuty(0);
-  } else {
-    mower_driver_->SetDuty(mower_duty_);
+  float duty_to_send = emergency ? 0.0f : mower_duty_;
+
+  // During emergency, keep sending duty=0 as long as the motor is still
+  // spinning, to ensure the stop command is not lost. Once the motor
+  // actually stops (RPM <= 60), normal dedup logic applies.
+  bool emergency_still_spinning = emergency && std::abs(esc_state_.rpm) > 60.0f;
+
+  if (emergency_still_spinning || duty_to_send != last_sent_duty_) {
+    mower_driver_->SetDuty(duty_to_send);
+    last_sent_duty_ = duty_to_send;
   }
-  duty_sent_ = true;
 }
 
 void MowerService::OnMowerSpeedChanged(const float& new_value) {
@@ -166,7 +165,7 @@ void MowerService::OnMowerSpeedChanged(const float& new_value) {
     mower_duty_ = target;
   }
 
-  if (!ramping_ && !duty_sent_) {
+  if (!ramping_) {
     SetDuty();
   }
   chMtxUnlock(&mtx);
