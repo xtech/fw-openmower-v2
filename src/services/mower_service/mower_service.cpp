@@ -126,6 +126,8 @@ void MowerService::SetDuty() {
   bool emergency_still_spinning = emergency && std::abs(esc_state_.rpm) > 60.0f;
 
   if (emergency_still_spinning || duty_to_send != last_sent_duty_) {
+    ULOG_INFO("SetDuty: sending %.3f (mower_duty=%.3f, emergency=%d, spin=%d, rpm=%.0f, last=%.3f)", duty_to_send,
+              mower_duty_, emergency, emergency_still_spinning, esc_state_.rpm, last_sent_duty_);
     mower_driver_->SetDuty(duty_to_send);
     last_sent_duty_ = duty_to_send;
   }
