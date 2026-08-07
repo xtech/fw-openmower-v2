@@ -120,17 +120,9 @@ void MowerService::SetDuty() {
   bool emergency = emergency_service.GetEmergencyReasons() != 0;
   float duty_to_send = emergency ? 0.0f : mower_duty_;
 
-  // During emergency, keep sending duty=0 as long as the motor is still
-  // spinning, to ensure the stop command is not lost. Once the motor
-  // actually stops (RPM <= 60), normal dedup logic applies.
-  bool emergency_still_spinning = emergency && std::abs(esc_state_.rpm) > 60.0f;
-
-  if (emergency_still_spinning || duty_to_send != last_sent_duty_) {
-    ULOG_INFO("SetDuty: sending %.3f (mower_duty=%.3f, emergency=%d, spin=%d, rpm=%.0f, last=%.3f)", duty_to_send,
-              mower_duty_, emergency, emergency_still_spinning, esc_state_.rpm, last_sent_duty_);
-    mower_driver_->SetDuty(duty_to_send);
-    last_sent_duty_ = duty_to_send;
-  }
+  ULOG_INFO("SetDuty: sending %.3f (mower_duty=%.3f, emergency=%d, rpm=%.0f)", duty_to_send, mower_duty_, emergency,
+            esc_state_.rpm);
+  mower_driver_->SetDuty(duty_to_send);
 }
 
 void MowerService::OnMowerSpeedChanged(const float& new_value) {
