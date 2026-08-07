@@ -120,8 +120,6 @@ void MowerService::SetDuty() {
   bool emergency = emergency_service.GetEmergencyReasons() != 0;
   float duty_to_send = emergency ? 0.0f : mower_duty_;
 
-  ULOG_INFO("SetDuty: sending %.3f (mower_duty=%.3f, emergency=%d, rpm=%.0f)", duty_to_send, mower_duty_, emergency,
-            esc_state_.rpm);
   mower_driver_->SetDuty(duty_to_send);
 }
 
