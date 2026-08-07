@@ -105,6 +105,19 @@ class Robot {
     (void)baudrate;
     return true;
   }
+
+  /**
+   * @brief Maximum safe mechanical RPM for the mower motor.
+   *
+   * Some robots (e.g. Sabo) can reach dangerous RPMs when the VESC eRPM limit
+   * is not configured. This value defines a firmware-enforced emergency cutoff
+   * that immediately cuts mower power if exceeded.
+   *
+   * @return Mechanical RPM limit, or quiet_NaN() if no limit is needed (default).
+   */
+  virtual float GetMowerMaxSafeRpm() {
+    return std::numeric_limits<float>::quiet_NaN();
+  }
 };
 
 class MowerRobot : public Robot {

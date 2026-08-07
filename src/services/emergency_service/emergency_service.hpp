@@ -27,6 +27,8 @@ class EmergencyService : public EmergencyServiceBase {
 
   void RequireService(ServiceExt* svc);
 
+  void UpdateEmergency(uint16_t add, uint16_t clear = 0);
+
  protected:
   void OnStop() override;
   uint32_t OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
@@ -40,8 +42,6 @@ class EmergencyService : public EmergencyServiceBase {
                                    XBOT_FUNCTION_FOR_METHOD(EmergencyService, &EmergencyService::SendStatus, this)};
 
   MUTEX_DECL(mtx_);
-
-  void UpdateEmergency(uint16_t add, uint16_t clear = 0);
 
   uint16_t reasons_ = EmergencyReason::TIMEOUT_INPUTS | EmergencyReason::TIMEOUT_HIGH_LEVEL;
   uint32_t last_high_level_emergency_message_ = 0;

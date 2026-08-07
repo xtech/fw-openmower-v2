@@ -14,6 +14,9 @@ void MowerService::OnCreate() {
   mower_driver_->SetStateCallback(
       etl::delegate<void(const MotorDriver::ESCState&)>::create<MowerService, &MowerService::ESCCallback>(*this));
   mower_driver_->Start();
+
+  // Load RPM safety limit from robot configuration
+  mower_max_safe_rpm_ = robot->GetMowerMaxSafeRpm();
 }
 
 bool MowerService::OnStart() {
@@ -56,14 +59,9 @@ void MowerService::tick() {
     } else {
       mower_duty_ += (delta > 0.0f) ? max_step : -max_step;
     }
-    duty_sent_ = false;  // force this step out even if a command already sent this tick
   }
 
-  if (!duty_sent_) {
-    // Send motor speed to VESC, if we havent in the meantime
-    // (e.g. due to new value or emergency)
-    SetDuty();
-  }
+  SetDuty();
 
   mower_driver_->RequestStatus();
 
@@ -92,7 +90,6 @@ void MowerService::tick() {
   }
   CommitTransaction();
 
-  duty_sent_ = false;
   chMtxUnlock(&mtx);
 }
 
@@ -102,18 +99,28 @@ void MowerService::ESCCallback(const MotorDriver::ESCState& state) {
   esc_state_valid_ = true;
   esc_ever_connected_ = true;
   last_valid_esc_state_micros_ = xbot::service::system::getTimeMicros();
+
+  // Check RPM safety limit (robot-specific)
+  if (!std::isnan(mower_max_safe_rpm_) && std::abs(state.rpm) > mower_max_safe_rpm_) {
+    ULOG_WARNING("Mower RPM %.0f exceeds safe limit %.0f!", std::abs(state.rpm), mower_max_safe_rpm_);
+    // Cut mower power instantly
+    chMtxLock(&mtx);
+    mower_duty_ = 0;
+    mower_driver_->SetDuty(0);
+    chMtxUnlock(&mtx);
+    // Trigger emergency so the HighLevel/UI sees it
+    emergency_service.UpdateEmergency(EmergencyReason::MOWER_RPM_LIMIT);
+  }
+
   chMtxUnlock(&state_mutex_);
 }
 
 void MowerService::SetDuty() {
   // Get the current emergency state
   bool emergency = emergency_service.GetEmergencyReasons() != 0;
-  if (emergency) {
-    mower_driver_->SetDuty(0);
-  } else {
-    mower_driver_->SetDuty(mower_duty_);
-  }
-  duty_sent_ = true;
+  float duty_to_send = emergency ? 0.0f : mower_duty_;
+
+  mower_driver_->SetDuty(duty_to_send);
 }
 
 void MowerService::OnMowerSpeedChanged(const float& new_value) {
@@ -150,7 +157,7 @@ void MowerService::OnMowerSpeedChanged(const float& new_value) {
     mower_duty_ = target;
   }
 
-  if (!ramping_ && !duty_sent_) {
+  if (!ramping_) {
     SetDuty();
   }
   chMtxUnlock(&mtx);
