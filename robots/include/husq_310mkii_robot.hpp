@@ -7,8 +7,11 @@
 
 class husq310MKIIRobot : public MowerRobot {
  public:
+  static bool BoardIsCompatible();
+  static const char* FirmwareName() {
+    return "Husqvarna-310MKII";
+  }
   void InitPlatform() override;
-  bool IsHardwareSupported() override;
 
   UARTDriver* GPS_GetUartPort() override {
 #ifndef STM32_UART_USE_USART6
