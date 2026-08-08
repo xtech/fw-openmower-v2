@@ -26,8 +26,8 @@ Robot* TryAutoDetectRobot() {
 bool BoardSupportsStage2() {
   return YardForceRobot::BoardIsCompatible() || YardForce_V4Robot::BoardIsCompatible() ||
          Universal5SRobot::BoardIsCompatible() || Universal7SRobot::BoardIsCompatible() ||
-         WorxRobot::BoardIsCompatible() || Lyfco_E1600Robot::BoardIsCompatible() ||
-         husq310MKIIRobot::BoardIsCompatible();
+         Universal8SRobot::BoardIsCompatible() || WorxRobot::BoardIsCompatible() ||
+         Lyfco_E1600Robot::BoardIsCompatible() || husq310MKIIRobot::BoardIsCompatible();
 }
 
 Robot* GetRobotByName(const char* name) {
@@ -39,6 +39,8 @@ Robot* GetRobotByName(const char* name) {
     return new Universal5SRobot{};
   if (Universal7SRobot::BoardIsCompatible() && strncmp(name, Universal7SRobot::FirmwareName(), 50) == 0)
     return new Universal7SRobot{};
+  if (Universal8SRobot::BoardIsCompatible() && strncmp(name, Universal8SRobot::FirmwareName(), 50) == 0)
+    return new Universal8SRobot{};
   if (WorxRobot::BoardIsCompatible() && strncmp(name, WorxRobot::FirmwareName(), 50) == 0) return new WorxRobot{};
   if (Lyfco_E1600Robot::BoardIsCompatible() && strncmp(name, Lyfco_E1600Robot::FirmwareName(), 50) == 0)
     return new Lyfco_E1600Robot{};
