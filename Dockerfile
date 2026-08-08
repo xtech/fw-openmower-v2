@@ -27,6 +27,7 @@ RUN elf-size-analyze -H -R -t arm-none-eabi- ./build/${BUILD_PRESET}/openmower.e
 RUN elf-size-analyze -H -F -t arm-none-eabi- ./build/${BUILD_PRESET}/openmower.elf -W > build/flash-info.html
 
 FROM scratch
+ARG BUILD_PRESET=Release
 COPY --from=builder /project/build/ram-info.html /ram-info.html
 COPY --from=builder /project/build/flash-info.html /flash-info.html
 COPY --from=builder /project/build/${BUILD_PRESET}/openmower.bin /openmower.bin
