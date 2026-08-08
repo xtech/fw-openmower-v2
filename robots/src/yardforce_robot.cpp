@@ -7,8 +7,6 @@
 #include <globals.hpp>
 #include <services.hpp>
 
-#include "../include/yardforce_v4_robot.hpp"
-
 void YardForceRobot::InitPlatform() {
   InitMotors();
   charger_.setI2C(&I2CD1);
@@ -79,14 +77,4 @@ void YardForceRobot::RegisterAdcSensors() {
       },
       const_cast<float*>(&ADC_BATTERY_VOLTAGE_SCALE), EmaFilterConfig{0.3f, 0.7f, 0.5f, true});
   RegisterConversionGroup(v_battery_cg);
-}
-
-bool YardForce_V4Robot::BoardIsCompatible() {
-  return YardForceRobot::BoardIsCompatible();
-}
-
-void YardForce_V4Robot::InitMowerEsc() {
-  yfr4_mower_driver_.SetUART(&UARTD2, 115200);
-  yfr4_mower_debug_.Start();
-  mower_service.SetDriver(&yfr4_mower_driver_);
 }

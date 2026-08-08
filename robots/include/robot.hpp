@@ -128,6 +128,12 @@ class Robot {
   }
 };
 
+// TODO: Introduce a VescMowerRobot intermediate class between MowerRobot
+// and the VESC-based robots (YardForce, Universal, ...).
+// VescMowerRobot would own the mower_motor_driver_ VescDriver and
+// the default InitMowerEsc(), while YardForce_V4Robot inherits directly from
+// MowerRobot with its own YFR4 driver (both implement MotorDriver).
+// This avoids an unused VescDriver member in non-VESC mower variants.
 class MowerRobot : public Robot {
  protected:
   void InitMotors();

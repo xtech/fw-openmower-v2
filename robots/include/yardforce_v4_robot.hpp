@@ -10,11 +10,14 @@
 // Selection happens at runtime (unified binary) via BoardIsCompatible().
 class YardForce_V4Robot : public YardForceRobot {
  public:
-  static bool BoardIsCompatible();
   static const char* FirmwareName() {
     return "YardForce-V4";
   }
-  void InitMowerEsc() override;
+  void InitMowerEsc() override {
+    yfr4_mower_driver_.SetUART(&UARTD2, 115200);
+    yfr4_mower_debug_.Start();
+    mower_service.SetDriver(&yfr4_mower_driver_);
+  }
 
  private:
   xbot::driver::motor::YFR4escDriver yfr4_mower_driver_{};
