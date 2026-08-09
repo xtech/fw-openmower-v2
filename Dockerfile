@@ -23,12 +23,12 @@ RUN mkdir build
 # Share one FetchContent download/source dir so deps are fetched once.
 ENV FETCHCONTENT_BASE_DIR=/project/build/_deps
 RUN cd build && cmake .. --preset=${BUILD_PRESET} -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -B${BUILD_PRESET} && cd ${BUILD_PRESET} && make -j$(nproc)
-RUN elf-size-analyze -H -R -t arm-none-eabi- ./build/${BUILD_PRESET}/openmower.elf -W > build/ram-info.html
-RUN elf-size-analyze -H -F -t arm-none-eabi- ./build/${BUILD_PRESET}/openmower.elf -W > build/flash-info.html
+RUN elf-size-analyze -H -R -t arm-none-eabi- ./build/${BUILD_PRESET}/openmower-firmware.elf -W > build/ram-info.html
+RUN elf-size-analyze -H -F -t arm-none-eabi- ./build/${BUILD_PRESET}/openmower-firmware.elf -W > build/flash-info.html
 
 FROM scratch
 ARG BUILD_PRESET=Release
 COPY --from=builder /project/build/ram-info.html /ram-info.html
 COPY --from=builder /project/build/flash-info.html /flash-info.html
-COPY --from=builder /project/build/${BUILD_PRESET}/openmower.bin /openmower.bin
-COPY --from=builder /project/build/${BUILD_PRESET}/openmower.elf /openmower.elf
+COPY --from=builder /project/build/${BUILD_PRESET}/openmower-firmware.bin /openmower-firmware.bin
+COPY --from=builder /project/build/${BUILD_PRESET}/openmower-firmware.elf /openmower-firmware.elf

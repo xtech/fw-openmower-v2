@@ -10,5 +10,5 @@ cmake .. --preset=$PRESET
 cd $PRESET
 make -j$(nproc)
 
-cp -v openmower.elf ../../out/openmower.elf
-cp -v openmower.bin ../../out/openmower.bin
+cp -v openmower-firmware.elf ../../out/openmower-firmware.elf
+cp -v openmower-firmware.bin ../../out/openmower-firmware.bin

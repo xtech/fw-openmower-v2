@@ -10,7 +10,7 @@ set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
 set(XBOT_SERVICE_EXT "services/service_ext.hpp")
 
 # Set the project name
-set(CMAKE_PROJECT_NAME openmower)
+set(CMAKE_PROJECT_NAME openmower-firmware)
 
 # Include toolchain file
 include("cmake/gcc-arm-none-eabi.cmake")

@@ -46,8 +46,8 @@ jobs:
       - name: Copy Artifacts
         run: |
           mkdir artifacts
-          cp ./out/openmower.bin ./artifacts
-          cp ./out/openmower.elf ./artifacts
+          cp ./out/openmower-firmware.bin ./artifacts
+          cp ./out/openmower-firmware.elf ./artifacts
           cp ./out/ram-info.html ./artifacts
           cp ./out/flash-info.html ./artifacts
       - name: Upload Artifacts
