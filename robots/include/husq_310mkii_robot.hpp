@@ -9,7 +9,7 @@ class husq310MKIIRobot : public MowerRobot {
  public:
   static bool BoardIsCompatible();
   static const char* FirmwareName() {
-    return "Husqvarna-310MKII";
+    return "Husq310MKII";
   }
   void InitPlatform() override;
 
