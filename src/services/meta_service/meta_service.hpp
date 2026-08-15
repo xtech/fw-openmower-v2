@@ -27,7 +27,10 @@ class MetaService : public MetaServiceBase {
   void RPCGetMajorVersion(uint16_t call_id) override;
 
  private:
-  THD_WORKING_AREA(wa, 512){};
+  // 1024 bytes: the previous 512-byte stack overflowed inside newlib snprintf()
+  // (remote_logger) while handling SendConfigurationRequest, triggering a
+  // MemManage fault in __port_irq_epilogue.
+  THD_WORKING_AREA(wa, 1024){};
 };
 
 #endif  // META_SERVICE_HPP
