@@ -1,6 +1,8 @@
 #ifndef META_SERVICE_HPP
 #define META_SERVICE_HPP
 
+#include <etl/string_view.h>
+
 #include <MetaServiceBase.hpp>
 
 // Bump when firmware and ROS side are no longer compatible.
@@ -18,8 +20,8 @@ class MetaService : public MetaServiceBase {
   }
 
   // Valid only after HasRobotFirmware() returns true.
-  const char* GetRobotFirmware() const {
-    return RobotFirmware.value;
+  etl::string_view GetRobotFirmware() const {
+    return etl::string_view(RobotFirmware.value, RobotFirmware.length);
   }
 
  protected:

@@ -3,6 +3,7 @@
 
 #include <drivers/motor/vesc/VescDriver.h>
 #include <drivers/motor/yfr4esc/YFR4escDriver.h>
+#include <etl/string_view.h>
 #include <hal.h>
 #include <service_ids.h>
 
@@ -156,6 +157,6 @@ bool BoardSupportsStage2();
 
 // Stage 2: instantiate robot by firmware name, validated against the current board.
 // Returns nullptr if name is invalid for this board.
-Robot* GetRobotByName(const char* name);
+Robot* GetRobotByName(etl::string_view name);
 
 #endif  // ROBOT_HPP

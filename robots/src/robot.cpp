@@ -1,6 +1,5 @@
 #include "../include/robot.hpp"
 
-#include <cstring>
 #include <globals.hpp>
 #include <services.hpp>
 
@@ -30,21 +29,21 @@ bool BoardSupportsStage2() {
          Lyfco_E1600Robot::BoardIsCompatible() || husq310MKIIRobot::BoardIsCompatible();
 }
 
-Robot* GetRobotByName(const char* name) {
-  if (YardForceRobot::BoardIsCompatible() && strncmp(name, YardForceRobot::FirmwareName(), 50) == 0)
+Robot* GetRobotByName(etl::string_view name) {
+  if (YardForceRobot::BoardIsCompatible() && name == etl::string_view(YardForceRobot::FirmwareName()))
     return new YardForceRobot{};
-  if (YardForce_V4Robot::BoardIsCompatible() && strncmp(name, YardForce_V4Robot::FirmwareName(), 50) == 0)
+  if (YardForce_V4Robot::BoardIsCompatible() && name == etl::string_view(YardForce_V4Robot::FirmwareName()))
     return new YardForce_V4Robot{};
-  if (Universal5SRobot::BoardIsCompatible() && strncmp(name, Universal5SRobot::FirmwareName(), 50) == 0)
+  if (Universal5SRobot::BoardIsCompatible() && name == etl::string_view(Universal5SRobot::FirmwareName()))
     return new Universal5SRobot{};
-  if (Universal7SRobot::BoardIsCompatible() && strncmp(name, Universal7SRobot::FirmwareName(), 50) == 0)
+  if (Universal7SRobot::BoardIsCompatible() && name == etl::string_view(Universal7SRobot::FirmwareName()))
     return new Universal7SRobot{};
-  if (Universal8SRobot::BoardIsCompatible() && strncmp(name, Universal8SRobot::FirmwareName(), 50) == 0)
+  if (Universal8SRobot::BoardIsCompatible() && name == etl::string_view(Universal8SRobot::FirmwareName()))
     return new Universal8SRobot{};
-  if (WorxRobot::BoardIsCompatible() && strncmp(name, WorxRobot::FirmwareName(), 50) == 0) return new WorxRobot{};
-  if (Lyfco_E1600Robot::BoardIsCompatible() && strncmp(name, Lyfco_E1600Robot::FirmwareName(), 50) == 0)
+  if (WorxRobot::BoardIsCompatible() && name == etl::string_view(WorxRobot::FirmwareName())) return new WorxRobot{};
+  if (Lyfco_E1600Robot::BoardIsCompatible() && name == etl::string_view(Lyfco_E1600Robot::FirmwareName()))
     return new Lyfco_E1600Robot{};
-  if (husq310MKIIRobot::BoardIsCompatible() && strncmp(name, husq310MKIIRobot::FirmwareName(), 50) == 0)
+  if (husq310MKIIRobot::BoardIsCompatible() && name == etl::string_view(husq310MKIIRobot::FirmwareName()))
     return new husq310MKIIRobot{};
   return nullptr;
 }

@@ -7,6 +7,7 @@
 #include <SEGGER_RTT.h>
 #include <SEGGER_RTT_streams.h>
 #endif
+#include <etl/string_view.h>
 #include <etl/to_string.h>
 #include <lwipthread.h>
 #include <service_ids.h>
@@ -137,13 +138,14 @@ int main() {
       ULOG_INFO("Waiting for Robot Firmware configuration via MetaService (carrier=%s)...",
                 carrier_board_info.board_id);
       if (meta_service.HasRobotFirmware()) {
-        robot = GetRobotByName(meta_service.GetRobotFirmware());
+        const etl::string_view fw_name = meta_service.GetRobotFirmware();
+        robot = GetRobotByName(fw_name);
         if (robot == nullptr) {
           ULOG_ERROR(
-              "Robot Firmware '%s' is invalid for this hardware, ignoring. See "
+              "Robot Firmware '%.*s' is invalid for this hardware, ignoring. See "
               "https://github.com/ClemensElflein/OpenMowerOS/blob/main/stage-openmower/40-openmower/files/home/"
               "openmower/params/mower_params.yaml",
-              meta_service.GetRobotFirmware());
+              static_cast<int>(fw_name.size()), fw_name.data());
         }
       }
       chThdSleepMilliseconds(1000);
