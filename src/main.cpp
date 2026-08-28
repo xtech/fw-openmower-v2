@@ -139,7 +139,11 @@ int main() {
       if (meta_service.HasRobotFirmware()) {
         robot = GetRobotByName(meta_service.GetRobotFirmware());
         if (robot == nullptr) {
-          ULOG_ERROR("Robot Firmware '%s' is invalid for this hardware, ignoring", meta_service.GetRobotFirmware());
+          ULOG_ERROR(
+              "Robot Firmware '%s' is invalid for this hardware, ignoring. See "
+              "https://github.com/ClemensElflein/OpenMowerOS/blob/main/stage-openmower/40-openmower/files/home/"
+              "openmower/params/mower_params.yaml",
+              meta_service.GetRobotFirmware());
         }
       }
       chThdSleepMilliseconds(1000);
