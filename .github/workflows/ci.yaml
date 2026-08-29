@@ -30,6 +30,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Debug git state (host)
+        run: |
+          echo "=== DEBUG git rev-parse HEAD ==="; git rev-parse HEAD
+          echo "=== DEBUG git describe --tags --dirty --always ==="; git describe --tags --dirty --always
+          echo "=== DEBUG git status --porcelain ==="; git status --porcelain
+          echo "=== DEBUG git submodule status ==="; git submodule status
+          echo "=== DEBUG git log --oneline -3 ==="; git log --oneline -3
+          echo "=== DEBUG git tag --list ==="; git tag --list | tail -20
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build
