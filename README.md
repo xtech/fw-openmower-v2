@@ -28,6 +28,9 @@ The firmware supports 10 robot platforms, selected at runtime via two-stage dete
 | ------------ | -------------- | ------------------------ | ------------ | ---------------------- | ------- | ----------------------------------------- |
 | YardForce    | `YardForce`    | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  |                                           |
 | YardForce V4 | `YardForce-V4` | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  | YFR4 mower ESC                            |
+| Universal 5S | `Universal-5S` | Universal                | 5S (21V)     | hw-openmower-universal | BQ2576  |                                           |
+| Universal 7S | `Universal-7S` | Universal                | 7S (29.4V)   | hw-openmower-universal | BQ2576  |                                           |
+| Universal 8S | `Universal-8S` | Universal                | 8S (33.6V)   | hw-openmower-universal | BQ2576  |                                           |
 | Worx         | `Worx`         | Worx models              | 5S (21V)     | hw-openmower-universal | BQ2576  | Worx input protocol                       |
 | Lyfco E1600  | `Lyfco_E1600`  | Lyfco E1600              | 7S (29.4V)   | hw-openmower-universal | BQ2576  |                                           |
 | Sabo         | `Sabo`         | MOWit 500F / JD Tango E5 | 7S3P (29.4V) | hw-openmower-sabo      | BQ2576  | BMS, CoverUI with LCD, dynamic power mgmt |
