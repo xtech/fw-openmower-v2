@@ -142,9 +142,8 @@ int main() {
         robot = GetRobotByName(fw_name);
         if (robot == nullptr) {
           ULOG_ERROR(
-              "Robot Firmware '%.*s' is invalid for this hardware, ignoring. See "
-              "https://github.com/ClemensElflein/OpenMowerOS/blob/main/stage-openmower/40-openmower/files/home/"
-              "openmower/params/mower_params.yaml",
+              "Robot firmware '%.*s' invalid for this hardware. "
+              "https://openmower.de/docs/troubleshooting/robot-firmware",
               static_cast<int>(fw_name.size()), fw_name.data());
         }
       }
