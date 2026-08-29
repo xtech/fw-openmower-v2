@@ -153,6 +153,7 @@ int main() {
 
   robot->InitPlatform();
   StartServices();
+  SetStatusLedMode(LED_MODE_ON);
   SetStatusLedColor(GREEN);
   DispatchEvents();
 }
