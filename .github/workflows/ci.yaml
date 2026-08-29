@@ -53,7 +53,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: openmower-firmware
+          name: openmower
           path: artifacts/
   tagged-release:
     runs-on: ubuntu-latest
@@ -63,7 +63,7 @@ jobs:
       - name: Download artifacts from build stage
         uses: actions/download-artifact@v4
         with:
-          name: openmower-firmware
+          name: openmower
           path: artifacts
       - name: Compress release directory into a versioned ZIP file
         run: cd artifacts && zip -r "../fw-openmower-v2-${{ github.ref_name }}.zip" .
