@@ -143,7 +143,7 @@ int main() {
         if (robot == nullptr) {
           ULOG_ERROR(
               "Robot firmware '%.*s' invalid for this hardware. "
-              "https://openmower.de/docs/troubleshooting/robot-firmware",
+              "See https://openmower.de/latest/ll/board",
               static_cast<int>(fw_name.size()), fw_name.data());
         }
       }
