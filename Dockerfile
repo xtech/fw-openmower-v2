@@ -19,9 +19,6 @@ COPY . /project
 
 WORKDIR /project
 
-# --- DEBUG (remove later): diagnose "-dirty" version string ---
-RUN echo "=== DEBUG git rev-parse HEAD ==="; git rev-parse HEAD; echo "=== DEBUG git describe --tags --dirty --always ==="; git describe --tags --dirty --always; echo "=== DEBUG git status --porcelain ==="; git status --porcelain; echo "=== DEBUG git submodule status ==="; git submodule status; echo "=== DEBUG git log --oneline -3 ==="; git log --oneline -3; echo "=== DEBUG git tag --list ==="; git tag --list | tail -20
-
 RUN mkdir build
 
 # Share one FetchContent download/source dir so deps are fetched once.
