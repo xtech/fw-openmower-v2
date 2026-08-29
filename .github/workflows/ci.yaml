@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
       - name: Debug git state (host)
         run: |
           echo "=== DEBUG git rev-parse HEAD ==="; git rev-parse HEAD
