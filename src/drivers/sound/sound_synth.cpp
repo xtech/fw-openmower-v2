@@ -30,12 +30,32 @@ static inline uint32_t calc_phase_increment(uint32_t freq) {
   return static_cast<uint32_t>((static_cast<uint64_t>(freq) * 64U * 65536U) / SAMPLE_RATE);
 }
 
-void Synth::start_tone(uint32_t freq, uint32_t duration_ms) {
+/** @brief Oscillator output for a given 16.16 phase and waveform. */
+static inline int16_t wave_sample(uint32_t phase, Waveform waveform) {
+  const int32_t idx = static_cast<int32_t>((phase >> 16U) & 0x3FU); /* 0..63 over one cycle */
+  switch (waveform) {
+    case Waveform::SINE: return kSineTable[static_cast<uint32_t>(idx)];
+    case Waveform::SQUARE: return (idx < 32) ? 32767 : -32767;
+    case Waveform::TRIANGLE:
+      return static_cast<int16_t>((idx < 32) ? ((idx << 11) - 32768) : (32767 - ((idx - 32) << 11)));
+    case Waveform::SAW: return static_cast<int16_t>((idx << 10) - 32768);
+  }
+  return 0;
+}
+
+void Synth::set_unison(uint8_t voices, uint32_t detune_hz) {
+  unison = (voices >= 1U) ? voices : 1U;
+  detune_inc = calc_phase_increment(detune_hz);
+}
+
+void Synth::start_tone(uint32_t freq, uint32_t duration_ms, Waveform wf) {
   /* A tone is a single-note sequence without LFO.  Frequencies above 65535 Hz
      (beyond audible) and durations beyond ~65 s are unsupported. */
   notes[0] = {static_cast<uint16_t>(freq), static_cast<uint16_t>(duration_ms), 0, 0};
   count = 1U;
   idx = 0U;
+  waveform = wf;
+  detune_phase = 0U;
   phase = 0U;
   phase_inc = 0U;
   samples_left = 0U;
@@ -44,12 +64,14 @@ void Synth::start_tone(uint32_t freq, uint32_t duration_ms) {
   lfo_depth_inc = 0;
 }
 
-void Synth::start_sequence(const Note* src, uint8_t n) {
+void Synth::start_sequence(const Note* src, uint8_t n, Waveform wf) {
   count = (n <= kMaxNotes) ? n : kMaxNotes;
   for (uint8_t i = 0U; i < count; ++i) {
     notes[i] = src[i];
   }
   idx = 0U;
+  waveform = wf;
+  detune_phase = 0U;
   phase = 0U;
   phase_inc = 0U;
   samples_left = 0U;
@@ -88,7 +110,16 @@ bool Synth::fill(int16_t* buf, size_t frames, uint8_t volume) {
           eff_inc += static_cast<uint32_t>((static_cast<int64_t>(lfo_depth_inc) * sine_sample(lfo_phase)) >> 15);
           lfo_phase += lfo_inc;
         }
-        s = scale_volume(sine_sample(phase), volume);
+        /* Sum the detuned unison voices (unison == 1 → single voice). */
+        int32_t sum = wave_sample(phase, waveform);
+        for (uint8_t k = 1U; k <= (unison - 1U) / 2U; ++k) {
+          sum += wave_sample(phase + k * detune_phase, waveform);
+          sum += wave_sample(phase - k * detune_phase, waveform);
+        }
+        if (unison > 1U) {
+          detune_phase += detune_inc;
+        }
+        s = scale_volume(static_cast<int16_t>(sum / unison), volume);
         phase += eff_inc;
       }
       if (--samples_left == 0U && idx >= count) {

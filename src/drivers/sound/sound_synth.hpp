@@ -60,12 +60,19 @@ struct Synth {
   /* LFO (all zero when inactive) */
   uint32_t lfo_phase = 0U;
   uint32_t lfo_inc = 0U;
-  int32_t lfo_depth_inc = 0;  ///< Modulation depth in phase_inc units (pre-calculated)
+  int32_t lfo_depth_inc = 0;           ///< Modulation depth in phase_inc units (pre-calculated)
+  Waveform waveform = Waveform::SINE;  ///< Oscillator waveform
+  uint8_t unison = 1U;                 ///< Number of detuned voices (1 = single, 3/5/7 = spread)
+  uint32_t detune_inc = 0U;            ///< Phase-increment offset between adjacent voices
+  uint32_t detune_phase = 0U;          ///< Running detune phase accumulator
+
+  /** @brief Stack @p voices detuned oscillators (odd: 1/3/5/7), spread by @p detune_hz. */
+  void set_unison(uint8_t voices, uint32_t detune_hz);
 
   /** @brief Configure a fixed-frequency tone. */
-  void start_tone(uint32_t freq, uint32_t duration_ms);
+  void start_tone(uint32_t freq, uint32_t duration_ms, Waveform wf);
   /** @brief Configure a note sequence (first note is loaded on first fill). */
-  void start_sequence(const Note* notes, uint8_t count);
+  void start_sequence(const Note* notes, uint8_t count, Waveform wf);
 
   /**
    * @brief Fill @p frames stereo [L,R] frames (R always 0).
