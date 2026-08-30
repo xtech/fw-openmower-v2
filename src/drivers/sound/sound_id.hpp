@@ -8,7 +8,7 @@
  */
 
 /**
- * @file sound_ids.hpp
+ * @file sound_id.hpp
  * @brief Logical sound identifiers (one per robot event).
  * @author Apehaenger <joerg@ebeling.ws>
  * @date 2026-03-23

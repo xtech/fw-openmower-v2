@@ -30,19 +30,19 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "sound_ids.hpp"
+#include "sound_id.hpp"
 
 namespace xbot::driver::sound {
 
 /** @brief How a sound is produced. */
 enum class SoundType : uint8_t { TONE, SEQUENCE, FILE };
 
-/** @brief Maximum notes per sequence definition (fixed for serialisation). */
+/** @brief Maximum notes per sequence definition (fixed for serialization). */
 constexpr uint8_t kMaxNotes = 8U;
 /** @brief Maximum path length of a FILE definition. */
 constexpr size_t kMaxPath = 64U;
 
-/** @brief A single note in a sequence.  POD (8 bytes) — serialisable. */
+/** @brief A single note in a sequence.  POD (8 bytes) — serializable. */
 struct Note {
   uint16_t freq;         ///< Fundamental frequency in Hz; 0 = silence/pause
   uint16_t duration_ms;  ///< Note duration in milliseconds

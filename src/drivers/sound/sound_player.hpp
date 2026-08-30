@@ -34,7 +34,7 @@
 
 #include <cstdint>
 
-#include "sound_ids.hpp"
+#include "sound_id.hpp"
 
 namespace xbot::driver::sound {
 

@@ -119,6 +119,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Sound
         src/chibios_lld/hal_i2s_lld.c
         src/drivers/sound/sound_player.cpp
+        src/drivers/sound/sound_source.cpp
+        src/drivers/sound/sound_synth.cpp
         # YardForce Cover UI driver (yf_cover_ui — YardForce 500 panel via UART7)
         src/drivers/ui/yf_cover_ui/yf_cover_ui.cpp
         # Sabo driver
