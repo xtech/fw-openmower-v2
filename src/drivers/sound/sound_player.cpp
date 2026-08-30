@@ -65,6 +65,9 @@ static constexpr size_t SOUND_HALF_SIZE = SOUND_BUFFER_SIZE / 2U;
 
 static constexpr uint32_t SAMPLE_RATE = 16000U;
 
+/* WAV files are pre-mastered at full scale; only the master volume scales them. */
+static constexpr uint8_t WAV_VOLUME = 100U;
+
 /*===========================================================================*/
 /* DMA buffer — MUST reside in SRAM4 (D3 domain) for BDMA.                  */
 /*===========================================================================*/
@@ -127,13 +130,23 @@ struct SoundRequest {
 };
 
 /*===========================================================================*/
-/* Active source state (owned by player thread).                             */
+/* Active playback source — owns all synthesis/streaming state.              */
 /*===========================================================================*/
 
-enum class SourceType : uint8_t { NONE, TONE, WAV, SEQUENCE };
+/**
+ * @brief Value-type sound source that fills the DMA half-buffer with samples.
+ *
+ * Exactly one source is active at a time (the file-static @p s_source).  It is
+ * a plain struct without virtual dispatch, so it costs nothing at run time:
+ * the type switch in fill() runs once per half-buffer, outside the sample
+ * loop.  Add a format (e.g. a future compressed codec) by extending Type,
+ * start_*() and fill_*().
+ */
+struct SoundSource {
+  enum class Type : uint8_t { NONE, TONE, SEQUENCE, WAV };
 
-struct ActiveSource {
-  SourceType type = SourceType::NONE;
+  Type type = Type::NONE;
+
   /* TONE / SEQUENCE oscillator fields */
   uint32_t phase = 0U;
   uint32_t phase_inc = 0U;     ///< Base phase increment for current note
@@ -148,19 +161,34 @@ struct ActiveSource {
   int32_t lfo_depth_inc = 0;  ///< Modulation depth in phase_inc units (pre-calculated)
   /* WAV fields */
   File wav_file;
-  /* Common */
+  /* Per-type volume (0-100). Combined with the master volume in fill(). */
   uint8_t volume = 80U;
 
   bool is_active() const {
-    return type != SourceType::NONE;
+    return type != Type::NONE;
   }
 
+  /** @brief Release resources (close WAV file) and mark the source inactive. */
   void stop() {
-    if (type == SourceType::WAV) {
+    if (type == Type::WAV) {
       wav_file.close();
     }
-    type = SourceType::NONE;
+    type = Type::NONE;
   }
+
+  /** @brief Configure a fixed-frequency tone. */
+  void start_tone(uint32_t freq, uint32_t duration_ms, uint8_t vol);
+  /** @brief Configure a note sequence (first note is loaded on first fill). */
+  void start_sequence(const Note* notes, uint8_t count, uint8_t vol);
+  /** @brief Open and validate a WAV file. @return false on error (source left inactive). */
+  bool start_wav(const char* path, uint8_t vol);
+  /** @brief Fill @p count int16_t slots (L+R stereo pairs) from this source. */
+  void fill(int16_t* buf, size_t count);
+
+ private:
+  void fill_tone(int16_t* buf, size_t frames, uint8_t vol);
+  void fill_sequence(int16_t* buf, size_t frames, uint8_t vol);
+  void fill_wav(int16_t* buf, size_t frames, uint8_t vol);
 };
 
 /*===========================================================================*/
@@ -186,14 +214,14 @@ static uint8_t s_normal_pool_idx = 0U;
 static msg_t s_normal_mb_buf[4];
 static mailbox_t s_normal_mb;
 
-/* Global volume (written by set_volume from any thread, read by the player thread) */
-static etl::atomic<uint8_t> s_volume{80U};
+/* Master volume (0-100, written by set_volume from any thread, read by the player thread) */
+static etl::atomic<uint8_t> s_master_volume{100U};
 
 /* Playing flag — written by the player thread, read by is_playing() from any thread */
 static etl::atomic<bool> s_playing{false};
 
 /* Active playback source — owned by player thread */
-static ActiveSource s_source;
+static SoundSource s_source;
 
 /*===========================================================================*/
 /* I2S configuration.                                                        */
@@ -210,101 +238,146 @@ static I2SConfig s_i2s_cfg = {
     .i2scfgr = 0U, /* Philips standard, DATLEN=16-bit, CHLEN=16-bit */
 };
 
-/*===========================================================================*/
-/* Internal: fill one DMA half-buffer from the active source.               */
-/*===========================================================================*/
+/*---------------------------------------------------------------------------*/
+/* SoundSource method implementations.                                       */
+/*---------------------------------------------------------------------------*/
+
+void SoundSource::start_tone(uint32_t freq, uint32_t duration_ms, uint8_t vol) {
+  type = Type::TONE;
+  phase = 0U;
+  phase_inc = calc_phase_increment(freq);
+  samples_left = (SAMPLE_RATE * duration_ms) / 1000U;
+  volume = vol;
+}
+
+void SoundSource::start_sequence(const Note* notes, uint8_t count, uint8_t vol) {
+  type = Type::SEQUENCE;
+  seq_notes = notes;
+  seq_count = count;
+  seq_idx = 0U;
+  volume = vol;
+  /* Reset oscillator and LFO — first note is loaded by fill() on first call. */
+  phase = 0U;
+  phase_inc = 0U;
+  samples_left = 0U;
+  lfo_phase = 0U;
+  lfo_inc = 0U;
+  lfo_depth_inc = 0;
+}
+
+bool SoundSource::start_wav(const char* path, uint8_t vol) {
+  if (wav_file.open(path, LFS_O_RDONLY) != LFS_ERR_OK) {
+    ULOG_WARNING("Sound: cannot open '%s'", path);
+    return false;
+  }
+  WavInfo info;
+  if (!wav_parse_header(wav_file, info)) {
+    ULOG_WARNING("Sound: invalid WAV '%s'", path);
+    wav_file.close();
+    return false;
+  }
+  type = Type::WAV;
+  samples_left = info.num_samples;
+  volume = vol;
+  return true;
+}
 
 /**
- * @brief Fill @p count int16_t slots (L+R stereo pairs) from the active source.
+ * @brief Fill @p count int16_t slots (L+R stereo pairs) from this source.
  *
  * Right channel is always written as 0 (MAX98357A is left-channel only).
  * When the source is exhausted mid-half the remainder is filled with silence
- * and @p s_source.type is set to @p SourceType::NONE.
+ * and @p type is set to @p Type::NONE.
  */
-static void fill_half(int16_t* buf, size_t count) {
+void SoundSource::fill(int16_t* buf, size_t count) {
   const size_t frames = count / 2U; /* one frame = [L, R=0] */
+  /* Combine the per-type volume with the master volume into a single 0-100
+     scale so only one division is needed per sample. */
+  const uint8_t vol = static_cast<uint8_t>((static_cast<uint32_t>(volume) * s_master_volume.load()) / 100U);
+  switch (type) {
+    case Type::TONE: fill_tone(buf, frames, vol); break;
+    case Type::SEQUENCE: fill_sequence(buf, frames, vol); break;
+    case Type::WAV: fill_wav(buf, frames, vol); break;
+    default: memset(buf, 0, count * sizeof(int16_t)); break;
+  }
+}
 
-  if (s_source.type == SourceType::TONE) {
-    for (size_t i = 0U; i < frames; ++i) {
-      int16_t s = 0;
-      if (s_source.samples_left > 0U) {
-        s = scale_volume(sine_sample(s_source.phase), s_source.volume);
-        s_source.phase += s_source.phase_inc;
-        if (--s_source.samples_left == 0U) {
-          s_source.type = SourceType::NONE;
-        }
+void SoundSource::fill_tone(int16_t* buf, size_t frames, uint8_t vol) {
+  for (size_t i = 0U; i < frames; ++i) {
+    int16_t s = 0;
+    if (samples_left > 0U) {
+      s = scale_volume(sine_sample(phase), vol);
+      phase += phase_inc;
+      if (--samples_left == 0U) {
+        type = Type::NONE;
       }
-      buf[2U * i] = s;
-      buf[2U * i + 1] = 0; /* R — always silent */
+    }
+    buf[2U * i] = s;
+    buf[2U * i + 1] = 0; /* R — always silent */
+  }
+}
+
+void SoundSource::fill_sequence(int16_t* buf, size_t frames, uint8_t vol) {
+  for (size_t i = 0U; i < frames; ++i) {
+    /* Advance to the next note whenever the current one has been exhausted. */
+    while (samples_left == 0U && seq_idx < seq_count) {
+      const Note& n = seq_notes[seq_idx++];
+      samples_left = (SAMPLE_RATE * n.duration_ms) / 1000U;
+      phase = 0U;
+      phase_inc = (n.freq > 0U) ? calc_phase_increment(n.freq) : 0U;
+      if (n.lfo_hz_x10 > 0U && n.freq > 0U) {
+        lfo_phase = 0U;
+        /* LFO phase increment: same formula as calc_phase_increment but divided by 10
+           to convert lfo_hz_x10 (rate × 10) back to Hz. */
+        lfo_inc = static_cast<uint32_t>(static_cast<uint64_t>(n.lfo_hz_x10) * 64U * 65536U / (SAMPLE_RATE * 10U));
+        /* Depth in phase_inc units — pre-calculated to avoid per-sample division. */
+        lfo_depth_inc = static_cast<int32_t>(calc_phase_increment(n.freq + n.lfo_depth) - phase_inc);
+      } else {
+        lfo_inc = 0U;
+        lfo_depth_inc = 0;
+      }
     }
 
-  } else if (s_source.type == SourceType::SEQUENCE) {
-    for (size_t i = 0U; i < frames; ++i) {
-      /* Advance to the next note whenever the current one has been exhausted. */
-      while (s_source.samples_left == 0U && s_source.seq_idx < s_source.seq_count) {
-        const Note& n = s_source.seq_notes[s_source.seq_idx++];
-        s_source.samples_left = (SAMPLE_RATE * n.duration_ms) / 1000U;
-        s_source.phase = 0U;
-        s_source.phase_inc = (n.freq > 0U) ? calc_phase_increment(n.freq) : 0U;
-        if (n.lfo_hz_x10 > 0U && n.freq > 0U) {
-          s_source.lfo_phase = 0U;
-          /* LFO phase increment: same formula as calc_phase_increment but divided by 10
-             to convert lfo_hz_x10 (rate × 10) back to Hz. */
-          s_source.lfo_inc =
-              static_cast<uint32_t>(static_cast<uint64_t>(n.lfo_hz_x10) * 64U * 65536U / (SAMPLE_RATE * 10U));
-          /* Depth in phase_inc units — pre-calculated to avoid per-sample division. */
-          s_source.lfo_depth_inc =
-              static_cast<int32_t>(calc_phase_increment(n.freq + n.lfo_depth) - s_source.phase_inc);
-        } else {
-          s_source.lfo_inc = 0U;
-          s_source.lfo_depth_inc = 0;
+    int16_t s = 0;
+    if (samples_left > 0U) {
+      if (phase_inc > 0U) {
+        /* Apply LFO frequency modulation (no-op when lfo_inc == 0). */
+        uint32_t eff_inc = phase_inc;
+        if (lfo_inc > 0U) {
+          eff_inc += static_cast<uint32_t>((static_cast<int64_t>(lfo_depth_inc) * sine_sample(lfo_phase)) >> 15);
+          lfo_phase += lfo_inc;
         }
+        s = scale_volume(sine_sample(phase), vol);
+        phase += eff_inc;
       }
-
-      int16_t s = 0;
-      if (s_source.samples_left > 0U) {
-        if (s_source.phase_inc > 0U) {
-          /* Apply LFO frequency modulation (no-op when lfo_inc == 0). */
-          uint32_t eff_inc = s_source.phase_inc;
-          if (s_source.lfo_inc > 0U) {
-            eff_inc += static_cast<uint32_t>(
-                (static_cast<int64_t>(s_source.lfo_depth_inc) * sine_sample(s_source.lfo_phase)) >> 15);
-            s_source.lfo_phase += s_source.lfo_inc;
-          }
-          s = scale_volume(sine_sample(s_source.phase), s_source.volume);
-          s_source.phase += eff_inc;
-        }
-        if (--s_source.samples_left == 0U && s_source.seq_idx >= s_source.seq_count) {
-          s_source.type = SourceType::NONE; /* sequence finished */
-        }
+      if (--samples_left == 0U && seq_idx >= seq_count) {
+        type = Type::NONE; /* sequence finished */
       }
-      buf[2U * i] = s;
-      buf[2U * i + 1] = 0;
     }
+    buf[2U * i] = s;
+    buf[2U * i + 1] = 0;
+  }
+}
 
-  } else if (s_source.type == SourceType::WAV) {
-    for (size_t i = 0U; i < frames; ++i) {
-      int16_t s = 0;
-      if (s_source.samples_left > 0U) {
-        int16_t raw = 0;
-        if (s_source.wav_file.read(&raw, sizeof(raw)) == static_cast<int>(sizeof(raw))) {
-          s = scale_volume(raw, s_source.volume);
-          if (--s_source.samples_left == 0U) {
-            s_source.wav_file.close();
-            s_source.type = SourceType::NONE;
-          }
-        } else {
-          /* Read error — silence and stop */
-          s_source.wav_file.close();
-          s_source.type = SourceType::NONE;
+void SoundSource::fill_wav(int16_t* buf, size_t frames, uint8_t vol) {
+  for (size_t i = 0U; i < frames; ++i) {
+    int16_t s = 0;
+    if (samples_left > 0U) {
+      int16_t raw = 0;
+      if (wav_file.read(&raw, sizeof(raw)) == static_cast<int>(sizeof(raw))) {
+        s = scale_volume(raw, vol);
+        if (--samples_left == 0U) {
+          wav_file.close();
+          type = Type::NONE;
         }
+      } else {
+        /* Read error — silence and stop */
+        wav_file.close();
+        type = Type::NONE;
       }
-      buf[2U * i] = s;
-      buf[2U * i + 1] = 0;
     }
-
-  } else {
-    memset(buf, 0, count * sizeof(int16_t));
+    buf[2U * i] = s;
+    buf[2U * i + 1] = 0;
   }
 }
 
@@ -315,46 +388,21 @@ static void fill_half(int16_t* buf, size_t count) {
 static void start_source(const SoundRequest& req) {
   s_source.stop(); /* close any open WAV file */
 
-  if (req.type == SoundRequest::Type::TONE) {
-    s_source.type = SourceType::TONE;
-    s_source.phase = 0U;
-    s_source.phase_inc = calc_phase_increment(req.tone.freq);
-    s_source.samples_left = (SAMPLE_RATE * req.tone.duration_ms) / 1000U;
-    s_source.volume = req.tone.volume;
-
-  } else if (req.type == SoundRequest::Type::SEQUENCE) {
-    s_source.type = SourceType::SEQUENCE;
-    s_source.seq_notes = req.sequence.notes;
-    s_source.seq_count = req.sequence.count;
-    s_source.seq_idx = 0U;
-    s_source.volume = req.sequence.volume;
-    /* Reset oscillator and LFO — first note is loaded by fill_half on first call. */
-    s_source.phase = 0U;
-    s_source.phase_inc = 0U;
-    s_source.samples_left = 0U;
-    s_source.lfo_phase = 0U;
-    s_source.lfo_inc = 0U;
-    s_source.lfo_depth_inc = 0;
-
-  } else {
-    if (s_source.wav_file.open(req.path, LFS_O_RDONLY) != LFS_ERR_OK) {
-      ULOG_WARNING("Sound: cannot open '%s'", req.path);
-      return;
-    }
-    WavInfo info;
-    if (!wav_parse_header(s_source.wav_file, info)) {
-      ULOG_WARNING("Sound: invalid WAV '%s'", req.path);
-      s_source.wav_file.close();
-      return;
-    }
-    s_source.type = SourceType::WAV;
-    s_source.samples_left = info.num_samples;
-    s_source.volume = s_volume.load();
+  switch (req.type) {
+    case SoundRequest::Type::TONE: s_source.start_tone(req.tone.freq, req.tone.duration_ms, req.tone.volume); break;
+    case SoundRequest::Type::SEQUENCE:
+      s_source.start_sequence(req.sequence.notes, req.sequence.count, req.sequence.volume);
+      break;
+    case SoundRequest::Type::FILE:
+      if (!s_source.start_wav(req.path, WAV_VOLUME)) {
+        return; /* open/parse failed — remain idle */
+      }
+      break;
   }
 
   /* Pre-fill both halves before starting BDMA so DMA has valid data immediately. */
-  fill_half(s_audio_buf, SOUND_HALF_SIZE);
-  fill_half(s_audio_buf + SOUND_HALF_SIZE, SOUND_HALF_SIZE);
+  s_source.fill(s_audio_buf, SOUND_HALF_SIZE);
+  s_source.fill(s_audio_buf + SOUND_HALF_SIZE, SOUND_HALF_SIZE);
 
   i2sStartExchange(&I2SD6);
   s_playing.store(true);
@@ -451,7 +499,7 @@ static THD_FUNCTION(player_thread, arg) {
 
     if (ev & EVT_HTIF) {
       /* DMA finished first half → refill first half */
-      fill_half(s_audio_buf, SOUND_HALF_SIZE);
+      s_source.fill(s_audio_buf, SOUND_HALF_SIZE);
       if (!s_source.is_active() && s_playing.load()) {
         i2sStopExchange(&I2SD6);
         s_playing.store(false);
@@ -461,7 +509,7 @@ static THD_FUNCTION(player_thread, arg) {
 
     if (ev & EVT_TCIF) {
       /* DMA finished second half → refill second half */
-      fill_half(s_audio_buf + SOUND_HALF_SIZE, SOUND_HALF_SIZE);
+      s_source.fill(s_audio_buf + SOUND_HALF_SIZE, SOUND_HALF_SIZE);
       if (!s_source.is_active() && s_playing.load()) {
         i2sStopExchange(&I2SD6);
         s_playing.store(false);
@@ -519,7 +567,7 @@ void player_init() {
 
   s_player_thd = chThdCreateStatic(s_player_wa, sizeof(s_player_wa), NORMALPRIO + 1, player_thread, nullptr);
 
-  ULOG_INFO("Sound: player started (sample_rate=%u, volume=%u)", SAMPLE_RATE, s_volume.load());
+  ULOG_INFO("Sound: player started (sample_rate=%u, volume=%u)", SAMPLE_RATE, s_master_volume.load());
 }
 
 void play_sound_id(SoundId id, bool high_priority) {
@@ -581,7 +629,7 @@ void play_file(const char* path, bool high_priority) {
 
 void set_volume(uint8_t volume) {
   if (volume > 100U) volume = 100U;
-  s_volume.store(volume);
+  s_master_volume.store(volume);
 }
 
 void stop() {

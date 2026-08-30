@@ -79,7 +79,7 @@ void play_file(const char* path, bool high_priority = false);
 /**
  * @brief Set the master playback volume.
  *
- * Applied per-sample in the fill loop; takes effect on the next queued sound.
+ * Scales every sound (tone, sequence and WAV) on top of its own per-type volume
  *
  * @param volume 0–100.
  */
