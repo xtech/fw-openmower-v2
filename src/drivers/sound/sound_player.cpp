@@ -49,6 +49,7 @@
 #include "filesystem/file.hpp"
 #include "filesystem/filesystem.hpp"
 #include "hal.h"
+#include "sound_definition.hpp"
 #include "sound_ids.hpp"
 #include "sound_wav.hpp"
 
@@ -109,27 +110,6 @@ static inline int16_t scale_volume(int16_t sample, uint8_t volume) {
 }
 
 /*===========================================================================*/
-/* Sound request type.                                                       */
-/*===========================================================================*/
-
-struct SoundRequest {
-  enum class Type : uint8_t { TONE, FILE, SEQUENCE } type;
-  union {
-    struct {
-      uint32_t freq;
-      uint32_t duration_ms;
-      uint8_t volume;
-    } tone;
-    char path[64];
-    struct {
-      const Note* notes;  ///< Pointer into .rodata — safe to copy by value
-      uint8_t count;
-      uint8_t volume;
-    } sequence;
-  };
-};
-
-/*===========================================================================*/
 /* Active playback source — owns all synthesis/streaming state.              */
 /*===========================================================================*/
 
@@ -152,7 +132,7 @@ struct SoundSource {
   uint32_t phase_inc = 0U;     ///< Base phase increment for current note
   uint32_t samples_left = 0U;  ///< Samples remaining in current note (or tone)
   /* SEQUENCE-specific fields */
-  const Note* seq_notes = nullptr;
+  Note seq_notes[kMaxNotes]{};
   uint8_t seq_count = 0U;
   uint8_t seq_idx = 0U;
   /* LFO (SEQUENCE only; all zero when inactive) */
@@ -176,12 +156,8 @@ struct SoundSource {
     type = Type::NONE;
   }
 
-  /** @brief Configure a fixed-frequency tone. */
-  void start_tone(uint32_t freq, uint32_t duration_ms, uint8_t vol);
-  /** @brief Configure a note sequence (first note is loaded on first fill). */
-  void start_sequence(const Note* notes, uint8_t count, uint8_t vol);
-  /** @brief Open and validate a WAV file. @return false on error (source left inactive). */
-  bool start_wav(const char* path, uint8_t vol);
+  /** @brief Start playback from a @p SoundDefinition. @return false on error (source left inactive). */
+  bool start(const SoundDefinition& def);
   /** @brief Fill @p count int16_t slots (L+R stereo pairs) from this source. */
   void fill(int16_t* buf, size_t count);
 
@@ -204,12 +180,12 @@ static THD_WORKING_AREA(s_player_wa, 2048U);
 static thread_t* s_player_thd = nullptr;
 
 /* HIGH priority queue: depth 1, single storage slot */
-static SoundRequest s_high_req;
+static SoundDefinition s_high_req;
 static msg_t s_high_mb_buf[1];
 static mailbox_t s_high_mb;
 
 /* NORMAL priority queue: depth 4, ring-buffer storage pool */
-static SoundRequest s_normal_pool[4];
+static SoundDefinition s_normal_pool[4];
 static uint8_t s_normal_pool_idx = 0U;
 static msg_t s_normal_mb_buf[4];
 static mailbox_t s_normal_mb;
@@ -242,44 +218,52 @@ static I2SConfig s_i2s_cfg = {
 /* SoundSource method implementations.                                       */
 /*---------------------------------------------------------------------------*/
 
-void SoundSource::start_tone(uint32_t freq, uint32_t duration_ms, uint8_t vol) {
-  type = Type::TONE;
-  phase = 0U;
-  phase_inc = calc_phase_increment(freq);
-  samples_left = (SAMPLE_RATE * duration_ms) / 1000U;
-  volume = vol;
-}
+bool SoundSource::start(const SoundDefinition& def) {
+  switch (def.type) {
+    case SoundType::TONE:
+      type = Type::TONE;
+      phase = 0U;
+      phase_inc = calc_phase_increment(def.tone.freq);
+      samples_left = (SAMPLE_RATE * def.tone.duration_ms) / 1000U;
+      volume = def.volume;
+      return true;
 
-void SoundSource::start_sequence(const Note* notes, uint8_t count, uint8_t vol) {
-  type = Type::SEQUENCE;
-  seq_notes = notes;
-  seq_count = count;
-  seq_idx = 0U;
-  volume = vol;
-  /* Reset oscillator and LFO — first note is loaded by fill() on first call. */
-  phase = 0U;
-  phase_inc = 0U;
-  samples_left = 0U;
-  lfo_phase = 0U;
-  lfo_inc = 0U;
-  lfo_depth_inc = 0;
-}
+    case SoundType::SEQUENCE: {
+      type = Type::SEQUENCE;
+      seq_count = (def.sequence.count <= kMaxNotes) ? def.sequence.count : kMaxNotes;
+      for (uint8_t i = 0U; i < seq_count; ++i) {
+        seq_notes[i] = def.sequence.notes[i];
+      }
+      seq_idx = 0U;
+      volume = def.volume;
+      /* Reset oscillator and LFO — first note is loaded by fill() on first call. */
+      phase = 0U;
+      phase_inc = 0U;
+      samples_left = 0U;
+      lfo_phase = 0U;
+      lfo_inc = 0U;
+      lfo_depth_inc = 0;
+      return true;
+    }
 
-bool SoundSource::start_wav(const char* path, uint8_t vol) {
-  if (wav_file.open(path, LFS_O_RDONLY) != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: cannot open '%s'", path);
-    return false;
+    case SoundType::FILE:
+      if (wav_file.open(def.path, LFS_O_RDONLY) != LFS_ERR_OK) {
+        ULOG_WARNING("Sound: cannot open '%s'", def.path);
+        return false;
+      }
+      WavInfo info;
+      if (!wav_parse_header(wav_file, info)) {
+        ULOG_WARNING("Sound: invalid WAV '%s'", def.path);
+        wav_file.close();
+        return false;
+      }
+      type = Type::WAV;
+      samples_left = info.num_samples;
+      volume = def.volume;
+      return true;
+
+    default: return false;
   }
-  WavInfo info;
-  if (!wav_parse_header(wav_file, info)) {
-    ULOG_WARNING("Sound: invalid WAV '%s'", path);
-    wav_file.close();
-    return false;
-  }
-  type = Type::WAV;
-  samples_left = info.num_samples;
-  volume = vol;
-  return true;
 }
 
 /**
@@ -382,22 +366,14 @@ void SoundSource::fill_wav(int16_t* buf, size_t frames, uint8_t vol) {
 }
 
 /*===========================================================================*/
-/* Internal: start playing a SoundRequest.                                  */
+/* Internal: start playing a SoundDefinition.                               */
 /*===========================================================================*/
 
-static void start_source(const SoundRequest& req) {
+static void start_source(const SoundDefinition& def) {
   s_source.stop(); /* close any open WAV file */
 
-  switch (req.type) {
-    case SoundRequest::Type::TONE: s_source.start_tone(req.tone.freq, req.tone.duration_ms, req.tone.volume); break;
-    case SoundRequest::Type::SEQUENCE:
-      s_source.start_sequence(req.sequence.notes, req.sequence.count, req.sequence.volume);
-      break;
-    case SoundRequest::Type::FILE:
-      if (!s_source.start_wav(req.path, WAV_VOLUME)) {
-        return; /* open/parse failed — remain idle */
-      }
-      break;
+  if (!s_source.start(def)) {
+    return; /* FILE open/parse failed — remain idle */
   }
 
   /* Pre-fill both halves before starting BDMA so DMA has valid data immediately. */
@@ -523,7 +499,7 @@ static THD_FUNCTION(player_thread, arg) {
 /* Internal: enqueue helpers (called from any thread context).              */
 /*===========================================================================*/
 
-static void enqueue_high(const SoundRequest& req) {
+static void enqueue_high(const SoundDefinition& req) {
   if (s_player_thd == nullptr) return;
   chSysLock();
   s_high_req = req;         /* replace any pending high request */
@@ -536,7 +512,7 @@ static void enqueue_high(const SoundRequest& req) {
   chSysUnlock();
 }
 
-static void enqueue_normal(const SoundRequest& req) {
+static void enqueue_normal(const SoundDefinition& req) {
   if (s_player_thd == nullptr) return;
   chSysLock();
   if (chMBGetFreeCountI(&s_normal_mb) > 0) {
@@ -570,60 +546,65 @@ void player_init() {
   ULOG_INFO("Sound: player started (sample_rate=%u, volume=%u)", SAMPLE_RATE, s_master_volume.load());
 }
 
+/**
+ * @brief Load a flash override for @p id, if present.
+ *
+ * TODO: read the raw @p SoundDefinition from LittleFS (written by the
+ * high-level system or a future Sound-CLI).  Until then this always returns
+ * false so the ROM default applies.
+ */
+static bool load_sound_definition(SoundId id, SoundDefinition& out) {
+  (void)id;
+  (void)out;
+  return false;
+}
+
 void play_sound_id(SoundId id, bool high_priority) {
   const uint8_t idx = static_cast<uint8_t>(id);
   if (idx >= static_cast<uint8_t>(SoundId::COUNT)) return;
 
-  /* Prefer WAV file from flash; fall back to synthesised tone if absent. */
-  char path[32];
-  snprintf(path, sizeof(path), "/sounds/%u.wav", static_cast<unsigned>(idx));
+  /* Prefer a flash override; otherwise fall back to the ROM default. */
+  SoundDefinition def;
+  if (!load_sound_definition(id, def)) {
+    def = kDefaultSoundDefs[idx];
+  }
 
-  lfs_info info{};
-  if (lfs_stat(&lfs, path, &info) == LFS_ERR_OK) {
-    play_file(path, high_priority);
+  if (high_priority) {
+    enqueue_high(def);
   } else {
-    const SoundFallback& fb = kFallbackTones[idx];
-    SoundRequest req;
-    req.type = SoundRequest::Type::SEQUENCE;
-    req.sequence.notes = fb.notes;
-    req.sequence.count = fb.count;
-    req.sequence.volume = fb.volume;
-    if (high_priority) {
-      enqueue_high(req);
-    } else {
-      enqueue_normal(req);
-    }
+    enqueue_normal(def);
   }
 }
 
 void play_tone(uint32_t freq, uint32_t duration_ms, uint8_t volume, bool high_priority) {
   if (freq == 0U || duration_ms == 0U) return;
 
-  SoundRequest req;
-  req.type = SoundRequest::Type::TONE;
-  req.tone.freq = freq;
-  req.tone.duration_ms = duration_ms;
-  req.tone.volume = volume;
+  SoundDefinition def{};
+  def.type = SoundType::TONE;
+  def.volume = volume;
+  def.tone.freq = freq;
+  def.tone.duration_ms = duration_ms;
 
   if (high_priority) {
-    enqueue_high(req);
+    enqueue_high(def);
   } else {
-    enqueue_normal(req);
+    enqueue_normal(def);
   }
 }
 
 void play_file(const char* path, bool high_priority) {
   if (path == nullptr) return;
 
-  SoundRequest req;
-  req.type = SoundRequest::Type::FILE;
-  strncpy(req.path, path, sizeof(req.path) - 1U);
-  req.path[sizeof(req.path) - 1U] = '\0';
+  SoundDefinition def{};
+  def.type = SoundType::FILE;
+  def.volume = WAV_VOLUME; /* pre-mastered at full scale; master volume scales it */
+  strncpy(def.path, path, kMaxPath - 1U);
+  def.path[kMaxPath - 1U] = '\0';
 
   if (high_priority) {
-    enqueue_high(req);
+    enqueue_high(def);
   } else {
-    enqueue_normal(req);
+    enqueue_normal(def);
   }
 }
 

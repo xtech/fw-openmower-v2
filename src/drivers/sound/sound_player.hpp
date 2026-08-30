@@ -25,8 +25,8 @@
  *        so DMA frames are always [L_sample, 0].
  *
  *        WAV requirements: 16 kHz, 16-bit, mono PCM (RIFF/PCM, canonical 44-byte header).
- *        Files must reside at /sounds/<SoundId>.wav on LittleFS.  When absent the
- *        player falls back to an on-the-fly synthesised tone from kFallbackTones[].
+ *        Sounds are resolved per SoundId from a SoundDefinition (see
+ *        sound_definition.hpp): a flash override if present, else the ROM default.
  */
 
 #ifndef SOUND_PLAYER_HPP
@@ -50,8 +50,8 @@ void player_init();
 /**
  * @brief Play a sound by logical identifier.
  *
- * Looks for /sounds/<id>.wav on LittleFS; falls back to kFallbackTones[id]
- * if the file does not exist.
+ * Resolves the SoundDefinition for @p id: a flash override if present,
+ * otherwise the ROM default (kDefaultSoundDefs).
  *
  * @param id            Logical sound to play.
  * @param high_priority If true the sound preempts current playback immediately.
@@ -79,7 +79,8 @@ void play_file(const char* path, bool high_priority = false);
 /**
  * @brief Set the master playback volume.
  *
- * Scales every sound (tone, sequence and WAV) on top of its own per-type volume
+ * Scales every sound (tone, sequence and WAV) on top of its own per-type
+ * volume; takes effect on the next half-buffer fill.
  *
  * @param volume 0–100.
  */
