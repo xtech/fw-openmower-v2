@@ -23,7 +23,8 @@ namespace xbot::driver::sound {
 
 /** @brief Logical sound identifiers (one per robot event). */
 enum class SoundId : uint8_t {
-  BOOT,            ///< Boot sequence complete
+  BOOT_PING,       ///< Waiting for the next boot stage 2 (sonar ping)
+  BOOT_COMPLETE,   ///< All boot stages up (power-up sweep)
   SUCCESS,         ///< Operation succeeded
   WARNING,         ///< Non-critical warning
   ERROR,           ///< Recoverable error

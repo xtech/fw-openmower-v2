@@ -37,6 +37,9 @@ namespace xbot::driver::sound {
 /** @brief How a sound is produced. */
 enum class SoundType : uint8_t { TONE, SEQUENCE, FILE };
 
+/** @brief Oscillator waveform for tone/sequence sounds. */
+enum class Waveform : uint8_t { SINE, SQUARE, TRIANGLE, SAW };
+
 /** @brief Maximum notes per sequence definition (fixed for serialization). */
 constexpr uint8_t kMaxNotes = 8U;
 /** @brief Maximum path length of a FILE definition. */
@@ -60,7 +63,10 @@ struct Note {
  */
 struct SoundDefinition {
   SoundType type;
-  uint8_t volume;  ///< Per-definition volume (0–100); master volume applies on top
+  uint8_t volume;                      ///< Per-definition volume (0–100); master volume applies on top
+  Waveform waveform = Waveform::SINE;  ///< Oscillator waveform (tone/sequence only)
+  uint8_t unison = 1U;                 ///< Number of detuned voices (1 = single, odd: 3/5/7)
+  uint16_t detune_hz = 0U;             ///< Frequency spread between unison voices in Hz
   union {
     struct {
       uint32_t freq;
@@ -79,7 +85,11 @@ struct SoundDefinition {
  *---------------------------------------------------------------------------*/
 
 inline constexpr SoundDefinition kDefaultSoundDefs[] = {
-    /* BOOT           */ {SoundType::SEQUENCE, 70, .sequence = {{{440, 200, 0, 0}, {660, 350, 0, 0}}, 2}},
+    /* BOOT_PING      */ {SoundType::SEQUENCE, 80, .unison = 3, .detune_hz = 10,
+                          .sequence = {{{800, 150, 16, 400}}, 1}},
+    /* BOOT_COMPLETE  */
+    {SoundType::SEQUENCE, 85, .waveform = Waveform::SAW, .unison = 3, .detune_hz = 6,
+     .sequence = {{{130, 1100, 2, 900}}, 1}},
     /* SUCCESS        */
     {SoundType::SEQUENCE, 75, .sequence = {{{523, 90, 0, 0}, {659, 90, 0, 0}, {784, 250, 0, 0}}, 3}},
     /* WARNING        */

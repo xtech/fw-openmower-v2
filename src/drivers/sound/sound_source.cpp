@@ -22,14 +22,16 @@ bool SoundSource::start(const SoundDefinition& def) {
 
   switch (def.type) {
     case SoundType::TONE:
-      synth.start_tone(def.tone.freq, def.tone.duration_ms);
+      synth.set_unison(def.unison, def.detune_hz);
+      synth.start_tone(def.tone.freq, def.tone.duration_ms, def.waveform);
       type = SoundType::TONE;
       volume = def.volume;
       active = true;
       return true;
 
     case SoundType::SEQUENCE:
-      synth.start_sequence(def.sequence.notes, def.sequence.count);
+      synth.set_unison(def.unison, def.detune_hz);
+      synth.start_sequence(def.sequence.notes, def.sequence.count, def.waveform);
       type = SoundType::SEQUENCE;
       volume = def.volume;
       active = true;
