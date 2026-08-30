@@ -13,12 +13,13 @@
  *
  * @note    Implements the ChibiOS I2S HAL LLD API (@p HAL_USE_I2S).
  *          SPI6 on STM32H7 resides in the D3 power domain and requires:
- *            - Clock source set via RCC->D3CCIPR (PCLK4, not the default)
+ *            - SPI6 kernel clock from PCLK4 (STM32_SPI6SEL mcuconf setting)
  *            - BDMA (not DMA1/DMA2) for DMA transfers
  *            - Audio buffer in SRAM4 (D3 memory, 0x38000000)
  *
  *          Prescaler is calculated at run-time from config->sample_rate
- *          and the fixed PCLK4 frequency (137.5 MHz for this board).
+ *          and the SPI6 kernel clock (STM32_SPI6CLK, derived from the
+ *          STM32_SPI6SEL mcuconf setting — PCLK4 on this board).
  *
  * @addtogroup I2S
  * @{
@@ -45,7 +46,7 @@ I2SDriver I2SD6;
  * @brief   Calculate I2S prescaler values for desired sample rate.
  * @details Searches I2SDIV (1..255) and ODD (0..1) for the combination
  *          that minimises the error to @p sample_rate using the formula:
- *            F_WS = F_pclk4 / [32 × (CHLEN+1) × ((2×I2SDIV)+ODD)]
+ *            F_WS = STM32_SPI6CLK / [32 × (CHLEN+1) × ((2×I2SDIV)+ODD)]
  *
  * @param[in] sample_rate   desired WS frequency in Hz
  * @param[in] chlen         0 = 16-bit channel, 1 = 32-bit channel
@@ -87,12 +88,16 @@ static void i2s_lld_serve_bdma_tx_interrupt(I2SDriver* i2sp, uint32_t flags) {
     STM32_I2S_DMA_ERROR_HOOK(i2sp);
   }
 
-  /* Full-transfer (TCIF): second half played, refill first half. */
+  /* Full-transfer (TCIF): the second half of the buffer has been
+     transmitted and BDMA wraps back to the first half. */
   if ((flags & STM32_BDMA_ISR_TCIF) != 0U) {
     _i2s_isr_full_code(i2sp);
   }
-  /* Half-transfer (HTIF): first half played, refill second half. */
-  else if ((flags & STM32_BDMA_ISR_HTIF) != 0U) {
+  /* Half-transfer (HTIF): the first half of the buffer has been
+     transmitted and BDMA proceeds to the second half.
+     Handled independently from TCIF: both flags may be pending in a single
+     ISR pass if the interrupt was delayed. */
+  if ((flags & STM32_BDMA_ISR_HTIF) != 0U) {
     _i2s_isr_half_code(i2sp);
   }
 }
@@ -120,7 +125,7 @@ void i2s_lld_init(void) {
 
 /**
  * @brief   Configures and activates the I2S peripheral.
- * @details Allocates the BDMA stream, configures the D3 clock source,
+ * @details Allocates the BDMA stream, enables the peripheral clock,
  *          calculates and applies the I2S prescaler, and sets up SPI6
  *          registers for I2S master TX operation.  Does NOT start
  *          clock generation — that happens in @p i2s_lld_start_exchange().
@@ -144,11 +149,10 @@ void i2s_lld_start(I2SDriver* i2sp) {
     /* Point BDMA peripheral address at SPI6 TXDR (fixed for lifetime of driver). */
     bdmaStreamSetPeripheral(i2sp->bdmatx, &i2sp->spi->TXDR);
 
-    /* Select PCLK4 as SPI6 kernel clock (D3CCIPR SPI6SEL = 000b → PCLK4).
-     * ChibiOS rccEnableSPI6() does not set this mux — must be done here. */
-    RCC->D3CCIPR = (RCC->D3CCIPR & ~RCC_D3CCIPR_SPI6SEL_Msk) | (0x0U << RCC_D3CCIPR_SPI6SEL_Pos);
-
-    /* Enable SPI6 peripheral clock. */
+    /* Enable SPI6 peripheral clock.
+     * The SPI6 kernel clock source (D3CCIPR.SPI6SEL) has already been
+     * programmed by halInit() from the STM32_SPI6SEL mcuconf setting;
+     * i2s_lld_calc_prescaler() relies on STM32_SPI6CLK matching it. */
     rccEnableSPI6(true);
   }
 #endif
@@ -156,6 +160,11 @@ void i2s_lld_start(I2SDriver* i2sp) {
   /* -----------------------------------------------------------------------
    * (Re)configure SPI6 in I2S master TX mode.
    * ----------------------------------------------------------------------- */
+
+  /* This driver supports 16-bit sample data only (DATLEN = 00).
+   * The BDMA stream is fixed to half-word (16-bit) transfers and the
+   * prescaler formula below assumes a 16-bit data frame. */
+  osalDbgAssert((i2sp->config->i2scfgr & SPI_I2SCFGR_DATLEN_Msk) == 0U, "I2S LLD supports 16-bit data only");
 
   /* Calculate prescaler from desired sample rate and channel width. */
   uint32_t chlen = (i2sp->config->i2scfgr & SPI_I2SCFGR_CHLEN) ? 1U : 0U;
@@ -255,12 +264,17 @@ void i2s_lld_start_exchange(I2SDriver* i2sp) {
  */
 void i2s_lld_stop_exchange(I2SDriver* i2sp) {
   /* Disable BDMA — no more data will be fed to the FIFO. */
-  bdmaStreamDisable(i2sp->bdmatx);
+  if (i2sp->bdmatx != NULL) {
+    bdmaStreamDisable(i2sp->bdmatx);
+  }
 
   /* Wait for Transmission Complete (TXC): shift register drained.
-   * From STM32H7 RM: to stop I2S, wait for TXC=1, then clear SPE. */
-  while ((i2sp->spi->SR & SPI_SR_TXC) == 0U) {
-    /* Busy wait — typically a few BCLK periods. */
+   * From STM32H7 RM: to stop I2S, wait for TXC=1, then clear SPE.
+   * The wait is bounded so a missing/stopped I2S clock cannot hang the
+   * system; normally it completes within a few BCLK periods. */
+  uint32_t timeout = 1000000U;
+  while (((i2sp->spi->SR & SPI_SR_TXC) == 0U) && (timeout-- != 0U)) {
+    /* Busy wait. */
   }
 
   /* Disable I2S clock generation and the SPI peripheral. */
