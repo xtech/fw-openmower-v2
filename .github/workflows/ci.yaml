@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build
@@ -46,24 +47,8 @@ jobs:
       - name: Copy Artifacts
         run: |
           mkdir artifacts
-          cp ./out/openmower-yardforce.bin ./artifacts
-          cp ./out/openmower-yardforce.elf ./artifacts
-          cp ./out/openmower-yardforce-v4.bin ./artifacts
-          cp ./out/openmower-yardforce-v4.elf ./artifacts
-          cp ./out/openmower-worx.bin ./artifacts
-          cp ./out/openmower-worx.elf ./artifacts
-          cp ./out/openmower-lyfco-e1600.bin ./artifacts
-          cp ./out/openmower-lyfco-e1600.elf ./artifacts
-          cp ./out/openmower-sabo.bin ./artifacts
-          cp ./out/openmower-sabo.elf ./artifacts
-          cp ./out/openmower-universal-5s.bin ./artifacts
-          cp ./out/openmower-universal-5s.elf ./artifacts
-          cp ./out/openmower-universal-7s.bin ./artifacts
-          cp ./out/openmower-universal-7s.elf ./artifacts
-          cp ./out/openmower-universal-8s.bin ./artifacts
-          cp ./out/openmower-universal-8s.elf ./artifacts
-          cp ./out/openmower-husq310MKII.bin ./artifacts
-          cp ./out/openmower-husq310MKII.elf ./artifacts
+          cp ./out/openmower-firmware.bin ./artifacts
+          cp ./out/openmower-firmware.elf ./artifacts
           cp ./out/ram-info.html ./artifacts
           cp ./out/flash-info.html ./artifacts
       - name: Upload Artifacts

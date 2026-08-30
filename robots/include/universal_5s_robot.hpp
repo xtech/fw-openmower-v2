@@ -9,6 +9,13 @@
  */
 class Universal5SRobot : public UniversalRobot {
  public:
+  static bool BoardIsCompatible() {
+    return UniversalRobot::BoardIsCompatible();
+  }
+  static const char* FirmwareName() {
+    return "Universal-5S";
+  }
+
   float Power_GetDefaultBatteryFullVoltage() override {
     return 5.0f * 4.2f;
   }

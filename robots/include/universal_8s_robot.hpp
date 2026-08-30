@@ -9,6 +9,9 @@
  */
 class Universal8SRobot : public UniversalRobot {
  public:
+  static const char* FirmwareName() {
+    return "Universal-8S";
+  }
   float Power_GetDefaultBatteryFullVoltage() override {
     return 8.0f * 4.2f;
   }

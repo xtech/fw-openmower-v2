@@ -3,6 +3,7 @@
 
 #include <drivers/motor/vesc/VescDriver.h>
 #include <drivers/motor/yfr4esc/YFR4escDriver.h>
+#include <etl/string_view.h>
 #include <hal.h>
 #include <service_ids.h>
 
@@ -15,11 +16,19 @@ enum class ProtocolType : uint8_t;
 
 class Robot {
  public:
+  virtual ~Robot() = default;
   virtual void InitPlatform() = 0;
-  virtual bool IsHardwareSupported() = 0;
+  // Hardware detection is static per-class:
+  //   Phase 1 (unique hardware): static bool IsAutoDetected()
+  //   Phase 2 (name-configured): static bool BoardIsCompatible() + static const char* FirmwareName()
 
   virtual bool NeedsService(uint16_t id) {
     return id != xbot::service_ids::BMS;  // BMS is opt-in, all other services are required by default
+  }
+
+  // Return false to skip GpioInputDriver registration (e.g. robots with dedicated input hardware).
+  virtual bool NeedsGpioInputDriver() const {
+    return true;
   }
 
   virtual UARTDriver* GPS_GetUartPort() {
@@ -120,26 +129,34 @@ class Robot {
   }
 };
 
+// TODO: Introduce a VescMowerRobot intermediate class between MowerRobot
+// and the VESC-based robots (YardForce, Universal, ...).
+// VescMowerRobot would own the mower_motor_driver_ VescDriver and
+// the default InitMowerEsc(), while YardForce_V4Robot inherits directly from
+// MowerRobot with its own YFR4 driver (both implement MotorDriver).
+// This avoids an unused VescDriver member in non-VESC mower variants.
 class MowerRobot : public Robot {
  protected:
   void InitMotors();
+  virtual void InitMowerEsc();
 
   xbot::driver::motor::VescDriver left_motor_driver_{};
   xbot::driver::motor::VescDriver right_motor_driver_{};
-
-  // Select mower motor ESC by platform: YFR4 on YardForce_V4, VESC otherwise
-#if defined(ROBOT_PLATFORM_YardForce_V4)
-  using MowerEscDriver = xbot::driver::motor::YFR4escDriver;
-#else
-  using MowerEscDriver = xbot::driver::motor::VescDriver;
-#endif
-  MowerEscDriver mower_motor_driver_{};
+  xbot::driver::motor::VescDriver mower_motor_driver_{};
 
   DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver_};
   DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver_};
   DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver_};
 };
 
-Robot* GetRobot();
+// Stage 1: returns non-null if the carrier board uniquely identifies one robot.
+Robot* TryAutoDetectRobot();
+
+// True if the board is known but requires Stage 2 (MetaService Robot Firmware register).
+bool BoardSupportsStage2();
+
+// Stage 2: instantiate robot by firmware name, validated against the current board.
+// Returns nullptr if name is invalid for this board.
+Robot* GetRobotByName(etl::string_view name);
 
 #endif  // ROBOT_HPP

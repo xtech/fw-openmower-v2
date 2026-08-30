@@ -8,7 +8,7 @@ void UniversalRobot::InitPlatform() {
   power_service.SetDriver(GetCharger());
 }
 
-bool UniversalRobot::IsHardwareSupported() {
+bool UniversalRobot::BoardIsCompatible() {
   // First batch of universal boards have a non-working EEPROM
   // so we assume that the firmware is compatible, if the xcore is the first batch and no carrier was found.
   if (carrier_board_info.board_info_version == 0 &&

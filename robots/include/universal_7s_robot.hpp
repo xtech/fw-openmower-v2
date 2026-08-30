@@ -9,6 +9,13 @@
  */
 class Universal7SRobot : public UniversalRobot {
  public:
+  static bool BoardIsCompatible() {
+    return UniversalRobot::BoardIsCompatible();
+  }
+  static const char* FirmwareName() {
+    return "Universal-7S";
+  }
+
   float Power_GetDefaultBatteryFullVoltage() override {
     return 7.0f * 4.2f;
   }

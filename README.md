@@ -12,7 +12,7 @@ Real-time embedded firmware for the xCore board -- the low-level controller in t
 
 This repository contains the firmware that runs on the **xCore board** (STM32H723 Cortex-M7) using [ChibiOS](https://www.chibios.org/) as its real-time operating system. The firmware is responsible for all low-level hardware control: driving motors via [xESC](https://github.com/ClemensElflein/xESC) controllers, reading GPS and IMU sensors, managing battery charging, enforcing safety systems, and processing user inputs. It communicates with a **Raspberry Pi Compute Module 4** over Ethernet, where the [open_mower_ros](https://github.com/ClemensElflein/open_mower_ros) ROS stack handles navigation, path planning, and high-level mission control.
 
-A single codebase supports **6 different robot platforms** through compile-time platform selection, each with its own carrier board, battery configuration, and hardware-specific drivers.
+A single codebase supports **10 different robot platforms** through runtime robot detection. A single unified firmware binary automatically identifies the robot variant via EEPROM (Stage 1) or ROS configuration (Stage 2).
 
 ## System Architecture
 
@@ -22,16 +22,19 @@ A single codebase supports **6 different robot platforms** through compile-time 
 
 ## Supported Platforms
 
-The firmware supports 6 robot platforms, selected at compile time via `-DROBOT_PLATFORM=<value>`. Each platform defines its own battery parameters, motor drivers, charger IC, and carrier board compatibility.
+The firmware supports 10 robot platforms, selected at runtime via two-stage detection: Stage 1 (Sabo/xBot auto-detect from EEPROM) and Stage 2 (ROS sets the robot variant via the MetaService `Robot Firmware` register). Each platform defines its own battery parameters, motor drivers, charger IC, and carrier board compatibility. No compile-time flags are needed — a single binary serves all platforms.
 
-| Platform | CMake Value | Base Robot | Battery | Carrier Board | Charger | Notes |
-|---|---|---|---|---|---|---|
-| YardForce | `YardForce` | Classic 500(B) | 7S (29.4V) | hw-openmower-yardforce | BQ2576 | |
-| YardForce V4 | `YardForce_V4` | Classic 500(B) | 7S (29.4V) | hw-openmower-yardforce | BQ2576 | YFR4 mower ESC |
-| Worx | `Worx` | Worx models | 5S (21V) | hw-openmower-universal | BQ2576 | Worx input protocol |
-| Lyfco E1600 | `Lyfco_E1600` | Lyfco E1600 | 7S (29.4V) | hw-openmower-universal | BQ2576 | |
-| Sabo | `Sabo` | MOWit 500F / JD Tango E5 | 7S3P (29V) | hw-openmower-sabo | BQ2576 | BMS, CoverUI with LCD, dynamic power mgmt |
-| xBot | `xBot` | Reference / dev platform | 4S (16.8V) | hw-xbot-mainboard | BQ2579 | PWM motors, no mower service |
+| Platform     | Runtime Name   | Base Robot               | Battery      | Carrier Board          | Charger | Notes                                     |
+| ------------ | -------------- | ------------------------ | ------------ | ---------------------- | ------- | ----------------------------------------- |
+| YardForce    | `YardForce`    | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  |                                           |
+| YardForce V4 | `YardForce-V4` | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  | YFR4 mower ESC                            |
+| Universal 5S | `Universal-5S` | Universal                | 5S (21V)     | hw-openmower-universal | BQ2576  |                                           |
+| Universal 7S | `Universal-7S` | Universal                | 7S (29.4V)   | hw-openmower-universal | BQ2576  |                                           |
+| Universal 8S | `Universal-8S` | Universal                | 8S (33.6V)   | hw-openmower-universal | BQ2576  |                                           |
+| Worx         | `Worx`         | Worx models              | 5S (21V)     | hw-openmower-universal | BQ2576  | Worx input protocol                       |
+| Lyfco E1600  | `Lyfco_E1600`  | Lyfco E1600              | 7S (29.4V)   | hw-openmower-universal | BQ2576  |                                           |
+| Sabo         | `Sabo`         | MOWit 500F / JD Tango E5 | 7S3P (29.4V) | hw-openmower-sabo      | BQ2576  | BMS, CoverUI with LCD, dynamic power mgmt |
+| xBot         | `xBot`         | Reference / dev platform | 4S (16.8V)   | hw-xbot-mainboard      | BQ2579  | PWM motors, no mower service              |
 
 ## Prerequisites
 
@@ -58,40 +61,38 @@ If already cloned without `--recursive`:
 git submodule update --init --recursive
 ```
 
-### Quick Build (Single Platform)
+### Quick Build
 
 ```bash
-./build-binary.sh Release YardForce
+./build-binary.sh Release
 ```
 
-Output: `out/openmower-YardForce.elf` and `out/openmower-YardForce.bin`
+Output: `out/openmower-firmware.elf` and `out/openmower-firmware.bin`
 
 ### Manual CMake Build
 
 ```bash
-cmake . --preset=Release -DROBOT_PLATFORM=YardForce
+cmake . --preset=Release
 cd build/Release
 make -j$(nproc)
 ```
 
-Output: `build/Release/openmower.elf`, `openmower.bin`, `openmower.hex`
-
-> **Note:** `-DROBOT_PLATFORM` is required and has no default value. The build will fail without it.
+Output: `build/Release/openmower-firmware.elf`, `openmower-firmware.bin`, `openmower-firmware.hex`
 
 ### Build Presets
 
-| Preset | Build Type | Description |
-|---|---|---|
-| `Debug` | -O0 | Full debug symbols, `DEBUG_BUILD` defined (enables simulated input driver) |
-| `DebugRTT` | -O0 | Debug + SEGGER RTT real-time terminal |
-| `DebugSystemView` | -O0 | Debug + SEGGER RTT + SystemView tracing |
-| `Release` | -Os | Optimized, `RELEASE_BUILD` defined (bootloader reset config) |
-| `RelWithDebInfo` | -O2 -g | Release optimizations with debug symbols |
-| `MinSizeRel` | -Os | Minimum binary size |
+| Preset            | Build Type | Description                                                                |
+| ----------------- | ---------- | -------------------------------------------------------------------------- |
+| `Debug`           | -O0        | Full debug symbols, `DEBUG_BUILD` defined (enables simulated input driver) |
+| `DebugRTT`        | -O0        | Debug + SEGGER RTT real-time terminal                                      |
+| `DebugSystemView` | -O0        | Debug + SEGGER RTT + SystemView tracing                                    |
+| `Release`         | -Os        | Optimized, `RELEASE_BUILD` defined (bootloader reset config)               |
+| `RelWithDebInfo`  | -O2 -g     | Release optimizations with debug symbols                                   |
+| `MinSizeRel`      | -Os        | Minimum binary size                                                        |
 
 ### Docker Build (All Platforms)
 
-Builds all 6 platform binaries in one step and extracts them directly to `./out/`:
+Builds the unified firmware binary and extracts it directly to `./out/`:
 
 ```bash
 docker build -o ./out .
@@ -119,22 +120,7 @@ The easiest way to get started. Open the project in VS Code with the [Dev Contai
 
 ### Personal Build Preset
 
-Create a `CMakeUserPresets.json` (gitignored) to set your default platform:
-
-```json
-{
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "MyDebug",
-            "inherits": "Debug",
-            "cacheVariables": {
-                "ROBOT_PLATFORM": "YardForce"
-            }
-        }
-    ]
-}
-```
+For a custom build preset, create a `CMakeUserPresets.json` (gitignored). No platform flag is needed — the unified firmware binary detects the robot at runtime.
 
 ### Debugging
 
@@ -169,33 +155,33 @@ pre-commit install
 
 ### Service-Oriented Design
 
-The firmware is built around 8 services that communicate via the [xbot_framework](https://github.com/ClemensElflein/xbot_framework) message-passing system. Each service runs in its own ChibiOS thread. The framework also handles communication with the Raspberry Pi CM4 over Ethernet.
+The firmware is built around 9 services that communicate via the [xbot_framework](https://github.com/ClemensElflein/xbot_framework) message-passing system. Each service runs in its own ChibiOS thread. The framework also handles communication with the Raspberry Pi CM4 over Ethernet.
 
 Service definitions are maintained in a separate repository ([definitions-open-mower](https://github.com/xtech/definitions-open-mower)) and included as the `services/` submodule. These JSON definitions auto-generate C++ base classes with typed message accessors.
 
-| Service | Description |
-|---|---|
+| Service              | Description                                                                  |
+| -------------------- | ---------------------------------------------------------------------------- |
 | **EmergencyService** | Safety state machine with timeout-based shutdown and multi-source monitoring |
-| **DiffDriveService** | Differential drive motor control (left/right wheels) via VESC or PWM |
-| **MowerService** | Blade motor control (disabled on xBot platform) |
-| **PowerService** | Battery voltage monitoring, charger control (BQ2576/BQ2579), BMS integration |
-| **GpsService** | UBX and NMEA GPS protocol support with RTCM/RTK correction data |
-| **InputService** | User input aggregation with debouncing (GPIO, Sabo buttons, Worx protocol) |
-| **ImuService** | LSM6DS3TR-C 6-axis IMU with platform-specific axis remapping |
-| **HighLevelService** | Mission state coordination and progress tracking |
+| **DiffDriveService** | Differential drive motor control (left/right wheels) via VESC or PWM         |
+| **MowerService**     | Blade motor control (disabled on xBot platform)                              |
+| **PowerService**     | Battery voltage monitoring, charger control (BQ2576/BQ2579), BMS integration |
+| **GpsService**       | UBX and NMEA GPS protocol support with RTCM/RTK correction data              |
+| **InputService**     | User input aggregation with debouncing (GPIO, Sabo buttons, Worx protocol)   |
+| **ImuService**       | LSM6DS3TR-C 6-axis IMU with platform-specific axis remapping                 |
+| **HighLevelService** | Mission state coordination and progress tracking                             |
 
 ### Platform Abstraction
 
 The `Robot` base class (`robots/include/robot.hpp`) defines the hardware interface that each platform must implement: battery voltage thresholds, charger initialization, GPS port selection, and hardware compatibility checks. `MowerRobot` extends this with motor driver setup for standard mower platforms.
 
-Each platform has a concrete implementation in `robots/src/` (e.g., `sabo_robot.cpp`). The `GetRobot()` factory function returns the correct instance based on the compile-time `ROBOT_PLATFORM` macro, which also sets a `ROBOT_PLATFORM_<name>=1` preprocessor define for `#ifdef` guards.
+Each platform has a concrete implementation in `robots/src/` (e.g., `sabo_robot.cpp`). The `TryAutoDetectRobot()` function handles Stage 1 detection (Sabo/xBot via EEPROM), while `GetRobotByName()` resolves Stage 2 robots from the MetaService `Robot Firmware` register. No compile-time flags are used.
 
 ### Startup Flow
 
 1. HAL and ChibiOS kernel initialization (D-Cache disabled for Ethernet DMA)
 2. LWIP networking with DHCP (MAC address from ID EEPROM)
 3. LittleFS flash filesystem mount
-4. Platform detection via `GetRobot()` and carrier board ID verification
+4. Platform detection via `TryAutoDetectRobot()` (Stage 1: EEPROM) or `GetRobotByName()` (Stage 2: ROS MetaService)
 5. `InitPlatform()` -- hardware-specific setup (charger, motors, sensors)
 6. xbot I/O framework start
 7. `StartServices()` -- conditional service startup per platform
@@ -255,16 +241,16 @@ fw-openmower-v2/
 
 The OpenMower ecosystem spans multiple repositories:
 
-| Project | Description |
-|---|---|
-| [OpenMower](https://github.com/ClemensElflein/OpenMower) | Main project -- overview, documentation, and getting started |
-| [open_mower_ros](https://github.com/ClemensElflein/open_mower_ros) | ROS navigation stack (runs on Raspberry Pi CM4) |
-| [OpenMowerOS](https://github.com/ClemensElflein/OpenMowerOS) | Custom Linux image for the Raspberry Pi CM4 |
-| [xESC](https://github.com/ClemensElflein/xESC) | Open-source BLDC motor controller (VESC-compatible) |
-| [xbot_framework](https://github.com/ClemensElflein/xbot_framework) | Service framework used by this firmware |
-| [hw-openmower-yardforce](https://github.com/xtech/hw-openmower-yardforce) | YardForce carrier board hardware design |
-| [hw-openmower-sabo](https://github.com/xtech/hw-openmower-sabo) | Sabo / John Deere carrier board hardware design |
-| [hw-openmower-universal](https://github.com/xtech/hw-openmower-universal) | Universal carrier board hardware design |
+| Project                                                                   | Description                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [OpenMower](https://github.com/ClemensElflein/OpenMower)                  | Main project -- overview, documentation, and getting started |
+| [open_mower_ros](https://github.com/ClemensElflein/open_mower_ros)        | ROS navigation stack (runs on Raspberry Pi CM4)              |
+| [OpenMowerOS](https://github.com/ClemensElflein/OpenMowerOS)              | Custom Linux image for the Raspberry Pi CM4                  |
+| [xESC](https://github.com/ClemensElflein/xESC)                            | Open-source BLDC motor controller (VESC-compatible)          |
+| [xbot_framework](https://github.com/ClemensElflein/xbot_framework)        | Service framework used by this firmware                      |
+| [hw-openmower-yardforce](https://github.com/xtech/hw-openmower-yardforce) | YardForce carrier board hardware design                      |
+| [hw-openmower-sabo](https://github.com/xtech/hw-openmower-sabo)           | Sabo / John Deere carrier board hardware design              |
+| [hw-openmower-universal](https://github.com/xtech/hw-openmower-universal) | Universal carrier board hardware design                      |
 
 ## Community
 
@@ -279,12 +265,12 @@ The OpenMower ecosystem spans multiple repositories:
 2. Create a feature branch
 3. Install pre-commit hooks: `pip install pre-commit && pre-commit install`
 4. Follow the code style (clang-format v14, Google base, 120-column limit)
-5. Ensure the build passes with `-Wall -Wextra -Werror` for your target platform
+5. Ensure the build passes with `-Wall -Wextra -Werror`
 6. Submit a pull request against `main`
 
-CI automatically runs pre-commit checks and builds all 6 platforms on every pull request. Tagged releases (`v*`) are automatically packaged and published to GitHub Releases.
+CI automatically runs pre-commit checks and builds the unified firmware on every pull request. Tagged releases (`v*`) are automatically packaged and published to GitHub Releases.
 
-To add support for a new robot platform, create a class inheriting from `Robot` or `MowerRobot` in `robots/`, implement the required virtual methods, and add the platform name to the `GetRobot()` factory.
+To add support for a new robot platform, create a class inheriting from `Robot` or `MowerRobot` in `robots/`, implement the required virtual methods (`BoardIsCompatible()` + `FirmwareName()` for Stage 2, or `IsAutoDetected()` for Stage 1), and register it in `robot.cpp`'s `GetRobotByName()` and/or `TryAutoDetectRobot()`.
 
 ## License
 

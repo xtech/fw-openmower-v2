@@ -10,7 +10,7 @@ set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
 set(XBOT_SERVICE_EXT "services/service_ext.hpp")
 
 # Set the project name
-set(CMAKE_PROJECT_NAME openmower)
+set(CMAKE_PROJECT_NAME openmower-firmware)
 
 # Include toolchain file
 include("cmake/gcc-arm-none-eabi.cmake")
@@ -89,6 +89,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/gps_service/gps_service.cpp
         src/services/input_service/input_service.cpp
         src/services/high_level_service/high_level_service.cpp
+        src/services/meta_service/meta_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
         # BQ25679 driver
@@ -147,7 +148,6 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user defined symbols
         timegm=mktime
-        ROBOT_PLATFORM=${ROBOT_PLATFORM}
 )
 
 # Add linked libraries
@@ -170,6 +170,7 @@ target_add_service(${CMAKE_PROJECT_NAME} MowerService ${CMAKE_CURRENT_SOURCE_DIR
 target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/services/gps_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} InputService ${CMAKE_CURRENT_SOURCE_DIR}/services/input_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} HighLevelService ${CMAKE_CURRENT_SOURCE_DIR}/services/high_level_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} MetaService ${CMAKE_CURRENT_SOURCE_DIR}/services/meta_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")
