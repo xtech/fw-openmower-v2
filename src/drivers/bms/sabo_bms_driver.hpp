@@ -59,6 +59,7 @@ class SaboBmsDriver : public BmsDriver {
   const xbot::driver::sabo::config::Bms* bms_cfg_;
 
   SbsProtocol sbs_{};
+  uint16_t battery_status_{0};  // Our BMS is not SBS-compliant, so we like to track the battery status for publishing
 
   bool configured_{false};
   bool probe();
@@ -71,6 +72,11 @@ class SaboBmsDriver : public BmsDriver {
   msg_t SbsReadWord(uint8_t cmd, uint16_t& out);
   msg_t SbsReadInt16(uint8_t cmd, int16_t& out);
   msg_t SbsReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity, size_t& out_len);
+
+  // Wraps i2cMasterTransmit. On a bus timeout the peripheral is left in the
+  // I2C_LOCKED state and must be restarted before it can be reused; this
+  // restarts it and loops until the restart succeeds.
+  msg_t I2cMasterTransmit(const uint8_t* tx, size_t tx_len, uint8_t* rx, size_t rx_len);
 
   msg_t ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len);
   msg_t ReadRegister(uint8_t reg, uint8_t& result);

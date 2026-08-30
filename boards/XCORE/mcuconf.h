@@ -319,7 +319,11 @@
 #define STM32_MAC_PHY_TIMEOUT               100
 #define STM32_MAC_ETH1_CHANGE_PHY_STATE     FALSE
 #define STM32_MAC_ETH1_IRQ_PRIORITY         13
-#define STM32_MAC_IP_CHECKSUM_OFFLOAD       0
+/* 3 = HW computes/inserts IP header + payload (TCP/UDP/ICMP) checksums incl.
+   pseudo-header on TX, and verifies them on RX (frames with bad IP/payload
+   checksum are dropped in the driver). Matching SW checksums are disabled in
+   cfg/lwipopts.h via the CHECKSUM_GEN and CHECKSUM_CHECK options. */
+#define STM32_MAC_IP_CHECKSUM_OFFLOAD       3
 
 /*
  * PWM driver system settings.

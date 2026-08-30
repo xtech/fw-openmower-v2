@@ -42,6 +42,10 @@ static void LineCallback(void*) {
 bool GpioInputDriver::OnStart() {
   for (const auto& input : Inputs()) {
     palSetLineMode(input.gpio.line, PAL_MODE_INPUT);
+
+    // We're limited with EXTI's -> Only go-on and enable interrupts
+    // for inputs that have an emergency reason configured
+    if (input.emergency_reason == 0) continue;
     palSetLineCallback(input.gpio.line, LineCallback, nullptr);
     palEnableLineEvent(input.gpio.line, PAL_EVENT_MODE_BOTH_EDGES);
   }
@@ -50,6 +54,7 @@ bool GpioInputDriver::OnStart() {
 
 void GpioInputDriver::OnStop() {
   for (const auto& input : Inputs()) {
+    if (input.emergency_reason == 0) continue;
     palDisableLineEvent(input.gpio.line);
   }
 }

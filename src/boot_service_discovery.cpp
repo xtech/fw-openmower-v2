@@ -19,6 +19,7 @@ static char boardAdvertisementRequestBuffer[100];
 static THD_WORKING_AREA(waServiceDiscovery, 512);
 
 static void multicast_sender_thread(void *p) {
+  chRegSetThreadName("ServiceDiscovery");
   (void)p;
   struct sockaddr_in multicast_addr;
   struct sockaddr_in addr;

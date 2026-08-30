@@ -592,9 +592,24 @@ msg_t mac_lld_get_receive_descriptor(MACDriver *macp,
 
       return MSG_OK;
     }
-    /* Invalid frame found, purging.*/
+    /* Invalid frame found (RX error, address filtered, or failed HW
+       checksum), purging: hand the buffer back to the DMA and keep the
+       ring index in lockstep with the DMA write pointer. Failing to
+       advance here desyncs rdindex from the DMA and stalls RX after the
+       first discarded frame. Caller (macWaitReceiveDescriptor) already
+       holds the system lock, so no osalSysLock here.*/
     rdes->rdes3 = STM32_RDES3_OWN | STM32_RDES3_IOC | STM32_RDES3_BUF1V;
+    __DSB();
+    /* If the DMA engine is stalled then a restart request is issued.*/
+    if ((ETH->DMADSR & ETH_DMADSR_RPS) == ETH_DMADSR_RPS_SUSPENDED) {
+      ETH->DMACSR = ETH_DMACSR_RBU;
+    }
+    ETH->DMACRDTPR = 0U;
     /* Reposition in ring.*/
+    macp->rdindex++;
+    if (macp->rdindex >= STM32_MAC_RECEIVE_BUFFERS)
+      macp->rdindex = 0U;
+    rdes = (stm32_eth_rx_descriptor_t *)&__eth_rd[macp->rdindex];
   }
 
   return MSG_TIMEOUT;

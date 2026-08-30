@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "i2c_utils.hpp"
 #include "json_utils.hpp"
 #include "sbs_debug.hpp"
 
@@ -91,12 +92,12 @@ msg_t SaboBmsDriver::SbsReadBlock(uint8_t cmd, uint8_t* data, size_t data_capaci
 
 bool SaboBmsDriver::Init() {
   if (bms_cfg_ == nullptr) {
-    ULOG_ERROR("SaboBmsDriver: BMS config not set\n");
+    ULOG_ERROR("SaboBmsDriver: BMS config not set");
     return false;
   }
 
   if (bms_cfg_->i2c == nullptr) {
-    ULOG_ERROR("SaboBmsDriver: I2C driver not set\n");
+    ULOG_ERROR("SaboBmsDriver: I2C driver not set");
     return false;
   }
 
@@ -106,7 +107,6 @@ bool SaboBmsDriver::Init() {
 
 void SaboBmsDriver::Tick() {
   static uint8_t check_cnt = 100;  // Need some retries to detect presence
-  static systime_t last_log_time = 0;
 
   if (!configured_ || (!IsPresent() && !check_cnt)) return;
 
@@ -206,25 +206,27 @@ void SaboBmsDriver::Tick() {
 
   // BatteryStatus (0x16) word
   // "FSM-BMZ, 30710, V2.00" seem to support only some of the status bits.
-  if (ReadRegister(0x16, u16) == MSG_OK) {
+  if (ReadRegister(0x16, battery_status_) == MSG_OK) {
     // Bit 11, 0x0800 looks like a TERMINATE_DISCHARGE_ALARM flag, SoC < 5% ?
-    (u16 & 0b0000100000000000)
+    (battery_status_ & 0b0000100000000000)
         ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge)
         : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge);
     // Bit 7-6 looks like a CHARGING flag => /DISCHARGING
-    ((u16 & 0b11000000) && data_.pack_current_a > 0.0f)
+    ((battery_status_ & 0b11000000) && data_.pack_current_a > 0.0f)
         ? SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusDischarging)
         : SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusDischarging);
-    // Bit 5 looks like a /FULLY_CHARGED flag
-    (u16 & 0b00100000)
-        ? SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged)
-        : SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged);
+    // Bit 5: CHARGE_ACCEPTED_N (active-low) — CLEAR = charger accepted, SET = charger absent/rejected.
+    // Map to StatusFullyCharged only when charger is actually accepted AND SOC confirms full.
+    const bool charge_accepted = !(battery_status_ & (1 << 5));
+    (charge_accepted && data_.battery_soc >= 0.99f)
+        ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged)
+        : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyCharged);
     // Bit 1 looks like a FULLY_DISCHARGED flag, SoC < 20% ?
-    (u16 & 0b00000010)
+    (battery_status_ & 0b00000010)
         ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyDischarged)
         : SbsProtocol::ResetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::StatusFullyDischarged);
     // Bit 0 looks like a TERMINATE_DISCHARGE_ALARM flag, SoC < 5% ?
-    /*(u16 & 0b00000001)
+    /*(battery_status_ & 0b00000001)
         ? SbsProtocol::SetBatteryStatus(data_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge)
         : SbsProtocol::ResetBatteryStatus(data_.battery_status,
        SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge);*/
@@ -245,28 +247,10 @@ void SaboBmsDriver::Tick() {
     }
   }
 
-  // Log BMS data every minute for analysis and BatteryStatus monitoring
-  const systime_t now = chVTGetSystemTimeX();
-  if (chVTTimeElapsedSinceX(last_log_time) > TIME_S2I(60)) {
-    last_log_time = now;
-
-    // Format battery_status as hex and binary
-    char status_bin[17];
-    for (int i = 0; i < 16; i++) {
-      status_bin[i] = (data_.battery_status & (1 << (15 - i))) ? '1' : '0';
-    }
-    status_bin[16] = '\0';
-
-    ULOG_INFO("BMS Data: t=%lu V=%.2f I=%.3f T=%.1f SOC=%.1f%% RemCap=%.3fAh FullCap=%.3fAh Status=0x%04X (%s)",
-              (unsigned long)TIME_I2MS(now), (double)data_.pack_voltage_v, (double)data_.pack_current_a,
-              (double)data_.temperature_c, (double)(data_.battery_soc * 100.0f), (double)data_.remaining_capacity_ah,
-              (double)data_.full_charge_capacity_ah, (unsigned)data_.battery_status, status_bin);
-  }
   i2cReleaseBus(bms_cfg_->i2c);
 }
 
 const char* SaboBmsDriver::GetExtraDataJson() const {
-  // FIXME: Quite large JSON buffer. Optimize as streamed output?
   static char json_buf[512];
 
   json_buf[0] = '\0';
@@ -297,10 +281,8 @@ const char* SaboBmsDriver::GetExtraDataJson() const {
                       ",\"serial_number\":%u,\"design_capacity_ah\":%.3f,\"design_voltage_v\":%.3f",
                       (unsigned)data_.serial_number, (double)data_.design_capacity_ah, (double)data_.design_voltage_v);
 
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars,
-                      ",\"full_charge_capacity_ah\":%.3f,\"remaining_capacity_ah\":%.3f,\"cycle_count\":%u",
-                      (double)data_.full_charge_capacity_ah, (double)data_.remaining_capacity_ah,
-                      (unsigned)data_.cycle_count);
+  // Status
+  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"status\":%u", battery_status_);
 
   // Cell voltages
   chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"cell_count\":%u,\"cell_voltage_v\": [",
@@ -361,7 +343,10 @@ bool SaboBmsDriver::DumpDevice() {
   opt.list_unknown_nonzero = true;
   opt.suppress_cmds_0x3c_0x42 = true;  // printed separately as cell voltages
 
+  i2cAcquireBus(bms_cfg_->i2c);
+
   if (!debug::DumpSbsDevice(sbs_, cb, opt)) {
+    i2cReleaseBus(bms_cfg_->i2c);
     return false;
   }
 
@@ -409,15 +394,24 @@ bool SaboBmsDriver::DumpDevice() {
     }
   }
 
+  i2cReleaseBus(bms_cfg_->i2c);
+
   return true;
 }
 
+msg_t SaboBmsDriver::I2cMasterTransmit(const uint8_t* tx, size_t tx_len, uint8_t* rx, size_t rx_len) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
+  return xbot::i2c::TransmitWithRecovery(bms_cfg_->i2c, DEVICE_ADDRESS, tx, tx_len, rx, rx_len, "BMS",
+                                         i2c_retry_delay_ms);
+}
+
 msg_t SaboBmsDriver::ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   if (bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr || rx == nullptr || rx_len == 0) return MSG_RESET;
 
   msg_t last_msg = MSG_RESET;
   for (unsigned attempt = 0; attempt < i2c_retries; attempt++) {
-    const msg_t msg = i2cMasterTransmit(bms_cfg_->i2c, DEVICE_ADDRESS, &reg, 1, rx, rx_len);
+    const msg_t msg = I2cMasterTransmit(&reg, 1, rx, rx_len);
     last_msg = msg;
     if (msg == MSG_OK) break;
     chThdSleepMilliseconds(i2c_retry_delay_ms);
@@ -427,6 +421,7 @@ msg_t SaboBmsDriver::ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len) {
 }
 
 msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint8_t& result) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   uint8_t rx = 0;
   const msg_t msg = ReadRegisterRaw(reg, &rx, 1);
   if (msg == MSG_OK) result = rx;
@@ -434,6 +429,7 @@ msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint8_t& result) {
 }
 
 msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint16_t& result) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   uint8_t rx[2] = {0, 0};
   const msg_t msg = ReadRegisterRaw(reg, rx, 2);
   if (msg == MSG_OK) result = (uint16_t)rx[0] | (uint16_t)((uint16_t)rx[1] << 8);
@@ -441,6 +437,7 @@ msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint16_t& result) {
 }
 
 msg_t SaboBmsDriver::ReadRegister(uint8_t reg, int16_t& result) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   uint16_t u = 0;
   const msg_t msg = ReadRegister(reg, u);
   if (msg == MSG_OK) result = (int16_t)u;
@@ -448,6 +445,7 @@ msg_t SaboBmsDriver::ReadRegister(uint8_t reg, int16_t& result) {
 }
 
 msg_t SaboBmsDriver::ReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity, size_t& out_len) {
+  chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   out_len = 0;
   if (!bms_cfg_ || !bms_cfg_->i2c || !data || !data_capacity) return MSG_RESET;
 
@@ -459,7 +457,7 @@ msg_t SaboBmsDriver::ReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity,
 
   for (unsigned attempt = 0; attempt < i2c_retries; attempt++) {
     memset(data, 0, rx_max);
-    const msg_t msg = i2cMasterTransmit(bms_cfg_->i2c, DEVICE_ADDRESS, &cmd, 1, data, rx_max);
+    const msg_t msg = I2cMasterTransmit(&cmd, 1, data, rx_max);
     last_msg = msg;
     if (msg != MSG_OK) {
       chThdSleepMilliseconds(i2c_retry_delay_ms);

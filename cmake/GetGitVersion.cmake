@@ -1,31 +1,24 @@
 # Get git version information and generate a header file
-# This script is run at build time to capture git hash and build date
+# This script is run at build time to capture the version string and build date
+#
+# Uses git describe --tags to produce version strings like:
+#   v0.5.0             (exact tag, clean tree)
+#   v0.5.0-3-gabc1234  (3 commits after tag)
+#   v0.5.0-dirty       (exact tag with uncommitted changes)
+#   abc1234             (no tags found, fallback to hash)
 
 function(get_git_version OUTPUT_DIR)
-    # Get git hash (short form, 7 characters)
+    # Get version string: tag + commits + hash + dirty flag
     execute_process(
-        COMMAND git rev-parse --short=7 HEAD
+        COMMAND git describe --tags --dirty --always
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_HASH
+        OUTPUT_VARIABLE BUILD_VERSION
         ERROR_QUIET
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
 
-    if(NOT GIT_HASH)
-        set(GIT_HASH "unknown")
-    endif()
-
-    # Check if repository is dirty (has uncommitted changes)
-    execute_process(
-        COMMAND git status --porcelain
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_DIRTY
-        ERROR_QUIET
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-
-    if(GIT_DIRTY)
-        string(APPEND GIT_HASH "-dirty")
+    if(NOT BUILD_VERSION)
+        set(BUILD_VERSION "unknown")
     endif()
 
     # Get current date and time (ISO 8601 format)
@@ -38,5 +31,5 @@ function(get_git_version OUTPUT_DIR)
         @ONLY
     )
 
-    message(STATUS "Git version: ${GIT_HASH} (Built: ${BUILD_DATE})")
+    message(STATUS "Version: ${BUILD_VERSION} (Built: ${BUILD_DATE})")
 endfunction()

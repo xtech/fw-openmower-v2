@@ -9,6 +9,7 @@
 #include <drivers/ui/SaboCoverUI/sabo_cover_ui_controller.hpp>
 #include <globals.hpp>
 
+#include "../services/service_ids.h"
 #include "robot.hpp"
 #include "sabo_common.hpp"
 
@@ -25,8 +26,17 @@ class SaboRobot : public MowerRobot {
 
   SaboRobot();
 
+  static bool IsAutoDetected();
   void InitPlatform() override;
-  bool IsHardwareSupported() override;
+
+  bool NeedsService(uint16_t id) override {
+    if (id == xbot::service_ids::BMS) return hardware_config.bms != nullptr;
+    return Robot::NeedsService(id);
+  }
+
+  bool NeedsGpioInputDriver() const override {
+    return false;
+  }
 
   UARTDriver* GPS_GetUartPort() override {
 #ifndef STM32_UART_USE_USART6
@@ -35,19 +45,26 @@ class SaboRobot : public MowerRobot {
     return &UARTD6;
   }
 
+  float Power_GetDefaultChargeVoltage() override {
+    // This is not recommended for older (10+ year) cells like ours and should only be used for fresh packs
+    // return 7.0f * 4.2f;  // = 29.4V
+    // For older cells, we should not expect the full capacity and also not overstress them
+    return 7.0f * 4.157f;  // = ~29.1V. You may lower via powerservice register for more aged packs
+  }
+
   float Power_GetDefaultBatteryFullVoltage() override {
-    return 29.0f;  // Conservative. Rated on battery pack is 29.4V
+    return Power_GetDefaultChargeVoltage() * 0.9f;
   }
 
   float Power_GetDefaultBatteryEmptyVoltage() override {
-    return 7.0f * 3.36f;  // 23.52V
+    return 7.0f * 3.5f;  // 24.5V
   }
 
   float Power_GetAbsoluteMinVoltage() override {
     // Stock Sabo battery pack has INR18650-13L (Samsung) which are specified as:
-    // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save and use 3.15V,
+    // Empty = 3.0V, Critical discharge <=2.5V. For now, let's stay save,
     // because most packages are > 10 years old now and cells may be a bit worn out.
-    return 7.0f * 3.2;  // 22.4V
+    return 7.0f * 3.45f;  // 24.15V
   }
 
   float Power_GetDefaultChargeCurrent() override {
@@ -56,7 +73,28 @@ class SaboRobot : public MowerRobot {
     return 2.5f;  // Lets stay save and conservative for now
   }
 
+  float Power_GetMaxChargeCurrent() override {
+    return 3.9;
+  }
+
+  float Power_GetDefaultTerminationCurrent() override {
+    return 0.3f;  // 300mA
+  }
+
+  float Power_GetDefaultPreChargeCurrent() override {
+    return 0.5f;  // 500mA
+  }
+
+  ChargerDriver::ReChargeVoltage Power_GetDefaultReChargeVoltage() override {
+    // Sabo batteries are mostly around 10 years old. Be nice to them for a longer life.
+    return ChargerDriver::ReChargeVoltage::PERCENT_95_2;
+  }
+
   bool SaveGpsSettings(ProtocolType protocol, uint8_t uart, uint32_t baudrate) override;
+
+  float GetMowerMaxSafeRpm() override {
+    return 3000.0f;  // Stock RPM is 2600. All above 3000 RPM becomes dangerous!
+  }
 
   // ----- Some driver Test* functions used by Boot-Screen -----
 
@@ -125,10 +163,16 @@ class SaboRobot : public MowerRobot {
     }
   }
 
+  // Charger driver access for direct hardware readings
+  BQ2576& GetCharger() {
+    return charger_;
+  }
+
   bool HasInvertedHallSensors() const;
 
  private:
-  BQ2576 charger_{0.005f};  // All Sabo's do have an 5mΩ Rac_sns
+  // Charger voltage divider resistors are version-dependent, see sabo_common.hpp CHARGER_V0_x
+  BQ2576 charger_;
   SaboCoverUIController cover_ui_{hardware_config};
   SaboInputDriver sabo_input_driver_{hardware_config};
   SaboBmsDriver bms_{hardware_config.bms};

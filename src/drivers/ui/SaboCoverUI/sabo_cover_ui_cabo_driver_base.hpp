@@ -62,9 +62,9 @@ class SaboCoverUICaboDriverBase {
   SaboCoverUISeriesInterface* series_ = nullptr;  // Series-I/II specific driver
 
   struct LEDState {
-    uint8_t on_mask = 0;
-    uint8_t slow_blink_mask = 0;
-    uint8_t fast_blink_mask = 0;
+    uint16_t on_mask = 0;
+    uint16_t slow_blink_mask = 0;
+    uint16_t fast_blink_mask = 0;
     systime_t last_slow_update = 0;
     systime_t last_fast_update = 0;
     bool slow_blink_state = false;
@@ -79,10 +79,10 @@ class SaboCoverUICaboDriverBase {
   };
   DriverState state_ = DriverState::WAITING_FOR_CUI;
 
-  uint8_t current_led_mask_ = 0;  // Series specific current LEDs, with applied LED modes, high-active
+  uint16_t current_led_mask_ = 0;  // Series specific current LEDs, with applied LED modes, high-active
 
   virtual SaboCoverUISeriesInterface* GetSeriesDriver() = 0;  // Get the CoverUI Series driver, if connected
-  virtual uint8_t MapLedIdToMask(LedId id) const = 0;
+  virtual uint16_t MapLedIdToMask(LedId id) const = 0;
 
   void ProcessLedStates();  // Process the different LED modes (on, blink, ...)
 

@@ -80,7 +80,7 @@ class SaboCoverUICaboDriverV01 : public SaboCoverUICaboDriverBase {
     return &series2_driver;
   }
 
-  uint8_t MapLedIdToMask(LedId id) const override {
+  uint16_t MapLedIdToMask(LedId id) const override {
     return series_ ? series_->MapLedIdToMask(id) : 0;
   };
 

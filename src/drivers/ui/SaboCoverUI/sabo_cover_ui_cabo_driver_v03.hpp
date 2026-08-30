@@ -37,8 +37,8 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
  public:
   explicit SaboCoverUICaboDriverV03(const xbot::driver::sabo::config::CoverUi* cover_ui_cfg)
       : SaboCoverUICaboDriverBase(cover_ui_cfg),
-        gpio_exp_leds_(&cover_ui_cfg->gpio_expander.leds),
-        gpio_exp_btns_(&cover_ui_cfg->gpio_expander.btns),
+        gpio_exp_leds_(&cover_ui_cfg->gpio_expander.v03.leds),
+        gpio_exp_btns_(&cover_ui_cfg->gpio_expander.v03.btns),
         pins_(cover_ui_cfg_->pins.v03) {
   }
 
@@ -123,7 +123,7 @@ class SaboCoverUICaboDriverV03 : public SaboCoverUICaboDriverBase {
   TCA9534Driver gpio_exp_leds_;  // GPIO expander for Series-I LEDs (and Series-I connection detection))
   TCA9535Driver gpio_exp_btns_;  // GPIO expander for Series-I buttons as well as Series-II /con and OE
 
-  uint8_t MapLedIdToMask(const LedId id) const override {
+  uint16_t MapLedIdToMask(const LedId id) const override {
     //  LedId ENUM matches LEDs pin position for both series now
     return (1 << uint8_t(id)) & 0b11111;  // Safety mask to only use the connected LEDs
   }

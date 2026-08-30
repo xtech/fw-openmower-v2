@@ -127,6 +127,7 @@ void GpsDriver::threadFunc() {
 }
 
 void GpsDriver::threadHelper(void *instance) {
+  chRegSetThreadName("GpsDriver");
   auto *gps_interface = static_cast<GpsDriver *>(instance);
   gps_interface->threadFunc();
 }

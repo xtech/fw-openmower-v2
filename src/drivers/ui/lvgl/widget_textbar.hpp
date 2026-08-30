@@ -16,6 +16,8 @@
 
 #include <lvgl.h>
 
+#include <cstring>
+
 namespace xbot::driver::ui::lvgl {
 
 class WidgetTextBar {
@@ -64,10 +66,13 @@ class WidgetTextBar {
 
   void SetValuesOnBarChange(int32_t value, const char* custom_text = nullptr, lv_anim_enable_t anim = LV_ANIM_OFF) {
     if (!bar_) return;
-    if (value == lv_bar_get_value(bar_)) return;
+    if (value == lv_bar_get_value(bar_) && (custom_text == nullptr || strcmp(custom_text, text_buffer_) == 0)) return;
 
     lv_bar_set_value(bar_, value, anim);
-    SetText(custom_text);
+    if (custom_text) {
+      SetText(custom_text);
+      lv_obj_invalidate(bar_);
+    }
   }
 
   /**

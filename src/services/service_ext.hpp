@@ -19,6 +19,10 @@ class ServiceExt : public Service {
   explicit ServiceExt(uint16_t service_id, void* stack, size_t stack_size) : Service(service_id, stack, stack_size) {
   }
 
+  virtual bool IsHealthy() {
+    return false;
+  }
+
   void SendEvent(Events::Events id) {
     syssts_t sts = chSysGetStatusAndLockX();
     chEvtSignalI(process_thread_, EVENT_MASK(id));

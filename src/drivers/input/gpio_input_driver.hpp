@@ -19,7 +19,9 @@ class GpioInputDriver : public InputDriver {
   void tick();
 
  private:
-  ServiceSchedule tick_schedule_{input_service, 1'000'000,
+  // Polling interval for inputs without EXTI (e.g. buttons) need to be short enough to catch short presses.
+  // Inputs with emergency reasons use EXTI and are read immediately.
+  ServiceSchedule tick_schedule_{input_service, 20'000,
                                  XBOT_FUNCTION_FOR_METHOD(GpioInputDriver, &GpioInputDriver::tick, this)};
 };
 }  // namespace xbot::driver::input

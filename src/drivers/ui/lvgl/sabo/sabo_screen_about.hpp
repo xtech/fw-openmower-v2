@@ -86,8 +86,8 @@ class SaboScreenAbout : public ScreenBase<ScreenId, ButtonId> {
     char fw_text[256];
     chsnprintf(fw_text, sizeof(fw_text),
                "- Built: %s\n"
-               "- Git: %s",
-               BUILD_DATE, BUILD_GIT_HASH);
+               "- Version: %s",
+               BUILD_DATE, BUILD_VERSION);
     lv_obj_t* fw_label = lv_label_create(content_container);
     lv_label_set_text(fw_label, fw_text);
     lv_obj_set_style_text_align(fw_label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);

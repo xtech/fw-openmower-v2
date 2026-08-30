@@ -38,22 +38,31 @@ size_t NmeaGpsDriver::ProcessBytes(const uint8_t *buffer, size_t len) {
         } else {
           error++;
         }
+        len -= bytes_to_take;
+        buffer = newline + 1;
+        line_len = 0;
       } else {
-        // Line would be too long, so throw away the buffer.
+        // Line would be too long. Drop it and skip one byte so we re-sync
+        // on the next dollar symbol instead of discarding valid data after it.
         error++;
+        line_len = 0;
+        buffer++;
+        len--;
       }
-      len -= bytes_to_take;
-      buffer = newline + 1;
-      line_len = 0;
     } else {
       // We will at least need two more characters (newline and null-byte), check if it could fit.
       if (line_len + len + 2 <= sizeof(line)) {
         // Yes, so copy the remaining bytes for next time.
         memcpy(&line[line_len], buffer, len);
+        line_len += len;
         return 1;
       } else {
+        // Line would be too long. Drop it and skip one byte so we make progress
+        // and re-sync on the next dollar symbol.
         error++;
         line_len = 0;
+        buffer++;
+        len--;
       }
     }
   }

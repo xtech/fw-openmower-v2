@@ -6,6 +6,7 @@
 #define IMU_SERVICE_HPP
 
 #include <etl/array.h>
+#include <etl/atomic.h>
 #include <etl/string.h>
 
 #include <ImuServiceBase.hpp>
@@ -24,12 +25,16 @@ class ImuService : public ImuServiceBase {
     return imu_found;
   }
 
+  bool IsHealthy() override {
+    return IsRunning() && imu_found;
+  }
+
  protected:
   void OnCreate() override;
   bool OnStart() override;
 
  private:
-  bool imu_found = false;
+  etl::atomic<bool> imu_found{false};
   etl::string<255> error_message{};
 
   int16_t data_raw_acceleration[3];

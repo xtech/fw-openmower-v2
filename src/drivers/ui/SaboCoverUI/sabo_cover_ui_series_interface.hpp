@@ -30,7 +30,7 @@ class SaboCoverUISeriesInterface {
   virtual uint16_t MapButtonIDToMask(const ButtonId id) const = 0;
   virtual uint16_t AllButtonsMask() const = 0;
 
-  virtual uint8_t MapLedIdToMask(const LedId id) const = 0;
+  virtual uint16_t MapLedIdToMask(const LedId id) const = 0;
 };
 
 }  // namespace xbot::driver::ui

@@ -25,6 +25,8 @@
 #include "sabo_cover_ui_cabo_driver_v01.hpp"
 #include "sabo_cover_ui_cabo_driver_v02.hpp"
 #include "sabo_cover_ui_cabo_driver_v03.hpp"
+#include "sabo_cover_ui_cabo_driver_v04.hpp"
+#include "sabo_cover_ui_cabo_driver_v05.hpp"
 #include "sabo_cover_ui_display.hpp"
 
 namespace xbot::driver::ui {
@@ -36,7 +38,8 @@ union CaboDriverStorage {
   SaboCoverUICaboDriverV01 v01;
   SaboCoverUICaboDriverV02 v02;
   SaboCoverUICaboDriverV03 v03;
-
+  SaboCoverUICaboDriverV04 v04;
+  SaboCoverUICaboDriverV05 v05;
   CaboDriverStorage() {
   }
   ~CaboDriverStorage() {
@@ -55,9 +58,9 @@ SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardw
       // Carrier v0.1 has only CoverUI-Series-II support and no CoverUI-Series detection
       cabo_ = new (&cabo_driver_storage.v01) SaboCoverUICaboDriverV01(hardware_config.cover_ui);
     } else if (version == types::HardwareVersion::V0_2_0 || version == types::HardwareVersion::V0_2_1) {
-      // Carrier v0.2 and later support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
+      // Carrier v0.2.x support both CoverUI-Series (I & II) as well as it has CoverUI-Series detection
       cabo_ = new (&cabo_driver_storage.v02) SaboCoverUICaboDriverV02(hardware_config.cover_ui);
-    } else {
+    } else if (version == types::HardwareVersion::V0_3) {
       // Init v0.3 specific pins
 
       // SEL_SPI_MOSI_LCD/UI_S2 -> LCD_SPI_MOSI
@@ -71,6 +74,12 @@ SaboCoverUIController::SaboCoverUIController(const config::HardwareConfig& hardw
 
       // Carrier v0.3 and later have TCA953x GPIO expanders and need a different driver implementation
       cabo_ = new (&cabo_driver_storage.v03) SaboCoverUICaboDriverV03(hardware_config.cover_ui);
+    } else if (version == types::HardwareVersion::V0_4) {
+      // Carrier v0.4 has one TCA9535 GPIO expander with dedicated /CON GPIO pins for CoverUI Series detection
+      cabo_ = new (&cabo_driver_storage.v04) SaboCoverUICaboDriverV04(hardware_config.cover_ui);
+    } else {
+      // Carrier v0.5 and later has CoverUI Series detection via TCA9535 instead of dedicated GPIO pins
+      cabo_ = new (&cabo_driver_storage.v05) SaboCoverUICaboDriverV05(hardware_config.cover_ui);
     }
   }
 
@@ -112,6 +121,7 @@ void SaboCoverUIController::Start() {
 }
 
 void SaboCoverUIController::ThreadHelper(void* instance) {
+  chRegSetThreadName("SaboCoverUICtrl");
   auto* i = static_cast<SaboCoverUIController*>(instance);
   i->ThreadFunc();
 }

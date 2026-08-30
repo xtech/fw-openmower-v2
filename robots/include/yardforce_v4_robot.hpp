@@ -1,41 +1,27 @@
 #ifndef YARDFORCE_V4_ROBOT_HPP
 #define YARDFORCE_V4_ROBOT_HPP
 
-#include <drivers/charger/bq_2576/bq_2576.hpp>
+#include <drivers/motor/yfr4esc/YFR4escDriver.h>
 
-#include "robot.hpp"
+#include "yardforce_robot.hpp"
 
-class YardForce_V4Robot : public MowerRobot {
+// YardForce V4 uses the YFR4 ESC for the mower motor instead of VESC.
+// Inherits common YardForce logic, overrides InitMowerEsc() to wire YFR4.
+// Selection happens at runtime (unified binary) via BoardIsCompatible().
+class YardForce_V4Robot : public YardForceRobot {
  public:
-  void InitPlatform() override;
-  bool IsHardwareSupported() override;
-
-  UARTDriver* GPS_GetUartPort() override {
-#ifndef STM32_UART_USE_USART6
-#error STM32_UART_USE_USART6 must be enabled for the YardForce build to work
-#endif
-    return &UARTD6;
+  static const char* FirmwareName() {
+    return "YardForce-V4";
   }
-
-  float Power_GetDefaultBatteryFullVoltage() override {
-    return 7.0f * 4.2f;
-  }
-
-  float Power_GetDefaultBatteryEmptyVoltage() override {
-    return 7.0f * 3.3f;
-  }
-
-  float Power_GetDefaultChargeCurrent() override {
-    return 0.5;
-  }
-
-  float Power_GetAbsoluteMinVoltage() override {
-    // 3.3V min, 7s pack
-    return 7.0f * 3.0;
+  void InitMowerEsc() override {
+    yfr4_mower_driver_.SetUART(&UARTD2, 115200);
+    yfr4_mower_debug_.Start();
+    mower_service.SetDriver(&yfr4_mower_driver_);
   }
 
  private:
-  BQ2576 charger_{};
+  xbot::driver::motor::YFR4escDriver yfr4_mower_driver_{};
+  DebugTCPInterface yfr4_mower_debug_{65103, &yfr4_mower_driver_};
 };
 
 #endif  // YARDFORCE_V4_ROBOT_HPP

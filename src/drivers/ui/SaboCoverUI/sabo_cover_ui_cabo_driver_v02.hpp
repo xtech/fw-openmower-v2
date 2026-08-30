@@ -103,7 +103,7 @@ class SaboCoverUICaboDriverV02 : public SaboCoverUICaboDriverBase {
   // Cabo's HC165 input mask
   uint16_t sr_inp_mask_ = 0xFFFF;  // All inputs are high (inactive)
 
-  uint8_t MapLedIdToMask(LedId id) const override {
+  uint16_t MapLedIdToMask(LedId id) const override {
     return series_ ? series_->MapLedIdToMask(id) : 0;
   };
 

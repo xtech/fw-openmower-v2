@@ -10,7 +10,7 @@ set(XBOT_CUSTOM_PORT_PATH ${CMAKE_SOURCE_DIR}/portable/xbot)
 set(XBOT_SERVICE_EXT "services/service_ext.hpp")
 
 # Set the project name
-set(CMAKE_PROJECT_NAME openmower)
+set(CMAKE_PROJECT_NAME openmower-firmware)
 
 # Include toolchain file
 include("cmake/gcc-arm-none-eabi.cmake")
@@ -85,12 +85,14 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/filesystem/filesystem.cpp
         src/services/imu_service/imu_service.cpp
         src/services/power_service/power_service.cpp
+        src/services/bms_service/bms_service.cpp
         src/services/emergency_service/emergency_service.cpp
         src/services/diff_drive_service/diff_drive_service.cpp
         src/services/mower_service/mower_service.cpp
         src/services/gps_service/gps_service.cpp
         src/services/input_service/input_service.cpp
         src/services/high_level_service/high_level_service.cpp
+        src/services/meta_service/meta_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
         # BQ25679 driver
@@ -117,6 +119,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Sound
         src/chibios_lld/hal_i2s_lld.c
         src/drivers/sound/sound_player.cpp
+        # YardForce Cover UI driver (yf_cover_ui — YardForce 500 panel via UART7)
+        src/drivers/ui/yf_cover_ui/yf_cover_ui.cpp
         # Sabo driver
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_cabo_driver_base.cpp
         src/drivers/ui/SaboCoverUI/sabo_cover_ui_controller.cpp
@@ -131,6 +135,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/debug/debug_tcp_interface.cpp
         src/debug/debug_udp_interface.cpp
         src/debug/debuggable_driver.cpp
+        src/debug/thread_watermark.c
         robots/src/robot.cpp
         ${PLATFORM_SOURCES}
         ${LVGL_ASSETS_SRC}
@@ -149,7 +154,6 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user defined symbols
         timegm=mktime
-        ROBOT_PLATFORM=${ROBOT_PLATFORM}
 )
 
 # Add linked libraries
@@ -165,12 +169,14 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} PowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/power_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} BmsService ${CMAKE_CURRENT_SOURCE_DIR}/services/bms_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} EmergencyService ${CMAKE_CURRENT_SOURCE_DIR}/services/emergency_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} DiffDriveService ${CMAKE_CURRENT_SOURCE_DIR}/services/diff_drive_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/mower_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/services/gps_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} InputService ${CMAKE_CURRENT_SOURCE_DIR}/services/input_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} HighLevelService ${CMAKE_CURRENT_SOURCE_DIR}/services/high_level_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} MetaService ${CMAKE_CURRENT_SOURCE_DIR}/services/meta_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")

@@ -21,8 +21,10 @@
 #include <etl/delegate.h>
 #include <hal.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace xbot::driver::adc1 {
 
@@ -69,6 +71,21 @@ constexpr const ResolutionInfo& GetResolutionInfo(Resolution res) {
 }
 
 /**
+ * @brief Adaptive EMA filter configuration.
+ *
+ * When enabled, the ADC conversion result is smoothed by an exponential moving average.
+ * - alpha: smoothing factor in normal mode (lower = more smoothing, e.g. 0.3 → ~3s time constant)
+ * - alpha_fast: smoothing factor when |raw − ema| > threshold (higher = faster tracking, e.g. 0.7)
+ * - threshold: deviation in volts that triggers fast tracking (e.g. 0.3V for motor load detection)
+ */
+struct EmaFilterConfig {
+  float alpha = 0.3f;
+  float alpha_fast = 0.7f;
+  float threshold = 0.5f;
+  bool enabled = false;
+};
+
+/**
  * @brief ADC sensor configuration and calculation
  */
 struct Adc1Sensor {
@@ -93,6 +110,10 @@ struct Adc1ConversionGroup {
   // Conversion function from raw samples to physical value
   etl::delegate<float(const Adc1ConversionGroup*, float vref_voltage)> convert;
   const void* user_data = nullptr;
+
+  // EMA filter configuration (optional, disabled by default)
+  EmaFilterConfig ema_config{};
+  float ema_value = std::numeric_limits<float>::quiet_NaN();
 
   float cached_value{};
   systime_t last_conversion_time{};
@@ -125,11 +146,27 @@ struct Adc1ConversionGroup {
     return info.RawToVoltage(raw, vref);
   }
 
+  /**
+   * @brief Apply EMA filter to the converted value (if enabled)
+   * @param value Raw converted value
+   * @return Filtered value (or raw if EMA disabled)
+   */
+  float ApplyEma(float value) {
+    if (!ema_config.enabled) return value;
+    if (std::isnan(ema_value)) {
+      ema_value = value;
+      return value;
+    }
+    float alpha = (std::fabs(value - ema_value) > ema_config.threshold) ? ema_config.alpha_fast : ema_config.alpha;
+    ema_value = alpha * value + (1.0f - alpha) * ema_value;
+    return ema_value;
+  }
+
   // Factory Method
   template <typename F>
   static Adc1ConversionGroup Create(Adc1ConversionId id, etl::array_view<const Adc1Sensor> sensors, adcsample_t* buffer,
                                     Resolution res, uint16_t ovs_ratio, uint8_t ovs_rshift, F&& convert_func,
-                                    const void* user_data = nullptr) {
+                                    const void* user_data = nullptr, const EmaFilterConfig& ema = EmaFilterConfig{}) {
     etl::delegate<float(const Adc1ConversionGroup*, float)> delegate;
     delegate = std::forward<F>(convert_func);
     return Adc1ConversionGroup{.id = id,
@@ -139,7 +176,8 @@ struct Adc1ConversionGroup {
                                .ovs_ratio = ovs_ratio,
                                .ovs_rshift = ovs_rshift,
                                .convert = delegate,
-                               .user_data = user_data};
+                               .user_data = user_data,
+                               .ema_config = ema};
   }
 };
 
@@ -169,6 +207,8 @@ bool Convert(Adc1ConversionGroup* cg);
  * This will return the final calculated ADC value for the given conversion ID,
  * or NaN for the case that the conversion doesn't exists (got registered) for this robot.
  * If the last ADC conversion is older than the given age, a new (blocking) conversion will be made.
+ * If an EMA filter is configured for this conversion group, the value will be filtered
+ * before caching and returning.
  *
  * @param conv_id
  * @param max_age_ms
