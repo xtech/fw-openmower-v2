@@ -40,6 +40,7 @@
 
 #include "sound_player.hpp"
 
+#include <etl/atomic.h>
 #include <ulog.h>
 
 #include <cstdio>
@@ -166,10 +167,10 @@ struct ActiveSource {
 /* Thread and mailbox storage.                                               */
 /*===========================================================================*/
 
-static constexpr eventmask_t EVT_HTIF = EVENT_MASK(0U);     ///< DMA finished first half
-static constexpr eventmask_t EVT_TCIF = EVENT_MASK(1U);     ///< DMA finished second half
-static constexpr eventmask_t EVT_REQUEST = EVENT_MASK(2U);  ///< New request enqueued
-static constexpr eventmask_t EVT_STOP = EVENT_MASK(3U);     ///< Terminate thread
+static constexpr eventmask_t EVT_HTIF = EVENT_MASK(0U);           ///< DMA finished first half
+static constexpr eventmask_t EVT_TCIF = EVENT_MASK(1U);           ///< DMA finished second half
+static constexpr eventmask_t EVT_REQUEST = EVENT_MASK(2U);        ///< New request enqueued
+static constexpr eventmask_t EVT_STOP_PLAYBACK = EVENT_MASK(3U);  ///< Stop playback + flush queues
 
 static THD_WORKING_AREA(s_player_wa, 2048U);
 static thread_t* s_player_thd = nullptr;
@@ -185,11 +186,11 @@ static uint8_t s_normal_pool_idx = 0U;
 static msg_t s_normal_mb_buf[4];
 static mailbox_t s_normal_mb;
 
-/* Global volume (written by set_volume, read by start_source) */
-static uint8_t s_volume = 80U;
+/* Global volume (written by set_volume from any thread, read by the player thread) */
+static etl::atomic<uint8_t> s_volume{80U};
 
-/* Playing flag — written only by player thread, read by is_playing() */
-static bool s_playing = false;
+/* Playing flag — written by the player thread, read by is_playing() from any thread */
+static etl::atomic<bool> s_playing{false};
 
 /* Active playback source — owned by player thread */
 static ActiveSource s_source;
@@ -348,7 +349,7 @@ static void start_source(const SoundRequest& req) {
     }
     s_source.type = SourceType::WAV;
     s_source.samples_left = info.num_samples;
-    s_source.volume = s_volume;
+    s_source.volume = s_volume.load();
   }
 
   /* Pre-fill both halves before starting BDMA so DMA has valid data immediately. */
@@ -356,7 +357,7 @@ static void start_source(const SoundRequest& req) {
   fill_half(s_audio_buf + SOUND_HALF_SIZE, SOUND_HALF_SIZE);
 
   i2sStartExchange(&I2SD6);
-  s_playing = true;
+  s_playing.store(true);
 }
 
 /*===========================================================================*/
@@ -364,7 +365,7 @@ static void start_source(const SoundRequest& req) {
 /*===========================================================================*/
 
 static void dequeue_and_play() {
-  if (s_playing) return;
+  if (s_playing.load()) return;
 
   msg_t idx;
   /* HIGH has priority even in the normal dequeue path */
@@ -386,9 +387,9 @@ static void handle_request() {
 
   /* HIGH always preempts current playback */
   if (chMBFetchTimeout(&s_high_mb, &idx, TIME_IMMEDIATE) == MSG_OK) {
-    if (s_playing) {
+    if (s_playing.load()) {
       i2sStopExchange(&I2SD6);
-      s_playing = false;
+      s_playing.store(false);
       s_source.stop();
     }
     start_source(s_high_req);
@@ -396,7 +397,7 @@ static void handle_request() {
   }
 
   /* NORMAL: only start if idle */
-  if (!s_playing) {
+  if (!s_playing.load()) {
     if (chMBFetchTimeout(&s_normal_mb, &idx, TIME_IMMEDIATE) == MSG_OK) {
       start_source(s_normal_pool[static_cast<uint8_t>(idx)]);
     }
@@ -433,10 +434,15 @@ static THD_FUNCTION(player_thread, arg) {
   chRegSetThreadName("sound");
 
   while (true) {
-    const eventmask_t ev = chEvtWaitAny(EVT_HTIF | EVT_TCIF | EVT_REQUEST | EVT_STOP);
+    const eventmask_t ev = chEvtWaitAny(EVT_HTIF | EVT_TCIF | EVT_REQUEST | EVT_STOP_PLAYBACK);
 
-    if (ev & EVT_STOP) {
-      break;
+    if (ev & EVT_STOP_PLAYBACK) {
+      /* Stop current playback; the queues have already been flushed by stop(). */
+      if (s_playing.load()) {
+        i2sStopExchange(&I2SD6);
+        s_playing.store(false);
+        s_source.stop();
+      }
     }
 
     if (ev & EVT_REQUEST) {
@@ -446,9 +452,9 @@ static THD_FUNCTION(player_thread, arg) {
     if (ev & EVT_HTIF) {
       /* DMA finished first half → refill first half */
       fill_half(s_audio_buf, SOUND_HALF_SIZE);
-      if (!s_source.is_active() && s_playing) {
+      if (!s_source.is_active() && s_playing.load()) {
         i2sStopExchange(&I2SD6);
-        s_playing = false;
+        s_playing.store(false);
         dequeue_and_play();
       }
     }
@@ -456,9 +462,9 @@ static THD_FUNCTION(player_thread, arg) {
     if (ev & EVT_TCIF) {
       /* DMA finished second half → refill second half */
       fill_half(s_audio_buf + SOUND_HALF_SIZE, SOUND_HALF_SIZE);
-      if (!s_source.is_active() && s_playing) {
+      if (!s_source.is_active() && s_playing.load()) {
         i2sStopExchange(&I2SD6);
-        s_playing = false;
+        s_playing.store(false);
         dequeue_and_play();
       }
     }
@@ -513,7 +519,7 @@ void player_init() {
 
   s_player_thd = chThdCreateStatic(s_player_wa, sizeof(s_player_wa), NORMALPRIO + 1, player_thread, nullptr);
 
-  ULOG_INFO("Sound: player started (sample_rate=%u, volume=%u)", SAMPLE_RATE, s_volume);
+  ULOG_INFO("Sound: player started (sample_rate=%u, volume=%u)", SAMPLE_RATE, s_volume.load());
 }
 
 void play_sound_id(SoundId id, bool high_priority) {
@@ -575,11 +581,24 @@ void play_file(const char* path, bool high_priority) {
 
 void set_volume(uint8_t volume) {
   if (volume > 100U) volume = 100U;
-  s_volume = volume;
+  s_volume.store(volume);
+}
+
+void stop() {
+  if (s_player_thd == nullptr) return;
+  chSysLock();
+  /* Flush pending requests so playback cannot resume after stop. */
+  chMBResetI(&s_high_mb);
+  chMBResetI(&s_normal_mb);
+  chEvtSignalI(s_player_thd, EVT_STOP_PLAYBACK);
+  /* Required after I-class calls that may have made a higher-priority thread
+     ready: chSysUnlock() asserts "priority order violation" if we skip this. */
+  chSchRescheduleS();
+  chSysUnlock();
 }
 
 bool is_playing() {
-  return s_playing;
+  return s_playing.load();
 }
 
 }  // namespace xbot::driver::sound

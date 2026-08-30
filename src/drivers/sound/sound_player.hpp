@@ -85,6 +85,14 @@ void play_file(const char* path, bool high_priority = false);
  */
 void set_volume(uint8_t volume);
 
+/**
+ * @brief Stop the current playback and discard any queued sounds.
+ *
+ * The player becomes idle; subsequent play_*() calls start fresh.
+ * Safe to call from any thread context.
+ */
+void stop();
+
 /** @brief Returns true while the player is actively outputting audio. */
 bool is_playing();
 
