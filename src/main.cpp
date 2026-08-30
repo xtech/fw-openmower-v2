@@ -109,6 +109,9 @@ int main() {
     }
   }
 
+  // Start the sound player early so boot sounds can play during the Stage 2 wait.
+  sound::player_init();
+
   // Io and MetaService always start before robot detection so that
   // Stage 2 (ROS-assisted config) can communicate from the beginning.
   xbot::service::Io::start();
@@ -136,6 +139,7 @@ int main() {
     SetStatusLedColor(RED);
 
     while (robot == nullptr) {
+      sound::play_sound_id(sound::SoundId::BOOT_PING);
       ULOG_INFO("Waiting for Robot Firmware configuration via MetaService (carrier=%s)...",
                 carrier_board_info.board_id);
       if (meta_service.HasRobotFirmware()) {
@@ -157,25 +161,8 @@ int main() {
   SetStatusLedMode(LED_MODE_ON);
   SetStatusLedColor(GREEN);
 
-  // None-sense sound tests
-  sound::player_init();
-  sound::play_sound_id(sound::SoundId::BOOT);
-  chThdSleep(TIME_MS2I(1000));
-  sound::play_sound_id(sound::SoundId::CHARGING_DONE);
-  chThdSleep(TIME_MS2I(1000));
-  sound::play_sound_id(sound::SoundId::CHARGING_START);
-  chThdSleep(TIME_MS2I(1000));
-  sound::play_sound_id(sound::SoundId::COUNT);
-  chThdSleep(TIME_MS2I(1000));
-  sound::play_sound_id(sound::SoundId::EMERGENCY);
-  chThdSleep(TIME_MS2I(1000));
-  sound::play_sound_id(sound::SoundId::LOW_BATTERY);
-  chThdSleep(TIME_MS2I(1000));
-  sound::play_sound_id(sound::SoundId::SUCCESS);
-  chThdSleep(TIME_MS2I(1000));
-  sound::play_sound_id(sound::SoundId::WARNING);
-  chThdSleep(TIME_MS2I(1000));
-  sound::play_sound_id(sound::SoundId::ERROR);
+  // Boot complete — power-up sweep.
+  sound::play_sound_id(sound::SoundId::BOOT_COMPLETE);
 
   DispatchEvents();
 }
