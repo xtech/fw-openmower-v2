@@ -93,6 +93,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/input_service/input_service.cpp
         src/services/high_level_service/high_level_service.cpp
         src/services/meta_service/meta_service.cpp
+        src/services/file_service/file_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
         # BQ25679 driver
@@ -179,6 +180,7 @@ target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/
 target_add_service(${CMAKE_PROJECT_NAME} InputService ${CMAKE_CURRENT_SOURCE_DIR}/services/input_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} HighLevelService ${CMAKE_CURRENT_SOURCE_DIR}/services/high_level_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MetaService ${CMAKE_CURRENT_SOURCE_DIR}/services/meta_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} FileService ${CMAKE_CURRENT_SOURCE_DIR}/services/file_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")

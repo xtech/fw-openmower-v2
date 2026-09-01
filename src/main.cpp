@@ -108,6 +108,7 @@ int main() {
       chThdSleep(TIME_S2I(1));
     }
   }
+  file_service.start();
 
   // Start the sound player early so boot sounds can play during the Stage 2 wait.
   sound::player_init();
