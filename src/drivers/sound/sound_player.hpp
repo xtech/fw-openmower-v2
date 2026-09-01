@@ -24,7 +24,7 @@
  *        The MAX98357A amplifier is hardware-wired for left-channel-only operation,
  *        so DMA frames are always [L_sample, 0].
  *
- *        WAV requirements: 16 kHz, 16-bit, mono PCM (RIFF/PCM, canonical 44-byte header).
+ *        MP3 requirements: 16 kHz mono (decoded by minimp3, no resampling).
  *        Sounds are resolved per SoundId from a SoundDefinition (see
  *        sound_definition.hpp): a flash override if present, else the ROM default.
  */
@@ -69,9 +69,9 @@ void play_sound_id(SoundId id, bool high_priority = false);
 void play_tone(uint32_t freq, uint32_t duration_ms, uint8_t volume = 80, bool high_priority = false);
 
 /**
- * @brief Play a WAV file from LittleFS.
+ * @brief Play an MP3 file from LittleFS.
  *
- * @param path          Absolute path to a 16 kHz / 16-bit / mono PCM WAV file.
+ * @param path          Absolute path to a 16 kHz / mono MP3 file.
  * @param high_priority If true the file preempts current playback immediately.
  */
 void play_file(const char* path, bool high_priority = false);

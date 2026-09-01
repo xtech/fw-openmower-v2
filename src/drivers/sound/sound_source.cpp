@@ -13,8 +13,6 @@
 
 #include <cstring>
 
-#include "sound_wav.hpp"
-
 namespace xbot::driver::sound {
 
 bool SoundSource::start(const SoundDefinition& def) {
@@ -37,24 +35,15 @@ bool SoundSource::start(const SoundDefinition& def) {
       active = true;
       return true;
 
-    case SoundType::FILE:
-      if (wav_file.open(def.path, LFS_O_RDONLY) != LFS_ERR_OK) {
-        ULOG_WARNING("Sound: cannot open '%s'", def.path);
+    case SoundType::MP3:
+      if (!mp3.open(def.path)) {
+        ULOG_WARNING("Sound: cannot open MP3 '%s'", def.path);
         return false;
       }
-      {
-        WavInfo info;
-        if (!wav_parse_header(wav_file, info)) {
-          ULOG_WARNING("Sound: invalid WAV '%s'", def.path);
-          wav_file.close();
-          return false;
-        }
-        samples_left = info.num_samples;
-        type = SoundType::FILE;
-        volume = def.volume;
-        active = true;
-        return true;
-      }
+      type = SoundType::MP3;
+      volume = def.volume;
+      active = true;
+      return true;
 
     default: return false;
   }
@@ -78,25 +67,21 @@ void SoundSource::fill(int16_t* buf, size_t count, uint8_t master_volume) {
         active = false; /* synth exhausted */
       }
       break;
-    case SoundType::FILE: fill_wav(buf, frames, vol); break;
+    case SoundType::MP3: fill_mp3(buf, frames, vol); break;
     default: break;
   }
 }
 
-void SoundSource::fill_wav(int16_t* buf, size_t frames, uint8_t vol) {
+void SoundSource::fill_mp3(int16_t* buf, size_t frames, uint8_t vol) {
   for (size_t i = 0U; i < frames; ++i) {
     int16_t s = 0;
-    if (samples_left > 0U) {
+    if (active) {
       int16_t raw = 0;
-      if (wav_file.read(&raw, sizeof(raw)) == static_cast<int>(sizeof(raw))) {
+      if (mp3.read(&raw, 1U) == 1U) {
         s = scale_volume(raw, vol);
-        if (--samples_left == 0U) {
-          wav_file.close();
-          active = false;
-        }
       } else {
-        /* Read error — silence and stop */
-        wav_file.close();
+        /* EOF or read error — silence and stop */
+        mp3.close();
         active = false;
       }
     }

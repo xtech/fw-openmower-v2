@@ -24,8 +24,8 @@
 
 #include <cstdint>
 
-#include "filesystem/file.hpp"
 #include "sound_definition.hpp"
+#include "sound_mp3.hpp"
 #include "sound_synth.hpp"
 
 namespace xbot::driver::sound {
@@ -34,18 +34,17 @@ struct SoundSource {
   SoundType type = SoundType::TONE;
   bool active = false;
   Synth synth;
-  File wav_file;
-  uint32_t samples_left = 0U;  ///< WAV: samples remaining in the file
-  uint8_t volume = 80U;        ///< Per-definition volume (0–100)
+  Mp3Decoder mp3;
+  uint8_t volume = 80U;  ///< Per-definition volume (0–100)
 
   bool is_active() const {
     return active;
   }
 
-  /** @brief Release resources (close WAV file) and mark the source inactive. */
+  /** @brief Release resources (close MP3 file) and mark the source inactive. */
   void stop() {
-    if (active && type == SoundType::FILE) {
-      wav_file.close();
+    if (active && type == SoundType::MP3) {
+      mp3.close();
     }
     active = false;
   }
@@ -64,7 +63,7 @@ struct SoundSource {
   void fill(int16_t* buf, size_t count, uint8_t master_volume);
 
  private:
-  void fill_wav(int16_t* buf, size_t frames, uint8_t vol);
+  void fill_mp3(int16_t* buf, size_t frames, uint8_t vol);
 };
 
 }  // namespace xbot::driver::sound

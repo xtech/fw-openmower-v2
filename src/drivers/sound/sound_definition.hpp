@@ -14,14 +14,18 @@
  * @date 2026-03-23
  *
  * @note  A SoundDefinition describes what a given robot event sounds like:
- *        a simple tone, a note sequence, or a file (WAV now, a compressed
- *        format later).  The struct is flat and pointer-free so the very same
+ *        a simple tone, a note sequence, or a 16 kHz mono MP3 file.  The
+ *        struct is flat and pointer-free so the very same
  *        type can be used both as a constexpr ROM default and as a raw blob
  *        stored in flash (LittleFS) — flash overrides take precedence over the
  *        ROM defaults.
  *
- *        ROM defaults are tone/sequence only; WAV lives in flash overrides
+ *        ROM defaults are tone/sequence only; MP3 files live in flash overrides
  *        (uploaded by the high-level system or a future Sound-CLI).
+ *
+ *        TODO(HL): MP3 sounds must be 16 kHz mono. The high-level upload
+ *        path must verify (and downsample if needed) before uploading — the
+ *        firmware decodes at 16 kHz only and does NOT resample.
  */
 
 #ifndef SOUND_DEFINITION_HPP
@@ -35,7 +39,7 @@
 namespace xbot::driver::sound {
 
 /** @brief How a sound is produced. */
-enum class SoundType : uint8_t { TONE, SEQUENCE, FILE };
+enum class SoundType : uint8_t { TONE, SEQUENCE, MP3 };
 
 /** @brief Oscillator waveform for tone/sequence sounds. */
 enum class Waveform : uint8_t { SINE, SQUARE, TRIANGLE, SAW };
@@ -76,7 +80,7 @@ struct SoundDefinition {
       Note notes[kMaxNotes];
       uint8_t count;
     } sequence;
-    char path[kMaxPath];  ///< FILE (WAV now, compressed later)
+    char path[kMaxPath];  ///< MP3 file path (16 kHz mono)
   };
 };
 
@@ -88,8 +92,7 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     /* BOOT_PING      */ {SoundType::SEQUENCE, 80, .unison = 3, .detune_hz = 10,
                           .sequence = {{{800, 150, 16, 400}}, 1}},
     /* BOOT_COMPLETE  */
-    {SoundType::SEQUENCE, 85, .waveform = Waveform::SAW, .unison = 3, .detune_hz = 6,
-     .sequence = {{{130, 1100, 2, 900}}, 1}},
+    {SoundType::MP3, 100, .path = "/sounds/HiImSteve.mp3"},
     /* SUCCESS        */
     {SoundType::SEQUENCE, 75, .sequence = {{{523, 90, 0, 0}, {659, 90, 0, 0}, {784, 250, 0, 0}}, 3}},
     /* WARNING        */

@@ -121,6 +121,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/chibios_lld/hal_i2s_lld.c
         src/drivers/sound/sound_player.cpp
         src/drivers/sound/sound_source.cpp
+        src/drivers/sound/sound_mp3.cpp
         src/drivers/sound/sound_synth.cpp
         # YardForce Cover UI driver (yf_cover_ui — YardForce 500 panel via UART7)
         src/drivers/ui/yf_cover_ui/yf_cover_ui.cpp
@@ -168,6 +169,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         LittleFS
         lwjson
         lvgl
+        minimp3
 )
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)

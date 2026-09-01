@@ -61,7 +61,7 @@ static constexpr size_t SOUND_BUFFER_SIZE = 1024U;
 /** Elements per DMA half (512 = 256 stereo frames = 16 ms at 16 kHz). */
 static constexpr size_t SOUND_HALF_SIZE = SOUND_BUFFER_SIZE / 2U;
 
-/* FILE sources are pre-mastered at full scale; only the master volume scales them. */
+/* MP3 sources are pre-mastered at full scale; only the master volume scales them. */
 static constexpr uint8_t kFileVolume = 100U;
 
 /*===========================================================================*/
@@ -79,7 +79,8 @@ static constexpr eventmask_t EVT_TCIF = EVENT_MASK(1U);           ///< DMA finis
 static constexpr eventmask_t EVT_REQUEST = EVENT_MASK(2U);        ///< New request enqueued
 static constexpr eventmask_t EVT_STOP_PLAYBACK = EVENT_MASK(3U);  ///< Stop playback + flush queues
 
-static THD_WORKING_AREA(s_player_wa, 2048U);
+/* minimp3 needs a ~13 KB scratch buffer on the stack during mp3dec_decode_frame(). */
+static THD_WORKING_AREA(s_player_wa, 16384U);
 static thread_t* s_player_thd = nullptr;
 
 /* HIGH priority queue: depth 1, single storage slot */
@@ -348,7 +349,7 @@ void play_file(const char* path, bool high_priority) {
   if (path == nullptr) return;
 
   SoundDefinition def{};
-  def.type = SoundType::FILE;
+  def.type = SoundType::MP3;
   def.volume = kFileVolume; /* pre-mastered at full scale; master volume scales it */
   strncpy(def.path, path, kMaxPath - 1U);
   def.path[kMaxPath - 1U] = '\0';
