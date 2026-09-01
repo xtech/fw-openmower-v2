@@ -33,7 +33,10 @@ class FileService : public FileServiceBase {
                     uint32_t DataLen, uint32_t Hash) override;
 
  private:
-  THD_WORKING_AREA(wa, 3072){};
+  // LittleFS directory commits (lfs_rename -> lfs_dir_commit -> compact/traverse)
+  // are stack-hungry; 3072 bytes overflowed (MemManage fault). Measured peak is
+  // 3388 bytes (thread watermark), so 4096 leaves ~20% headroom.
+  THD_WORKING_AREA(wa, 4096){};
 };
 
 #endif  // FILE_SERVICE_HPP

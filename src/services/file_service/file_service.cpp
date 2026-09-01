@@ -155,8 +155,10 @@ void FileService::RPCFileWrite(uint16_t call_id, const char* Path, uint32_t Path
   do {
     File file;
 
-    // Create parent directories (skip root-level paths, which need none).
-    if (strchr(path + 1, '/') != nullptr) {
+    // Create parent directories once, on the first chunk only (skip root-level
+    // paths, which need none). Doing this on every chunk would re-traverse the
+    // directory tree each time.
+    if (Offset == 0U && strchr(path + 1, '/') != nullptr) {
       int r = file.mkdirp(path);
       if (r != LFS_ERR_OK) {
         ULOG_WARNING("File: mkdirp '%s' failed (%d)", path, r);
