@@ -31,7 +31,7 @@ class xBotRobot : public Robot {
   }
 
   float Power_GetMaxChargeCurrent() override {
-    return 1.0;
+    return 2.0;
   }
 
   float Power_GetAbsoluteMinVoltage() override {
