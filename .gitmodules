@@ -10,3 +10,6 @@
 [submodule "ext/littlefs"]
 	path = ext/littlefs
 	url = https://github.com/littlefs-project/littlefs.git
+[submodule "ext/minimp3"]
+	path = ext/minimp3
+	url = https://github.com/lieff/minimp3

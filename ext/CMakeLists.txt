@@ -21,3 +21,7 @@ add_library(LittleFS littlefs/lfs.c littlefs/lfs_util.c)
 target_include_directories(LittleFS PUBLIC littlefs ../cfg)
 target_compile_definitions(LittleFS PUBLIC LFS_DEFINES=lfs_config.h)
 target_link_libraries(LittleFS PUBLIC ulog ChibiOS etl::etl)
+
+# minimp3 is a header-only MP3 decoder (CC0). Exposed as an INTERFACE library.
+add_library(minimp3 INTERFACE)
+target_include_directories(minimp3 INTERFACE minimp3)
