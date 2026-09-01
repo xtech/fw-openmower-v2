@@ -80,8 +80,15 @@ size_t Mp3Decoder::read(int16_t* out, size_t count) {
 
     // Decode the next frame.
     for (;;) {
+      // Keep at least one full frame buffered so a frame header can never be
+      // split across the read-ahead boundary (a split header would otherwise
+      // be discarded by mp3d_find_frame and lose a whole frame).
+      if (input_size - input_pos < kMp3MinBuffered) {
+        refill();
+      }
+
       if (input_pos >= input_size) {
-        if (!refill()) return produced;  // EOF / read error
+        return produced;  // EOF / read error
       }
 
       mp3dec_frame_info_t info{};
@@ -101,9 +108,8 @@ size_t Mp3Decoder::read(int16_t* out, size_t count) {
         break;
       }
 
-      // samples == 0: incomplete frame (or resync needed). Force a refill so
-      // an incomplete frame can complete, or EOF is reached.
-      if (!refill()) return produced;
+      // samples == 0: need more data (resync or EOF). Refill and retry.
+      refill();
     }
   }
 

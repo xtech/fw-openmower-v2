@@ -31,8 +31,10 @@
 
 namespace xbot::driver::sound {
 
-/** Read-ahead buffer size for the MP3 bitstream (largest MPEG frame is ~4 KB). */
-constexpr size_t kMp3InputSize = 2048U;
+/** Read-ahead buffer size for the MP3 bitstream. */
+constexpr size_t kMp3InputSize = 8192U;
+/** Keep at least this many bytes buffered so a frame header is never split. */
+constexpr size_t kMp3MinBuffered = 4096U;
 
 /**
  * @brief Streaming 16 kHz mono MP3 decoder.
