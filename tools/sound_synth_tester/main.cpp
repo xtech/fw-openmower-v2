@@ -126,8 +126,8 @@ static const char* waveform_name(Waveform w) {
 }
 
 void list_defaults() {
-  static const char* kNames[] = {"BOOT",  "BOOT_PING", "BOOT_COMPLETE", "SUCCESS",        "WARNING",
-                                 "ERROR", "EMERGENCY", "LOW_BATTERY",   "CHARGING_START", "CHARGING_DONE"};
+  static const char* kNames[] = {"BOOT_PING", "BOOT_COMPLETE", "SUCCESS",        "WARNING",      "ERROR",
+                                 "EMERGENCY", "LOW_BATTERY",   "CHARGING_START", "CHARGING_DONE"};
   printf("Default sequences (copy & tweak):\n");
   for (size_t i = 0; i < static_cast<size_t>(SoundId::COUNT); ++i) {
     const SoundDefinition& def = kDefaultSoundDefs[i];

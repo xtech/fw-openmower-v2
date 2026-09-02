@@ -92,21 +92,27 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     /* BOOT_PING      */ {SoundType::SEQUENCE, 80, .unison = 3, .detune_hz = 10,
                           .sequence = {{{800, 150, 16, 400}}, 1}},
     /* BOOT_COMPLETE  */
-    {SoundType::MP3, 100, .path = "/sounds/HiImSteve.mp3"},
+    {SoundType::SEQUENCE, 85, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
+     .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4}},
     /* SUCCESS        */
-    {SoundType::SEQUENCE, 75, .sequence = {{{523, 90, 0, 0}, {659, 90, 0, 0}, {784, 250, 0, 0}}, 3}},
+    {SoundType::SEQUENCE, 75, .waveform = Waveform::TRIANGLE,
+     .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 300, 0, 0}}, 3}},
     /* WARNING        */
-    {SoundType::SEQUENCE, 80, .sequence = {{{880, 150, 0, 0}, {0, 50, 0, 0}, {880, 150, 0, 0}}, 3}},
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW,
+     .sequence = {{{880, 150, 0, 0}, {0, 80, 0, 0}, {880, 150, 0, 0}, {0, 80, 0, 0}}, 4}},
     /* ERROR          */
-    {SoundType::SEQUENCE, 85, .sequence = {{{466, 140, 0, 0}, {349, 140, 0, 0}, {220, 320, 0, 0}}, 3}},
+    {SoundType::SEQUENCE, 85, .waveform = Waveform::SAW,
+     .sequence = {{{300, 200, 0, 0}, {240, 200, 0, 0}, {180, 300, 0, 0}}, 3}},
     /* EMERGENCY      */ {SoundType::SEQUENCE, 90, .sequence = {{{950, 8000, 20, 220}}, 1}},
     /* LOW_BATTERY    */
     {SoundType::SEQUENCE, 75,
-     .sequence = {{{523, 250, 0, 0}, {0, 100, 0, 0}, {392, 250, 0, 0}, {0, 100, 0, 0}, {261, 450, 0, 0}}, 5}},
+     .sequence = {{{659, 300, 0, 0}, {587, 300, 0, 0}, {523, 300, 0, 0}, {440, 400, 0, 0}}, 4}},
     /* CHARGING_START */
-    {SoundType::SEQUENCE, 65, .sequence = {{{440, 80, 0, 0}, {554, 80, 0, 0}, {659, 80, 0, 0}}, 3}},
+    {SoundType::SEQUENCE, 65, .waveform = Waveform::SINE,
+     .sequence = {{{523, 100, 0, 0}, {659, 100, 0, 0}, {784, 150, 0, 0}}, 3}},
     /* CHARGING_DONE  */
-    {SoundType::SEQUENCE, 70, .sequence = {{{392, 90, 0, 0}, {523, 90, 0, 0}, {659, 90, 0, 0}, {784, 300, 0, 0}}, 4}},
+    {SoundType::SEQUENCE, 70, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
+     .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 120, 0, 0}, {1046, 300, 0, 0}}, 4}},
 };
 
 static_assert(sizeof(kDefaultSoundDefs) / sizeof(kDefaultSoundDefs[0]) == static_cast<size_t>(SoundId::COUNT),
