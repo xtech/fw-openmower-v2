@@ -4,6 +4,7 @@
 #include "services/bms_service/bms_service.hpp"
 #include "services/diff_drive_service/diff_drive_service.hpp"
 #include "services/emergency_service/emergency_service.hpp"
+#include "services/file_service/file_service.hpp"
 #include "services/gps_service/gps_service.hpp"
 #include "services/high_level_service/high_level_service.hpp"
 #include "services/imu_service/imu_service.hpp"
@@ -22,6 +23,7 @@ extern PowerService power_service;
 extern GpsService gps_service;
 extern InputService input_service;
 extern HighLevelService high_level_service;
+extern FileService file_service;
 
 void StartServices();
 

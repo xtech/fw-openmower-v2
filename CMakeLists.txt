@@ -51,6 +51,9 @@ target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
 add_subdirectory(ext)
 target_compile_definitions(ulog PUBLIC ULOG_ENABLED)
 
+# Expose project-specific ChibiOS LLD implementations (hal_i2s.c needs hal_i2s_lld.h, etc.)
+target_include_directories(ChibiOS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/chibios_lld)
+
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -90,6 +93,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/input_service/input_service.cpp
         src/services/high_level_service/high_level_service.cpp
         src/services/meta_service/meta_service.cpp
+        src/services/file_service/file_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
         # BQ25679 driver
@@ -113,6 +117,12 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/input/sabo_input_driver.cpp
         src/drivers/input/worx_input_driver.cpp
         $<$<BOOL:${DEBUG_BUILD}>:src/drivers/input/simulated_input_driver.cpp>
+        # Sound
+        src/chibios_lld/hal_i2s_lld.c
+        src/drivers/sound/sound_player.cpp
+        src/drivers/sound/sound_source.cpp
+        src/drivers/sound/sound_mp3.cpp
+        src/drivers/sound/sound_synth.cpp
         # YardForce Cover UI driver (yf_cover_ui — YardForce 500 panel via UART7)
         src/drivers/ui/yf_cover_ui/yf_cover_ui.cpp
         # Sabo driver
@@ -159,7 +169,11 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         LittleFS
         lwjson
         lvgl
+        minimp3
 )
+
+# minimp3 is large; compile it for size even in debug builds.
+set_source_files_properties(src/drivers/sound/sound_mp3.cpp PROPERTIES COMPILE_OPTIONS "-Os")
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} PowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/power_service.json)
@@ -171,6 +185,7 @@ target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/
 target_add_service(${CMAKE_PROJECT_NAME} InputService ${CMAKE_CURRENT_SOURCE_DIR}/services/input_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} HighLevelService ${CMAKE_CURRENT_SOURCE_DIR}/services/high_level_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MetaService ${CMAKE_CURRENT_SOURCE_DIR}/services/meta_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} FileService ${CMAKE_CURRENT_SOURCE_DIR}/services/file_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")

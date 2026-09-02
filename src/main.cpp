@@ -22,6 +22,7 @@
 
 #include "debug/checksum_test_interface.hpp"
 #include "debug/thread_watermark.h"
+#include "drivers/sound/sound_player.hpp"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
@@ -107,6 +108,10 @@ int main() {
       chThdSleep(TIME_S2I(1));
     }
   }
+  file_service.start();
+
+  // Start the sound player early so boot sounds can play during the Stage 2 wait.
+  sound::player_init();
 
   // Io and MetaService always start before robot detection so that
   // Stage 2 (ROS-assisted config) can communicate from the beginning.
@@ -135,6 +140,7 @@ int main() {
     SetStatusLedColor(RED);
 
     while (robot == nullptr) {
+      sound::play_sound_id(sound::SoundId::BOOT_PING);
       ULOG_INFO("Waiting for Robot Firmware configuration via MetaService (carrier=%s)...",
                 carrier_board_info.board_id);
       if (meta_service.HasRobotFirmware()) {
@@ -155,6 +161,10 @@ int main() {
   StartServices();
   SetStatusLedMode(LED_MODE_ON);
   SetStatusLedColor(GREEN);
+
+  // Boot complete — power-up sweep.
+  sound::play_sound_id(sound::SoundId::BOOT_COMPLETE);
+
   DispatchEvents();
 }
 
