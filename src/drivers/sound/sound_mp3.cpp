@@ -18,6 +18,7 @@
 
 #include <cstring>
 
+#define MINIMP3_ONLY_MP3  // We only need MPEG Layer 3, drop Layer 1/2
 #define MINIMP3_IMPLEMENTATION
 #include "minimp3.h"
 

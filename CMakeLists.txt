@@ -172,6 +172,9 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         minimp3
 )
 
+# minimp3 is large; compile it for size even in debug builds.
+set_source_files_properties(src/drivers/sound/sound_mp3.cpp PROPERTIES COMPILE_OPTIONS "-Os")
+
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} PowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/power_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} BmsService ${CMAKE_CURRENT_SOURCE_DIR}/services/bms_service.json)
