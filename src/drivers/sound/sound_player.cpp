@@ -45,6 +45,7 @@
 
 #include <cstring>
 
+#include "filesystem/file.hpp"
 #include "hal.h"
 #include "sound_definition.hpp"
 #include "sound_source.hpp"
@@ -62,6 +63,19 @@ static constexpr size_t SOUND_HALF_SIZE = SOUND_BUFFER_SIZE / 2U;
 
 /* MP3 sources are pre-mastered at full scale; only the master volume scales them. */
 static constexpr uint8_t kFileVolume = 100U;
+
+/* Persisted sound-definition overrides (LittleFS) — survive a reboot. */
+static constexpr const char* kSoundDefsPath = "/cfg/sound_defs.bin";
+static constexpr uint32_t kSoundDefsMagic = 0x53444632U;  // "SDF2"
+static constexpr uint16_t kSoundDefsVersion = 1U;
+
+/** On-disk layout of the persisted sound overrides. */
+struct PersistedDefsHeader {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t count;
+  uint16_t valid_mask;
+};
 
 /*===========================================================================*/
 /* DMA buffer — MUST reside in SRAM4 (D3 domain) for BDMA.                  */
@@ -301,6 +315,10 @@ void player_init() {
 
   s_player_thd = chThdCreateStatic(s_player_wa, sizeof(s_player_wa), NORMALPRIO + 1, player_thread, nullptr);
 
+  // Apply persisted overrides (if any) so early sounds already use the
+  // last-known high-level definitions instead of the ROM defaults.
+  load_sound_overrides_from_storage();
+
   ULOG_INFO("Sound: player started (sample_rate=%u, volume=%u)", SAMPLE_RATE, s_master_volume.load());
 }
 
@@ -393,6 +411,80 @@ void clear_sound_overrides() {
     s_override_valid[i] = false;
   }
   chMtxUnlock(&s_override_mutex);
+}
+
+void load_sound_overrides_from_storage() {
+  File file;
+  if (file.open(kSoundDefsPath, LFS_O_RDONLY) != LFS_ERR_OK) {
+    return;  // No persisted overrides — fall back to ROM defaults.
+  }
+
+  PersistedDefsHeader h{};
+  int n = file.read(&h, sizeof(h));
+  if (n != static_cast<int>(sizeof(h)) || h.magic != kSoundDefsMagic || h.version != kSoundDefsVersion ||
+      h.count != SoundId_count) {
+    ULOG_WARNING("Sound: defs store invalid, ignoring");
+    file.close();
+    return;
+  }
+
+  SoundDefinition defs[SoundId_count];
+  n = file.read(defs, sizeof(defs));
+  file.close();
+  if (n != static_cast<int>(sizeof(defs))) {
+    ULOG_WARNING("Sound: defs store truncated, ignoring");
+    return;
+  }
+
+  chMtxLock(&s_override_mutex);
+  for (uint8_t i = 0U; i < SoundId_count; ++i) {
+    if ((h.valid_mask & (1U << i)) != 0U) {
+      s_sound_overrides[i] = defs[i];
+      s_override_valid[i] = true;
+    } else {
+      s_override_valid[i] = false;
+    }
+  }
+  chMtxUnlock(&s_override_mutex);
+}
+
+void save_sound_overrides_to_storage() {
+  uint16_t valid_mask = 0U;
+  for (uint8_t i = 0U; i < SoundId_count; ++i) {
+    if (s_override_valid[i]) {
+      valid_mask |= static_cast<uint16_t>(1U << i);
+    }
+  }
+
+  // Ensure the /cfg directory exists (idempotent).
+  File dir;
+  if (dir.mkdirp(kSoundDefsPath) != LFS_ERR_OK) {
+    ULOG_WARNING("Sound: cannot create defs store dir");
+    return;
+  }
+
+  File file;
+  if (file.open(kSoundDefsPath, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) != LFS_ERR_OK) {
+    ULOG_WARNING("Sound: cannot open defs store '%s'", kSoundDefsPath);
+    return;
+  }
+
+  PersistedDefsHeader h{};
+  h.magic = kSoundDefsMagic;
+  h.version = kSoundDefsVersion;
+  h.count = SoundId_count;
+  h.valid_mask = valid_mask;
+
+  int written = file.write(&h, sizeof(h));
+  if (written == static_cast<int>(sizeof(h))) {
+    written = file.write(s_sound_overrides, sizeof(s_sound_overrides));
+  }
+  file.sync();
+  file.close();
+
+  if (written < 0) {
+    ULOG_WARNING("Sound: defs store write failed");
+  }
 }
 
 void stop() {

@@ -45,6 +45,10 @@ bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t le
   sound_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<SoundService, &SoundService::SoundDefinitionsJsonCallback>(*this);
   definitions_configured_ = ProcessJson(source, json_data);
+  if (definitions_configured_) {
+    // Persist the parsed overrides to flash so they survive a reboot.
+    save_sound_overrides_to_storage();
+  }
   return definitions_configured_;
 }
 

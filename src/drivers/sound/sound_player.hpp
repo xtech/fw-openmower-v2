@@ -105,6 +105,22 @@ void set_sound_override(SoundId id, const SoundDefinition& def);
 void clear_sound_overrides();
 
 /**
+ * @brief Load persisted sound overrides from LittleFS (if any).
+ *
+ * Called at boot (player_init) so early sounds use the last-known
+ * high-level definitions instead of the ROM defaults.
+ */
+void load_sound_overrides_from_storage();
+
+/**
+ * @brief Persist the current sound overrides to LittleFS.
+ *
+ * Called by the SoundService after a successful definitions-blob parse, so the
+ * overrides survive a reboot.
+ */
+void save_sound_overrides_to_storage();
+
+/**
  * @brief Stop the current playback and discard any queued sounds.
  *
  * The player becomes idle; subsequent play_*() calls start fresh.
