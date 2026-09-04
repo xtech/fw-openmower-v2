@@ -32,11 +32,12 @@
 #ifndef SOUND_PLAYER_HPP
 #define SOUND_PLAYER_HPP
 
+#include <SoundServiceBase.hpp>
 #include <cstdint>
 
-#include "sound_id.hpp"
-
 namespace xbot::driver::sound {
+
+struct SoundDefinition;  ///< Defined in sound_definition.hpp.
 
 /**
  * @brief Initialise the sound player and start the player thread.
@@ -85,6 +86,23 @@ void play_file(const char* path, bool high_priority = false);
  * @param volume 0–100.
  */
 void set_volume(uint8_t volume);
+
+/**
+ * @brief Register (or replace) a runtime override for one logical sound.
+ *
+ * Overrides are populated by the SoundService from the high-level
+ * configuration blob and take precedence over the ROM defaults.  Use
+ * clear_sound_overrides() to remove them all.
+ *
+ * @param id   Logical sound to override.
+ * @param def  New definition (copied into RAM).
+ */
+void set_sound_override(SoundId id, const SoundDefinition& def);
+
+/**
+ * @brief Remove all runtime sound overrides, restoring the ROM defaults.
+ */
+void clear_sound_overrides();
 
 /**
  * @brief Stop the current playback and discard any queued sounds.

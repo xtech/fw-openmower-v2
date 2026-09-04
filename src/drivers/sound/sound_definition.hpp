@@ -31,18 +31,13 @@
 #ifndef SOUND_DEFINITION_HPP
 #define SOUND_DEFINITION_HPP
 
+#include <SoundServiceBase.hpp>
 #include <cstddef>
 #include <cstdint>
 
-#include "sound_id.hpp"
-
 namespace xbot::driver::sound {
 
-/** @brief How a sound is produced. */
-enum class SoundType : uint8_t { TONE, SEQUENCE, MP3 };
-
-/** @brief Oscillator waveform for tone/sequence sounds. */
-enum class Waveform : uint8_t { SINE, SQUARE, TRIANGLE, SAW };
+/* SoundType and Waveform are defined by the codegen in SoundServiceBase.hpp. */
 
 /** @brief Maximum notes per sequence definition (fixed for serialization). */
 constexpr uint8_t kMaxNotes = 8U;
@@ -89,33 +84,39 @@ struct SoundDefinition {
  *---------------------------------------------------------------------------*/
 
 inline constexpr SoundDefinition kDefaultSoundDefs[] = {
-    /* BOOT_PING      */ {SoundType::SEQUENCE, 80, .unison = 3, .detune_hz = 10,
-                          .sequence = {{{800, 150, 16, 400}}, 1}},
-    /* BOOT_COMPLETE  */
+    // BOOT_PING
+    {SoundType::SEQUENCE, 80, .unison = 3, .detune_hz = 10, .sequence = {{{800, 150, 16, 400}}, 1}},
+    // BOOT_COMPLETE
     {SoundType::SEQUENCE, 85, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4}},
-    /* SUCCESS        */
+    // SUCCESS
     {SoundType::SEQUENCE, 75, .waveform = Waveform::TRIANGLE,
      .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 300, 0, 0}}, 3}},
-    /* WARNING        */
+    // WARNING
     {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW,
      .sequence = {{{880, 150, 0, 0}, {0, 80, 0, 0}, {880, 150, 0, 0}, {0, 80, 0, 0}}, 4}},
-    /* ERROR          */
+    // ERROR
     {SoundType::SEQUENCE, 85, .waveform = Waveform::SAW,
      .sequence = {{{300, 200, 0, 0}, {240, 200, 0, 0}, {180, 300, 0, 0}}, 3}},
-    /* EMERGENCY      */ {SoundType::SEQUENCE, 90, .sequence = {{{950, 8000, 20, 220}}, 1}},
-    /* LOW_BATTERY    */
+    // EMERGENCY
+    {SoundType::SEQUENCE, 90, .sequence = {{{950, 8000, 20, 220}}, 1}},
+    // LOW_BATTERY
     {SoundType::SEQUENCE, 75,
      .sequence = {{{659, 300, 0, 0}, {587, 300, 0, 0}, {523, 300, 0, 0}, {440, 400, 0, 0}}, 4}},
-    /* CHARGING_START */
+    // CHARGING_START
     {SoundType::SEQUENCE, 65, .waveform = Waveform::SINE,
      .sequence = {{{523, 100, 0, 0}, {659, 100, 0, 0}, {784, 150, 0, 0}}, 3}},
-    /* CHARGING_DONE  */
+    // CHARGING_DONE  */
     {SoundType::SEQUENCE, 70, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 120, 0, 0}, {1046, 300, 0, 0}}, 4}},
+    // GPS_RTK_FIX    */
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
+     .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2}},
+    // GPS_RTK_LOST   */
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{660, 120, 0, 0}, {440, 200, 0, 0}}, 2}},
 };
 
-static_assert(sizeof(kDefaultSoundDefs) / sizeof(kDefaultSoundDefs[0]) == static_cast<size_t>(SoundId::COUNT),
+static_assert(sizeof(kDefaultSoundDefs) / sizeof(kDefaultSoundDefs[0]) == SoundId_count,
               "kDefaultSoundDefs must have one entry per SoundId");
 
 }  // namespace xbot::driver::sound

@@ -47,7 +47,6 @@
 
 #include "hal.h"
 #include "sound_definition.hpp"
-#include "sound_id.hpp"
 #include "sound_source.hpp"
 
 namespace xbot::driver::sound {
@@ -99,6 +98,12 @@ static etl::atomic<uint8_t> s_master_volume{100U};
 
 /* Playing flag — written by the player thread, read by is_playing() from any thread */
 static etl::atomic<bool> s_playing{false};
+
+/* Runtime sound overrides (SoundId -> definition), written by the SoundService
+   during configuration and read by load_sound_definition() from play_sound_id(). */
+static MUTEX_DECL(s_override_mutex);
+static SoundDefinition s_sound_overrides[SoundId_count];
+static bool s_override_valid[SoundId_count];
 
 /* Active playback source — owned by player thread */
 static SoundSource s_source;
@@ -300,21 +305,27 @@ void player_init() {
 }
 
 /**
- * @brief Load a flash override for @p id, if present.
+ * @brief Load a runtime override for @p id, if present.
  *
- * TODO: read the raw @p SoundDefinition from LittleFS (written by the
- * high-level system or a future Sound-CLI).  Until then this always returns
- * false so the ROM default applies.
+ * The SoundService stores parsed overrides (from the HL configuration blob)
+ * via set_sound_override(); otherwise the ROM default applies.
  */
 static bool load_sound_definition(SoundId id, SoundDefinition& out) {
-  (void)id;
-  (void)out;
-  return false;
+  const uint8_t idx = static_cast<uint8_t>(id);
+  if (idx >= SoundId_count) return false;
+
+  chMtxLock(&s_override_mutex);
+  const bool has_override = s_override_valid[idx];
+  if (has_override) {
+    out = s_sound_overrides[idx];
+  }
+  chMtxUnlock(&s_override_mutex);
+  return has_override;
 }
 
 void play_sound_id(SoundId id, bool high_priority) {
   const uint8_t idx = static_cast<uint8_t>(id);
-  if (idx >= static_cast<uint8_t>(SoundId::COUNT)) return;
+  if (idx >= SoundId_count) return;
 
   /* Prefer a flash override; otherwise fall back to the ROM default. */
   SoundDefinition def;
@@ -364,6 +375,24 @@ void play_file(const char* path, bool high_priority) {
 void set_volume(uint8_t volume) {
   if (volume > 100U) volume = 100U;
   s_master_volume.store(volume);
+}
+
+void set_sound_override(SoundId id, const SoundDefinition& def) {
+  const uint8_t idx = static_cast<uint8_t>(id);
+  if (idx >= SoundId_count) return;
+
+  chMtxLock(&s_override_mutex);
+  s_sound_overrides[idx] = def;
+  s_override_valid[idx] = true;
+  chMtxUnlock(&s_override_mutex);
+}
+
+void clear_sound_overrides() {
+  chMtxLock(&s_override_mutex);
+  for (uint8_t i = 0U; i < SoundId_count; ++i) {
+    s_override_valid[i] = false;
+  }
+  chMtxUnlock(&s_override_mutex);
 }
 
 void stop() {

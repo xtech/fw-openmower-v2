@@ -140,7 +140,7 @@ int main() {
     SetStatusLedColor(RED);
 
     while (robot == nullptr) {
-      sound::play_sound_id(sound::SoundId::BOOT_PING);
+      sound::play_sound_id(::SoundId::BOOT_PING);
       ULOG_INFO("Waiting for Robot Firmware configuration via MetaService (carrier=%s)...",
                 carrier_board_info.board_id);
       if (meta_service.HasRobotFirmware()) {
@@ -163,7 +163,7 @@ int main() {
   SetStatusLedColor(GREEN);
 
   // Boot complete — power-up sweep.
-  sound::play_sound_id(sound::SoundId::BOOT_COMPLETE);
+  sound::play_sound_id(::SoundId::BOOT_COMPLETE);
 
   DispatchEvents();
 }
