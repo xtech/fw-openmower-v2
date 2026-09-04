@@ -208,3 +208,70 @@ void FileService::RPCFileWrite(uint16_t call_id, const char* Path, uint32_t Path
 
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
+
+void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathLen, uint32_t StartIndex, uint8_t* data,
+                              uint16_t* response_length) {
+  char path[kMaxPath + 1];
+  copy_path(Path, PathLen, path, sizeof(path));
+
+  // Strip trailing '/' so entries can be joined with a single separator.
+  size_t path_len = strlen(path);
+  while (path_len > 1U && path[path_len - 1U] == '/') {
+    path[--path_len] = '\0';
+  }
+
+  // Wire format (see FileList in file_service.json):
+  //   [0..4)  uint32 total_count
+  //   [4..8)  uint32 entry_count   (0 or 1 per 256-byte response)
+  //   [8..)   entry_count × (char[128] full_path + uint32 hash)
+  constexpr uint16_t kEntrySize = 128U + static_cast<uint16_t>(sizeof(uint32_t));
+  constexpr uint16_t kHeaderSize = 2U * static_cast<uint16_t>(sizeof(uint32_t));
+
+  uint32_t total_count = 0;
+  uint32_t entry_count = 0;
+
+  lfs_dir_t dir;
+  if (lfs_dir_open(&lfs, &dir, path) == LFS_ERR_OK) {
+    struct lfs_info info;
+    uint32_t idx = 0;
+    while (lfs_dir_read(&lfs, &dir, &info) > 0) {
+      if (info.type != LFS_TYPE_REG) continue;
+
+      const size_t name_len = strlen(info.name);
+      if (name_len == 0U || info.name[0] == '.') continue;
+      if (name_len >= 5U && strcmp(info.name + name_len - 5U, ".hash") == 0) continue;
+      if (name_len >= 4U && strcmp(info.name + name_len - 4U, ".tmp") == 0) continue;
+
+      if (idx == StartIndex && entry_count == 0U) {
+        char full_path[kMaxPath + 1];
+        size_t full_len = path_len;
+        if (full_len >= sizeof(full_path)) full_len = sizeof(full_path) - 1U;
+        memcpy(full_path, path, full_len);
+        if (full_len > 0U && full_path[full_len - 1U] != '/' && full_len < sizeof(full_path) - 1U) {
+          full_path[full_len++] = '/';
+        }
+        const size_t remaining = sizeof(full_path) - full_len;
+        if (name_len < remaining) {
+          memcpy(full_path + full_len, info.name, name_len + 1U);
+
+          uint8_t* entry = data + kHeaderSize;
+          memset(entry, 0, 128U);
+          strncpy(reinterpret_cast<char*>(entry), full_path, 127U);
+          uint32_t hash = 0U;
+          read_sidecar_hash(full_path, hash);
+          memcpy(entry + 128U, &hash, sizeof(hash));
+          entry_count = 1U;
+        }
+      }
+      idx++;
+    }
+    lfs_dir_close(&lfs, &dir);
+    total_count = idx;
+  }
+
+  memcpy(data, &total_count, sizeof(total_count));
+  memcpy(data + 4U, &entry_count, sizeof(entry_count));
+  *response_length = static_cast<uint16_t>(kHeaderSize + entry_count * kEntrySize);
+
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, data, *response_length);
+}
