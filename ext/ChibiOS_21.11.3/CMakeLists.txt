@@ -102,6 +102,10 @@ add_library(
         # board
         ${BOARD_DIR}/board.c
         ${BOARD_DIR}/board_ex.c
+        ${BOARD_DIR}/board_variant.c
+        ${BOARD_DIR}/board_phy.c
+        ${BOARD_DIR}/phy_gsw141.c
+        ${BOARD_DIR}/phy_rtl8201f.c
         ${BOARD_DIR}/hal_flash_device.c
         # LwIP
         os/various/lwip_bindings/lwipthread.c
