@@ -9,8 +9,13 @@ static board_variant_t board_variant = BOARD_VARIANT_NOT_YET_DETECTED;
 
 static bool board_id_is(const char *board_id, size_t board_id_len,
                         const char *candidate) {
-  size_t len = strnlen(board_id, board_id_len);
-  return len == strlen(candidate) && memcmp(board_id, candidate, len) == 0;
+  // board_id is the ID EEPROM's fixed-width field and is not necessarily
+  // NUL-terminated (see board_variant.h), so match candidate's bytes
+  // directly instead of relying on strnlen() to find a NUL that may not be
+  // there -- that would silently mis-detect a correctly-provisioned
+  // xcore-lite as the fallback BOARD_VARIANT_XCORE.
+  size_t candidate_len = strlen(candidate);
+  return candidate_len <= board_id_len && memcmp(board_id, candidate, candidate_len) == 0;
 }
 
 void InitBoardVariant(const char *board_id, size_t board_id_len) {
