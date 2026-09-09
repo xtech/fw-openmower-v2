@@ -712,7 +712,7 @@
         Type="OpenDrain"
         Level="High"
         Speed="Minimum"
-        Resistor="Floating"
+        Resistor="PullUp"
         Mode="Output"
         Alternate="0" />
       <pin4

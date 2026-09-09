@@ -38,7 +38,7 @@
 #ifndef __LWIPOPT_H__
 #define __LWIPOPT_H__
 
-#define LWIP_LINK_POLL_INTERVAL TIME_S2I(5000)
+#define LWIP_LINK_POLL_INTERVAL TIME_MS2I(5000)
 
 /*
    -----------------------------------------------
