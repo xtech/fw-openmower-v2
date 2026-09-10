@@ -40,8 +40,11 @@
 
 /*
  * Ethernet PHY type.
+ *
+ * BOARD_PHY_ADDRESS and BOARD_PHY_RESET() (board_ex.h) dispatch between the
+ * GSW141 and RTL8201F at runtime, since both boards share this same pin and
+ * clock configuration -- see board_phy.h.
  */
-#define BOARD_PHY_ID                MII_GSW141_ID
 #define BOARD_PHY_RMII
 
 /*
@@ -1048,7 +1051,7 @@
 #define VAL_GPIOF_PUPDR             (PIN_PUPDR_PULLUP(GPIOF_HEARTBEAT_LED_RED) |\
                                      PIN_PUPDR_PULLUP(GPIOF_HEARTBEAT_LED_GREEN) |\
                                      PIN_PUPDR_PULLUP(GPIOF_HEARTBEAT_LED_BLUE) |\
-                                     PIN_PUPDR_FLOATING(GPIOF_RESET_PHY) |  \
+                                     PIN_PUPDR_PULLUP(GPIOF_RESET_PHY) |    \
                                      PIN_PUPDR_PULLUP(GPIOF_PIN4) |         \
                                      PIN_PUPDR_PULLUP(GPIOF_PIN5) |         \
                                      PIN_PUPDR_FLOATING(GPIOF_OCTOSPI_IO3) |\
