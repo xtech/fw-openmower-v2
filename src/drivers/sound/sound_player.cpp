@@ -342,6 +342,7 @@ static bool load_sound_definition(SoundId id, SoundDefinition& out) {
 }
 
 void play_sound_id(SoundId id, bool high_priority) {
+  if (s_player_thd == nullptr) return;
   const uint8_t idx = static_cast<uint8_t>(id);
   if (idx >= SoundId_count) return;
 
@@ -359,6 +360,7 @@ void play_sound_id(SoundId id, bool high_priority) {
 }
 
 void play_tone(uint32_t freq, uint32_t duration_ms, uint8_t volume, bool high_priority) {
+  if (s_player_thd == nullptr) return;
   if (freq == 0U || duration_ms == 0U) return;
 
   SoundDefinition def{};
@@ -375,6 +377,7 @@ void play_tone(uint32_t freq, uint32_t duration_ms, uint8_t volume, bool high_pr
 }
 
 void play_file(const char* path, bool high_priority) {
+  if (s_player_thd == nullptr) return;
   if (path == nullptr) return;
 
   SoundDefinition def{};
