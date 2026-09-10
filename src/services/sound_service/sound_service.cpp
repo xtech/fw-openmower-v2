@@ -14,6 +14,7 @@ struct sound_config_json_data_t : public json_data_t {
   SoundDefinition current_def{};
   bool have_current = false;
   uint8_t note_idx = 0;
+  uint8_t num_sounds = 0;  ///< successfully parsed + applied definitions
 };
 
 namespace {
@@ -48,6 +49,10 @@ bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t le
   if (definitions_configured_) {
     // Persist the parsed overrides to flash so they survive a reboot.
     save_sound_overrides_to_storage();
+    ULOG_INFO("Sound: %u definition(s) applied (%u byte blob)", static_cast<unsigned>(json_data.num_sounds),
+              static_cast<unsigned>(length));
+  } else {
+    ULOG_WARNING("Sound: definitions blob rejected (%u byte blob)", static_cast<unsigned>(length));
   }
   return definitions_configured_;
 }
@@ -95,6 +100,7 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
           data->current_def.sequence.count = data->note_idx;
         }
         set_sound_override(data->current_id, data->current_def);
+        data->num_sounds++;
         data->have_current = false;
       }
       break;

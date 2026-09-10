@@ -123,6 +123,8 @@ void FileService::RPCFileExists(uint16_t call_id, const char* Path, uint32_t Pat
     }
   }
 
+  ULOG_INFO("File: exists '%s' -> %u (hash=%#010x)", path, static_cast<unsigned>(result), Hash);
+
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
@@ -136,6 +138,7 @@ void FileService::RPCFileRemove(uint16_t call_id, const char* Path, uint32_t Pat
     ULOG_WARNING("File: remove '%s' failed (%d)", path, remove_result);
     result = 1;
   } else {
+    ULOG_INFO("File: removed '%s'", path);
     char hash_path[kMaxPath + 6];
     strcpy(hash_path, path);
     strcat(hash_path, ".hash");
@@ -149,6 +152,10 @@ void FileService::RPCFileWrite(uint16_t call_id, const char* Path, uint32_t Path
                                const uint8_t* Data, uint32_t DataLen, uint32_t Hash) {
   char path[kMaxPath + 1];
   copy_path(Path, PathLen, path, sizeof(path));
+
+  if (Offset == 0U) {
+    ULOG_INFO("File: write '%s' (start)", path);
+  }
 
   int32_t result = 0;
 
@@ -202,6 +209,8 @@ void FileService::RPCFileWrite(uint16_t call_id, const char* Path, uint32_t Path
       if (finalize_result != LFS_ERR_OK) {
         ULOG_WARNING("File: finalize '%s' failed (%d)", path, finalize_result);
         result = finalize_result;
+      } else {
+        ULOG_INFO("File: committed '%s' (hash=%#010x)", path, Hash);
       }
     }
   } while (false);
@@ -267,6 +276,10 @@ void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathL
     }
     lfs_dir_close(&lfs, &dir);
     total_count = idx;
+  }
+
+  if (StartIndex == 0U) {
+    ULOG_INFO("File: list '%s' (%u files)", path, static_cast<unsigned>(total_count));
   }
 
   memcpy(data, &total_count, sizeof(total_count));
