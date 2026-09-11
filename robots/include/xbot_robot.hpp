@@ -14,7 +14,8 @@ class xBotRobot : public Robot {
   static bool IsAutoDetected();
   void InitPlatform() override;
 
-  bool NeedsService(uint16_t id) {
+  bool NeedsService(uint16_t id) override {
+    if (id == xbot::service_ids::SOUND) return HasSound();
     return id != xbot::service_ids::MOWER;
   }
 

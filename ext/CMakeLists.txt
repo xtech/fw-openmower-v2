@@ -21,3 +21,8 @@ add_library(LittleFS littlefs/lfs.c littlefs/lfs_util.c)
 target_include_directories(LittleFS PUBLIC littlefs ../cfg)
 target_compile_definitions(LittleFS PUBLIC LFS_DEFINES=lfs_config.h)
 target_link_libraries(LittleFS PUBLIC ulog ChibiOS etl::etl)
+
+# dr_mp3 (dr_libs) is a header-only MP3 decoder (Unlicense/MIT-0).
+# Exposed as an INTERFACE library; only the low-level drmp3dec_* API is used.
+add_library(dr_mp3 INTERFACE)
+target_include_directories(dr_mp3 INTERFACE dr_libs)

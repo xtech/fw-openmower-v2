@@ -4,6 +4,7 @@
 
 #include "emergency_service.hpp"
 
+#include <drivers/sound/sound_player.hpp>
 #include <xbot-service/Lock.hpp>
 
 #include "services.hpp"
@@ -52,17 +53,29 @@ uint32_t EmergencyService::CheckTimeouts(uint32_t now) {
 }
 
 void EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {
+  bool was_latched;
+  bool now_latched;
   {
     Lock lk{&mtx_};
-    uint16_t old_reason = reasons_;
+    const uint16_t old_reason = reasons_;
     reasons_ &= ~clear;
     reasons_ |= add;
     if (reasons_ == old_reason) {
       return;
     }
+    was_latched = (old_reason & EmergencyReason::LATCH) != 0;
+    now_latched = (reasons_ & EmergencyReason::LATCH) != 0;
   }
   chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
   SendStatus();
+
+  // Only latched emergencies matter for the audio feedback
+  if (now_latched && !was_latched) {
+    xbot::driver::sound::play_sound_id(SoundId::EMERGENCY, /*high_priority=*/true);
+  } else if (!now_latched && was_latched) {
+    xbot::driver::sound::stop();
+    xbot::driver::sound::play_sound_id(SoundId::SUCCESS);
+  }
 }
 
 uint16_t EmergencyService::GetEmergencyReasons() {

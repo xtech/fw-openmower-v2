@@ -23,6 +23,7 @@
 #include "board_variant.h"
 #include "debug/checksum_test_interface.hpp"
 #include "debug/thread_watermark.h"
+#include "drivers/sound/sound_player.hpp"
 #include "globals.hpp"
 #include "heartbeat.h"
 #include "id_eeprom.h"
@@ -115,6 +116,14 @@ int main() {
       chThdSleep(TIME_S2I(1));
     }
   }
+  file_service.start();
+
+  // Start the sound player early so boot sounds can play during the Stage 2 wait.
+  // NOTE: this runs on every board, also without a sound amplifier (I2S, player thread and decoder state)
+  // and consumes the bulk of the ~50 KB RAM plus ~28 KB flash that the sound subsystem reserves unconditionally.
+  // How to gate it on the carrier board having an amplifier is described in the memory note
+  // on s_source in drivers/sound/sound_player.cpp.
+  sound::player_init();
 
   // Io and MetaService always start before robot detection so that
   // Stage 2 (ROS-assisted config) can communicate from the beginning.
@@ -143,6 +152,7 @@ int main() {
     SetStatusLedColor(RED);
 
     while (robot == nullptr) {
+      sound::play_sound_id(::SoundId::BOOT_PING);
       ULOG_INFO("Waiting for Robot Firmware configuration via MetaService (carrier=%s)...",
                 carrier_board_info.board_id);
       if (meta_service.HasRobotFirmware()) {
@@ -163,6 +173,10 @@ int main() {
   StartServices();
   SetStatusLedMode(LED_MODE_ON);
   SetStatusLedColor(GREEN);
+
+  // Boot complete — power-up sweep.
+  sound::play_sound_id(::SoundId::BOOT_COMPLETE);
+
   DispatchEvents();
 }
 
