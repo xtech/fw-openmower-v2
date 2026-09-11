@@ -83,6 +83,7 @@ void SoundSource::fill_mp3(int16_t* buf, size_t frames, uint8_t vol) {
         /* EOF or read error — silence and stop */
         mp3.close();
         active = false;
+        ULOG_INFO("Sound: MP3 playback finished");
       }
     }
     buf[2U * i] = s;

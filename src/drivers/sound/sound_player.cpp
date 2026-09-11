@@ -92,8 +92,14 @@ static constexpr eventmask_t EVT_TCIF = EVENT_MASK(1U);           ///< DMA finis
 static constexpr eventmask_t EVT_REQUEST = EVENT_MASK(2U);        ///< New request enqueued
 static constexpr eventmask_t EVT_STOP_PLAYBACK = EVENT_MASK(3U);  ///< Stop playback + flush queues
 
-/* minimp3 needs a ~13 KB scratch buffer on the stack during mp3dec_decode_frame(). */
-static THD_WORKING_AREA(s_player_wa, 16384U);
+/**
+ * @note  minimp3's mp3dec_decode_frame() alone needs ~16.6 KB of stack (measured
+ *        with -fstack-usage; it is independent of the optimisation level, so
+ *        -O2 does not help). It is called from this thread, on top of the DMA
+ *        refill chain, so 16 KB was too small and tripped the stack guard page
+ *        (total silence, no log). 24 KB leaves ~7 KB headroom.
+ */
+static THD_WORKING_AREA(s_player_wa, 24576U);
 static thread_t* s_player_thd = nullptr;
 
 /* HIGH priority queue: depth 1, single storage slot */
@@ -348,8 +354,19 @@ void play_sound_id(SoundId id, bool high_priority) {
 
   /* Prefer a flash override; otherwise fall back to the ROM default. */
   SoundDefinition def;
-  if (!load_sound_definition(id, def)) {
+  const bool has_override = load_sound_definition(id, def);
+  if (!has_override) {
     def = kDefaultSoundDefs[idx];
+  }
+  // INFO (not DEBUG): the remote log is filtered at ULOG_INFO_LEVEL, and this
+  // line is the "override vs. ROM default" evidence after a reboot.
+  const char* const source = has_override ? "flash override" : "ROM default";
+  if (def.type == SoundType::MP3) {
+    ULOG_INFO("Sound: play %s from %s (type=MP3, file='%s', volume=%u)", SoundId_to_string(id), source, def.path,
+              static_cast<unsigned>(def.volume));
+  } else {
+    ULOG_INFO("Sound: play %s from %s (type=%s, volume=%u)", SoundId_to_string(id), source,
+              SoundType_to_string(def.type), static_cast<unsigned>(def.volume));
   }
 
   if (high_priority) {
@@ -417,8 +434,14 @@ void clear_sound_overrides() {
 }
 
 void load_sound_overrides_from_storage() {
-  File file;
+  // Keep the File (~330 B: 256 B cache) and the definition array (~840 B) out of
+  // the main thread stack, which is only ~2.3 KB here (see the linker script).
+  static File file;
+  static SoundDefinition defs[SoundId_count];
+
+  file.close();  // no-op unless an earlier attempt left it open
   if (file.open(kSoundDefsPath, LFS_O_RDONLY) != LFS_ERR_OK) {
+    ULOG_INFO("Sound: no persisted overrides ('%s' missing), using ROM defaults", kSoundDefsPath);
     return;  // No persisted overrides — fall back to ROM defaults.
   }
 
@@ -431,7 +454,6 @@ void load_sound_overrides_from_storage() {
     return;
   }
 
-  SoundDefinition defs[SoundId_count];
   n = file.read(defs, sizeof(defs));
   file.close();
   if (n != static_cast<int>(sizeof(defs))) {
@@ -439,34 +461,48 @@ void load_sound_overrides_from_storage() {
     return;
   }
 
+  uint8_t loaded = 0U;
   chMtxLock(&s_override_mutex);
   for (uint8_t i = 0U; i < SoundId_count; ++i) {
     if ((h.valid_mask & (1U << i)) != 0U) {
       s_sound_overrides[i] = defs[i];
       s_override_valid[i] = true;
+      ++loaded;
     } else {
       s_override_valid[i] = false;
     }
   }
   chMtxUnlock(&s_override_mutex);
+
+  ULOG_INFO("Sound: loaded %u override(s) from flash (mask=0x%04x)", static_cast<unsigned>(loaded),
+            static_cast<unsigned>(h.valid_mask));
 }
 
 void save_sound_overrides_to_storage() {
   uint16_t valid_mask = 0U;
+  uint8_t count = 0U;
+  chMtxLock(&s_override_mutex);
   for (uint8_t i = 0U; i < SoundId_count; ++i) {
     if (s_override_valid[i]) {
       valid_mask |= static_cast<uint16_t>(1U << i);
+      ++count;
     }
   }
+  chMtxUnlock(&s_override_mutex);
+
+  // A File is ~330 bytes (256 B cache buffer) and this runs from the
+  // SoundService thread's configuration callback, whose working area is only
+  // 3 KB — the JSON parser frames are still live at this point. Keep a single
+  // static instance (mkdirp() does not touch the file handle) off the stack.
+  static File file;
+  file.close();  // no-op unless an earlier attempt left it open
 
   // Ensure the /cfg directory exists (idempotent).
-  File dir;
-  if (dir.mkdirp(kSoundDefsPath) != LFS_ERR_OK) {
+  if (file.mkdirp(kSoundDefsPath) != LFS_ERR_OK) {
     ULOG_WARNING("Sound: cannot create defs store dir");
     return;
   }
 
-  File file;
   if (file.open(kSoundDefsPath, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) != LFS_ERR_OK) {
     ULOG_WARNING("Sound: cannot open defs store '%s'", kSoundDefsPath);
     return;
@@ -487,6 +523,9 @@ void save_sound_overrides_to_storage() {
 
   if (written < 0) {
     ULOG_WARNING("Sound: defs store write failed");
+  } else {
+    ULOG_INFO("Sound: persisted %u override(s) mask=0x%04x (%d bytes) to %s", static_cast<unsigned>(count),
+              static_cast<unsigned>(valid_mask), written, kSoundDefsPath);
   }
 }
 

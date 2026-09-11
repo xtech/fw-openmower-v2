@@ -15,9 +15,9 @@
  *        The firmware does NOT resample: files must already be 16 kHz mono
  *        (verified by the high-level upload path — see sound_definition.hpp).
  *
- *        minimp3 needs a ~13 KB scratch buffer on the stack during
- *        mp3dec_decode_frame(), so this decoder must be driven by a thread with
- *        a large enough working area (the sound player thread uses 16 KB).
+ *        minimp3 needs a ~16.6 KB stack frame for mp3dec_decode_frame(), so this
+ *        decoder must be driven by a thread with a large enough working area
+ *        (the sound player thread uses 24 KB).
  */
 
 #ifndef SOUND_MP3_HPP

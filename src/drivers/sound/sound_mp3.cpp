@@ -99,6 +99,10 @@ size_t Mp3Decoder::read(int16_t* out, size_t count) {
       if (samples > 0) {
         if (!validated) {
           validated = true;
+          // INFO: proves that the file is a decodable 16 kHz mono MP3 (the
+          // remote log is filtered at ULOG_INFO_LEVEL, DEBUG would be dropped).
+          ULOG_INFO("Sound: MP3 stream %d Hz, %d ch, %d kbps, %d samples/frame", info.hz, info.channels,
+                    info.bitrate_kbps, samples);
           if (info.hz != 16000 || info.channels != 1) {
             ULOG_WARNING("Sound: MP3 is %d Hz / %d ch (expected 16 kHz mono)", info.hz, info.channels);
             return produced;
