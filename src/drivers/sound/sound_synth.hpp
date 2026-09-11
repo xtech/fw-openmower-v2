@@ -21,15 +21,25 @@
 #ifndef SOUND_SYNTH_HPP
 #define SOUND_SYNTH_HPP
 
+#include <SoundServiceBase.hpp>
 #include <cstddef>
 #include <cstdint>
-
-#include "sound_definition.hpp"
 
 namespace xbot::driver::sound {
 
 /** @brief Audio sample rate shared by synthesis, WAV decoding and I2S. */
 constexpr uint32_t SAMPLE_RATE = 16000U;
+
+/** @brief Maximum notes per sequence (fixed for serialization). */
+constexpr uint8_t kMaxNotes = 8U;
+
+/** @brief A single note in a sequence.  POD (8 bytes) — serializable. */
+struct Note {
+  uint16_t freq;         ///< Fundamental frequency in Hz; 0 = silence/pause
+  uint16_t duration_ms;  ///< Note duration in milliseconds
+  uint16_t lfo_hz_x10;   ///< LFO rate × 10  (e.g. 20 = 2.0 Hz); 0 = disabled
+  uint16_t lfo_depth;    ///< Frequency deviation in Hz (ignored when lfo_hz_x10 == 0)
+};
 
 /**
  * @brief Scale @p sample by a 0–100 volume, clamped to int16 range.

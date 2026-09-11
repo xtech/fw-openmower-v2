@@ -5,6 +5,7 @@
 #include <cstring>
 #include <drivers/sound/sound_definition.hpp>
 #include <drivers/sound/sound_player.hpp>
+#include <drivers/sound/sound_sequence.hpp>
 #include <json_stream.hpp>
 
 using namespace xbot::driver::sound;
@@ -259,4 +260,58 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
 
 void SoundService::OnVolumeChanged(const uint8_t& new_value) {
   set_volume(new_value);
+}
+
+/*---------------------------------------------------------------------------
+ * RPCs (services/sound_service.json) — runtime auditioning for hosts.
+ * Return 1 = accepted, 0 = rejected (bad text / empty).
+ *---------------------------------------------------------------------------*/
+
+void SoundService::RPCPlaySound(uint16_t call_id, SoundId Sound) {
+  play_sound_id(Sound);
+  const uint8_t result = 1U;
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
+}
+
+void SoundService::RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume) {
+  play_tone(Freq, DurationMs, Volume);
+  const uint8_t result = 1U;
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
+}
+
+void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave,
+                                   uint8_t Volume, uint8_t Unison, uint16_t DetuneHz) {
+  /* Note array stays on this thread's stack: kMaxNotes * 8 B = 64 B. */
+  Note notes[kMaxNotes]{};
+  const uint8_t count = parse_sequence(Sequence, SequenceLen, notes, kMaxNotes);
+  uint8_t result = 0U;
+  if (count > 0U) {
+    play_sequence(notes, count, Wave, Volume, Unison, DetuneHz);
+    result = 1U;
+    ULOG_INFO("Sound: RPC sequence '%s' (%u notes)", Sequence, static_cast<unsigned>(count));
+  } else {
+    ULOG_WARNING("Sound: RPC sequence rejected (%.*s)", static_cast<int>(SequenceLen), Sequence);
+  }
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
+}
+
+void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen) {
+  char path[kMaxPath];
+  size_t n = (PathLen < (kMaxPath - 1U)) ? PathLen : (kMaxPath - 1U);
+  memcpy(path, Path, n);
+  path[n] = '\0';
+
+  uint8_t result = 0U;
+  if (n > 0U) {
+    play_file(path);
+    result = 1U;
+    ULOG_INFO("Sound: RPC mp3 '%s'", path);
+  }
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
+}
+
+void SoundService::RPCStop(uint16_t call_id) {
+  stop();
+  const uint8_t result = 1U;
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }

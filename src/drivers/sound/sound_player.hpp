@@ -37,6 +37,7 @@
 
 namespace xbot::driver::sound {
 
+struct Note;             ///< Defined in sound_synth.hpp.
 struct SoundDefinition;  ///< Defined in sound_definition.hpp.
 
 /**
@@ -76,6 +77,23 @@ void play_tone(uint32_t freq, uint32_t duration_ms, uint8_t volume = 80, bool hi
  * @param high_priority If true the file preempts current playback immediately.
  */
 void play_file(const char* path, bool high_priority = false);
+
+/**
+ * @brief Play an ad-hoc note sequence (used by the SoundService RPCs).
+ *
+ * Builds a SoundType::SEQUENCE request so a host can audition a sequence at
+ * runtime, e.g. "250:60 0:40 375:80" (see sound_sequence.hpp).
+ *
+ * @param notes         Note array with at least @p count entries.
+ * @param count         Number of notes (clamped to kMaxNotes; 0 is ignored).
+ * @param waveform      Oscillator waveform.
+ * @param volume        Per-definition volume (0–100).
+ * @param unison        Detuned voices (1 = single, odd: 3/5/7).
+ * @param detune_hz     Frequency spread between unison voices in Hz.
+ * @param high_priority If true the sequence preempts current playback immediately.
+ */
+void play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume = 80, uint8_t unison = 1U,
+                   uint16_t detune_hz = 0U, bool high_priority = false);
 
 /**
  * @brief Set the master playback volume.

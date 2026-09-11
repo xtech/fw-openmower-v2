@@ -417,6 +417,30 @@ void play_file(const char* path, bool high_priority) {
   }
 }
 
+void play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume, uint8_t unison,
+                   uint16_t detune_hz, bool high_priority) {
+  if (s_player_thd == nullptr) return;
+  if (notes == nullptr || count == 0U) return;
+  if (count > kMaxNotes) count = kMaxNotes;
+
+  SoundDefinition def{};
+  def.type = SoundType::SEQUENCE;
+  def.waveform = waveform;
+  def.volume = volume;
+  def.unison = unison;
+  def.detune_hz = detune_hz;
+  def.sequence.count = count;
+  for (uint8_t i = 0U; i < count; ++i) {
+    def.sequence.notes[i] = notes[i];
+  }
+
+  if (high_priority) {
+    enqueue_high(def);
+  } else {
+    enqueue_normal(def);
+  }
+}
+
 void set_volume(uint8_t volume) {
   if (volume > 100U) volume = 100U;
   s_master_volume.store(volume);

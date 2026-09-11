@@ -35,22 +35,12 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "sound_synth.hpp"
+
 namespace xbot::driver::sound {
 
-/* SoundType and Waveform are defined by the codegen in SoundServiceBase.hpp. */
-
-/** @brief Maximum notes per sequence definition (fixed for serialization). */
-constexpr uint8_t kMaxNotes = 8U;
 /** @brief Maximum path length of a FILE definition. */
 constexpr size_t kMaxPath = 64U;
-
-/** @brief A single note in a sequence.  POD (8 bytes) — serializable. */
-struct Note {
-  uint16_t freq;         ///< Fundamental frequency in Hz; 0 = silence/pause
-  uint16_t duration_ms;  ///< Note duration in milliseconds
-  uint16_t lfo_hz_x10;   ///< LFO rate × 10  (e.g. 20 = 2.0 Hz); 0 = disabled
-  uint16_t lfo_depth;    ///< Frequency deviation in Hz (ignored when lfo_hz_x10 == 0)
-};
 
 /**
  * @brief A complete, self-contained sound definition.
@@ -85,7 +75,7 @@ struct SoundDefinition {
 
 inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     // BOOT_PING
-    {SoundType::SEQUENCE, 40, .unison = 3, .detune_hz = 20, .sequence = {{{250, 60, 0, 0}}, 1}},
+    {SoundType::SEQUENCE, 40, .sequence = {{{250, 60, 0, 0}}, 1}},
     // BOOT_COMPLETE
     {SoundType::SEQUENCE, 85, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4}},
