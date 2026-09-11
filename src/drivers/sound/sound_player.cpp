@@ -92,14 +92,7 @@ static constexpr eventmask_t EVT_TCIF = EVENT_MASK(1U);           ///< DMA finis
 static constexpr eventmask_t EVT_REQUEST = EVENT_MASK(2U);        ///< New request enqueued
 static constexpr eventmask_t EVT_STOP_PLAYBACK = EVENT_MASK(3U);  ///< Stop playback + flush queues
 
-/**
- * @note  minimp3's mp3dec_decode_frame() alone needs ~16.6 KB of stack (measured
- *        with -fstack-usage; it is independent of the optimisation level, so
- *        -O2 does not help). It is called from this thread, on top of the DMA
- *        refill chain, so 16 KB was too small and tripped the stack guard page
- *        (total silence, no log). 24 KB leaves ~7 KB headroom.
- */
-static THD_WORKING_AREA(s_player_wa, 24576U);
+static THD_WORKING_AREA(s_player_wa, 3072U);
 static thread_t* s_player_thd = nullptr;
 
 /* HIGH priority queue: depth 1, single storage slot */
@@ -125,7 +118,29 @@ static MUTEX_DECL(s_override_mutex);
 static SoundDefinition s_sound_overrides[SoundId_count];
 static bool s_override_valid[SoundId_count];
 
-/* Active playback source — owned by player thread */
+/* Active playback source — owned by player thread.
+   NOTE: this must stay in AXI SRAM (.bss). It contains LittleFS/DMA buffers
+   (the MP3 File's cache buffer, the MP3 read-ahead buffer), and the flash driver
+   reads/writes them via MDMA. The tightly coupled TCM memories are CPU-only and
+   NOT reachable by any DMA: placing it in .dtcm makes the flash MDMA transfer
+   error out (STM32_WSPI_MDMA_ERROR_HOOK -> osalSysHalt).
+
+   MEMORY (~36 KB, dominated by dr_mp3's ~23 KB decoder state incl. its 16 KB
+   decode scratch): all robot variants share one unified binary, so this is
+   reserved on EVERY board — also on boards without a sound amplifier. Together
+   with the other sound objects (player WA 4 KB, SoundService incl. WA 5 KB,
+   overrides ~2 KB, s_audio_buf 2 KB) soundless boards carry ~50 KB RAM and
+   ~28 KB flash that they never use. ~46 KB of that RAM could be reclaimed if it
+   ever becomes a problem:
+     (1) call player_init() only when the carrier board actually has an
+         amplifier — carrier_board_info is already read in InitGlobals(), i.e.
+         before main.cpp calls player_init(), and the sound API is null-safe
+         while the player is not initialised;
+     (2) allocate this object with `new` in player_init() (heap, 54 KB free)
+         instead of holding it statically, and create the player thread from
+         allocated storage (mind PORT_WORKING_AREA_ALIGN when allocating).
+   The flash share can only be removed with per-robot builds
+   (-DENABLE_SOUND=0); the firmware currently builds one unified binary. */
 static SoundSource s_source;
 
 /*===========================================================================*/
@@ -321,6 +336,9 @@ void player_init() {
 
   s_player_thd = chThdCreateStatic(s_player_wa, sizeof(s_player_wa), NORMALPRIO + 1, player_thread, nullptr);
 
+  s_source.volume = 80U;
+  s_source.synth.set_unison(1U, 0U);
+
   // Apply persisted overrides (if any) so early sounds already use the
   // last-known high-level definitions instead of the ROM defaults.
   load_sound_overrides_from_storage();
@@ -358,17 +376,6 @@ void play_sound_id(SoundId id, bool high_priority) {
   if (!has_override) {
     def = kDefaultSoundDefs[idx];
   }
-  // INFO (not DEBUG): the remote log is filtered at ULOG_INFO_LEVEL, and this
-  // line is the "override vs. ROM default" evidence after a reboot.
-  const char* const source = has_override ? "flash override" : "ROM default";
-  if (def.type == SoundType::MP3) {
-    ULOG_INFO("Sound: play %s from %s (type=MP3, file='%s', volume=%u)", SoundId_to_string(id), source, def.path,
-              static_cast<unsigned>(def.volume));
-  } else {
-    ULOG_INFO("Sound: play %s from %s (type=%s, volume=%u)", SoundId_to_string(id), source,
-              SoundType_to_string(def.type), static_cast<unsigned>(def.volume));
-  }
-
   if (high_priority) {
     enqueue_high(def);
   } else {

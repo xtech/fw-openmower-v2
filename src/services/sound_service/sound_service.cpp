@@ -101,20 +101,6 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
         }
         set_sound_override(data->current_id, data->current_def);
         data->num_sounds++;
-        // INFO (not DEBUG): the remote log is filtered at ULOG_INFO_LEVEL, and this
-        // line is the per-definition "did the parse really work?" evidence.
-        if (data->current_def.type == SoundType::MP3) {
-          ULOG_INFO("Sound: applied %s type=MP3 volume=%u file='%s'", SoundId_to_string(data->current_id),
-                    static_cast<unsigned>(data->current_def.volume), data->current_def.path);
-        } else if (data->current_def.type == SoundType::SEQUENCE) {
-          ULOG_INFO("Sound: applied %s type=SEQUENCE volume=%u notes=%u", SoundId_to_string(data->current_id),
-                    static_cast<unsigned>(data->current_def.volume),
-                    static_cast<unsigned>(data->current_def.sequence.count));
-        } else {
-          ULOG_INFO("Sound: applied %s type=TONE volume=%u tone=%u Hz/%u ms", SoundId_to_string(data->current_id),
-                    static_cast<unsigned>(data->current_def.volume), static_cast<unsigned>(data->current_def.tone.freq),
-                    static_cast<unsigned>(data->current_def.tone.duration_ms));
-        }
         data->have_current = false;
       }
       break;
@@ -272,6 +258,5 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
 }
 
 void SoundService::OnVolumeChanged(const uint8_t& new_value) {
-  // Master volume is runtime-adjustable by the HL/app via a service input.
   set_volume(new_value);
 }

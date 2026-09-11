@@ -35,7 +35,7 @@ struct SoundSource {
   bool active = false;
   Synth synth;
   Mp3Decoder mp3;
-  uint8_t volume = 80U;  ///< Per-definition volume (0–100)
+  uint8_t volume = 0U;  // Per-definition volume (0–100). The master volume is applied on top.
 
   bool is_active() const {
     return active;

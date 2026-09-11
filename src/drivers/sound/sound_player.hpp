@@ -13,20 +13,20 @@
  * @author Apehaenger <joerg@ebeling.ws>
  * @date 2026-03-23
  *
- * @note  Audio is driven by a dedicated ChibiOS thread that owns the I2S6 / BDMA
- *        peripheral.  Callers enqueue sound requests via play_sound_id(),
- *        play_tone(), or play_file(); the player thread streams PCM to BDMA.
+ * @note  Audio is driven by a dedicated ChibiOS thread that owns the I2S6 / BDMA peripheral.
+ *   Callers enqueue sound requests via play_sound_id(), play_tone(), or play_file();
+ *   the player thread streams PCM to BDMA.
  *
- *        Priority levels:
- *          HIGH   — preempts whatever is currently playing (depth 1).
- *          NORMAL — queued in FIFO order, dropped when the queue is full (depth 4).
+ *   Priority levels:
+ *     HIGH   — preempts whatever is currently playing (depth 1).
+ *     NORMAL — queued in FIFO order, dropped when the queue is full (depth 4).
  *
- *        The MAX98357A amplifier is hardware-wired for left-channel-only operation,
- *        so DMA frames are always [L_sample, 0].
+ *   The MAX98357A amplifier is hardware-wired for left-channel-only operation,
+ *   so DMA frames are always [L_sample, 0].
  *
- *        MP3 requirements: 16 kHz mono (decoded by minimp3, no resampling).
- *        Sounds are resolved per SoundId from a SoundDefinition (see
- *        sound_definition.hpp): a flash override if present, else the ROM default.
+ *   MP3 requirements: 16 kHz mono (decoded by dr_mp3, no resampling).
+ *   Sounds are resolved per SoundId from a SoundDefinition (see sound_definition.hpp):
+ *     a flash override if present, else the ROM default.
  */
 
 #ifndef SOUND_PLAYER_HPP

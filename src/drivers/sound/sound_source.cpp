@@ -50,9 +50,8 @@ bool SoundSource::start(const SoundDefinition& def) {
 }
 
 void SoundSource::fill(int16_t* buf, size_t count, uint8_t master_volume) {
-  const size_t frames = count / 2U; /* one frame = [L, R=0] */
-  /* Combine the per-definition volume with the master volume into a single
-     0–100 scale so only one division is needed per sample. */
+  const size_t frames = count / 2U;  // one frame = [L, R=0]
+  // Combine the per-definition volume with the master volume into a single 0–100 scale
   const uint8_t vol = static_cast<uint8_t>((static_cast<uint32_t>(volume) * master_volume) / 100U);
 
   if (!active) {
@@ -83,7 +82,6 @@ void SoundSource::fill_mp3(int16_t* buf, size_t frames, uint8_t vol) {
         /* EOF or read error — silence and stop */
         mp3.close();
         active = false;
-        ULOG_INFO("Sound: MP3 playback finished");
       }
     }
     buf[2U * i] = s;

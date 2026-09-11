@@ -9,7 +9,7 @@
 
 /**
  * @file sound_mp3.cpp
- * @brief Streaming MP3 decoder implementation (minimp3, no resampling).
+ * @brief Streaming MP3 decoder implementation (dr_mp3, no resampling).
  */
 
 #include "sound_mp3.hpp"
@@ -18,9 +18,10 @@
 
 #include <cstring>
 
-#define MINIMP3_ONLY_MP3  // We only need MPEG Layer 3, drop Layer 1/2
-#define MINIMP3_IMPLEMENTATION
-#include "minimp3.h"
+#define DR_MP3_IMPLEMENTATION
+#define DR_MP3_NO_STDIO  // no stdio helpers; we feed the decoder from LittleFS
+#define DR_MP3_NO_SIMD   // Cortex-M7 has no NEON
+#include "dr_mp3.h"
 
 namespace xbot::driver::sound {
 
@@ -30,7 +31,7 @@ bool Mp3Decoder::open(const char* path) {
     ULOG_WARNING("Sound: cannot open MP3 '%s'", path);
     return false;
   }
-  mp3dec_init(&mp3d);
+  drmp3dec_init(&mp3d);
   return true;
 }
 
@@ -92,19 +93,15 @@ size_t Mp3Decoder::read(int16_t* out, size_t count) {
         return produced;  // EOF / read error
       }
 
-      mp3dec_frame_info_t info{};
-      const int samples = mp3dec_decode_frame(&mp3d, input + input_pos, input_size - input_pos, pcm, &info);
+      drmp3dec_frame_info info{};
+      const int samples = drmp3dec_decode_frame(&mp3d, input + input_pos, input_size - input_pos, pcm, &info);
       input_pos += static_cast<size_t>(info.frame_bytes);
 
       if (samples > 0) {
         if (!validated) {
           validated = true;
-          // INFO: proves that the file is a decodable 16 kHz mono MP3 (the
-          // remote log is filtered at ULOG_INFO_LEVEL, DEBUG would be dropped).
-          ULOG_INFO("Sound: MP3 stream %d Hz, %d ch, %d kbps, %d samples/frame", info.hz, info.channels,
-                    info.bitrate_kbps, samples);
-          if (info.hz != 16000 || info.channels != 1) {
-            ULOG_WARNING("Sound: MP3 is %d Hz / %d ch (expected 16 kHz mono)", info.hz, info.channels);
+          if (info.sample_rate != 16000 || info.channels != 1) {
+            ULOG_WARNING("Sound: MP3 is %d Hz / %d ch (expected 16 kHz mono)", info.sample_rate, info.channels);
             return produced;
           }
         }

@@ -62,7 +62,7 @@ struct Synth {
   uint32_t lfo_inc = 0U;
   int32_t lfo_depth_inc = 0;           ///< Modulation depth in phase_inc units (pre-calculated)
   Waveform waveform = Waveform::SINE;  ///< Oscillator waveform
-  uint8_t unison = 1U;                 ///< Number of detuned voices (1 = single, 3/5/7 = spread)
+  uint8_t unison = 0U;                 ///< Number of detuned voices (1 = single, 3/5/7 = spread)
   uint32_t detune_inc = 0U;            ///< Phase-increment offset between adjacent voices
   uint32_t detune_phase = 0U;          ///< Running detune phase accumulator
 

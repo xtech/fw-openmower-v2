@@ -119,6 +119,10 @@ int main() {
   file_service.start();
 
   // Start the sound player early so boot sounds can play during the Stage 2 wait.
+  // NOTE: this runs on every board, also without a sound amplifier (I2S, player thread and decoder state)
+  // and consumes the bulk of the ~50 KB RAM plus ~28 KB flash that the sound subsystem reserves unconditionally.
+  // How to gate it on the carrier board having an amplifier is described in the memory note
+  // on s_source in drivers/sound/sound_player.cpp.
   sound::player_init();
 
   // Io and MetaService always start before robot detection so that

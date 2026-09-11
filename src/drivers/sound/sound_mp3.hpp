@@ -9,15 +9,11 @@
 
 /**
  * @file sound_mp3.hpp
- * @brief Streaming MP3 decoder (minimp3) for 16 kHz mono sound files.
+ * @brief Streaming MP3 decoder (dr_mp3) for 16 kHz mono sound files.
  *
- * @note  Wraps minimp3's low-level decode API and feeds it from a LittleFS File.
- *        The firmware does NOT resample: files must already be 16 kHz mono
+ * @note  Wraps dr_mp3's low-level drmp3dec_* API and feeds it from a LittleFS
+ *        File. The firmware does NOT resample: files must already be 16 kHz mono
  *        (verified by the high-level upload path — see sound_definition.hpp).
- *
- *        minimp3 needs a ~16.6 KB stack frame for mp3dec_decode_frame(), so this
- *        decoder must be driven by a thread with a large enough working area
- *        (the sound player thread uses 24 KB).
  */
 
 #ifndef SOUND_MP3_HPP
@@ -26,8 +22,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "dr_mp3.h"
 #include "filesystem/file.hpp"
-#include "minimp3.h"
 
 namespace xbot::driver::sound {
 
@@ -39,16 +35,16 @@ constexpr size_t kMp3MinBuffered = 4096U;
 /**
  * @brief Streaming 16 kHz mono MP3 decoder.
  *
- * Plain value type (no heap). Decodes frames on demand and returns int16 mono
- * samples. The `mp3dec_t` state (~6.5 KB), read-ahead buffer and one-frame PCM
- * buffer (~4.6 KB) are all members, so instances are large — allocate
- * statically (the SoundSource owning this lives as a static global).
+ * Decodes frames on demand and returns int16 mono samples.
+ * dr_mp3's decoder state incl. its ~16 KB decode scratch (~23 KB in total),
+ * the read-ahead buffer and the one-frame PCM buffer (~4.6 KB) are all members,
+ * so instances are large! Allocate them statically (the SoundSource owning this lives as a static global).
  */
 struct Mp3Decoder {
-  mp3dec_t mp3d{};
+  drmp3dec mp3d{};
   File file;
   uint8_t input[kMp3InputSize]{};
-  mp3d_sample_t pcm[MINIMP3_MAX_SAMPLES_PER_FRAME]{};
+  int16_t pcm[DRMP3_MAX_SAMPLES_PER_FRAME]{};
 
   size_t input_size = 0;  ///< valid bytes in input[]
   size_t input_pos = 0;   ///< consumed bytes in input[]
