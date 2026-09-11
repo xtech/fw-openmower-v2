@@ -85,7 +85,7 @@ struct SoundDefinition {
 
 inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     // BOOT_PING
-    {SoundType::SEQUENCE, 80, .unison = 3, .detune_hz = 10, .sequence = {{{800, 150, 16, 400}}, 1}},
+    {SoundType::SEQUENCE, 40, .unison = 3, .detune_hz = 20, .sequence = {{{250, 60, 0, 0}}, 1}},
     // BOOT_COMPLETE
     {SoundType::SEQUENCE, 85, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4}},
