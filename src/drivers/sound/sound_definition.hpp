@@ -67,14 +67,6 @@ struct SoundDefinition {
     struct {
       Note notes[kMaxNotes];
       uint8_t count;
-      /* Amplitude envelope, applied per note (see Synth::set_envelope).  These two
-         bytes are the tail of the union: the definition stays 76 bytes and every
-         earlier offset is unchanged.  v1 stored them as padding, i.e. always 0, so
-         an old definitions file simply means "no envelope".
-
-         @note  No default member initializer: that would give the union member a
-         non-trivial constructor and delete SoundDefinition's default constructor.
-         The ROM table below names every sequence member instead. */
       uint8_t attack_ms;  ///< Linear attack ramp in ms, 0..255 (0 = instant onset)
       uint8_t decay_ms;   ///< Exponential fade to ~-60 dB in ms, 0..255 (0 = hold the note)
     } sequence;
