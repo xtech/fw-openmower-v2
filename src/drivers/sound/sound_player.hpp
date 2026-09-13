@@ -117,11 +117,13 @@ PlayResult play_file(const char* path, bool preempt = false);
  * @param detune_hz     Frequency spread between unison voices in Hz
  * @param attack_ms     Per-note attack ramp (0–255 ms, 0 = instant onset)
  * @param decay_ms      Per-note fade to ~-60 dB (0–255 ms, 0 = hold the note)
+ * @param repeat_ms     Repeat the sequence every n ms until another sound plays (0 = play once).
  * @param preempt       true: stop the running sound and drop the queue
  * @return QUEUED when accepted, otherwise why it was rejected (see PlayResult)
  */
 PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume = 80, uint8_t unison = 1U,
-                         uint16_t detune_hz = 0U, uint8_t attack_ms = 0U, uint8_t decay_ms = 0U, bool preempt = false);
+                         uint16_t detune_hz = 0U, uint8_t attack_ms = 0U, uint8_t decay_ms = 0U,
+                         uint16_t repeat_ms = 0U, bool preempt = false);
 
 /**
  * @brief Set the master playback volume.

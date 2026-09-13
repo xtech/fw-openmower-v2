@@ -151,8 +151,10 @@ int main() {
     SetStatusLedMode(LED_MODE_BLINK_SLOW);
     SetStatusLedColor(RED);
 
+    // BOOT_PING repeats itself (repeat_ms in its definition)
+    sound::play_sound_id(::SoundId::BOOT_PING);
+
     while (robot == nullptr) {
-      sound::play_sound_id(::SoundId::BOOT_PING);
       ULOG_INFO("Waiting for Robot Firmware configuration via MetaService (carrier=%s)...",
                 carrier_board_info.board_id);
       if (meta_service.HasRobotFirmware()) {

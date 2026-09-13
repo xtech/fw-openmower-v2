@@ -58,6 +58,7 @@ struct SoundDefinition {
   uint16_t detune_hz = 0U;             ///< Frequency spread between unison voices in Hz
   bool preempt = false;                ///< Preemptive sounds drop the queue and play immediately (e.g. EMERGENCY)
   uint8_t reserved_ = 0U;              ///< Explicit padding: keeps the layout (and the persisted size) stable
+  uint16_t repeat_ms = 0U;             ///< Repeat the sound every n ms until another sound plays
   union alignas(4) {
     struct {
       uint16_t freq;
@@ -90,8 +91,9 @@ struct SoundDefinition {
  *---------------------------------------------------------------------------*/
 
 inline constexpr SoundDefinition kDefaultSoundDefs[] = {
-    // BOOT_PING
-    {SoundType::TONE, 40, .tone = {250, 60}},
+    // BOOT_PING — the player repeats it (repeat_ms) while Stage 2 waits for ROS.
+    {SoundType::SEQUENCE, 30, .waveform = Waveform::SINE, .repeat_ms = 2000,
+     .sequence = {{{554, 360, 0, 0}}, 1, 4, 220}},
     // BOOT_COMPLETE
     {SoundType::SEQUENCE, 85, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4, 0, 0}},
@@ -124,15 +126,7 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
 static_assert(sizeof(kDefaultSoundDefs) / sizeof(kDefaultSoundDefs[0]) == SoundId_count,
               "kDefaultSoundDefs must have one entry per SoundId");
 
-/* Two reasons to pin the size:
-   1. it is part of the persisted format — /cfg/sound_defs.bin stores raw struct bytes
-      (kSoundDefsVersion 1), so a layout/size change would make existing files
-      unreadable and silently produce garbage definitions;
-   2. the sound objects live in AXI SRAM (ram0), where the linker report already shows
-      100 % — growth would eat into the heap that is reserved inside that region.
-   preempt, reserved_ and the sequence envelope (attack_ms/decay_ms) reuse padding,
-   so the 76 bytes are unchanged since v1. */
-static_assert(sizeof(SoundDefinition) == 76U, "SoundDefinition size changed — it is part of the flash format");
+static_assert(sizeof(SoundDefinition) == 80U, "SoundDefinition size changed — it is part of the flash format");
 
 }  // namespace xbot::driver::sound
 

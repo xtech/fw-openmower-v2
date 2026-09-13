@@ -121,6 +121,36 @@ static etl::atomic<uint8_t> s_master_volume{100U};
 /* Playing flag — written by the player thread, read by is_playing() from any thread */
 static etl::atomic<bool> s_playing{false};
 
+/*===========================================================================*/
+/* Repeating sounds (SoundDefinition::repeat_ms > 0).                        */
+/*===========================================================================*/
+
+/**
+ * @note  The player owns the repetition: it keeps the definition and restarts the
+ *        source itself.  Nothing goes through s_queue, so a repeating sound cannot
+ *        fill the queue — it only ever occupies the single request that started it.
+ *        The queue always wins: as soon as a request is waiting (or a new sound
+ *        starts, or stop() is called) the repetition ends.
+ */
+static SoundDefinition s_repeat_def{};  ///< Definition being repeated
+static systime_t s_repeat_start = 0U;   ///< When the running iteration started
+static bool s_repeat_active = false;    ///< true while s_repeat_def owns the player
+
+/** @brief Ticks until the next repeat iteration; 0 when it is due. */
+static systime_t repeat_ticks_left() {
+  const systime_t period = TIME_MS2I(s_repeat_def.repeat_ms);
+  const systime_t elapsed = chVTTimeElapsedSinceX(s_repeat_start);
+  return (elapsed >= period) ? static_cast<systime_t>(0U) : static_cast<systime_t>(period - elapsed);
+}
+
+/** @brief true while a request is waiting in the queue. */
+static bool queue_has_request() {
+  chSysLock();
+  const bool queued = !s_queue.empty();
+  chSysUnlock();
+  return queued;
+}
+
 /* Runtime sound overrides (SoundId -> definition), written by the SoundService
    during configuration and read by load_sound_definition() from play_sound_id(). */
 static MUTEX_DECL(s_override_mutex);
@@ -176,14 +206,24 @@ static I2SConfig s_i2s_cfg = {
  *
  * The caller hands over a private copy (see next_request): a preempting enqueue()
  * may reset the queue and reuse the slot at any time, so this must not read a slot.
+ *
+ * @param is_repeat true for a repeat iteration of the same definition (kept quiet, a
+ *                  repeating 2 s ping would flood the log otherwise).
  */
-static void play_definition(const SoundDefinition& def) {
+static void play_definition(const SoundDefinition& def, bool is_repeat = false) {
   s_source.stop(); /* close any open WAV file */
 
   if (!s_source.start(def)) {
     ULOG_WARNING("Sound: source start failed (type=%s)", SoundType_to_string(def.type));
-    return; /* FILE open/parse failed — remain idle */
+    s_repeat_active = false; /* never retry a source that cannot start */
+    return;                  /* FILE open/parse failed — remain idle */
   }
+
+  /* The definition that starts a sound owns the repetition: every new sound replaces
+     the previous one, and a definition without repeat_ms ends it. */
+  s_repeat_def = def;
+  s_repeat_active = (def.repeat_ms > 0U);
+  s_repeat_start = chVTGetSystemTimeX();
 
   /* Pre-fill both halves before starting BDMA so DMA has valid data immediately. */
   s_source.fill(s_audio_buf, SOUND_HALF_SIZE, s_master_volume.load());
@@ -191,6 +231,8 @@ static void play_definition(const SoundDefinition& def) {
 
   i2sStartExchange(&I2SD6);
   s_playing.store(true);
+
+  if (is_repeat) return;
 
   /* The only place that knows a sound actually reached the I2S/DMA stage — the
      host-side RPC log only proves the request was queued. */
@@ -206,6 +248,10 @@ static void play_definition(const SoundDefinition& def) {
   } else {
     ULOG_INFO("Sound: play %s vol %hhu unison %hhu preempt=%u (master %hhu)", SoundType_to_string(def.type), def.volume,
               def.unison, def.preempt ? 1U : 0U, s_master_volume.load());
+  }
+
+  if (def.repeat_ms > 0U) {
+    ULOG_INFO("Sound: repeats every %hu ms until another sound plays", def.repeat_ms);
   }
 }
 
@@ -233,6 +279,66 @@ static void dequeue_and_play() {
   if (have_request) {
     play_definition(def);
   }
+}
+
+/*===========================================================================*/
+/* Internal: the running source is exhausted.                                */
+/*===========================================================================*/
+
+/**
+ * @brief Repeat the sound, or play the next request.
+ *
+ * The queue wins over the repetition: a waiting request ends it, so a repeating
+ * boot ping can never delay a real sound.
+ */
+static void on_source_end() {
+  i2sStopExchange(&I2SD6);
+  s_playing.store(false);
+
+  if (!s_repeat_active) {
+    dequeue_and_play();
+    return;
+  }
+  if (queue_has_request()) {
+    s_repeat_active = false;
+    dequeue_and_play();
+    return;
+  }
+  if (repeat_ticks_left() == 0U) {
+    /* Period already over (sound longer than repeat_ms) — start the next iteration
+       right away instead of waiting for the idle poll. */
+    play_definition(s_repeat_def, true);
+    return;
+  }
+  /* Otherwise the player thread picks the next iteration up in pump_player(). */
+}
+
+/**
+ * @brief Player is idle: play a queued request, or the next repeat iteration when due.
+ *
+ * Called from the player thread's idle tick (see player_thread) — a no-op when
+ * nothing is queued and no repeat is pending.  A source that just ended goes
+ * through on_source_end() instead, which restarts it directly when the period is
+ * already over.
+ */
+static void pump_player() {
+  if (!s_repeat_active) {
+    dequeue_and_play();
+    return;
+  }
+
+  /* A waiting request still wins over the repetition. */
+  if (repeat_ticks_left() > 0U) {
+    dequeue_and_play();
+    return;
+  }
+
+  s_repeat_active = false; /* ends here; play_definition() re-arms it if it repeats */
+  if (queue_has_request()) {
+    dequeue_and_play();
+    return;
+  }
+  play_definition(s_repeat_def, true);
 }
 
 /*===========================================================================*/
@@ -304,17 +410,23 @@ static THD_FUNCTION(player_thread, arg) {
     /* The timeout turns the thread into its own watchdog: a request that arrived
        while the player believed it was busy (stale s_playing) or that was missed
        altogether is picked up here, instead of waiting for a DMA event that will
-       never come. */
-    const eventmask_t ev =
-        chEvtWaitAnyTimeout(EVT_HTIF | EVT_TCIF | EVT_REQUEST | EVT_STOP_PLAYBACK, TIME_MS2I(kIdlePollMs));
+       never come.  While a sound is between two repeat iterations it also bounds the
+       wait, so the next iteration starts on time (repeat_ms resolution). */
+    systime_t wait = TIME_MS2I(kIdlePollMs);
+    if (s_repeat_active && !s_playing.load()) {
+      const systime_t left = repeat_ticks_left();
+      if (left < wait) wait = left;
+    }
+    const eventmask_t ev = chEvtWaitAnyTimeout(EVT_HTIF | EVT_TCIF | EVT_REQUEST | EVT_STOP_PLAYBACK, wait);
 
     if (ev == 0U) {
-      dequeue_and_play(); /* no-op when idle and nothing is queued */
+      pump_player(); /* no-op when idle and nothing is queued */
       continue;
     }
 
     if (ev & EVT_STOP_PLAYBACK) {
       /* Stop current playback; the queues have already been flushed by stop(). */
+      s_repeat_active = false; /* an explicit stop also ends a repetition */
       if (s_playing.load()) {
         i2sStopExchange(&I2SD6);
         s_playing.store(false);
@@ -330,9 +442,7 @@ static THD_FUNCTION(player_thread, arg) {
       /* DMA finished first half → refill first half */
       s_source.fill(s_audio_buf, SOUND_HALF_SIZE, s_master_volume.load());
       if (!s_source.is_active() && s_playing.load()) {
-        i2sStopExchange(&I2SD6);
-        s_playing.store(false);
-        dequeue_and_play();
+        on_source_end();
       }
     }
 
@@ -340,9 +450,7 @@ static THD_FUNCTION(player_thread, arg) {
       /* DMA finished second half → refill second half */
       s_source.fill(s_audio_buf + SOUND_HALF_SIZE, SOUND_HALF_SIZE, s_master_volume.load());
       if (!s_source.is_active() && s_playing.load()) {
-        i2sStopExchange(&I2SD6);
-        s_playing.store(false);
-        dequeue_and_play();
+        on_source_end();
       }
     }
   }
@@ -462,7 +570,7 @@ PlayResult play_file(const char* path, bool preempt) {
 }
 
 PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume, uint8_t unison,
-                         uint16_t detune_hz, uint8_t attack_ms, uint8_t decay_ms, bool preempt) {
+                         uint16_t detune_hz, uint8_t attack_ms, uint8_t decay_ms, uint16_t repeat_ms, bool preempt) {
   if (notes == nullptr || count == 0U) return PlayResult::INVALID_ARGUMENT;
   if (count > kMaxNotes) count = kMaxNotes;
 
@@ -473,6 +581,7 @@ PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, ui
   def.unison = unison;
   def.detune_hz = detune_hz;
   def.preempt = preempt;
+  def.repeat_ms = repeat_ms;
   def.sequence.count = count;
   def.sequence.attack_ms = attack_ms;
   def.sequence.decay_ms = decay_ms;
