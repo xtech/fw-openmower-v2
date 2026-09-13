@@ -31,7 +31,7 @@ class SoundService : public SoundServiceBase {
   void RPCPlaySound(uint16_t call_id, SoundId Sound) override;
   void RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume, uint8_t Preempt) override;
   void RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave, uint8_t Volume,
-                       uint8_t Unison, uint16_t DetuneHz, uint8_t Preempt) override;
+                       uint8_t Unison, uint16_t DetuneHz, uint8_t AttackMs, uint8_t DecayMs, uint8_t Preempt) override;
   void RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) override;
   void RPCStop(uint16_t call_id) override;
 

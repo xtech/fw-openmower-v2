@@ -21,6 +21,9 @@ bool SoundSource::start(const SoundDefinition& def) {
   switch (def.type) {
     case SoundType::TONE:
       synth.set_unison(def.unison, def.detune_hz);
+      /* A tone has no envelope of its own (its union slot has no room); reset it so a
+         tone played after a sequence does not inherit the sequence's decay. */
+      synth.set_envelope(0U, 0U);
       synth.start_tone(def.tone.freq, def.tone.duration_ms, def.waveform);
       type = SoundType::TONE;
       volume = def.volume;
@@ -29,6 +32,7 @@ bool SoundSource::start(const SoundDefinition& def) {
 
     case SoundType::SEQUENCE:
       synth.set_unison(def.unison, def.detune_hz);
+      synth.set_envelope(def.sequence.attack_ms, def.sequence.decay_ms);
       synth.start_sequence(def.sequence.notes, def.sequence.count, def.waveform);
       type = SoundType::SEQUENCE;
       volume = def.volume;

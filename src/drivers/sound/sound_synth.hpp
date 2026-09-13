@@ -9,7 +9,7 @@
 
 /**
  * @file sound_synth.hpp
- * @brief Sine-wave tone/sequence synthesis (oscillator + LFO + note sequencer).
+ * @brief Sine-wave tone/sequence synthesis (oscillator + LFO + envelope + note sequencer).
  * @author Apehaenger <joerg@ebeling.ws>
  * @date 2026-03-23
  *
@@ -75,9 +75,41 @@ struct Synth {
   uint8_t unison = 0U;                 ///< Number of detuned voices (1 = single, 3/5/7 = spread)
   uint32_t detune_inc = 0U;            ///< Phase-increment offset between adjacent voices
   uint32_t detune_phase = 0U;          ///< Running detune phase accumulator
+  /* Amplitude envelope — per note, all zero while it is disabled */
+  uint8_t env_attack_ms = 0U;     ///< Linear fade-in at the note start in ms (0 = instant onset)
+  uint8_t env_decay_ms = 0U;      ///< Exponential fade down to about -60 dB in ms (0 = hold the note)
+  uint32_t env_gain = 65536U;     ///< Q16 gain applied to the oscillator output (65536 = unity)
+  uint32_t env_attack_inc = 0U;   ///< Q16 gain increment per sample during the attack
+  uint32_t env_attack_left = 0U;  ///< Samples left in the attack ramp
+  uint32_t env_decay_mult = 0U;   ///< Q16 per-sample multiplier of the exponential fade
 
   /** @brief Stack @p voices detuned oscillators (odd: 1/3/5/7), spread by @p detune_hz. */
   void set_unison(uint8_t voices, uint32_t detune_hz);
+
+  /**
+   * @brief Configure the per-note amplitude envelope.
+   *
+   * Without an envelope a note is a hard-gated rectangle, which is what the
+   * alert/announcement sounds want.  A decay turns a note into a "ping" that
+   * fades away instead of being cut off.
+   *
+   * @param attack_ms  Linear ramp from silence at the note start (0 = instant onset).
+   * @param decay_ms   Exponential fade to about -60 dB, starting after the attack
+   *                   (0 = hold the note at full level until its duration is over).
+   *
+   * @note  Both are limited to 255 ms (the definition stores them in a byte): a
+   *        longer fade needs several notes or an MP3.
+   */
+  void set_envelope(uint8_t attack_ms, uint8_t decay_ms);
+
+  /**
+   * @brief Start the envelope for the note fill() is about to play.
+   *
+   * Called by fill() whenever it loads a note, so every note of a sequence gets
+   * its own attack/decay ("plucked" instead of one envelope over the whole
+   * sequence).
+   */
+  void arm_envelope();
 
   /** @brief Configure a fixed-frequency tone. */
   void start_tone(uint16_t freq, uint16_t duration_ms, Waveform wf);

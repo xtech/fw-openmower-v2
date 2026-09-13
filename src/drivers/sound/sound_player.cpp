@@ -197,6 +197,12 @@ static void play_definition(const SoundDefinition& def) {
   if (def.type == SoundType::TONE) {
     ULOG_INFO("Sound: play tone %hu Hz %hu ms vol %hhu unison %hhu preempt=%u (master %hhu)", def.tone.freq,
               def.tone.duration_ms, def.volume, def.unison, def.preempt ? 1U : 0U, s_master_volume.load());
+  } else if (def.type == SoundType::SEQUENCE) {
+    /* Only a sequence has an envelope; an MP3 definition's union holds the path. */
+    ULOG_INFO(
+        "Sound: play sequence vol %hhu %s unison %hhu detune %hu attack %hhu ms decay %hhu ms preempt=%u (master %hhu)",
+        def.volume, Waveform_to_string(def.waveform), def.unison, def.detune_hz, def.sequence.attack_ms,
+        def.sequence.decay_ms, def.preempt ? 1U : 0U, s_master_volume.load());
   } else {
     ULOG_INFO("Sound: play %s vol %hhu unison %hhu preempt=%u (master %hhu)", SoundType_to_string(def.type), def.volume,
               def.unison, def.preempt ? 1U : 0U, s_master_volume.load());
@@ -456,7 +462,7 @@ PlayResult play_file(const char* path, bool preempt) {
 }
 
 PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume, uint8_t unison,
-                         uint16_t detune_hz, bool preempt) {
+                         uint16_t detune_hz, uint8_t attack_ms, uint8_t decay_ms, bool preempt) {
   if (notes == nullptr || count == 0U) return PlayResult::INVALID_ARGUMENT;
   if (count > kMaxNotes) count = kMaxNotes;
 
@@ -468,6 +474,8 @@ PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, ui
   def.detune_hz = detune_hz;
   def.preempt = preempt;
   def.sequence.count = count;
+  def.sequence.attack_ms = attack_ms;
+  def.sequence.decay_ms = decay_ms;
   for (uint8_t i = 0U; i < count; ++i) {
     def.sequence.notes[i] = notes[i];
   }

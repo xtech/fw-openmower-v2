@@ -66,6 +66,16 @@ struct SoundDefinition {
     struct {
       Note notes[kMaxNotes];
       uint8_t count;
+      /* Amplitude envelope, applied per note (see Synth::set_envelope).  These two
+         bytes are the tail of the union: the definition stays 76 bytes and every
+         earlier offset is unchanged.  v1 stored them as padding, i.e. always 0, so
+         an old definitions file simply means "no envelope".
+
+         @note  No default member initializer: that would give the union member a
+         non-trivial constructor and delete SoundDefinition's default constructor.
+         The ROM table below names every sequence member instead. */
+      uint8_t attack_ms;  ///< Linear attack ramp in ms, 0..255 (0 = instant onset)
+      uint8_t decay_ms;   ///< Exponential fade to ~-60 dB in ms, 0..255 (0 = hold the note)
     } sequence;
     char path[kMaxPath];  ///< MP3 file path (16 kHz mono)
   };
@@ -73,6 +83,10 @@ struct SoundDefinition {
 
 /*---------------------------------------------------------------------------
  * ROM defaults — tone/sequence only, indexed by SoundId.
+ *
+ * The sequence payload is {notes, count, attack_ms, decay_ms}: SUCCESS is a
+ * single decaying note (a "ping"), the announcements and alerts are flat note
+ * runs.  0 = instant onset / hold the note at full level (see Synth).
  *---------------------------------------------------------------------------*/
 
 inline constexpr SoundDefinition kDefaultSoundDefs[] = {
@@ -80,32 +94,31 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     {SoundType::TONE, 40, .tone = {250, 60}},
     // BOOT_COMPLETE
     {SoundType::SEQUENCE, 85, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
-     .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4}},
+     .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4, 0, 0}},
     // SUCCESS
-    {SoundType::SEQUENCE, 75, .waveform = Waveform::TRIANGLE,
-     .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 300, 0, 0}}, 3}},
+    {SoundType::SEQUENCE, 70, .waveform = Waveform::SINE, .sequence = {{{554, 360, 0, 0}}, 1, 4, 220}},
     // WARNING
     {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW,
-     .sequence = {{{880, 150, 0, 0}, {0, 80, 0, 0}, {880, 150, 0, 0}, {0, 80, 0, 0}}, 4}},
+     .sequence = {{{880, 150, 0, 0}, {0, 80, 0, 0}, {880, 150, 0, 0}, {0, 80, 0, 0}}, 4, 0, 0}},
     // ERROR
     {SoundType::SEQUENCE, 85, .waveform = Waveform::SAW,
-     .sequence = {{{300, 200, 0, 0}, {240, 200, 0, 0}, {180, 300, 0, 0}}, 3}},
+     .sequence = {{{300, 200, 0, 0}, {240, 200, 0, 0}, {180, 300, 0, 0}}, 3, 0, 0}},
     // EMERGENCY
-    {SoundType::SEQUENCE, 90, .preempt = true, .sequence = {{{950, 8000, 20, 220}}, 1}},
+    {SoundType::SEQUENCE, 90, .preempt = true, .sequence = {{{950, 8000, 20, 220}}, 1, 0, 0}},
     // LOW_BATTERY
     {SoundType::SEQUENCE, 75,
-     .sequence = {{{659, 300, 0, 0}, {587, 300, 0, 0}, {523, 300, 0, 0}, {440, 400, 0, 0}}, 4}},
+     .sequence = {{{659, 300, 0, 0}, {587, 300, 0, 0}, {523, 300, 0, 0}, {440, 400, 0, 0}}, 4, 0, 0}},
     // CHARGING_START
     {SoundType::SEQUENCE, 65, .waveform = Waveform::SINE,
-     .sequence = {{{523, 100, 0, 0}, {659, 100, 0, 0}, {784, 150, 0, 0}}, 3}},
+     .sequence = {{{523, 100, 0, 0}, {659, 100, 0, 0}, {784, 150, 0, 0}}, 3, 0, 0}},
     // CHARGING_DONE  */
     {SoundType::SEQUENCE, 70, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
-     .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 120, 0, 0}, {1046, 300, 0, 0}}, 4}},
+     .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 120, 0, 0}, {1046, 300, 0, 0}}, 4, 0, 0}},
     // GPS_RTK_FIX    */
     {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
-     .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2}},
+     .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 0, 0}},
     // GPS_RTK_LOST   */
-    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{660, 120, 0, 0}, {440, 200, 0, 0}}, 2}},
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{660, 120, 0, 0}, {440, 200, 0, 0}}, 2, 0, 0}},
 };
 
 static_assert(sizeof(kDefaultSoundDefs) / sizeof(kDefaultSoundDefs[0]) == SoundId_count,
@@ -117,7 +130,8 @@ static_assert(sizeof(kDefaultSoundDefs) / sizeof(kDefaultSoundDefs[0]) == SoundI
       unreadable and silently produce garbage definitions;
    2. the sound objects live in AXI SRAM (ram0), where the linker report already shows
       100 % — growth would eat into the heap that is reserved inside that region.
-   preempt and reserved_ reuse padding, so the 76 bytes are unchanged since v1. */
+   preempt, reserved_ and the sequence envelope (attack_ms/decay_ms) reuse padding,
+   so the 76 bytes are unchanged since v1. */
 static_assert(sizeof(SoundDefinition) == 76U, "SoundDefinition size changed — it is part of the flash format");
 
 }  // namespace xbot::driver::sound

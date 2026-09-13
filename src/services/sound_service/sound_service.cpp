@@ -147,6 +147,22 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
           return false;
         }
         data->current_def.detune_hz = d;
+      } else if (strcmp(key, "attack_ms") == 0) {
+        // Envelope: a fade-in at the start of every note (sequence sounds).
+        uint16_t attack = 0;
+        if (!JsonGetNumber(jsp, type, attack) || attack > 255U) {
+          ULOG_ERROR("Sound config: invalid attack_ms (expected 0..255)");
+          return false;
+        }
+        data->current_def.sequence.attack_ms = static_cast<uint8_t>(attack);
+      } else if (strcmp(key, "decay_ms") == 0) {
+        // Envelope: a note that fades away instead of being cut off (0 = hold).
+        uint16_t decay = 0;
+        if (!JsonGetNumber(jsp, type, decay) || decay > 255U) {
+          ULOG_ERROR("Sound config: invalid decay_ms (expected 0..255)");
+          return false;
+        }
+        data->current_def.sequence.decay_ms = static_cast<uint8_t>(decay);
       } else if (strcmp(key, "preempt") == 0) {
         // Per-sound priority: alerts stop a running sound and drop the queue.
         if (type == LWJSON_STREAM_TYPE_TRUE) {
@@ -294,16 +310,22 @@ void SoundService::RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t Duratio
 }
 
 void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave,
-                                   uint8_t Volume, uint8_t Unison, uint16_t DetuneHz, uint8_t Preempt) {
+                                   uint8_t Volume, uint8_t Unison, uint16_t DetuneHz, uint8_t AttackMs, uint8_t DecayMs,
+                                   uint8_t Preempt) {
   /* Note array stays on this thread's stack: kMaxNotes * 8 B = 64 B. */
   Note notes[kMaxNotes]{};
   const uint8_t count = parse_sequence(Sequence, SequenceLen, notes, kMaxNotes);
   uint8_t result = 0U;
   if (count > 0U) {
-    const PlayResult res = play_sequence(notes, count, Wave, Volume, Unison, DetuneHz, Preempt != 0U);
+    const PlayResult res =
+        play_sequence(notes, count, Wave, Volume, Unison, DetuneHz, AttackMs, DecayMs, Preempt != 0U);
     result = (res == PlayResult::QUEUED) ? 1U : 0U;
     if (res == PlayResult::QUEUED) {
-      ULOG_INFO("Sound: RPC sequence '%s' (%hhu notes)", Sequence, count);
+      /* The only feedback a host gets (the response goes to the service owner), so
+         log everything it would need to hear the same sound again. */
+      ULOG_INFO(
+          "Sound: RPC sequence '%s' (%hhu notes, %s, vol %hhu, unison %hhu, detune %hu, attack %hhu ms, decay %hhu ms)",
+          Sequence, count, Waveform_to_string(Wave), Volume, Unison, DetuneHz, AttackMs, DecayMs);
     } else {
       ULOG_WARNING("Sound: RPC sequence rejected (%s)", play_result_text(res));
     }

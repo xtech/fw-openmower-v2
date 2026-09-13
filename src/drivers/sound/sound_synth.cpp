@@ -11,6 +11,9 @@
 
 namespace xbot::driver::sound {
 
+/** @brief Envelope gain at full level — the envelope works in Q16 (65536 = unity). */
+static constexpr uint32_t kEnvUnity = 65536U;
+
 /** @brief 64-entry sine lookup table — one full period, values -32767…+32767. */
 static constexpr int16_t kSineTable[64] = {
     0,      3212,   6393,   9512,   12540,  15446,  18205,  20787,  23170,  25330,  27246,  28899,  30273,
@@ -46,6 +49,30 @@ static inline int16_t wave_sample(uint32_t phase, Waveform waveform) {
 void Synth::set_unison(uint8_t voices, uint32_t detune_hz) {
   unison = (voices >= 1U) ? voices : 1U;
   detune_inc = calc_phase_increment(detune_hz);
+}
+
+void Synth::set_envelope(uint8_t attack_ms, uint8_t decay_ms) {
+  env_attack_ms = attack_ms;
+  env_decay_ms = decay_ms;
+}
+
+void Synth::arm_envelope() {
+  env_attack_left = (env_attack_ms > 0U) ? (SAMPLE_RATE * env_attack_ms) / 1000U : 0U;
+  env_attack_inc = (env_attack_left > 0U) ? (kEnvUnity / env_attack_left) : 0U;
+  /* Start from silence while the attack ramps up, otherwise from full level. */
+  env_gain = (env_attack_left > 0U) ? 0U : kEnvUnity;
+
+  env_decay_mult = 0U;
+  if (env_decay_ms > 0U) {
+    /* One-pole fade: gain *= mult every sample.  With a per-sample factor of
+       exp(-1/(tau*fs)) and tau chosen so the level is 60 dB down after decay_ms,
+       the Q16 multiplier is 65536 * (1 - ln(1000)*1000/(fs*decay_ms))
+       = 65536 - 28293/decay_ms (ln(1000)*1000/16000 = 0.4318, 65536*0.4318 = 28293).
+       Linearising the exponential costs a few percent below ~5 ms — where the
+       fade is far too short for its shape to matter — and is exact to <1 % above. */
+    const uint32_t step = 28293U / env_decay_ms;
+    env_decay_mult = kEnvUnity - ((step < kEnvUnity) ? step : (kEnvUnity - 1U));
+  }
 }
 
 void Synth::start_tone(uint16_t freq, uint16_t duration_ms, Waveform wf) {
@@ -89,6 +116,7 @@ bool Synth::fill(int16_t* buf, size_t frames, uint8_t volume) {
       samples_left = (SAMPLE_RATE * n.duration_ms) / 1000U;
       phase = 0U;
       phase_inc = (n.freq > 0U) ? calc_phase_increment(n.freq) : 0U;
+      arm_envelope(); /* every note gets its own attack/decay */
       if (n.lfo_hz_x10 > 0U && n.freq > 0U) {
         lfo_phase = 0U;
         /* LFO phase increment: same formula as calc_phase_increment but divided by 10
@@ -120,6 +148,17 @@ bool Synth::fill(int16_t* buf, size_t frames, uint8_t volume) {
           detune_phase += detune_inc;
         }
         s = scale_volume(static_cast<int16_t>(sum / unison), volume);
+        /* Amplitude envelope: linear attack ramp, then an exponential fade.  The
+           whole block is skipped (and costs nothing) while both are disabled. */
+        if (env_attack_left > 0U) {
+          env_gain += env_attack_inc;
+          if (--env_attack_left == 0U) env_gain = kEnvUnity; /* exact unity after the ramp */
+        } else if (env_decay_mult > 0U) {
+          env_gain = static_cast<uint32_t>((static_cast<uint64_t>(env_gain) * env_decay_mult + 32768U) >> 16U);
+        }
+        if (env_gain < kEnvUnity) {
+          s = static_cast<int16_t>((static_cast<int32_t>(s) * static_cast<int32_t>(env_gain)) >> 16U);
+        }
         phase += eff_inc;
       }
       if (--samples_left == 0U && idx >= count) {
