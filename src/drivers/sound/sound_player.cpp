@@ -18,17 +18,17 @@
  *          Other code
  *            │ play_sound_id() / play_tone() / play_file()
  *            ▼
- *        ┌──────────────────────────────────────────┐
- *        │  player_thread  (NORMALPRIO + 1)          │
- *        │                                           │
- *        │  HIGH mailbox  (depth 1) ← preempts       │
- *        │  NORMAL mailbox (depth 4) ← FIFO queue    │
- *        │                                           │
- *        │  Owns: s_audio_buf in SRAM4, I2SD6        │
- *        │  ISR: chEvtSignalI(EVT_HTIF / EVT_TCIF)   │
- *        │  Fill: buf[i]=sample, buf[i+1]=0 (R=0)    │
- *        │  Sources: ToneSource | WavSource           │
- *        └──────────────────┬───────────────────────┘
+ *        ┌────────────────────────────────────────────┐
+ *        │  player_thread  (NORMALPRIO + 1)           │
+ *        │                                            │
+ *        │  request queue (etl::queue, depth 4) ← FIFO│
+ *        │  preempt request: stop + clear + play now  │
+ *        │                                            │
+ *        │  Owns: s_audio_buf in SRAM4, I2SD6         │
+ *        │  ISR: chEvtSignalI(EVT_HTIF / EVT_TCIF)    │
+ *        │  Fill: buf[i]=sample, buf[i+1]=0 (R=0)     │
+ *        │  Sources: synth (tone/sequence) | mp3      │
+ *        └──────────────────┬─────────────────────────┘
  *                           │ BDMA circular, SRAM4
  *                           ▼
  *                    I2S6 → MAX98357A (left channel only)
@@ -41,6 +41,7 @@
 #include "sound_player.hpp"
 
 #include <etl/atomic.h>
+#include <etl/queue.h>
 #include <ulog.h>
 
 #include <cstring>
@@ -92,19 +93,27 @@ static constexpr eventmask_t EVT_TCIF = EVENT_MASK(1U);           ///< DMA finis
 static constexpr eventmask_t EVT_REQUEST = EVENT_MASK(2U);        ///< New request enqueued
 static constexpr eventmask_t EVT_STOP_PLAYBACK = EVENT_MASK(3U);  ///< Stop playback + flush queues
 
+/** @brief Idle poll interval of the player thread (see the watchdog in player_thread). */
+static constexpr uint32_t kIdlePollMs = 250U;
+
+/** @brief Number of playback requests that may wait in the queue. */
+static constexpr uint8_t kQueueDepth = 4U;
+
 static THD_WORKING_AREA(s_player_wa, 3072U);
 static thread_t* s_player_thd = nullptr;
 
-/* HIGH priority queue: depth 1, single storage slot */
-static SoundDefinition s_high_req;
-static msg_t s_high_mb_buf[1];
-static mailbox_t s_high_mb;
-
-/* NORMAL priority queue: depth 4, ring-buffer storage pool */
-static SoundDefinition s_normal_pool[4];
-static uint8_t s_normal_pool_idx = 0U;
-static msg_t s_normal_mb_buf[4];
-static mailbox_t s_normal_mb;
+/**
+ * @brief Playback queue (ETL container, statically allocated, no heap).
+ *
+ * @note  There is deliberately only ONE queue: queued requests wait in FIFO order,
+ *        while a request whose definition carries `preempt` (alerts such as
+ *        EMERGENCY) stops the running sound, drops everything queued and starts
+ *        immediately.
+ *
+ *        Every access happens under chSysLock(): ETL containers are not thread-safe,
+ *        and the player thread must never see a half-updated ring.
+ */
+static etl::queue<SoundDefinition, kQueueDepth> s_queue;
 
 /* Master volume (0-100, written by set_volume from any thread, read by the player thread) */
 static etl::atomic<uint8_t> s_master_volume{100U};
@@ -162,10 +171,17 @@ static I2SConfig s_i2s_cfg = {
 /* Internal: start playing a SoundDefinition.                               */
 /*===========================================================================*/
 
+/**
+ * @brief Start playing @p def.
+ *
+ * The caller hands over a private copy (see next_request): a preempting enqueue()
+ * may reset the queue and reuse the slot at any time, so this must not read a slot.
+ */
 static void play_definition(const SoundDefinition& def) {
   s_source.stop(); /* close any open WAV file */
 
   if (!s_source.start(def)) {
+    ULOG_WARNING("Sound: source start failed (type=%s)", SoundType_to_string(def.type));
     return; /* FILE open/parse failed — remain idle */
   }
 
@@ -175,23 +191,41 @@ static void play_definition(const SoundDefinition& def) {
 
   i2sStartExchange(&I2SD6);
   s_playing.store(true);
+
+  /* The only place that knows a sound actually reached the I2S/DMA stage — the
+     host-side RPC log only proves the request was queued. */
+  if (def.type == SoundType::TONE) {
+    ULOG_INFO("Sound: play tone %hu Hz %hu ms vol %hhu unison %hhu preempt=%u (master %hhu)", def.tone.freq,
+              def.tone.duration_ms, def.volume, def.unison, def.preempt ? 1U : 0U, s_master_volume.load());
+  } else {
+    ULOG_INFO("Sound: play %s vol %hhu unison %hhu preempt=%u (master %hhu)", SoundType_to_string(def.type), def.volume,
+              def.unison, def.preempt ? 1U : 0U, s_master_volume.load());
+  }
 }
 
 /*===========================================================================*/
 /* Internal: dequeue and play the next pending request (if any).            */
 /*===========================================================================*/
 
+/**
+ * @brief Play the next queued request (no-op while a sound is playing).
+ *
+ * pop_into() copies the request out and removes it in one step — done under the lock
+ * so a preempting enqueue() cannot clear/reuse the slot underneath the copy.
+ */
 static void dequeue_and_play() {
   if (s_playing.load()) return;
 
-  msg_t idx;
-  /* HIGH has priority even in the normal dequeue path */
-  if (chMBFetchTimeout(&s_high_mb, &idx, TIME_IMMEDIATE) == MSG_OK) {
-    play_definition(s_high_req);
-    return;
+  SoundDefinition def{};
+  chSysLock();
+  const bool have_request = !s_queue.empty();
+  if (have_request) {
+    s_queue.pop_into(def);
   }
-  if (chMBFetchTimeout(&s_normal_mb, &idx, TIME_IMMEDIATE) == MSG_OK) {
-    play_definition(s_normal_pool[static_cast<uint8_t>(idx)]);
+  chSysUnlock();
+
+  if (have_request) {
+    play_definition(def);
   }
 }
 
@@ -199,26 +233,36 @@ static void dequeue_and_play() {
 /* Internal: handle a newly arrived EVT_REQUEST.                            */
 /*===========================================================================*/
 
+/**
+ * @brief Handle a newly arrived EVT_REQUEST.
+ *
+ * A preempting request takes over even while something is playing; a normal one is
+ * left in the queue and picked up when the player becomes idle again.
+ */
 static void handle_request() {
-  msg_t idx;
+  bool preempt = false;
+  chSysLock();
+  if (!s_queue.empty()) {
+    preempt = s_queue.front().preempt;
+  }
+  chSysUnlock();
 
-  /* HIGH always preempts current playback */
-  if (chMBFetchTimeout(&s_high_mb, &idx, TIME_IMMEDIATE) == MSG_OK) {
+  if (!preempt) {
     if (s_playing.load()) {
-      i2sStopExchange(&I2SD6);
-      s_playing.store(false);
-      s_source.stop();
+      ULOG_INFO("Sound: request waits behind the running sound");
+      return;
     }
-    play_definition(s_high_req);
+    dequeue_and_play();
     return;
   }
 
-  /* NORMAL: only start if idle */
-  if (!s_playing.load()) {
-    if (chMBFetchTimeout(&s_normal_mb, &idx, TIME_IMMEDIATE) == MSG_OK) {
-      play_definition(s_normal_pool[static_cast<uint8_t>(idx)]);
-    }
+  ULOG_INFO("Sound: preempt request (playing=%u)", s_playing.load() ? 1U : 0U);
+  if (s_playing.load()) {
+    i2sStopExchange(&I2SD6);
+    s_playing.store(false);
+    s_source.stop();
   }
+  dequeue_and_play();
 }
 
 /*===========================================================================*/
@@ -251,7 +295,17 @@ static THD_FUNCTION(player_thread, arg) {
   chRegSetThreadName("sound");
 
   while (true) {
-    const eventmask_t ev = chEvtWaitAny(EVT_HTIF | EVT_TCIF | EVT_REQUEST | EVT_STOP_PLAYBACK);
+    /* The timeout turns the thread into its own watchdog: a request that arrived
+       while the player believed it was busy (stale s_playing) or that was missed
+       altogether is picked up here, instead of waiting for a DMA event that will
+       never come. */
+    const eventmask_t ev =
+        chEvtWaitAnyTimeout(EVT_HTIF | EVT_TCIF | EVT_REQUEST | EVT_STOP_PLAYBACK, TIME_MS2I(kIdlePollMs));
+
+    if (ev == 0U) {
+      dequeue_and_play(); /* no-op when idle and nothing is queued */
+      continue;
+    }
 
     if (ev & EVT_STOP_PLAYBACK) {
       /* Stop current playback; the queues have already been flushed by stop(). */
@@ -292,34 +346,35 @@ static THD_FUNCTION(player_thread, arg) {
 /* Internal: enqueue helpers (called from any thread context).              */
 /*===========================================================================*/
 
-static void enqueue_high(const SoundDefinition& req) {
-  if (s_player_thd == nullptr) return;
-  chSysLock();
-  s_high_req = req;         /* replace any pending high request */
-  chMBResetI(&s_high_mb);   /* flush stale entry (if any) */
-  chMBPostI(&s_high_mb, 0); /* always succeeds after reset */
-  chEvtSignalI(s_player_thd, EVT_REQUEST);
-  /* Required after I-class calls that may have made a higher-priority thread
-     ready: chSysUnlock() asserts "priority order violation" if we skip this. */
-  chSchRescheduleS();
-  chSysUnlock();
-}
+/**
+ * @brief Queue a playback request (safe from any thread context).
+ *
+ * @return true when the request was accepted; false when the player is not running
+ *         or the request had to be dropped because the queue was full.
+ */
+static bool enqueue(const SoundDefinition& def) {
+  if (s_player_thd == nullptr) return false;
 
-static void enqueue_normal(const SoundDefinition& req) {
-  if (s_player_thd == nullptr) return;
+  bool accepted = true;
   chSysLock();
-  if (chMBGetFreeCountI(&s_normal_mb) > 0) {
-    const uint8_t idx = s_normal_pool_idx;
-    s_normal_pool_idx = (s_normal_pool_idx + 1U) & 3U;
-    s_normal_pool[idx] = req;
-    chMBPostI(&s_normal_mb, idx);
+  if (def.preempt) {
+    /* Alerts take over: everything queued is dropped. The running sound itself is
+       stopped by the player thread when it handles the request. */
+    s_queue.clear();
+  } else if (s_queue.full()) {
+    accepted = false; /* queue full: drop this request instead of delaying the queued ones */
   }
-  /* Signal even if dropped — player will find nothing and stay idle (harmless). */
+  if (accepted) {
+    /* Not full here: either just cleared or checked above. ETL's push() asserts on a
+       full queue, so the check has to come first. */
+    s_queue.push(def);
+  }
   chEvtSignalI(s_player_thd, EVT_REQUEST);
   /* Required after I-class calls that may have made a higher-priority thread
      ready: chSysUnlock() asserts "priority order violation" if we skip this. */
   chSchRescheduleS();
   chSysUnlock();
+  return accepted;
 }
 
 /*===========================================================================*/
@@ -328,9 +383,6 @@ static void enqueue_normal(const SoundDefinition& req) {
 
 void player_init() {
   if (s_player_thd != nullptr) return; /* idempotent */
-
-  chMBObjectInit(&s_high_mb, s_high_mb_buf, 1);
-  chMBObjectInit(&s_normal_mb, s_normal_mb_buf, 4);
 
   i2sStart(&I2SD6, &s_i2s_cfg);
 
@@ -343,7 +395,7 @@ void player_init() {
   // last-known high-level definitions instead of the ROM defaults.
   load_sound_overrides_from_storage();
 
-  ULOG_INFO("Sound: player started (sample_rate=%u, volume=%u)", SAMPLE_RATE, s_master_volume.load());
+  ULOG_INFO("Sound: player started (sample_rate=%u, volume=%hhu)", SAMPLE_RATE, s_master_volume.load());
 }
 
 /**
@@ -365,10 +417,10 @@ static bool load_sound_definition(SoundId id, SoundDefinition& out) {
   return has_override;
 }
 
-void play_sound_id(SoundId id, bool high_priority) {
-  if (s_player_thd == nullptr) return;
+bool play_sound_id(SoundId id) {
+  if (s_player_thd == nullptr) return false;
   const uint8_t idx = static_cast<uint8_t>(id);
-  if (idx >= SoundId_count) return;
+  if (idx >= SoundId_count) return false;
 
   /* Prefer a flash override; otherwise fall back to the ROM default. */
   SoundDefinition def;
@@ -376,51 +428,41 @@ void play_sound_id(SoundId id, bool high_priority) {
   if (!has_override) {
     def = kDefaultSoundDefs[idx];
   }
-  if (high_priority) {
-    enqueue_high(def);
-  } else {
-    enqueue_normal(def);
-  }
+  return enqueue(def);
 }
 
-void play_tone(uint32_t freq, uint32_t duration_ms, uint8_t volume, bool high_priority) {
-  if (s_player_thd == nullptr) return;
-  if (freq == 0U || duration_ms == 0U) return;
+bool play_tone(uint16_t freq, uint16_t duration_ms, uint8_t volume, bool preempt) {
+  if (s_player_thd == nullptr) return false;
+  if (freq == 0U || duration_ms == 0U) return false;
 
   SoundDefinition def{};
   def.type = SoundType::TONE;
   def.volume = volume;
+  def.preempt = preempt;
   def.tone.freq = freq;
   def.tone.duration_ms = duration_ms;
 
-  if (high_priority) {
-    enqueue_high(def);
-  } else {
-    enqueue_normal(def);
-  }
+  return enqueue(def);
 }
 
-void play_file(const char* path, bool high_priority) {
-  if (s_player_thd == nullptr) return;
-  if (path == nullptr) return;
+bool play_file(const char* path, bool preempt) {
+  if (s_player_thd == nullptr) return false;
+  if (path == nullptr) return false;
 
   SoundDefinition def{};
   def.type = SoundType::MP3;
   def.volume = kFileVolume; /* pre-mastered at full scale; master volume scales it */
+  def.preempt = preempt;
   strncpy(def.path, path, kMaxPath - 1U);
   def.path[kMaxPath - 1U] = '\0';
 
-  if (high_priority) {
-    enqueue_high(def);
-  } else {
-    enqueue_normal(def);
-  }
+  return enqueue(def);
 }
 
-void play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume, uint8_t unison,
-                   uint16_t detune_hz, bool high_priority) {
-  if (s_player_thd == nullptr) return;
-  if (notes == nullptr || count == 0U) return;
+bool play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume, uint8_t unison,
+                   uint16_t detune_hz, bool preempt) {
+  if (s_player_thd == nullptr) return false;
+  if (notes == nullptr || count == 0U) return false;
   if (count > kMaxNotes) count = kMaxNotes;
 
   SoundDefinition def{};
@@ -429,16 +471,13 @@ void play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t 
   def.volume = volume;
   def.unison = unison;
   def.detune_hz = detune_hz;
+  def.preempt = preempt;
   def.sequence.count = count;
   for (uint8_t i = 0U; i < count; ++i) {
     def.sequence.notes[i] = notes[i];
   }
 
-  if (high_priority) {
-    enqueue_high(def);
-  } else {
-    enqueue_normal(def);
-  }
+  return enqueue(def);
 }
 
 void set_volume(uint8_t volume) {
@@ -505,8 +544,7 @@ void load_sound_overrides_from_storage() {
   }
   chMtxUnlock(&s_override_mutex);
 
-  ULOG_INFO("Sound: loaded %u override(s) from flash (mask=0x%04x)", static_cast<unsigned>(loaded),
-            static_cast<unsigned>(h.valid_mask));
+  ULOG_INFO("Sound: loaded %hhu override(s) from flash (mask=0x%04hx)", loaded, h.valid_mask);
 }
 
 void save_sound_overrides_to_storage() {
@@ -555,8 +593,8 @@ void save_sound_overrides_to_storage() {
   if (written < 0) {
     ULOG_WARNING("Sound: defs store write failed");
   } else {
-    ULOG_INFO("Sound: persisted %u override(s) mask=0x%04x (%d bytes) to %s", static_cast<unsigned>(count),
-              static_cast<unsigned>(valid_mask), written, kSoundDefsPath);
+    ULOG_INFO("Sound: persisted %hhu override(s) mask=0x%04hx (%d bytes) to %s", count, valid_mask, written,
+              kSoundDefsPath);
   }
 }
 
@@ -564,8 +602,7 @@ void stop() {
   if (s_player_thd == nullptr) return;
   chSysLock();
   /* Flush pending requests so playback cannot resume after stop. */
-  chMBResetI(&s_high_mb);
-  chMBResetI(&s_normal_mb);
+  s_queue.clear();
   chEvtSignalI(s_player_thd, EVT_STOP_PLAYBACK);
   /* Required after I-class calls that may have made a higher-priority thread
      ready: chSysUnlock() asserts "priority order violation" if we skip this. */

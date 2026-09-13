@@ -27,12 +27,12 @@ class SoundService : public SoundServiceBase {
   void OnVolumeChanged(const uint8_t& new_value) override;
 
   /* RPCs (services/sound_service.json): let a host audition sounds at runtime.
-     Return 1 = accepted, 0 = rejected. */
+     Return 1 = accepted, 0 = rejected */
   void RPCPlaySound(uint16_t call_id, SoundId Sound) override;
-  void RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume) override;
+  void RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume, uint8_t Preempt) override;
   void RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave, uint8_t Volume,
-                       uint8_t Unison, uint16_t DetuneHz) override;
-  void RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen) override;
+                       uint8_t Unison, uint16_t DetuneHz, uint8_t Preempt) override;
+  void RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) override;
   void RPCStop(uint16_t call_id) override;
 
   THD_WORKING_AREA(wa, 3072){};

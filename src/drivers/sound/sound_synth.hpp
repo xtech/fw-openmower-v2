@@ -80,7 +80,7 @@ struct Synth {
   void set_unison(uint8_t voices, uint32_t detune_hz);
 
   /** @brief Configure a fixed-frequency tone. */
-  void start_tone(uint32_t freq, uint32_t duration_ms, Waveform wf);
+  void start_tone(uint16_t freq, uint16_t duration_ms, Waveform wf);
   /** @brief Configure a note sequence (first note is loaded on first fill). */
   void start_sequence(const Note* notes, uint8_t count, Waveform wf);
 

@@ -71,7 +71,8 @@ void EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {
 
   // Only latched emergencies matter for the audio feedback
   if (now_latched && !was_latched) {
-    xbot::driver::sound::play_sound_id(SoundId::EMERGENCY, /*high_priority=*/true);
+    // The EMERGENCY definition carries preempt=true, so whatever is playing and drops the rest of the queue.
+    xbot::driver::sound::play_sound_id(SoundId::EMERGENCY);
   } else if (!now_latched && was_latched) {
     xbot::driver::sound::stop();
     xbot::driver::sound::play_sound_id(SoundId::SUCCESS);

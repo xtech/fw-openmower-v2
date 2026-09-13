@@ -50,10 +50,9 @@ bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t le
   if (definitions_configured_) {
     // Persist the parsed overrides to flash so they survive a reboot.
     save_sound_overrides_to_storage();
-    ULOG_INFO("Sound: %u definition(s) applied (%u byte blob)", static_cast<unsigned>(json_data.num_sounds),
-              static_cast<unsigned>(length));
+    ULOG_INFO("Sound: %hhu definition(s) applied (%zu byte blob)", json_data.num_sounds, length);
   } else {
-    ULOG_WARNING("Sound: definitions blob rejected (%u byte blob)", static_cast<unsigned>(length));
+    ULOG_WARNING("Sound: definitions blob rejected (%zu byte blob)", length);
   }
   return definitions_configured_;
 }
@@ -148,6 +147,16 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
           return false;
         }
         data->current_def.detune_hz = d;
+      } else if (strcmp(key, "preempt") == 0) {
+        // Per-sound priority: alerts stop a running sound and drop the queue.
+        if (type == LWJSON_STREAM_TYPE_TRUE) {
+          data->current_def.preempt = true;
+        } else if (type == LWJSON_STREAM_TYPE_FALSE) {
+          data->current_def.preempt = false;
+        } else {
+          ULOG_ERROR("Sound config: invalid preempt (expected true/false)");
+          return false;
+        }
       } else if (strcmp(key, "file") == 0) {
         JsonExpectType(STRING);
         const char* name = jsp->data.str.buff;
@@ -181,7 +190,7 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
         JsonExpectTypeOrEnd(OBJECT);
         if (type == LWJSON_STREAM_TYPE_OBJECT) {
           if (data->note_idx >= kMaxNotes) {
-            ULOG_ERROR("Sound config: too many notes in sequence (max %u)", kMaxNotes);
+            ULOG_ERROR("Sound config: too many notes in sequence (max %hhu)", kMaxNotes);
             return false;
           }
           data->current_def.sequence.notes[data->note_idx] = Note{};
@@ -198,18 +207,18 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
         const char* key = jsp->stack[7].meta.name;
         if (strcmp(key, "freq") == 0) {
           uint32_t f = 0;
-          if (!JsonGetNumber(jsp, type, f)) {
-            ULOG_ERROR("Sound config: invalid tone freq");
+          if (!JsonGetNumber(jsp, type, f) || f > 0xFFFFU) {
+            ULOG_ERROR("Sound config: invalid tone freq (0..65535)");
             return false;
           }
-          data->current_def.tone.freq = f;
+          data->current_def.tone.freq = static_cast<uint16_t>(f);
         } else if (strcmp(key, "duration_ms") == 0) {
           uint32_t d = 0;
-          if (!JsonGetNumber(jsp, type, d)) {
-            ULOG_ERROR("Sound config: invalid tone duration_ms");
+          if (!JsonGetNumber(jsp, type, d) || d > 0xFFFFU) {
+            ULOG_ERROR("Sound config: invalid tone duration_ms (0..65535)");
             return false;
           }
-          data->current_def.tone.duration_ms = d;
+          data->current_def.tone.duration_ms = static_cast<uint16_t>(d);
         }
         // Unknown tone sub-fields are ignored (forward compatibility).
       }
@@ -264,38 +273,48 @@ void SoundService::OnVolumeChanged(const uint8_t& new_value) {
 
 /*---------------------------------------------------------------------------
  * RPCs (services/sound_service.json) — runtime auditioning for hosts.
- * Return 1 = accepted, 0 = rejected (bad text / empty).
+ * Each one logs what it did: that is the only feedback a host gets, because the
+ * response goes to the service owner (the high-level system), not to the caller.
  *---------------------------------------------------------------------------*/
 
 void SoundService::RPCPlaySound(uint16_t call_id, SoundId Sound) {
-  play_sound_id(Sound);
-  const uint8_t result = 1U;
+  const bool accepted = play_sound_id(Sound);
+  ULOG_INFO("Sound: RPC sound '%s' (%s, playing=%u)", SoundId_to_string(Sound),
+            accepted ? "queued" : "REJECTED (player idle)", is_playing() ? 1U : 0U);
+  const uint8_t result = accepted ? 1U : 0U;
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
-void SoundService::RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume) {
-  play_tone(Freq, DurationMs, Volume);
-  const uint8_t result = 1U;
+void SoundService::RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume, uint8_t Preempt) {
+  const bool accepted = play_tone(Freq, DurationMs, Volume, Preempt != 0U);
+  ULOG_INFO("Sound: RPC tone %hu Hz %hu ms vol %hhu preempt=%hhu (%s, playing=%u)", Freq, DurationMs, Volume, Preempt,
+            accepted ? "queued" : "REJECTED (player idle or 0)", is_playing() ? 1U : 0U);
+  const uint8_t result = accepted ? 1U : 0U;
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
 void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave,
-                                   uint8_t Volume, uint8_t Unison, uint16_t DetuneHz) {
+                                   uint8_t Volume, uint8_t Unison, uint16_t DetuneHz, uint8_t Preempt) {
   /* Note array stays on this thread's stack: kMaxNotes * 8 B = 64 B. */
   Note notes[kMaxNotes]{};
   const uint8_t count = parse_sequence(Sequence, SequenceLen, notes, kMaxNotes);
   uint8_t result = 0U;
   if (count > 0U) {
-    play_sequence(notes, count, Wave, Volume, Unison, DetuneHz);
-    result = 1U;
-    ULOG_INFO("Sound: RPC sequence '%s' (%u notes)", Sequence, static_cast<unsigned>(count));
+    const bool accepted = play_sequence(notes, count, Wave, Volume, Unison, DetuneHz, Preempt != 0U);
+    result = accepted ? 1U : 0U;
+    if (accepted) {
+      ULOG_INFO("Sound: RPC sequence '%s' (%hhu notes)", Sequence, count);
+    } else {
+      ULOG_WARNING("Sound: RPC sequence rejected (player idle)");
+    }
   } else {
+    /* %.*s takes an int width, hence the one cast that is actually needed here. */
     ULOG_WARNING("Sound: RPC sequence rejected (%.*s)", static_cast<int>(SequenceLen), Sequence);
   }
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
-void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen) {
+void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) {
   char path[kMaxPath];
   size_t n = (PathLen < (kMaxPath - 1U)) ? PathLen : (kMaxPath - 1U);
   memcpy(path, Path, n);
@@ -303,15 +322,18 @@ void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathL
 
   uint8_t result = 0U;
   if (n > 0U) {
-    play_file(path);
-    result = 1U;
-    ULOG_INFO("Sound: RPC mp3 '%s'", path);
+    const bool accepted = play_file(path, Preempt != 0U);
+    result = accepted ? 1U : 0U;
+    ULOG_INFO("Sound: RPC mp3 '%s' (%s)", path, accepted ? "queued" : "REJECTED (player idle)");
+  } else {
+    ULOG_WARNING("Sound: RPC mp3 rejected (empty path)");
   }
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
 void SoundService::RPCStop(uint16_t call_id) {
   stop();
+  ULOG_INFO("Sound: RPC stop (queues flushed)");
   const uint8_t result = 1U;
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }

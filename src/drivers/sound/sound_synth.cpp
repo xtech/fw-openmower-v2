@@ -48,7 +48,7 @@ void Synth::set_unison(uint8_t voices, uint32_t detune_hz) {
   detune_inc = calc_phase_increment(detune_hz);
 }
 
-void Synth::start_tone(uint32_t freq, uint32_t duration_ms, Waveform wf) {
+void Synth::start_tone(uint16_t freq, uint16_t duration_ms, Waveform wf) {
   /* A tone is a single-note sequence without LFO.  Frequencies above 65535 Hz
      (beyond audible) and durations beyond ~65 s are unsupported. */
   notes[0] = {static_cast<uint16_t>(freq), static_cast<uint16_t>(duration_ms), 0, 0};

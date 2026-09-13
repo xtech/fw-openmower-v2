@@ -17,9 +17,10 @@
  *   Callers enqueue sound requests via play_sound_id(), play_tone(), or play_file();
  *   the player thread streams PCM to BDMA.
  *
- *   Priority levels:
- *     HIGH   — preempts whatever is currently playing (depth 1).
- *     NORMAL — queued in FIFO order, dropped when the queue is full (depth 4).
+ *   Priority levels (one FIFO queue, depth 4), driven by SoundDefinition::preempt:
+ *     queued — the default; dropped when the queue is full.
+ *     preempt — alerts (e.g. EMERGENCY) stops the running sound, drops everything
+ *               queued and starts immediately.
  *
  *   The MAX98357A amplifier is hardware-wired for left-channel-only operation,
  *   so DMA frames are always [L_sample, 0].
@@ -45,7 +46,6 @@ struct SoundDefinition;  ///< Defined in sound_definition.hpp.
  *
  * Calls i2sStart(&I2SD6) once; must be called after halInit() / chSysInit()
  * and after the LittleFS filesystem has been mounted.
- * Calling more than once has no effect.
  */
 void player_init();
 
@@ -55,28 +55,31 @@ void player_init();
  * Resolves the SoundDefinition for @p id: a flash override if present,
  * otherwise the ROM default (kDefaultSoundDefs).
  *
- * @param id            Logical sound to play.
- * @param high_priority If true the sound preempts current playback immediately.
+ * @param id  Logical sound to play.
+ * @return true when the request was accepted (queued); false when the player is
+ *         not running.
  */
-void play_sound_id(SoundId id, bool high_priority = false);
+bool play_sound_id(SoundId id);
 
 /**
  * @brief Play a synthesised sine-wave tone.
  *
- * @param freq          Frequency in Hz.
- * @param duration_ms   Duration in milliseconds.
- * @param volume        Volume (0–100).
- * @param high_priority If true the tone preempts current playback immediately.
+ * @param freq          Frequency in Hz
+ * @param duration_ms   Duration in milliseconds
+ * @param volume        Volume (0–100)
+ * @param preempt       true: stop the running sound and drop the queue
+ * @return true when the tone was accepted (queued), otherwise false
  */
-void play_tone(uint32_t freq, uint32_t duration_ms, uint8_t volume = 80, bool high_priority = false);
+bool play_tone(uint16_t freq, uint16_t duration_ms, uint8_t volume = 80, bool preempt = false);
 
 /**
  * @brief Play an MP3 file from LittleFS.
  *
- * @param path          Absolute path to a 16 kHz / mono MP3 file.
- * @param high_priority If true the file preempts current playback immediately.
+ * @param path          Absolute path to a 16 kHz / mono MP3 file
+ * @param preempt       true: stop the running sound and drop the queue
+ * @return true when the request was accepted (queued), otherwise false
  */
-void play_file(const char* path, bool high_priority = false);
+bool play_file(const char* path, bool preempt = false);
 
 /**
  * @brief Play an ad-hoc note sequence (used by the SoundService RPCs).
@@ -84,16 +87,17 @@ void play_file(const char* path, bool high_priority = false);
  * Builds a SoundType::SEQUENCE request so a host can audition a sequence at
  * runtime, e.g. "250:60 0:40 375:80" (see sound_sequence.hpp).
  *
- * @param notes         Note array with at least @p count entries.
- * @param count         Number of notes (clamped to kMaxNotes; 0 is ignored).
- * @param waveform      Oscillator waveform.
- * @param volume        Per-definition volume (0–100).
- * @param unison        Detuned voices (1 = single, odd: 3/5/7).
- * @param detune_hz     Frequency spread between unison voices in Hz.
- * @param high_priority If true the sequence preempts current playback immediately.
+ * @param notes         Note array with at least @p count entries
+ * @param count         Number of notes (clamped to kMaxNotes; 0 is ignored)
+ * @param waveform      Oscillator waveform
+ * @param volume        Per-definition volume (0–100)
+ * @param unison        Detuned voices (1 = single, odd: 3/5/7)
+ * @param detune_hz     Frequency spread between unison voices in Hz
+ * @param preempt       true: stop the running sound and drop the queue
+ * @return true when the sequence was accepted (queued), otherwise false
  */
-void play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume = 80, uint8_t unison = 1U,
-                   uint16_t detune_hz = 0U, bool high_priority = false);
+bool play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume = 80, uint8_t unison = 1U,
+                   uint16_t detune_hz = 0U, bool preempt = false);
 
 /**
  * @brief Set the master playback volume.
