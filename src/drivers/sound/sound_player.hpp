@@ -50,16 +50,38 @@ struct SoundDefinition;  ///< Defined in sound_definition.hpp.
 void player_init();
 
 /**
+ * @brief Result of a play request.
+ *
+ * Carried back to the caller so a host (or the RPC log) can tell *why* something was not played
+ */
+enum class PlayResult : uint8_t {
+  QUEUED,              ///< Accepted: queued (or preempting the current sound)
+  PLAYER_NOT_RUNNING,  ///< The player thread is not started (no sound hardware / too early)
+  QUEUE_FULL,          ///< Dropped: queue is full and this request does not preempt
+  INVALID_ARGUMENT,    ///< Dropped: nothing to play (zero freq/duration, no notes, null path)
+};
+
+/** @brief Short reason text for logs. */
+inline const char* play_result_text(PlayResult result) {
+  switch (result) {
+    case PlayResult::QUEUED: return "queued";
+    case PlayResult::QUEUE_FULL: return "REJECTED (queue full)";
+    case PlayResult::INVALID_ARGUMENT: return "REJECTED (invalid argument)";
+    case PlayResult::PLAYER_NOT_RUNNING: break;
+  }
+  return "REJECTED (player not running)";
+}
+
+/**
  * @brief Play a sound by logical identifier.
  *
  * Resolves the SoundDefinition for @p id: a flash override if present,
  * otherwise the ROM default (kDefaultSoundDefs).
  *
  * @param id  Logical sound to play.
- * @return true when the request was accepted (queued); false when the player is
- *         not running.
+ * @return QUEUED when accepted, otherwise why it was rejected (see PlayResult)
  */
-bool play_sound_id(SoundId id);
+PlayResult play_sound_id(SoundId id);
 
 /**
  * @brief Play a synthesised sine-wave tone.
@@ -68,18 +90,18 @@ bool play_sound_id(SoundId id);
  * @param duration_ms   Duration in milliseconds
  * @param volume        Volume (0–100)
  * @param preempt       true: stop the running sound and drop the queue
- * @return true when the tone was accepted (queued), otherwise false
+ * @return QUEUED when accepted, otherwise why it was rejected (see PlayResult)
  */
-bool play_tone(uint16_t freq, uint16_t duration_ms, uint8_t volume = 80, bool preempt = false);
+PlayResult play_tone(uint16_t freq, uint16_t duration_ms, uint8_t volume = 80, bool preempt = false);
 
 /**
  * @brief Play an MP3 file from LittleFS.
  *
  * @param path          Absolute path to a 16 kHz / mono MP3 file
  * @param preempt       true: stop the running sound and drop the queue
- * @return true when the request was accepted (queued), otherwise false
+ * @return QUEUED when accepted, otherwise why it was rejected (see PlayResult)
  */
-bool play_file(const char* path, bool preempt = false);
+PlayResult play_file(const char* path, bool preempt = false);
 
 /**
  * @brief Play an ad-hoc note sequence (used by the SoundService RPCs).
@@ -94,10 +116,10 @@ bool play_file(const char* path, bool preempt = false);
  * @param unison        Detuned voices (1 = single, odd: 3/5/7)
  * @param detune_hz     Frequency spread between unison voices in Hz
  * @param preempt       true: stop the running sound and drop the queue
- * @return true when the sequence was accepted (queued), otherwise false
+ * @return QUEUED when accepted, otherwise why it was rejected (see PlayResult)
  */
-bool play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume = 80, uint8_t unison = 1U,
-                   uint16_t detune_hz = 0U, bool preempt = false);
+PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume = 80, uint8_t unison = 1U,
+                         uint16_t detune_hz = 0U, bool preempt = false);
 
 /**
  * @brief Set the master playback volume.

@@ -349,22 +349,21 @@ static THD_FUNCTION(player_thread, arg) {
 /**
  * @brief Queue a playback request (safe from any thread context).
  *
- * @return true when the request was accepted; false when the player is not running
- *         or the request had to be dropped because the queue was full.
+ * @return QUEUED when the request was accepted, otherwise why it was dropped
  */
-static bool enqueue(const SoundDefinition& def) {
-  if (s_player_thd == nullptr) return false;
+static PlayResult enqueue(const SoundDefinition& def) {
+  if (s_player_thd == nullptr) return PlayResult::PLAYER_NOT_RUNNING;
 
-  bool accepted = true;
+  PlayResult result = PlayResult::QUEUED;
   chSysLock();
   if (def.preempt) {
     /* Alerts take over: everything queued is dropped. The running sound itself is
        stopped by the player thread when it handles the request. */
     s_queue.clear();
   } else if (s_queue.full()) {
-    accepted = false; /* queue full: drop this request instead of delaying the queued ones */
+    result = PlayResult::QUEUE_FULL; /* drop this request instead of delaying the queued ones */
   }
-  if (accepted) {
+  if (result == PlayResult::QUEUED) {
     /* Not full here: either just cleared or checked above. ETL's push() asserts on a
        full queue, so the check has to come first. */
     s_queue.push(def);
@@ -374,7 +373,7 @@ static bool enqueue(const SoundDefinition& def) {
      ready: chSysUnlock() asserts "priority order violation" if we skip this. */
   chSchRescheduleS();
   chSysUnlock();
-  return accepted;
+  return result;
 }
 
 /*===========================================================================*/
@@ -417,10 +416,9 @@ static bool load_sound_definition(SoundId id, SoundDefinition& out) {
   return has_override;
 }
 
-bool play_sound_id(SoundId id) {
-  if (s_player_thd == nullptr) return false;
+PlayResult play_sound_id(SoundId id) {
   const uint8_t idx = static_cast<uint8_t>(id);
-  if (idx >= SoundId_count) return false;
+  if (idx >= SoundId_count) return PlayResult::INVALID_ARGUMENT;
 
   /* Prefer a flash override; otherwise fall back to the ROM default. */
   SoundDefinition def;
@@ -431,9 +429,8 @@ bool play_sound_id(SoundId id) {
   return enqueue(def);
 }
 
-bool play_tone(uint16_t freq, uint16_t duration_ms, uint8_t volume, bool preempt) {
-  if (s_player_thd == nullptr) return false;
-  if (freq == 0U || duration_ms == 0U) return false;
+PlayResult play_tone(uint16_t freq, uint16_t duration_ms, uint8_t volume, bool preempt) {
+  if (freq == 0U || duration_ms == 0U) return PlayResult::INVALID_ARGUMENT;
 
   SoundDefinition def{};
   def.type = SoundType::TONE;
@@ -445,9 +442,8 @@ bool play_tone(uint16_t freq, uint16_t duration_ms, uint8_t volume, bool preempt
   return enqueue(def);
 }
 
-bool play_file(const char* path, bool preempt) {
-  if (s_player_thd == nullptr) return false;
-  if (path == nullptr) return false;
+PlayResult play_file(const char* path, bool preempt) {
+  if (path == nullptr) return PlayResult::INVALID_ARGUMENT;
 
   SoundDefinition def{};
   def.type = SoundType::MP3;
@@ -459,10 +455,9 @@ bool play_file(const char* path, bool preempt) {
   return enqueue(def);
 }
 
-bool play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume, uint8_t unison,
-                   uint16_t detune_hz, bool preempt) {
-  if (s_player_thd == nullptr) return false;
-  if (notes == nullptr || count == 0U) return false;
+PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume, uint8_t unison,
+                         uint16_t detune_hz, bool preempt) {
+  if (notes == nullptr || count == 0U) return PlayResult::INVALID_ARGUMENT;
   if (count > kMaxNotes) count = kMaxNotes;
 
   SoundDefinition def{};

@@ -123,7 +123,7 @@ void FileService::RPCFileExists(uint16_t call_id, const char* Path, uint32_t Pat
     }
   }
 
-  ULOG_INFO("File: exists '%s' -> %u (hash=%#010x)", path, static_cast<unsigned>(result), Hash);
+  ULOG_INFO("File: exists '%s' -> %hhu (hash=%#010x)", path, result, Hash);
 
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
@@ -279,7 +279,7 @@ void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathL
   }
 
   if (StartIndex == 0U) {
-    ULOG_INFO("File: list '%s' (%u files)", path, static_cast<unsigned>(total_count));
+    ULOG_INFO("File: list '%s' (%u files)", path, total_count);
   }
 
   memcpy(data, &total_count, sizeof(total_count));

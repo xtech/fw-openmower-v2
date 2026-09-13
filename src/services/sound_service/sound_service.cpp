@@ -278,18 +278,18 @@ void SoundService::OnVolumeChanged(const uint8_t& new_value) {
  *---------------------------------------------------------------------------*/
 
 void SoundService::RPCPlaySound(uint16_t call_id, SoundId Sound) {
-  const bool accepted = play_sound_id(Sound);
-  ULOG_INFO("Sound: RPC sound '%s' (%s, playing=%u)", SoundId_to_string(Sound),
-            accepted ? "queued" : "REJECTED (player idle)", is_playing() ? 1U : 0U);
-  const uint8_t result = accepted ? 1U : 0U;
+  const PlayResult res = play_sound_id(Sound);
+  ULOG_INFO("Sound: RPC sound '%s' (%s, playing=%u)", SoundId_to_string(Sound), play_result_text(res),
+            is_playing() ? 1U : 0U);
+  const uint8_t result = (res == PlayResult::QUEUED) ? 1U : 0U;
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
 void SoundService::RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume, uint8_t Preempt) {
-  const bool accepted = play_tone(Freq, DurationMs, Volume, Preempt != 0U);
+  const PlayResult res = play_tone(Freq, DurationMs, Volume, Preempt != 0U);
   ULOG_INFO("Sound: RPC tone %hu Hz %hu ms vol %hhu preempt=%hhu (%s, playing=%u)", Freq, DurationMs, Volume, Preempt,
-            accepted ? "queued" : "REJECTED (player idle or 0)", is_playing() ? 1U : 0U);
-  const uint8_t result = accepted ? 1U : 0U;
+            play_result_text(res), is_playing() ? 1U : 0U);
+  const uint8_t result = (res == PlayResult::QUEUED) ? 1U : 0U;
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
@@ -300,12 +300,12 @@ void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint3
   const uint8_t count = parse_sequence(Sequence, SequenceLen, notes, kMaxNotes);
   uint8_t result = 0U;
   if (count > 0U) {
-    const bool accepted = play_sequence(notes, count, Wave, Volume, Unison, DetuneHz, Preempt != 0U);
-    result = accepted ? 1U : 0U;
-    if (accepted) {
+    const PlayResult res = play_sequence(notes, count, Wave, Volume, Unison, DetuneHz, Preempt != 0U);
+    result = (res == PlayResult::QUEUED) ? 1U : 0U;
+    if (res == PlayResult::QUEUED) {
       ULOG_INFO("Sound: RPC sequence '%s' (%hhu notes)", Sequence, count);
     } else {
-      ULOG_WARNING("Sound: RPC sequence rejected (player idle)");
+      ULOG_WARNING("Sound: RPC sequence rejected (%s)", play_result_text(res));
     }
   } else {
     /* %.*s takes an int width, hence the one cast that is actually needed here. */
@@ -322,9 +322,9 @@ void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathL
 
   uint8_t result = 0U;
   if (n > 0U) {
-    const bool accepted = play_file(path, Preempt != 0U);
-    result = accepted ? 1U : 0U;
-    ULOG_INFO("Sound: RPC mp3 '%s' (%s)", path, accepted ? "queued" : "REJECTED (player idle)");
+    const PlayResult res = play_file(path, Preempt != 0U);
+    result = (res == PlayResult::QUEUED) ? 1U : 0U;
+    ULOG_INFO("Sound: RPC mp3 '%s' (%s)", path, play_result_text(res));
   } else {
     ULOG_WARNING("Sound: RPC mp3 rejected (empty path)");
   }
