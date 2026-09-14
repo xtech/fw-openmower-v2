@@ -77,6 +77,11 @@ struct SoundDefinition {
 /*---------------------------------------------------------------------------
  * ROM defaults — tone/sequence only, indexed by SoundId.
  *
+ * ⚠️  The table is POSITIONAL: entry n is the default for SoundId n, so its order has
+ *     to match "SoundId" in services/sound_service.json (the static_assert below only
+ *     checks the count, a swapped order compiles fine and silently plays the wrong
+ *     sounds).
+ *
  * The sequence payload is {notes, count, attack_ms, decay_ms}: SUCCESS is a
  * single decaying note (a "ping"), the announcements and alerts are flat note
  * runs.  0 = instant onset / hold the note at full level (see Synth).
@@ -108,6 +113,11 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     // CHARGING_DONE  */
     {SoundType::SEQUENCE, 70, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 120, 0, 0}, {1046, 300, 0, 0}}, 4, 0, 0}},
+    // ROS_CONNECTED — the high level (ROS) link came up (See EmergencyService::CheckTimeouts)
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
+     .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 4, 120}},
+    // ROS_DISCONNECTED — heartbeat timeout, i.e. the high level is gone
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{880, 120, 0, 0}, {587, 220, 0, 0}}, 2, 4, 150}},
     // GPS_RTK_FIX    */
     {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
      .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 0, 0}},

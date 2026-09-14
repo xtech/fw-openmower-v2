@@ -65,18 +65,33 @@ static constexpr size_t SOUND_HALF_SIZE = SOUND_BUFFER_SIZE / 2U;
 /* MP3 sources are pre-mastered at full scale; only the master volume scales them. */
 static constexpr uint8_t kFileVolume = 100U;
 
-/* Persisted sound-definition overrides (LittleFS) — survive a reboot. */
+/* Persisted sound-definition overrides (LittleFS) — survive a reboot.
+ *
+ * Format: a header, then one record per overridden sound — a SoundId byte followed by
+ * the raw SoundDefinition bytes (the layout is pinned by the static_assert in
+ * sound_definition.hpp).  Only the sounds the high level actually pushed are stored, so
+ * the file stays small (16 B + n × 81 B instead of a full SoundId_count table) and no
+ * validity bitmask is needed: the record's id says which sound it replaces.
+ *
+ * header_size and record_size are part of the header on purpose: any future layout change
+ * is then *detected* and the file is ignored with a warning, instead of being read with
+ * the wrong offsets and silently producing garbage definitions. */
 static constexpr const char* kSoundDefsPath = "/cfg/sound_defs.bin";
-static constexpr uint32_t kSoundDefsMagic = 0x53444632U;  // "SDF2"
+static constexpr uint32_t kSoundDefsMagic = 0x53444631U;  // "SDF1"
 static constexpr uint16_t kSoundDefsVersion = 1U;
+
+/** Bytes of one stored override: its SoundId plus the raw definition. */
+static constexpr size_t kOverrideRecordSize = sizeof(uint8_t) + sizeof(SoundDefinition);
 
 /** On-disk layout of the persisted sound overrides. */
 struct PersistedDefsHeader {
   uint32_t magic;
   uint16_t version;
-  uint16_t count;
-  uint16_t valid_mask;
+  uint16_t count;        ///< Number of override records that follow
+  uint16_t header_size;  ///< sizeof(PersistedDefsHeader) — guards a header change
+  uint16_t record_size;  ///< kOverrideRecordSize — guards a definition change
 };
+static_assert(sizeof(PersistedDefsHeader) == 12U, "PersistedDefsHeader layout changed — the store format is affected");
 
 /*===========================================================================*/
 /* DMA buffer — MUST reside in SRAM4 (D3 domain) for BDMA.                  */
@@ -246,8 +261,8 @@ static void play_definition(const SoundDefinition& def, bool is_repeat = false) 
         def.volume, Waveform_to_string(def.waveform), def.unison, def.detune_hz, def.sequence.attack_ms,
         def.sequence.decay_ms, def.preempt ? 1U : 0U, s_master_volume.load());
   } else {
-    ULOG_INFO("Sound: play %s vol %hhu unison %hhu preempt=%u (master %hhu)", SoundType_to_string(def.type), def.volume,
-              def.unison, def.preempt ? 1U : 0U, s_master_volume.load());
+    ULOG_INFO("Sound: play %s '%s' vol %hhu preempt=%u (master %hhu)", SoundType_to_string(def.type), def.path,
+              def.volume, def.preempt ? 1U : 0U, s_master_volume.load());
   }
 
   if (def.repeat_ms > 0U) {
@@ -616,10 +631,8 @@ void clear_sound_overrides() {
 }
 
 void load_sound_overrides_from_storage() {
-  // Keep the File (~330 B: 256 B cache) and the definition array (~840 B) out of
-  // the main thread stack, which is only ~2.3 KB here (see the linker script).
   static File file;
-  static SoundDefinition defs[SoundId_count];
+  SoundDefinition def{};
 
   file.close();  // no-op unless an earlier attempt left it open
   if (file.open(kSoundDefsPath, LFS_O_RDONLY) != LFS_ERR_OK) {
@@ -630,44 +643,40 @@ void load_sound_overrides_from_storage() {
   PersistedDefsHeader h{};
   int n = file.read(&h, sizeof(h));
   if (n != static_cast<int>(sizeof(h)) || h.magic != kSoundDefsMagic || h.version != kSoundDefsVersion ||
-      h.count != SoundId_count) {
+      h.header_size != sizeof(PersistedDefsHeader) || h.record_size != kOverrideRecordSize || h.count > SoundId_count) {
     ULOG_WARNING("Sound: defs store invalid, ignoring");
     file.close();
     return;
   }
 
-  n = file.read(defs, sizeof(defs));
-  file.close();
-  if (n != static_cast<int>(sizeof(defs))) {
-    ULOG_WARNING("Sound: defs store truncated, ignoring");
-    return;
-  }
+  // The store lists exactly the overridden sounds, so start from "none"
+  clear_sound_overrides();
 
-  uint8_t loaded = 0U;
-  chMtxLock(&s_override_mutex);
-  for (uint8_t i = 0U; i < SoundId_count; ++i) {
-    if ((h.valid_mask & (1U << i)) != 0U) {
-      s_sound_overrides[i] = defs[i];
-      s_override_valid[i] = true;
-      ++loaded;
-    } else {
-      s_override_valid[i] = false;
+  uint16_t loaded = 0U;
+  for (uint16_t i = 0U; i < h.count; ++i) {
+    uint8_t id = 0U;
+    const bool record_read = (file.read(&id, sizeof(id)) == static_cast<int>(sizeof(id))) &&
+                             (file.read(&def, sizeof(def)) == static_cast<int>(sizeof(def)));
+    if (!record_read || (id >= SoundId_count)) {
+      ULOG_WARNING("Sound: defs store truncated, ignoring");
+      clear_sound_overrides();  // do not keep a half applied store
+      file.close();
+      return;
     }
+    set_sound_override(static_cast<SoundId>(id), def);
+    ++loaded;
   }
-  chMtxUnlock(&s_override_mutex);
+  file.close();
 
-  ULOG_INFO("Sound: loaded %hhu override(s) from flash (mask=0x%04hx)", loaded, h.valid_mask);
+  ULOG_INFO("Sound: loaded %hu override(s) from flash", loaded);
 }
 
 void save_sound_overrides_to_storage() {
-  uint16_t valid_mask = 0U;
-  uint8_t count = 0U;
+  // Count first. The header carries it and every valid sound is one record.
+  uint16_t count = 0U;
   chMtxLock(&s_override_mutex);
   for (uint8_t i = 0U; i < SoundId_count; ++i) {
-    if (s_override_valid[i]) {
-      valid_mask |= static_cast<uint16_t>(1U << i);
-      ++count;
-    }
+    if (s_override_valid[i]) ++count;
   }
   chMtxUnlock(&s_override_mutex);
 
@@ -692,21 +701,33 @@ void save_sound_overrides_to_storage() {
   PersistedDefsHeader h{};
   h.magic = kSoundDefsMagic;
   h.version = kSoundDefsVersion;
-  h.count = SoundId_count;
-  h.valid_mask = valid_mask;
+  h.count = count;
+  h.header_size = sizeof(PersistedDefsHeader);
+  h.record_size = kOverrideRecordSize;
 
-  int written = file.write(&h, sizeof(h));
-  if (written == static_cast<int>(sizeof(h))) {
-    written = file.write(s_sound_overrides, sizeof(s_sound_overrides));
+  bool ok = (file.write(&h, sizeof(h)) == static_cast<int>(sizeof(h)));
+  for (uint8_t i = 0U; ok && i < SoundId_count; ++i) {
+    SoundDefinition def{};
+    chMtxLock(&s_override_mutex);
+    const bool valid = s_override_valid[i];
+    if (valid) {
+      def = s_sound_overrides[i];
+    }
+    chMtxUnlock(&s_override_mutex);
+    if (!valid) continue;
+
+    uint8_t id = i;  // File::write() takes a non-const pointer
+    ok = (file.write(&id, sizeof(id)) == static_cast<int>(sizeof(id))) &&
+         (file.write(&def, sizeof(def)) == static_cast<int>(sizeof(def)));
   }
   file.sync();
   file.close();
 
-  if (written < 0) {
+  if (!ok) {
     ULOG_WARNING("Sound: defs store write failed");
   } else {
-    ULOG_INFO("Sound: persisted %hhu override(s) mask=0x%04hx (%d bytes) to %s", count, valid_mask, written,
-              kSoundDefsPath);
+    const unsigned int file_bytes = static_cast<unsigned int>(sizeof(h) + (count * kOverrideRecordSize));
+    ULOG_INFO("Sound: persisted %hu override(s) (%u bytes) to %s", count, file_bytes, kSoundDefsPath);
   }
 }
 
