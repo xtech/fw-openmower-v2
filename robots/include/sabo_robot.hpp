@@ -34,6 +34,10 @@ class SaboRobot : public MowerRobot {
     return Robot::NeedsService(id);
   }
 
+  bool HasSound() const override {
+    return true;
+  }
+
   bool NeedsGpioInputDriver() const override {
     return false;
   }
