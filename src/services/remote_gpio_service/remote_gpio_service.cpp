@@ -4,14 +4,12 @@
 #include <ulog.h>
 
 #include <board_utils.hpp>
-#include <globals.hpp>
+#include <cstring>
 #include <i2c_utils.hpp>
 #include <json_stream.hpp>
 
 using xbot::datatypes::RpcStatus;
 using xbot::service::HeatshrinkDataSource;
-
-extern RemoteGPIOService remote_gpio_service;
 
 // ─── Config JSON parsing state ───────────────────────────────────────────────
 
