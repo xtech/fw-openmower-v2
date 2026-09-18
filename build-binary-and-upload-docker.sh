@@ -4,7 +4,42 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE_FILE="$SCRIPT_DIR/.build-wizard-cache"
 
-PRESETS=(Release Debug DebugRTT DebugSystemView)
+PRESETS=(Release Debug DebugRTT DebugSystemView RelWithDebInfo MinSizeRel)
+
+usage() {
+    cat >&2 <<USAGE
+Usage: $(basename "$0") [PRESET] [INTERFACE]
+
+Both arguments are optional; anything not given is asked for interactively
+and remembered for next time. Passing both runs without prompting, which is
+what a non-interactive shell needs.
+
+  PRESET     one of: ${PRESETS[*]}
+  INTERFACE  network interface used to reach the board, e.g. tap0
+USAGE
+}
+
+case "${1:-}" in
+    -h | --help)
+        usage
+        exit 0
+        ;;
+esac
+
+ARG_PRESET="${1:-}"
+ARG_INTERFACE="${2:-}"
+
+if [[ -n "$ARG_PRESET" ]]; then
+    valid=0
+    for p in "${PRESETS[@]}"; do
+        [[ "$p" == "$ARG_PRESET" ]] && valid=1 && break
+    done
+    if [[ $valid -eq 0 ]]; then
+        echo "Error: unknown preset \"$ARG_PRESET\"." >&2
+        usage
+        exit 1
+    fi
+fi
 
 load_cache() {
     CACHED_PRESET="" CACHED_INTERFACE=""
@@ -58,7 +93,11 @@ select_option() {
 load_cache
 
 # --- Preset ---
-PRESET=$(select_option "Select build type:" "$CACHED_PRESET" "${PRESETS[@]}")
+if [[ -n "$ARG_PRESET" ]]; then
+    PRESET="$ARG_PRESET"
+else
+    PRESET=$(select_option "Select build type:" "$CACHED_PRESET" "${PRESETS[@]}")
+fi
 
 # --- Interface ---
 mapfile -t INTERFACES < <(ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$' | sort)
@@ -66,7 +105,11 @@ if [[ ${#INTERFACES[@]} -eq 0 ]]; then
     echo "Error: no non-loopback network interfaces found." >&2
     exit 1
 fi
-INTERFACE=$(select_option "Select upload interface:" "$CACHED_INTERFACE" "${INTERFACES[@]}")
+if [[ -n "$ARG_INTERFACE" ]]; then
+    INTERFACE="$ARG_INTERFACE"
+else
+    INTERFACE=$(select_option "Select upload interface:" "$CACHED_INTERFACE" "${INTERFACES[@]}")
+fi
 
 save_cache
 
