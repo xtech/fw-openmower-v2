@@ -363,9 +363,6 @@ void RemoteGPIOService::RPCWriteGPIO(uint16_t call_id, uint8_t GPIOID, uint8_t V
   }
   uint8_t new_val = Value ? 1 : 0;
   palWriteLine(pin->line, new_val ? PAL_HIGH : PAL_LOW);
-  if (pin->subscribed && new_val != pin->last_value) {
-    EmitGpioEvent(pin->id, pin->last_value, new_val, 0);
-  }
   pin->last_value = new_val;
   uint8_t result = 1;
   SendRpcResponse(call_id, RpcStatus::SUCCESS, &result, sizeof(result));
@@ -373,14 +370,14 @@ void RemoteGPIOService::RPCWriteGPIO(uint16_t call_id, uint8_t GPIOID, uint8_t V
 
 void RemoteGPIOService::RPCSubscribeGPIO(uint16_t call_id, uint8_t GPIOID, uint8_t Periodic) {
   auto* pin = FindGpio(GPIOID);
-  if (!pin) {
+  // Both OnLoop paths skip outputs, so a subscription on one would report
+  // success and then never deliver an event. Refuse it instead.
+  if (!pin || pin->is_output) {
     uint8_t result = 0;
     SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
     return;
   }
-  if (!pin->is_output) {
-    pin->last_value = palReadLine(pin->line) == PAL_HIGH ? 1 : 0;
-  }
+  pin->last_value = palReadLine(pin->line) == PAL_HIGH ? 1 : 0;
   pin->subscribed = true;
   pin->periodic = Periodic != 0;
   uint8_t result = 1;
