@@ -376,6 +376,15 @@ void RemoteGPIOService::RPCUnsubscribeAll(uint16_t call_id) {
 
 static constexpr sysinterval_t kI2CTimeout = TIME_MS2I(1000);
 
+// The HAL osalDbgChecks a non-zero address and a non-zero transfer length, so
+// on a debug build these would halt the firmware rather than fail the call.
+// Everything here comes straight off the network, so check it ourselves.
+static constexpr uint8_t kI2CMaxAddress = 0x7F;
+
+static bool IsValidI2CAddress(uint8_t address) {
+  return address != 0 && address <= kI2CMaxAddress;
+}
+
 static uint8_t MsgToI2cResult(msg_t msg) {
   if (msg == MSG_OK) return static_cast<uint8_t>(I2cResult::OK);
   if (msg == MSG_TIMEOUT) return static_cast<uint8_t>(I2cResult::ERR_TIMEOUT);
@@ -426,6 +435,11 @@ void RemoteGPIOService::RPCI2cTransmit(uint16_t call_id, uint8_t BusID, uint8_t 
     SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
     return;
   }
+  if (!IsValidI2CAddress(Address) || DataLen == 0) {
+    uint8_t result = static_cast<uint8_t>(I2cResult::ERR_UNKNOWN);
+    SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
+    return;
+  }
   i2cAcquireBus(bus->driver);
   msg_t msg = xbot::i2c::TransmitTimeoutWithRecovery(bus->driver, Address, Data, DataLen, nullptr, 0, kI2CTimeout,
                                                      "RemoteGPIO");
@@ -443,8 +457,13 @@ void RemoteGPIOService::RPCI2cReceive(uint16_t call_id, uint8_t BusID, uint8_t A
     SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
     return;
   }
-  uint8_t rx_buf[kI2CReadBufferSize];
   uint8_t count = etl::min<uint8_t>(Count, kI2CReadBufferSize);
+  if (!IsValidI2CAddress(Address) || count == 0) {
+    FillErrorResponse(I2cResult::ERR_UNKNOWN, data, response_length);
+    SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
+    return;
+  }
+  uint8_t rx_buf[kI2CReadBufferSize];
   i2cAcquireBus(bus->driver);
   msg_t msg = xbot::i2c::ReceiveTimeoutWithRecovery(bus->driver, Address, rx_buf, count, kI2CTimeout, "RemoteGPIO");
   i2cReleaseBus(bus->driver);
@@ -461,8 +480,13 @@ void RemoteGPIOService::RPCI2cTransmitReceive(uint16_t call_id, uint8_t BusID, u
     SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
     return;
   }
-  uint8_t rx_buf[kI2CReadBufferSize];
   uint8_t rx_count = etl::min<uint8_t>(RxCount, kI2CReadBufferSize);
+  if (!IsValidI2CAddress(Address) || TxDataLen == 0) {
+    FillErrorResponse(I2cResult::ERR_UNKNOWN, data, response_length);
+    SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
+    return;
+  }
+  uint8_t rx_buf[kI2CReadBufferSize];
   i2cAcquireBus(bus->driver);
   msg_t msg = xbot::i2c::TransmitTimeoutWithRecovery(bus->driver, Address, TxData, TxDataLen, rx_buf, rx_count,
                                                      kI2CTimeout, "RemoteGPIO");
