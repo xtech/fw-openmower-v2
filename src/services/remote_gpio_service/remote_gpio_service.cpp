@@ -5,6 +5,7 @@
 
 #include <board_utils.hpp>
 #include <globals.hpp>
+#include <i2c_utils.hpp>
 #include <json_stream.hpp>
 
 using xbot::datatypes::RpcStatus;
@@ -409,7 +410,8 @@ void RemoteGPIOService::RPCI2cTransmit(uint16_t call_id, uint8_t BusID, uint8_t 
     return;
   }
   i2cAcquireBus(bus->driver);
-  msg_t msg = i2cMasterTransmitTimeout(bus->driver, Address, Data, DataLen, nullptr, 0, kI2CTimeout);
+  msg_t msg = xbot::i2c::TransmitTimeoutWithRecovery(bus->driver, Address, Data, DataLen, nullptr, 0, kI2CTimeout,
+                                                     "RemoteGPIO");
   i2cReleaseBus(bus->driver);
   uint8_t result = MsgToI2cResult(msg);
   RpcStatus status = (msg == MSG_OK) ? RpcStatus::SUCCESS : RpcStatus::ERROR;
@@ -433,7 +435,7 @@ void RemoteGPIOService::RPCI2cReceive(uint16_t call_id, uint8_t BusID, uint8_t A
   uint8_t rx_buf[kI2CReadBufferSize];
   uint8_t count = etl::min<uint8_t>(Count, kI2CReadBufferSize);
   i2cAcquireBus(bus->driver);
-  msg_t msg = i2cMasterReceiveTimeout(bus->driver, Address, rx_buf, count, kI2CTimeout);
+  msg_t msg = xbot::i2c::ReceiveTimeoutWithRecovery(bus->driver, Address, rx_buf, count, kI2CTimeout, "RemoteGPIO");
   i2cReleaseBus(bus->driver);
   FillReceiveResponse(msg, rx_buf, count, data, response_length);
 }
@@ -456,7 +458,8 @@ void RemoteGPIOService::RPCI2cTransmitReceive(uint16_t call_id, uint8_t BusID, u
   uint8_t rx_buf[kI2CReadBufferSize];
   uint8_t rx_count = etl::min<uint8_t>(RxCount, kI2CReadBufferSize);
   i2cAcquireBus(bus->driver);
-  msg_t msg = i2cMasterTransmitTimeout(bus->driver, Address, TxData, TxDataLen, rx_buf, rx_count, kI2CTimeout);
+  msg_t msg = xbot::i2c::TransmitTimeoutWithRecovery(bus->driver, Address, TxData, TxDataLen, rx_buf, rx_count,
+                                                     kI2CTimeout, "RemoteGPIO");
   i2cReleaseBus(bus->driver);
   FillReceiveResponse(msg, rx_buf, rx_count, data, response_length);
 }
