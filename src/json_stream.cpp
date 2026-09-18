@@ -90,7 +90,7 @@ bool ProcessJson(DataSource& json, json_data_t& data) {
   }
   ULOG_ERROR("Input config JSON parsing failed: end not found");
   LogErrorPosition(json);
-  return true;
+  return false;
 }
 
 bool JsonGetBool(lwjson_stream_type_t type, bool& value) {
