@@ -183,8 +183,11 @@ bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_s
 void RemoteGPIOService::SetUpHardware() {
   for (auto& pin : gpios_) {
     if (pin.is_output) {
-      palSetLineMode(pin.line, PAL_MODE_OUTPUT_PUSHPULL);
+      // Drive the level into the output register before switching the pin to
+      // push-pull: the other order starts driving whatever the register
+      // happened to hold and glitches the line for an instruction.
       palWriteLine(pin.line, pin.default_value ? PAL_HIGH : PAL_LOW);
+      palSetLineMode(pin.line, PAL_MODE_OUTPUT_PUSHPULL);
       pin.last_value = pin.default_value;
     } else {
       palSetLineMode(pin.line, PAL_MODE_INPUT);
