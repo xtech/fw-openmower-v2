@@ -18,6 +18,10 @@ extern RemoteGPIOService remote_gpio_service;
 struct RemoteGpioConfigJsonData : public json_data_t {
   enum class Section { NONE, GPIOS, I2C } section = Section::NONE;
   bool in_entry = false;
+  // Parsed result. Staged here rather than written straight into the service,
+  // so a config that fails to parse leaves the running one untouched.
+  etl::vector<RemoteGPIOService::GpioPin, RemoteGPIOService::kMaxGPIOs> gpios{};
+  etl::vector<RemoteGPIOService::I2CBus, RemoteGPIOService::kMaxI2CBuses> i2c_buses{};
   // Temp GPIO entry
   uint8_t pin_id = 0;
   ioline_t pin_line = PAL_NOLINE;
@@ -87,11 +91,11 @@ bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_s
             ULOG_ERROR("RemoteGPIO: GPIO entry missing \"direction\"");
             return false;
           }
-          if (gpios_.full()) {
+          if (d->gpios.full()) {
             ULOG_ERROR("RemoteGPIO: Too many GPIOs (max %d)", kMaxGPIOs);
             return false;
           }
-          auto& pin = gpios_.emplace_back();
+          auto& pin = d->gpios.emplace_back();
           pin.id = d->pin_id;
           pin.line = d->pin_line;
           pin.is_output = d->pin_is_output;
@@ -104,11 +108,11 @@ bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_s
             ULOG_ERROR("RemoteGPIO: I2C entry missing or unknown \"bus\"");
             return false;
           }
-          if (i2c_buses_.full()) {
+          if (d->i2c_buses.full()) {
             ULOG_ERROR("RemoteGPIO: Too many I2C buses (max %d)", kMaxI2CBuses);
             return false;
           }
-          auto& bus = i2c_buses_.emplace_back();
+          auto& bus = d->i2c_buses.emplace_back();
           bus.id = d->bus_id;
           bus.driver = d->bus_driver;
         }
@@ -200,22 +204,25 @@ void RemoteGPIOService::ClearSubscriptions() {
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 
 bool RemoteGPIOService::OnRegisterGPIOConfigsChanged(const void* data, size_t length) {
-  for (auto& pin : gpios_) {
-    palSetLineMode(pin.line, PAL_MODE_INPUT);
-  }
-  ClearSubscriptions();
-  gpios_.clear();
-  i2c_buses_.clear();
-
   HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
 
   RemoteGpioConfigJsonData json_data;
   json_data.callback = etl::make_delegate<RemoteGPIOService, &RemoteGPIOService::ConfigJsonCallback>(*this);
 
+  // Parse before touching any state: the parser bails out mid-stream on the
+  // first bad entry, so applying as we go would leave a half-built config
+  // behind with the old pins already released.
   if (!ProcessJson(source, json_data)) {
-    ULOG_ERROR("RemoteGPIO: Config parsing failed");
+    ULOG_ERROR("RemoteGPIO: Config parsing failed, keeping previous config");
     return false;
   }
+
+  for (auto& pin : gpios_) {
+    palSetLineMode(pin.line, PAL_MODE_INPUT);
+  }
+  ClearSubscriptions();
+  gpios_ = json_data.gpios;
+  i2c_buses_ = json_data.i2c_buses;
 
   if (IsRunning()) {
     SetUpHardware();
