@@ -24,12 +24,14 @@ struct RemoteGpioConfigJsonData : public json_data_t {
   etl::vector<RemoteGPIOService::I2CBus, RemoteGPIOService::kMaxI2CBuses> i2c_buses{};
   // Temp GPIO entry
   uint8_t pin_id = 0;
+  bool pin_got_id = false;
   ioline_t pin_line = PAL_NOLINE;
   bool pin_is_output = false;
   bool pin_got_direction = false;
   uint8_t pin_default = 0;
   // Temp I2C entry
   uint8_t bus_id = 0;
+  bool bus_got_id = false;
   I2CDriver* bus_driver = nullptr;
 };
 
@@ -73,11 +75,13 @@ bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_s
       if (type == LWJSON_STREAM_TYPE_OBJECT) {
         d->in_entry = true;
         d->pin_id = 0;
+        d->pin_got_id = false;
         d->pin_line = PAL_NOLINE;
         d->pin_is_output = false;
         d->pin_got_direction = false;
         d->pin_default = 0;
         d->bus_id = 0;
+        d->bus_got_id = false;
         d->bus_driver = nullptr;
       } else {
         // OBJECT_END: all field values at depth 5 already fired sequentially
@@ -90,6 +94,20 @@ bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_s
           if (!d->pin_got_direction) {
             ULOG_ERROR("RemoteGPIO: GPIO entry missing \"direction\"");
             return false;
+          }
+          if (!d->pin_got_id) {
+            ULOG_ERROR("RemoteGPIO: GPIO entry missing \"id\"");
+            return false;
+          }
+          for (const auto& existing : d->gpios) {
+            if (existing.id == d->pin_id) {
+              ULOG_ERROR("RemoteGPIO: Duplicate GPIO id %d", d->pin_id);
+              return false;
+            }
+            if (existing.line == d->pin_line) {
+              ULOG_ERROR("RemoteGPIO: GPIO line already used by id %d", existing.id);
+              return false;
+            }
           }
           if (d->gpios.full()) {
             ULOG_ERROR("RemoteGPIO: Too many GPIOs (max %d)", kMaxGPIOs);
@@ -107,6 +125,16 @@ bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_s
           if (d->bus_driver == nullptr) {
             ULOG_ERROR("RemoteGPIO: I2C entry missing or unknown \"bus\"");
             return false;
+          }
+          if (!d->bus_got_id) {
+            ULOG_ERROR("RemoteGPIO: I2C entry missing \"id\"");
+            return false;
+          }
+          for (const auto& existing : d->i2c_buses) {
+            if (existing.id == d->bus_id) {
+              ULOG_ERROR("RemoteGPIO: Duplicate I2C bus id %d", d->bus_id);
+              return false;
+            }
           }
           if (d->i2c_buses.full()) {
             ULOG_ERROR("RemoteGPIO: Too many I2C buses (max %d)", kMaxI2CBuses);
@@ -128,6 +156,7 @@ bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_s
 
       if (d->section == RemoteGpioConfigJsonData::Section::GPIOS) {
         if (strcmp(key, "id") == 0) {
+          d->pin_got_id = true;
           return JsonGetNumber(jsp, type, d->pin_id);
         } else if (strcmp(key, "line") == 0) {
           JsonExpectType(STRING);
@@ -157,6 +186,7 @@ bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_s
         }
       } else if (d->section == RemoteGpioConfigJsonData::Section::I2C) {
         if (strcmp(key, "id") == 0) {
+          d->bus_got_id = true;
           return JsonGetNumber(jsp, type, d->bus_id);
         } else if (strcmp(key, "bus") == 0) {
           JsonExpectType(STRING);
