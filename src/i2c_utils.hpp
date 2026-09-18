@@ -22,17 +22,20 @@ namespace xbot::i2c {
 // distinguishable on the console. `restart_retry_delay_ms` is the back-off
 // between failed restart attempts.
 inline void RecoverAfterError(I2CDriver* i2c, msg_t msg, const char* tag, uint32_t restart_retry_delay_ms) {
-  // Distinguish the two recovery causes. MSG_TIMEOUT = the high-level bus
-  // timeout (peripheral left in I2C_LOCKED). MSG_RESET + I2C_BUS_ERROR = the
-  // in-ISR self-heal tripped on a direction desync (the IRQ storm).
+  // Only two failures leave the peripheral unusable. MSG_TIMEOUT = the
+  // high-level bus timeout (peripheral left in I2C_LOCKED). MSG_RESET +
+  // I2C_BUS_ERROR = the in-ISR self-heal tripped on a direction desync (the
+  // IRQ storm). A plain NACK from an absent device also reports MSG_RESET but
+  // leaves the peripheral in I2C_READY, and restarting on that would tear down
+  // a shared bus once per probe during an address scan.
   const i2cflags_t errs = i2cGetErrors(i2c);
+  if (msg != MSG_TIMEOUT && (errs & I2C_BUS_ERROR) == 0) {
+    return;
+  }
   if (msg == MSG_TIMEOUT) {
     ULOG_WARNING("%s I2C TIMEOUT recovery (bus locked) - restarting I2C peripheral", tag);
-  } else if ((errs & I2C_BUS_ERROR) != 0) {
-    ULOG_WARNING("%s I2C ISR-STORM self-heal recovery (direction desync, errs=0x%02x) - restarting I2C peripheral", tag,
-                 (unsigned)errs);
   } else {
-    ULOG_WARNING("%s I2C error recovery (msg=%d errs=0x%02x) - restarting I2C peripheral", tag, (int)msg,
+    ULOG_WARNING("%s I2C ISR-STORM self-heal recovery (direction desync, errs=0x%02x) - restarting I2C peripheral", tag,
                  (unsigned)errs);
   }
   while (true) {
