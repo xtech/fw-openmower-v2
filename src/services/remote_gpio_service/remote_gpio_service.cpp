@@ -385,6 +385,16 @@ static uint8_t MsgToI2cResult(msg_t msg) {
 // Response layout (written into framework-provided buffer):
 //   [int32_t count_or_error][count bytes of data]
 // count_or_error >= 0: bytes received; < 0: negated I2cResult error code.
+static void FillErrorResponse(I2cResult result, uint8_t* data, uint16_t* response_length) {
+  if (*response_length < sizeof(int32_t)) {
+    *response_length = 0;
+    return;
+  }
+  const int32_t hdr_val = -static_cast<int32_t>(result);
+  memcpy(data, &hdr_val, sizeof(hdr_val));
+  *response_length = sizeof(int32_t);
+}
+
 static void FillReceiveResponse(msg_t msg, const uint8_t* rx_buf, uint8_t count, uint8_t* data,
                                 uint16_t* response_length) {
   const uint16_t max_len = *response_length;
@@ -427,16 +437,10 @@ void RemoteGPIOService::RPCI2cTransmit(uint16_t call_id, uint8_t BusID, uint8_t 
 
 void RemoteGPIOService::RPCI2cReceive(uint16_t call_id, uint8_t BusID, uint8_t Address, uint8_t Count, uint8_t* data,
                                       uint16_t* response_length) {
-  (void)call_id;
   auto* bus = FindBus(BusID);
   if (!bus) {
-    if (*response_length >= sizeof(int32_t)) {
-      int32_t hdr_val = -static_cast<int32_t>(I2cResult::ERR_BUS);
-      memcpy(data, &hdr_val, sizeof(hdr_val));
-      *response_length = sizeof(int32_t);
-    } else {
-      *response_length = 0;
-    }
+    FillErrorResponse(I2cResult::ERR_BUS, data, response_length);
+    SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
     return;
   }
   uint8_t rx_buf[kI2CReadBufferSize];
@@ -445,21 +449,16 @@ void RemoteGPIOService::RPCI2cReceive(uint16_t call_id, uint8_t BusID, uint8_t A
   msg_t msg = xbot::i2c::ReceiveTimeoutWithRecovery(bus->driver, Address, rx_buf, count, kI2CTimeout, "RemoteGPIO");
   i2cReleaseBus(bus->driver);
   FillReceiveResponse(msg, rx_buf, count, data, response_length);
+  SendRpcResponse(call_id, msg == MSG_OK ? RpcStatus::SUCCESS : RpcStatus::ERROR, data, *response_length);
 }
 
 void RemoteGPIOService::RPCI2cTransmitReceive(uint16_t call_id, uint8_t BusID, uint8_t Address, const uint8_t* TxData,
                                               uint32_t TxDataLen, uint8_t RxCount, uint8_t* data,
                                               uint16_t* response_length) {
-  (void)call_id;
   auto* bus = FindBus(BusID);
   if (!bus) {
-    if (*response_length >= sizeof(int32_t)) {
-      int32_t hdr_val = -static_cast<int32_t>(I2cResult::ERR_BUS);
-      memcpy(data, &hdr_val, sizeof(hdr_val));
-      *response_length = sizeof(int32_t);
-    } else {
-      *response_length = 0;
-    }
+    FillErrorResponse(I2cResult::ERR_BUS, data, response_length);
+    SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
     return;
   }
   uint8_t rx_buf[kI2CReadBufferSize];
@@ -469,4 +468,5 @@ void RemoteGPIOService::RPCI2cTransmitReceive(uint16_t call_id, uint8_t BusID, u
                                                      kI2CTimeout, "RemoteGPIO");
   i2cReleaseBus(bus->driver);
   FillReceiveResponse(msg, rx_buf, rx_count, data, response_length);
+  SendRpcResponse(call_id, msg == MSG_OK ? RpcStatus::SUCCESS : RpcStatus::ERROR, data, *response_length);
 }
