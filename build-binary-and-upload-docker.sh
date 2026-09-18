@@ -100,7 +100,9 @@ else
 fi
 
 # --- Interface ---
-mapfile -t INTERFACES < <(ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$' | sort)
+# ip(8) prints veth and VLAN devices as "eth0@if4" / "eth0.100@eth0"; only the
+# part before the @ is an interface name that can be bound.
+mapfile -t INTERFACES < <(ip -o link show | awk -F': ' '{print $2}' | cut -d@ -f1 | grep -v '^lo$' | sort -u)
 if [[ ${#INTERFACES[@]} -eq 0 ]]; then
     echo "Error: no non-loopback network interfaces found." >&2
     exit 1
