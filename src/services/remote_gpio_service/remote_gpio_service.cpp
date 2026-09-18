@@ -385,9 +385,16 @@ static bool IsValidI2CAddress(uint8_t address) {
   return address != 0 && address <= kI2CMaxAddress;
 }
 
-static uint8_t MsgToI2cResult(msg_t msg) {
+// ChibiOS has no distinct NACK result: an address or data NACK comes back as
+// MSG_RESET and is only distinguishable through i2cGetErrors(), so the driver
+// flags have to be read to tell "no device there" from a real bus fault. They
+// are captured while the bus is still held, since a later transfer from
+// another thread would overwrite them.
+static uint8_t MsgToI2cResult(msg_t msg, i2cflags_t errs) {
   if (msg == MSG_OK) return static_cast<uint8_t>(I2cResult::OK);
   if (msg == MSG_TIMEOUT) return static_cast<uint8_t>(I2cResult::ERR_TIMEOUT);
+  if ((errs & I2C_ACK_FAILURE) != 0) return static_cast<uint8_t>(I2cResult::ERR_NACK);
+  if ((errs & I2C_BUS_ERROR) != 0) return static_cast<uint8_t>(I2cResult::ERR_BUS);
   return static_cast<uint8_t>(I2cResult::ERR_UNKNOWN);
 }
 
@@ -404,7 +411,7 @@ static void FillErrorResponse(I2cResult result, uint8_t* data, uint16_t* respons
   *response_length = sizeof(int32_t);
 }
 
-static void FillReceiveResponse(msg_t msg, const uint8_t* rx_buf, uint8_t count, uint8_t* data,
+static void FillReceiveResponse(msg_t msg, i2cflags_t errs, const uint8_t* rx_buf, uint8_t count, uint8_t* data,
                                 uint16_t* response_length) {
   const uint16_t max_len = *response_length;
   if (max_len < sizeof(int32_t)) {
@@ -421,7 +428,7 @@ static void FillReceiveResponse(msg_t msg, const uint8_t* rx_buf, uint8_t count,
     memcpy(data + sizeof(int32_t), rx_buf, safe_count);
     *response_length = static_cast<uint16_t>(sizeof(int32_t) + safe_count);
   } else {
-    hdr_val = -static_cast<int32_t>(MsgToI2cResult(msg));
+    hdr_val = -static_cast<int32_t>(MsgToI2cResult(msg, errs));
     memcpy(data, &hdr_val, sizeof(hdr_val));
     *response_length = sizeof(int32_t);
   }
@@ -443,8 +450,9 @@ void RemoteGPIOService::RPCI2cTransmit(uint16_t call_id, uint8_t BusID, uint8_t 
   i2cAcquireBus(bus->driver);
   msg_t msg = xbot::i2c::TransmitTimeoutWithRecovery(bus->driver, Address, Data, DataLen, nullptr, 0, kI2CTimeout,
                                                      "RemoteGPIO");
+  const i2cflags_t errs = (msg == MSG_OK) ? 0 : i2cGetErrors(bus->driver);
   i2cReleaseBus(bus->driver);
-  uint8_t result = MsgToI2cResult(msg);
+  uint8_t result = MsgToI2cResult(msg, errs);
   RpcStatus status = (msg == MSG_OK) ? RpcStatus::SUCCESS : RpcStatus::ERROR;
   SendRpcResponse(call_id, status, &result, sizeof(result));
 }
@@ -466,8 +474,9 @@ void RemoteGPIOService::RPCI2cReceive(uint16_t call_id, uint8_t BusID, uint8_t A
   uint8_t rx_buf[kI2CReadBufferSize];
   i2cAcquireBus(bus->driver);
   msg_t msg = xbot::i2c::ReceiveTimeoutWithRecovery(bus->driver, Address, rx_buf, count, kI2CTimeout, "RemoteGPIO");
+  const i2cflags_t errs = (msg == MSG_OK) ? 0 : i2cGetErrors(bus->driver);
   i2cReleaseBus(bus->driver);
-  FillReceiveResponse(msg, rx_buf, count, data, response_length);
+  FillReceiveResponse(msg, errs, rx_buf, count, data, response_length);
   SendRpcResponse(call_id, msg == MSG_OK ? RpcStatus::SUCCESS : RpcStatus::ERROR, data, *response_length);
 }
 
@@ -490,7 +499,8 @@ void RemoteGPIOService::RPCI2cTransmitReceive(uint16_t call_id, uint8_t BusID, u
   i2cAcquireBus(bus->driver);
   msg_t msg = xbot::i2c::TransmitTimeoutWithRecovery(bus->driver, Address, TxData, TxDataLen, rx_buf, rx_count,
                                                      kI2CTimeout, "RemoteGPIO");
+  const i2cflags_t errs = (msg == MSG_OK) ? 0 : i2cGetErrors(bus->driver);
   i2cReleaseBus(bus->driver);
-  FillReceiveResponse(msg, rx_buf, rx_count, data, response_length);
+  FillReceiveResponse(msg, errs, rx_buf, rx_count, data, response_length);
   SendRpcResponse(call_id, msg == MSG_OK ? RpcStatus::SUCCESS : RpcStatus::ERROR, data, *response_length);
 }
