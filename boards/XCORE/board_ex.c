@@ -18,14 +18,13 @@ void initBoardPeriphs(void) {
 
   // Calculated depending on clock source, check reference manual
   // 100kHz
-  // i2c1Config.timingr = 0x60404E72;
+  i2c1Config.timingr = 0x60404E72;  // ~100 kHz @ 137.5 MHz PCLK1
   // 20kHz:
-  i2c1Config.timingr = 0xE020D5F2;
+  // i2c1Config.timingr = 0xE020D5F2;
   i2c1Config.cr1 = 0b111100000000;
 
   if (i2cStart(&I2CD1, &i2c1Config) != HAL_RET_SUCCESS) {
-    while (1)
-      ;
+    while (1);
   }
   i2cReleaseBus(&I2CD1);
   /**
@@ -38,8 +37,7 @@ void initBoardPeriphs(void) {
   i2c2Config.cr1 = 0b111100000000;
 
   if (i2cStart(&I2CD2, &i2c2Config) != HAL_RET_SUCCESS) {
-    while (1)
-      ;
+    while (1);
   }
   i2cReleaseBus(&I2CD2);
   /**
@@ -52,8 +50,7 @@ void initBoardPeriphs(void) {
   i2c4Config.cr1 = 0b111100000000;
 
   if (i2cStart(&I2CD4, &i2c4Config) != HAL_RET_SUCCESS) {
-    while (1)
-      ;
+    while (1);
   }
   i2cReleaseBus(&I2CD4);
 }

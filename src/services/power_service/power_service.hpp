@@ -131,6 +131,10 @@ class PowerService : public PowerServiceBase {
   CHARGER_STATUS charger_status_ = CHARGER_STATUS::COMMS_ERROR;
   ChargerDriver* charger_ = nullptr;
 
+  // Consecutive failed charger polls. A re-init would reset the charger IC, so
+  // the first few failures only keep the existing configuration alive.
+  uint32_t charger_fail_ticks_ = 0;
+
   PowerManagementCallback power_management_callback_;
 
   THD_WORKING_AREA(wa, 1500){};

@@ -12,6 +12,7 @@
 
 #include "board.h"
 #include "drivers/adc/adc1.hpp"
+#include "i2c_utils.hpp"
 
 using namespace xbot::driver;
 
@@ -102,7 +103,24 @@ void PowerService::update_charger_() {
   }
 
   if (!charger_configured_) {
+    if (charger_->GetI2C() != nullptr) {
+      uint8_t scl = 1;
+      uint8_t sda = 1;
+      xbot::i2c::ReadBusLines(charger_->GetI2C(), &scl, &sda);
+      if ((scl == 0U) || (sda == 0U)) {
+        // The bus is held low: nothing can be configured right now. Skip instead
+        // of hammering it (and of resetting the chip) until the bus is idle.
+        //
+        // The levels tell which case this is:
+        // SCL low = a slave is stretching the clock (nobody can clock that free, our unstick included),
+        // SDA low = a slave is stuck mid-byte (the 9-clock unstick recovers that).
+        ULOG_ARG_WARNING(&service_id_, "Charger init postponed - I2C bus is not idle (SCL/SDA=%u/%u)", (unsigned)scl,
+                         (unsigned)sda);
+        return;
+      }
+    }
     // charger not configured, configure it
+    ULOG_ARG_INFO(&service_id_, "Charger (re-)init");
     if (charger_->init()) {
       // Set the currents low
       bool success = true;
@@ -219,10 +237,36 @@ void PowerService::update_charger_() {
     charger_status_ = charger_->getChargerStatus();
 
     if (!success || charger_status_ == CHARGER_STATUS::COMMS_ERROR) {
-      // Error during comms or watchdog timer expired, reconfigure charger
+      // Error during comms or watchdog timer expired.
+      //
+      // A re-init resets the charger IC and rewrites all of its registers
+      // (BQ2576::init() writes the reset bit), so tolerate a few consecutive
+      // failed polls before doing that.
+      charger_fail_ticks_++;
+      if (charger_fail_ticks_ < xbot::i2c::kChargerFailTicksBeforeReinit) {
+        ULOG_ARG_WARNING(&service_id_, "Charger comms failed %u time(s) in a row - keeping config (re-init at %u)",
+                         (unsigned)charger_fail_ticks_, (unsigned)xbot::i2c::kChargerFailTicksBeforeReinit);
+        return;
+      }
+      if (charger_->GetI2C() != nullptr) {
+        uint8_t scl = 1;
+        uint8_t sda = 1;
+        xbot::i2c::ReadBusLines(charger_->GetI2C(), &scl, &sda);
+        if ((scl == 0U) || (sda == 0U)) {
+          // The bus is held low: the charger cannot answer anyway, and
+          // re-initialising it would just add (failing) traffic while the bus is
+          // down - postpone until the bus is idle again.
+          ULOG_ARG_WARNING(&service_id_, "Charger re-init postponed - I2C bus is not idle (SCL/SDA=%u/%u)",
+                           (unsigned)scl, (unsigned)sda);
+          return;
+        }
+      }
       charger_configured_ = false;
-      ULOG_ARG_ERROR(&service_id_, "Error during charging comms - reconfiguring");
+      ULOG_ARG_ERROR(&service_id_, "Error during charging comms (%u failed ticks in a row) - reconfiguring",
+                     (unsigned)charger_fail_ticks_);
+      charger_fail_ticks_ = 0;
     } else {
+      charger_fail_ticks_ = 0;
       if (battery_volts_ < robot->Power_GetAbsoluteMinVoltage()) {
         critical_count_++;
         if (critical_count_ > 10) {
