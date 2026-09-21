@@ -73,6 +73,12 @@ void GpsService::OnRTCMChanged(const uint8_t* new_value, uint32_t length) {
 }
 
 void GpsService::GpsStateCallback(const GpsDriver::GpsState& state) {
+  // This callback is installed by LoadAndStartGpsDriver(), which the robot calls from InitPlatform(),
+  // i.e. before StartServices() and long before ROS claims the service.
+  if (!IsRunning()) {
+    return;
+  }
+
   StartTransaction();
   double position[3] = {state.pos_lat, state.pos_lon, state.pos_height};
   SendPosition(position, 3);
