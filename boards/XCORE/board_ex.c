@@ -17,10 +17,13 @@ void initBoardPeriphs(void) {
   i2cAcquireBus(&I2CD1);
 
   // Calculated depending on clock source, check reference manual
-  // 100 kHz:
-  i2c1Config.timingr = 0x60404E72;  // ~100 kHz @ 137.5 MHz PCLK1
   // 20 kHz:
   // i2c1Config.timingr = 0xE020D5F2;
+  // 100 kHz (default):
+  i2c1Config.timingr = 0x60404E72;
+  // 400 kHz (Fast mode):
+  // AH20260921: Works also with BQ charger and Sabo OEM BMS
+  // i2c1Config.timingr = 0x0E00A3B3;
   i2c1Config.cr1 = 0b111100000000;
 
   if (i2cStart(&I2CD1, &i2c1Config) != HAL_RET_SUCCESS) {
