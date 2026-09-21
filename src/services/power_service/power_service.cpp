@@ -104,9 +104,15 @@ void PowerService::update_charger_() {
 
   if (!charger_configured_) {
     if (charger_->GetI2C() != nullptr) {
+      // Read the levels with the bus mutex held: the charger/BMS drivers run
+      // their recovery (which pulses SCL/SDA as GPIO) while holding that mutex,
+      // so an unlocked read can observe our own unstick and postpone for no reason.
+      I2CDriver* i2c = charger_->GetI2C();
+      i2cAcquireBus(i2c);
       uint8_t scl = 1;
       uint8_t sda = 1;
-      xbot::i2c::ReadBusLines(charger_->GetI2C(), &scl, &sda);
+      xbot::i2c::ReadBusLines(i2c, &scl, &sda);
+      i2cReleaseBus(i2c);
       if ((scl == 0U) || (sda == 0U)) {
         // The bus is held low: nothing can be configured right now. Skip instead
         // of hammering it (and of resetting the chip) until the bus is idle.
@@ -249,9 +255,12 @@ void PowerService::update_charger_() {
         return;
       }
       if (charger_->GetI2C() != nullptr) {
+        I2CDriver* i2c = charger_->GetI2C();
+        i2cAcquireBus(i2c);
         uint8_t scl = 1;
         uint8_t sda = 1;
-        xbot::i2c::ReadBusLines(charger_->GetI2C(), &scl, &sda);
+        xbot::i2c::ReadBusLines(i2c, &scl, &sda);
+        i2cReleaseBus(i2c);
         if ((scl == 0U) || (sda == 0U)) {
           // The bus is held low: the charger cannot answer anyway, and
           // re-initialising it would just add (failing) traffic while the bus is

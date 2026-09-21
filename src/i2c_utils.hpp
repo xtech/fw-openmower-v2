@@ -51,29 +51,37 @@ constexpr unsigned kAttemptsPerTransfer = 3;
 constexpr uint32_t kRetryDelayMs = 2;
 
 // Budget for waiting until both lines are high before a transfer is started,
-// and the polling step of that wait.
-constexpr uint32_t kBusIdleWaitUs = 3000;
-constexpr uint32_t kBusIdlePollStepUs = 20;
+// counted in steps of one millisecond - the shortest delay the kernel can
+// produce here (tick-less mode, CH_CFG_ST_TIMEDELTA = 10 ticks = 1 ms), asking
+// for microseconds is clamped to that. The wait only happens when the bus is
+// actually not idle, a healthy bus returns immediately.
+constexpr uint32_t kBusIdleWaitSteps = 3;
 
 // Restart attempts (`i2cStart`) during a recovery before giving up.
 constexpr unsigned kRestartAttempts = 3;
 
 // Active unstick: 9 SCL pulses + STOP, driven as GPIO open drain.
+// The half period is one millisecond, the shortest delay the kernel can produce
+// here (tick-less mode, CH_CFG_ST_TIMEDELTA = 10 ticks = 1 ms) - asking for
+// microseconds is clamped to that. A burst is therefore ~25 ms and a full
+// recovery ~28 ms, which is fine: it runs once per failed transfer and a stuck
+// slave does not care about the clock rate. (chSysPolledDelayX() would give true
+// microseconds if a fast recovery were ever needed.)
 constexpr unsigned kUnstickPulses = 9;
-constexpr uint32_t kUnstickHalfPeriodUs = 5;
+constexpr uint32_t kUnstickHalfPeriodMs = 1;
 
-// Consecutive failed charger polls (1 Hz) tolerated before PowerService
-// re-initialises the charger, i.e. before it resets the charger IC and rewrites
-// all of its registers.
-//
-// Note 1: a single flaky read (one NACK happens even on a healthy bus) must not
-// trigger a chip reset - the reset adds bus traffic (measured to feed the error
-// loop) and it clears the charger's fault status, which hides *why* the re-init
-// happened.
-//
-// Not more than a few: the charger has to be reconfigured promptly once it
-// really stopped responding.
+// Consecutive failed charger polls (1 Hz) tolerated before PowerService resets the
+// charger IC and rewrites all of its registers. A single flaky read (one NACK
+// happens even on a healthy bus) must not trigger a chip reset - the reset adds
+// bus traffic and clears the charger's fault status, which hides why it happened.
 constexpr uint32_t kChargerFailTicksBeforeReinit = 3;
+
+// How long to stay off the bus after a recovery that did not help (the bus
+// stayed held low, or the peripheral could not be restarted). Without it every
+// transfer of every tick re-runs the full recovery and logs four lines, which
+// makes a field log unreadable and keeps the bus mutex busy for ~30 ms per
+// transfer; with it one recovery runs per interval and the rest fail fast.
+constexpr uint32_t kBusDownRetryMs = 1000;
 
 // Interval of the per-bus status line. Mirrors the thread watermark cadence
 // (WATERMARK_INTERVAL_MS in src/debug/thread_watermark.c, not exported via a
@@ -111,6 +119,9 @@ struct Stats {
   uint8_t last_scl = 1;
   uint8_t last_sda = 1;
   uint32_t last_log_ms = 0;
+  // While chVTGetSystemTimeX() is before this, the bus is known-broken (a
+  // recovery did not help, see kBusDownRetryMs) and transfers fail fast.
+  uint32_t retry_at_ms = 0;
 };
 
 constexpr size_t kBusCount = 4U;
@@ -240,7 +251,7 @@ inline void SetPinsPassive(size_t idx) {
   }
   palSetLineMode(lines.scl, PAL_MODE_INPUT_PULLUP);
   palSetLineMode(lines.sda, PAL_MODE_INPUT_PULLUP);
-  chThdSleepMicroseconds(50);
+  chThdSleepMilliseconds(1);  // let the lines settle (>= the tick-less minimum)
 }
 
 // Hands the pins back to the I2C peripheral (must happen before i2cStart()),
@@ -271,22 +282,22 @@ inline void UnstickBus(size_t idx) {
   palSetLine(lines.sda);  // release SDA
   for (unsigned i = 0; i < kUnstickPulses; i++) {
     palClearLine(lines.scl);
-    chThdSleepMicroseconds(kUnstickHalfPeriodUs);
+    chThdSleepMilliseconds(kUnstickHalfPeriodMs);
     palSetLine(lines.scl);
-    chThdSleepMicroseconds(kUnstickHalfPeriodUs);
+    chThdSleepMilliseconds(kUnstickHalfPeriodMs);
   }
   // STOP condition: SDA goes low then high while SCL stays high.
   palClearLine(lines.sda);
-  chThdSleepMicroseconds(kUnstickHalfPeriodUs);
+  chThdSleepMilliseconds(kUnstickHalfPeriodMs);
   palSetLine(lines.scl);
-  chThdSleepMicroseconds(kUnstickHalfPeriodUs);
+  chThdSleepMilliseconds(kUnstickHalfPeriodMs);
   palSetLine(lines.sda);
-  chThdSleepMicroseconds(kUnstickHalfPeriodUs);
+  chThdSleepMilliseconds(kUnstickHalfPeriodMs);
   // Leave the pins passive (input + pull-up) so the caller can sample the true
   // bus state before handing them back to the peripheral.
   palSetLineMode(lines.scl, PAL_MODE_INPUT_PULLUP);
   palSetLineMode(lines.sda, PAL_MODE_INPUT_PULLUP);
-  chThdSleepMicroseconds(50);
+  chThdSleepMilliseconds(1);  // let the lines settle (>= the tick-less minimum)
 }
 
 // Stops the peripheral (so it releases the pins and cannot fight the GPIO
@@ -341,23 +352,24 @@ inline void RecoverBus(I2CDriver* i2c, const char* tag) {
     chThdSleepMilliseconds(kRetryDelayMs);
   }
   s.restartfail++;
+  s.retry_at_ms = (uint32_t)TIME_I2MS(chVTGetSystemTimeX()) + kBusDownRetryMs;
   ULOG_ERROR("%s %s: I2C restart failed %u times - peripheral stays disabled", tag, BusName(idx),
              (unsigned)kRestartAttempts);
 }
 
 // Waits (bounded) until both lines are high. Returns false if the bus stayed
 // held low, in which case the caller must recover instead of starting into it.
-inline bool WaitForBusIdle(const I2CDriver* drv, uint32_t budget_us) {
+// The budget is counted in polling steps (see kBusIdleWaitSteps).
+inline bool WaitForBusIdle(const I2CDriver* drv, uint32_t steps) {
   uint8_t scl = 1;
   uint8_t sda = 1;
   ReadBusLines(drv, &scl, &sda);
-  for (uint32_t waited = 0; (scl == 0U) || (sda == 0U);) {
-    if (waited >= budget_us) {
-      return false;
-    }
-    chThdSleepMicroseconds(kBusIdlePollStepUs);
-    waited += kBusIdlePollStepUs;
+  for (uint32_t i = 0; ((scl == 0U) || (sda == 0U)) && (i < steps); i++) {
+    chThdSleepMilliseconds(1);  // the shortest step the kernel can do (see above)
     ReadBusLines(drv, &scl, &sda);
+  }
+  if ((scl == 0U) || (sda == 0U)) {
+    return false;  // still held low
   }
   Stats& s = StatsFor(drv);
   s.last_scl = scl;
@@ -424,6 +436,12 @@ inline void LogFailedAttempt(I2CDriver* i2c, const char* tag, uint8_t addr, cons
 // Transfer helper
 // ---------------------------------------------------------------------------
 
+// One transfer attempt, used by the wrapper below (i2cMasterTransmitTimeout
+// covers a pure write, a write+read with a repeated START and a pure read).
+inline msg_t TransferOnce(I2CDriver* i2c, uint8_t addr, const uint8_t* tx, size_t tx_len, uint8_t* rx, size_t rx_len) {
+  return i2cMasterTransmitTimeout(i2c, addr, tx, tx_len, rx, rx_len, TIME_MS2I(kTransferTimeoutMs));
+}
+
 // Wraps i2cMasterTransmitTimeout with the bounded timeout, the retries, the
 // statistics and the bus recovery described at the top of this file.
 inline msg_t TransmitWithRecovery(I2CDriver* i2c, uint8_t addr, const uint8_t* tx, size_t tx_len, uint8_t* rx,
@@ -433,15 +451,27 @@ inline msg_t TransmitWithRecovery(I2CDriver* i2c, uint8_t addr, const uint8_t* t
   }
 
   Stats& s = StatsFor(i2c);
+  const uint32_t now = (uint32_t)TIME_I2MS(chVTGetSystemTimeX());
+
+  // Backoff: the bus is known-broken (a recovery did not help, see
+  // kBusDownRetryMs). Fail fast instead of running the recovery cycle and its
+  // log lines for every transfer. The first attempt after that runs the full
+  // sequence again. The comparison is wrap-safe (signed difference).
+  if ((s.retry_at_ms != 0U) && ((int32_t)(now - s.retry_at_ms) < 0)) {
+    s.skipped++;
+    return MSG_TIMEOUT;
+  }
+  s.retry_at_ms = 0U;
 
   // Never start into a bus that is still held low.
-  if (!WaitForBusIdle(i2c, kBusIdleWaitUs)) {
+  if (!WaitForBusIdle(i2c, kBusIdleWaitSteps)) {
     ULOG_WARNING("%s bus is not idle - recovering before the transfer", tag);
     RecoverBus(i2c, tag);
-    if (!WaitForBusIdle(i2c, kBusIdleWaitUs)) {
+    if (!WaitForBusIdle(i2c, kBusIdleWaitSteps)) {
       s.skipped++;
+      s.retry_at_ms = now + kBusDownRetryMs;
       LogStatsIfDue(i2c);
-      ULOG_ERROR("%s bus is still held low - transfer skipped", tag);
+      ULOG_ERROR("%s bus is still held low - transfer skipped, next attempt in %u ms", tag, (unsigned)kBusDownRetryMs);
       return MSG_TIMEOUT;
     }
   }
@@ -453,7 +483,7 @@ inline msg_t TransmitWithRecovery(I2CDriver* i2c, uint8_t addr, const uint8_t* t
     }
     s.txn++;
 
-    msg = i2cMasterTransmitTimeout(i2c, addr, tx, tx_len, rx, rx_len, TIME_MS2I(kTransferTimeoutMs));
+    msg = TransferOnce(i2c, addr, tx, tx_len, rx, rx_len);
     if (msg == MSG_OK) {
       LogStatsIfDue(i2c);
       return msg;

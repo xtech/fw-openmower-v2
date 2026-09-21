@@ -17,9 +17,9 @@ void initBoardPeriphs(void) {
   i2cAcquireBus(&I2CD1);
 
   // Calculated depending on clock source, check reference manual
-  // 100kHz
+  // 100 kHz:
   i2c1Config.timingr = 0x60404E72;  // ~100 kHz @ 137.5 MHz PCLK1
-  // 20kHz:
+  // 20 kHz:
   // i2c1Config.timingr = 0xE020D5F2;
   i2c1Config.cr1 = 0b111100000000;
 
