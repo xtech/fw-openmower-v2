@@ -88,8 +88,7 @@ static bool read_eeprom(uint8_t address, uint8_t reg, void *buffer, size_t size,
       }
     }
     i2c4_tx_buffer[0] = reg;
-    msg_t result = i2cMasterTransmitTimeout(&I2CD4, address, i2c4_tx_buffer, 1,
-                                          i2c4_rx_buffer, size, TIME_MS2I(50));
+    msg_t result = i2cMasterTransmitTimeout(&I2CD4, address, i2c4_tx_buffer, 1, i2c4_rx_buffer, size, TIME_MS2I(50));
     if (result == MSG_OK) {
       uint16_t stored_checksum = 0;
       if (verify_checksum) {
