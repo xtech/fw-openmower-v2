@@ -21,6 +21,12 @@ bool SaboCoverUICaboDriverBase::Init() {
       .cfg2 = SPI_CFG2_MASTER  // Master, Mode 0 (CPOL=0, CPHA=0) = Data on rising edge
   };
 
+  // Enable the DWT cycle counter, which DelayMicroseconds() uses for the sub-tick delay of
+  // the Series-II control signals (HEF4794BT STR / HC165 SH/LD). No CYCCNT reset here, so
+  // this stays harmless if the counter is already in use (e.g. by SEGGER SystemView)
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
   return true;
 }
 
