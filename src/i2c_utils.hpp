@@ -121,7 +121,7 @@ struct Stats {
   uint32_t last_log_ms = 0;
   // While chVTGetSystemTimeX() is before this, the bus is known-broken (a
   // recovery did not help, see kBusDownRetryMs) and transfers fail fast.
-  uint32_t retry_at_ms = 0;
+  systime_t retry_at = 0;
 };
 
 constexpr size_t kBusCount = 4U;
@@ -352,7 +352,7 @@ inline void RecoverBus(I2CDriver* i2c, const char* tag) {
     chThdSleepMilliseconds(kRetryDelayMs);
   }
   s.restartfail++;
-  s.retry_at_ms = (uint32_t)TIME_I2MS(chVTGetSystemTimeX()) + kBusDownRetryMs;
+  s.retry_at = chVTGetSystemTimeX() + TIME_MS2I(kBusDownRetryMs);
   ULOG_ERROR("%s %s: I2C restart failed %u times - peripheral stays disabled", tag, BusName(idx),
              (unsigned)kRestartAttempts);
 }
@@ -451,17 +451,17 @@ inline msg_t TransmitWithRecovery(I2CDriver* i2c, uint8_t addr, const uint8_t* t
   }
 
   Stats& s = StatsFor(i2c);
-  const uint32_t now = (uint32_t)TIME_I2MS(chVTGetSystemTimeX());
+  const systime_t now = chVTGetSystemTimeX();
 
   // Backoff: the bus is known-broken (a recovery did not help, see
   // kBusDownRetryMs). Fail fast instead of running the recovery cycle and its
   // log lines for every transfer. The first attempt after that runs the full
-  // sequence again. The comparison is wrap-safe (signed difference).
-  if ((s.retry_at_ms != 0U) && ((int32_t)(now - s.retry_at_ms) < 0)) {
+  // sequence again.
+  if ((s.retry_at != 0U) && ((int32_t)(now - s.retry_at) < 0)) {
     s.skipped++;
     return MSG_TIMEOUT;
   }
-  s.retry_at_ms = 0U;
+  s.retry_at = 0U;
 
   // Never start into a bus that is still held low.
   if (!WaitForBusIdle(i2c, kBusIdleWaitSteps)) {
@@ -469,7 +469,7 @@ inline msg_t TransmitWithRecovery(I2CDriver* i2c, uint8_t addr, const uint8_t* t
     RecoverBus(i2c, tag);
     if (!WaitForBusIdle(i2c, kBusIdleWaitSteps)) {
       s.skipped++;
-      s.retry_at_ms = now + kBusDownRetryMs;
+      s.retry_at = now + TIME_MS2I(kBusDownRetryMs);
       LogStatsIfDue(i2c);
       ULOG_ERROR("%s bus is still held low - transfer skipped, next attempt in %u ms", tag, (unsigned)kBusDownRetryMs);
       return MSG_TIMEOUT;
