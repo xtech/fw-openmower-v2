@@ -220,6 +220,9 @@ inline const Adc ADC_V0_2_1 = {.charger_voltage_scale_factor = 16.3846f,  // (20
 inline const Adc ADC_V0_4 = {.charger_voltage_scale_factor = 16.4047f,    // (59k Rtop + 3k83 Rbot)/3k83 Rbot
                              .battery_voltage_scale_factor = 11.0f,       // (32k4 Rtop + 3k24 Rbot)/3k24 Rbot
                              .dcdc_in_current_scale_factor = 1.0f};       // 1/(20gain * Rshunt 0.05)
+inline const Adc ADC_V0_6 = {.charger_voltage_scale_factor = 18.4074f,    // (47k Rtop + 2k7 Rbot)/2k7 Rbot
+                             .battery_voltage_scale_factor = 11.0f,       // (32k4 Rtop + 3k24 Rbot)/3k24 Rbot
+                             .dcdc_in_current_scale_factor = 1.0f};       // 1/(20gain * Rshunt 0.05)
 
 inline const Charger CHARGER_V0_1 = {.r_top = 249000, .r_bot = 13700, .r_ac_sense = 0.005f};
 inline const Charger CHARGER_V0_5 = {.r_top = 249000, .r_bot = 14300, .r_ac_sense = 0.005f};
@@ -293,7 +296,7 @@ inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {  // V0_1
      .charger = &CHARGER_V0_5,
      .lcd = &LCD_V0_6,
      .bms = &BMS_V0_3,
-     .adc = &ADC_V0_4}};
+     .adc = &ADC_V0_6}};
 }  // namespace config
 
 // Constants and definitions
