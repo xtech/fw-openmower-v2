@@ -226,12 +226,14 @@ inline const Adc ADC_V0_6 = {.charger_voltage_scale_factor = 18.4074f,    // (47
 
 inline const Charger CHARGER_V0_1 = {.r_top = 249000, .r_bot = 13700, .r_ac_sense = 0.005f};
 inline const Charger CHARGER_V0_5 = {.r_top = 249000, .r_bot = 14300, .r_ac_sense = 0.005f};
+inline const Charger CHARGER_V0_6 = {.r_top = 249000, .r_bot = 14000, .r_ac_sense = 0.005f};
 
 inline const Limits LIMITS_V0_1 = {.max_adapter_current = 4.2f, .max_charge_current = 5.0f};
 inline const Limits LIMITS_V0_2 = {.max_adapter_current = 4.9f, .max_charge_current = 4.9f};
 inline const Limits LIMITS_V0_3 = {.max_adapter_current = 4.8f, .max_charge_current = 5.5f};
-inline const Limits LIMITS_V0_4 = {.max_adapter_current = 6.0f, .max_charge_current = 9.0f};
-inline const Limits LIMITS_V0_5 = {.max_adapter_current = 10.0f, .max_charge_current = 9.0f};
+// AH20260922: c.ez measured 95°C coil, 100°C FET @ 7A @ v0.6 so this is most likely also the limit for <v0.6
+inline const Limits LIMITS_V0_4 = {.max_adapter_current = 6.0f, .max_charge_current = 6.5f};
+inline const Limits LIMITS_V0_5 = {.max_adapter_current = 10.0f, .max_charge_current = 6.5f};
 
 // Hardware configuration references
 struct HardwareConfig {
@@ -293,7 +295,7 @@ inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {  // V0_1
     {.limits = &LIMITS_V0_5,
      .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_5,
-     .charger = &CHARGER_V0_5,
+     .charger = &CHARGER_V0_6,
      .lcd = &LCD_V0_6,
      .bms = &BMS_V0_3,
      .adc = &ADC_V0_6}};
