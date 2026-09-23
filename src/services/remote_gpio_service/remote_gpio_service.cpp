@@ -1,0 +1,534 @@
+#include "remote_gpio_service.hpp"
+
+#include <etl/algorithm.h>
+#include <ulog.h>
+
+#include <board_utils.hpp>
+#include <cstring>
+#include <i2c_utils.hpp>
+#include <json_stream.hpp>
+
+using xbot::datatypes::RpcStatus;
+using xbot::service::HeatshrinkDataSource;
+
+// ─── Config JSON parsing state ───────────────────────────────────────────────
+
+struct RemoteGpioConfigJsonData : public json_data_t {
+  enum class Section { NONE, GPIOS, I2C } section = Section::NONE;
+  bool in_entry = false;
+  // Parsed result. Staged here rather than written straight into the service,
+  // so a config that fails to parse leaves the running one untouched.
+  etl::vector<RemoteGPIOService::GpioPin, RemoteGPIOService::kMaxGPIOs> gpios{};
+  etl::vector<RemoteGPIOService::I2CBus, RemoteGPIOService::kMaxI2CBuses> i2c_buses{};
+  // Temp GPIO entry
+  uint8_t pin_id = 0;
+  bool pin_got_id = false;
+  ioline_t pin_line = PAL_NOLINE;
+  bool pin_is_output = false;
+  bool pin_got_direction = false;
+  uint8_t pin_default = 0;
+  // Temp I2C entry
+  uint8_t bus_id = 0;
+  bool bus_got_id = false;
+  I2CDriver* bus_driver = nullptr;
+};
+
+static I2CDriver* BusNameToDriver(const char* name) {
+  if (strcmp(name, "I2C1") == 0) return &I2CD1;
+  if (strcmp(name, "I2C2") == 0) return &I2CD2;
+  if (strcmp(name, "I2C4") == 0) return &I2CD4;
+  return nullptr;
+}
+
+bool RemoteGPIOService::ConfigJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data_voidptr) {
+  auto* d = static_cast<RemoteGpioConfigJsonData*>(data_voidptr);
+
+  switch (jsp->stack_pos) {
+    case 0: JsonExpectTypeOrEnd(OBJECT); break;
+
+    // Top-level key: "gpios" or "i2c". Unknown keys → NONE (skip, forward compat).
+    case 1:
+      if (type == LWJSON_STREAM_TYPE_KEY) {
+        if (strcmp(jsp->data.str.buff, "gpios") == 0) {
+          d->section = RemoteGpioConfigJsonData::Section::GPIOS;
+        } else if (strcmp(jsp->data.str.buff, "i2c") == 0) {
+          d->section = RemoteGpioConfigJsonData::Section::I2C;
+        } else {
+          d->section = RemoteGpioConfigJsonData::Section::NONE;
+        }
+      }
+      break;
+
+    // Value of a top-level key — must be an array for known sections.
+    // Unknown sections (NONE) skip silently regardless of type.
+    case 2:
+      if (d->section == RemoteGpioConfigJsonData::Section::NONE) break;
+      JsonExpectTypeOrEnd(ARRAY);
+      break;
+
+    // Entry object open/close. Unknown sections skip silently.
+    case 3: {
+      if (d->section == RemoteGpioConfigJsonData::Section::NONE) break;
+      JsonExpectTypeOrEnd(OBJECT);
+      if (type == LWJSON_STREAM_TYPE_OBJECT) {
+        d->in_entry = true;
+        d->pin_id = 0;
+        d->pin_got_id = false;
+        d->pin_line = PAL_NOLINE;
+        d->pin_is_output = false;
+        d->pin_got_direction = false;
+        d->pin_default = 0;
+        d->bus_id = 0;
+        d->bus_got_id = false;
+        d->bus_driver = nullptr;
+      } else {
+        // OBJECT_END: all field values at depth 5 already fired sequentially
+        // before this point, so pin_line / bus_driver etc. are fully populated.
+        if (d->section == RemoteGpioConfigJsonData::Section::GPIOS) {
+          if (d->pin_line == PAL_NOLINE) {
+            ULOG_ERROR("RemoteGPIO: GPIO entry missing \"line\"");
+            return false;
+          }
+          if (!d->pin_got_direction) {
+            ULOG_ERROR("RemoteGPIO: GPIO entry missing \"direction\"");
+            return false;
+          }
+          if (!d->pin_got_id) {
+            ULOG_ERROR("RemoteGPIO: GPIO entry missing \"id\"");
+            return false;
+          }
+          for (const auto& existing : d->gpios) {
+            if (existing.id == d->pin_id) {
+              ULOG_ERROR("RemoteGPIO: Duplicate GPIO id %d", d->pin_id);
+              return false;
+            }
+            if (existing.line == d->pin_line) {
+              ULOG_ERROR("RemoteGPIO: GPIO line already used by id %d", existing.id);
+              return false;
+            }
+          }
+          if (d->gpios.full()) {
+            ULOG_ERROR("RemoteGPIO: Too many GPIOs (max %d)", kMaxGPIOs);
+            return false;
+          }
+          auto& pin = d->gpios.emplace_back();
+          pin.id = d->pin_id;
+          pin.line = d->pin_line;
+          pin.is_output = d->pin_is_output;
+          pin.default_value = d->pin_default;
+          pin.subscribed = false;
+          pin.periodic = false;
+          pin.last_value = 0;
+        } else if (d->section == RemoteGpioConfigJsonData::Section::I2C) {
+          if (d->bus_driver == nullptr) {
+            ULOG_ERROR("RemoteGPIO: I2C entry missing or unknown \"bus\"");
+            return false;
+          }
+          if (!d->bus_got_id) {
+            ULOG_ERROR("RemoteGPIO: I2C entry missing \"id\"");
+            return false;
+          }
+          for (const auto& existing : d->i2c_buses) {
+            if (existing.id == d->bus_id) {
+              ULOG_ERROR("RemoteGPIO: Duplicate I2C bus id %d", d->bus_id);
+              return false;
+            }
+          }
+          if (d->i2c_buses.full()) {
+            ULOG_ERROR("RemoteGPIO: Too many I2C buses (max %d)", kMaxI2CBuses);
+            return false;
+          }
+          auto& bus = d->i2c_buses.emplace_back();
+          bus.id = d->bus_id;
+          bus.driver = d->bus_driver;
+        }
+        d->in_entry = false;
+      }
+      break;
+    }
+
+    // Key-value pairs inside entry (key at depth 4, value at depth 5)
+    case 5: {
+      if (!d->in_entry) break;
+      const char* key = jsp->stack[4].meta.name;
+
+      if (d->section == RemoteGpioConfigJsonData::Section::GPIOS) {
+        if (strcmp(key, "id") == 0) {
+          d->pin_got_id = true;
+          return JsonGetNumber(jsp, type, d->pin_id);
+        } else if (strcmp(key, "line") == 0) {
+          JsonExpectType(STRING);
+          d->pin_line = GetIoLineByName(jsp->data.str.buff);
+          if (d->pin_line == PAL_NOLINE) {
+            ULOG_ERROR("RemoteGPIO: Unknown GPIO line \"%s\"", jsp->data.str.buff);
+            return false;
+          }
+        } else if (strcmp(key, "direction") == 0) {
+          JsonExpectType(STRING);
+          if (strcmp(jsp->data.str.buff, "output") == 0) {
+            d->pin_is_output = true;
+          } else if (strcmp(jsp->data.str.buff, "input") == 0) {
+            d->pin_is_output = false;
+          } else {
+            ULOG_ERROR("RemoteGPIO: Invalid direction \"%s\"", jsp->data.str.buff);
+            return false;
+          }
+          d->pin_got_direction = true;
+        } else if (strcmp(key, "default") == 0) {
+          return JsonGetNumber(jsp, type, d->pin_default);
+        } else if (strcmp(key, "name") == 0) {
+          // informational only
+        } else {
+          ULOG_ERROR("RemoteGPIO: Unknown GPIO attribute \"%s\"", key);
+          return false;
+        }
+      } else if (d->section == RemoteGpioConfigJsonData::Section::I2C) {
+        if (strcmp(key, "id") == 0) {
+          d->bus_got_id = true;
+          return JsonGetNumber(jsp, type, d->bus_id);
+        } else if (strcmp(key, "bus") == 0) {
+          JsonExpectType(STRING);
+          d->bus_driver = BusNameToDriver(jsp->data.str.buff);
+          if (d->bus_driver == nullptr) {
+            ULOG_ERROR("RemoteGPIO: Unknown I2C bus \"%s\"", jsp->data.str.buff);
+            return false;
+          }
+        } else if (strcmp(key, "name") == 0) {
+          // informational only
+        } else {
+          ULOG_ERROR("RemoteGPIO: Unknown I2C attribute \"%s\"", key);
+          return false;
+        }
+      }
+      break;
+    }
+  }
+  return true;
+}
+
+// ─── Hardware setup/teardown ─────────────────────────────────────────────────
+
+void RemoteGPIOService::SetUpHardware() {
+  for (auto& pin : gpios_) {
+    if (pin.is_output) {
+      // Drive the level into the output register before switching the pin to
+      // push-pull: the other order starts driving whatever the register
+      // happened to hold and glitches the line for an instruction.
+      palWriteLine(pin.line, pin.default_value ? PAL_HIGH : PAL_LOW);
+      palSetLineMode(pin.line, PAL_MODE_OUTPUT_PUSHPULL);
+      pin.last_value = pin.default_value;
+    } else {
+      palSetLineMode(pin.line, PAL_MODE_INPUT);
+      pin.last_value = palReadLine(pin.line) == PAL_HIGH ? 1 : 0;
+    }
+  }
+}
+
+void RemoteGPIOService::ClearSubscriptions() {
+  for (auto& pin : gpios_) {
+    pin.subscribed = false;
+    pin.periodic = false;
+  }
+  last_periodic_us_ = 0;
+}
+
+// ─── Lifecycle ───────────────────────────────────────────────────────────────
+
+bool RemoteGPIOService::OnRegisterGPIOConfigsChanged(const void* data, size_t length) {
+  HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
+
+  RemoteGpioConfigJsonData json_data;
+  json_data.callback = etl::make_delegate<RemoteGPIOService, &RemoteGPIOService::ConfigJsonCallback>(*this);
+
+  // Parse before touching any state: the parser bails out mid-stream on the
+  // first bad entry, so applying as we go would leave a half-built config
+  // behind with the old pins already released.
+  if (!ProcessJson(source, json_data)) {
+    ULOG_ERROR("RemoteGPIO: Config parsing failed, keeping previous config");
+    return false;
+  }
+
+  for (auto& pin : gpios_) {
+    palSetLineMode(pin.line, PAL_MODE_INPUT);
+  }
+  ClearSubscriptions();
+  gpios_ = json_data.gpios;
+  i2c_buses_ = json_data.i2c_buses;
+
+  if (IsRunning()) {
+    SetUpHardware();
+  }
+  return true;
+}
+
+bool RemoteGPIOService::OnStart() {
+  SetUpHardware();
+  return true;
+}
+
+void RemoteGPIOService::OnStop() {
+  ClearSubscriptions();
+  for (auto& pin : gpios_) {
+    palSetLineMode(pin.line, PAL_MODE_INPUT);
+  }
+}
+
+// ─── Main loop ───────────────────────────────────────────────────────────────
+
+uint32_t RemoteGPIOService::OnLoop(uint32_t now_micros, uint32_t) {
+  if (!HasAnySubscribedInput()) {
+    return UINT32_MAX;
+  }
+
+  // Edge detection: runs every tick (10ms polling rate)
+  for (auto& pin : gpios_) {
+    if (!pin.subscribed || pin.is_output) continue;
+    uint8_t current_val = palReadLine(pin.line) == PAL_HIGH ? 1 : 0;
+    if (current_val != pin.last_value) {
+      EmitGpioEvent(pin.id, pin.last_value, current_val, 0u);
+      pin.last_value = current_val;
+    }
+  }
+
+  // Periodic heartbeat: runs at PeriodicUpdateInterval
+  uint32_t interval_us = PeriodicUpdateInterval.value * 1000u;
+  if (now_micros - last_periodic_us_ >= interval_us) {
+    last_periodic_us_ = now_micros;
+    bool tx_started = false;
+    for (auto& pin : gpios_) {
+      if (!pin.periodic || pin.is_output) continue;
+      if (!tx_started) {
+        StartTransaction();
+        tx_started = true;
+      }
+      // use last_value, otherwise we could miss an edge transition in polling
+      EmitGpioEvent(pin.id, pin.last_value, pin.last_value, static_cast<uint8_t>(GPIOEventFlags::PERIODIC));
+    }
+    if (tx_started) {
+      CommitTransaction();
+    }
+  }
+
+  return 10000u;  // wake every 10ms for edge detection
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+RemoteGPIOService::GpioPin* RemoteGPIOService::FindGpio(uint8_t id) {
+  for (auto& pin : gpios_) {
+    if (pin.id == id) return &pin;
+  }
+  return nullptr;
+}
+
+RemoteGPIOService::I2CBus* RemoteGPIOService::FindBus(uint8_t id) {
+  for (auto& bus : i2c_buses_) {
+    if (bus.id == id) return &bus;
+  }
+  return nullptr;
+}
+
+void RemoteGPIOService::EmitGpioEvent(uint8_t gpio_id, uint8_t old_val, uint8_t new_val, uint8_t flags) {
+  uint8_t event[4] = {gpio_id, old_val, new_val, flags};
+  SendGPIOEvent(event, 4);
+}
+
+bool RemoteGPIOService::HasAnySubscribedInput() const {
+  for (const auto& pin : gpios_) {
+    if (pin.subscribed && !pin.is_output) return true;
+  }
+  return false;
+}
+
+// ─── GPIO RPCs ───────────────────────────────────────────────────────────────
+
+void RemoteGPIOService::RPCReadGPIO(uint16_t call_id, uint8_t GPIOID) {
+  auto* pin = FindGpio(GPIOID);
+  if (!pin) {
+    SendRpcResponse(call_id, RpcStatus::ERROR, nullptr, 0);
+    return;
+  }
+  uint8_t val = pin->is_output ? pin->last_value : (palReadLine(pin->line) == PAL_HIGH ? 1u : 0u);
+  SendRpcResponse(call_id, RpcStatus::SUCCESS, &val, sizeof(val));
+}
+
+void RemoteGPIOService::RPCWriteGPIO(uint16_t call_id, uint8_t GPIOID, uint8_t Value) {
+  auto* pin = FindGpio(GPIOID);
+  if (!pin || !pin->is_output) {
+    uint8_t result = 0;
+    SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
+    return;
+  }
+  uint8_t new_val = Value ? 1 : 0;
+  palWriteLine(pin->line, new_val ? PAL_HIGH : PAL_LOW);
+  pin->last_value = new_val;
+  uint8_t result = 1;
+  SendRpcResponse(call_id, RpcStatus::SUCCESS, &result, sizeof(result));
+}
+
+void RemoteGPIOService::RPCSubscribeGPIO(uint16_t call_id, uint8_t GPIOID, uint8_t Periodic) {
+  auto* pin = FindGpio(GPIOID);
+  // Both OnLoop paths skip outputs, so a subscription on one would report
+  // success and then never deliver an event. Refuse it instead.
+  if (!pin || pin->is_output) {
+    uint8_t result = 0;
+    SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
+    return;
+  }
+  pin->last_value = palReadLine(pin->line) == PAL_HIGH ? 1 : 0;
+  pin->subscribed = true;
+  pin->periodic = Periodic != 0;
+  uint8_t result = 1;
+  SendRpcResponse(call_id, RpcStatus::SUCCESS, &result, sizeof(result));
+}
+
+void RemoteGPIOService::RPCUnsubscribeGPIO(uint16_t call_id, uint8_t GPIOID) {
+  auto* pin = FindGpio(GPIOID);
+  if (!pin) {
+    uint8_t result = 0;
+    SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
+    return;
+  }
+  pin->subscribed = false;
+  pin->periodic = false;
+  uint8_t result = 1;
+  SendRpcResponse(call_id, RpcStatus::SUCCESS, &result, sizeof(result));
+}
+
+void RemoteGPIOService::RPCUnsubscribeAll(uint16_t call_id) {
+  ClearSubscriptions();
+  SendRpcResponse(call_id, RpcStatus::SUCCESS, nullptr, 0);
+}
+
+// ─── I2C RPCs ────────────────────────────────────────────────────────────────
+
+static constexpr sysinterval_t kI2CTimeout = TIME_MS2I(1000);
+
+// The HAL osalDbgChecks a non-zero address and a non-zero transfer length, so
+// on a debug build these would halt the firmware rather than fail the call.
+// Everything here comes straight off the network, so check it ourselves.
+static constexpr uint8_t kI2CMaxAddress = 0x7F;
+
+static bool IsValidI2CAddress(uint8_t address) {
+  return address != 0 && address <= kI2CMaxAddress;
+}
+
+// ChibiOS has no distinct NACK result: an address or data NACK comes back as
+// MSG_RESET and is only distinguishable through i2cGetErrors(), so the driver
+// flags have to be read to tell "no device there" from a real bus fault. They
+// are captured while the bus is still held, since a later transfer from
+// another thread would overwrite them.
+static uint8_t MsgToI2cResult(msg_t msg, i2cflags_t errs) {
+  if (msg == MSG_OK) return static_cast<uint8_t>(I2cResult::OK);
+  if (msg == MSG_TIMEOUT) return static_cast<uint8_t>(I2cResult::ERR_TIMEOUT);
+  if ((errs & I2C_ACK_FAILURE) != 0) return static_cast<uint8_t>(I2cResult::ERR_NACK);
+  if ((errs & I2C_BUS_ERROR) != 0) return static_cast<uint8_t>(I2cResult::ERR_BUS);
+  return static_cast<uint8_t>(I2cResult::ERR_UNKNOWN);
+}
+
+// Response layout (written into framework-provided buffer):
+//   [int32_t count_or_error][count bytes of data]
+// count_or_error >= 0: bytes received; < 0: negated I2cResult error code.
+static void FillErrorResponse(I2cResult result, uint8_t* data, uint16_t* response_length) {
+  if (*response_length < sizeof(int32_t)) {
+    *response_length = 0;
+    return;
+  }
+  const int32_t hdr_val = -static_cast<int32_t>(result);
+  memcpy(data, &hdr_val, sizeof(hdr_val));
+  *response_length = sizeof(int32_t);
+}
+
+static void FillReceiveResponse(msg_t msg, i2cflags_t errs, const uint8_t* rx_buf, uint8_t count, uint8_t* data,
+                                uint16_t* response_length) {
+  const uint16_t max_len = *response_length;
+  if (max_len < sizeof(int32_t)) {
+    *response_length = 0;
+    return;
+  }
+  int32_t hdr_val;
+  if (msg == MSG_OK) {
+    uint8_t safe_count = (static_cast<uint16_t>(sizeof(int32_t)) + count <= max_len)
+                             ? count
+                             : static_cast<uint8_t>(max_len - sizeof(int32_t));
+    hdr_val = static_cast<int32_t>(safe_count);
+    memcpy(data, &hdr_val, sizeof(hdr_val));
+    memcpy(data + sizeof(int32_t), rx_buf, safe_count);
+    *response_length = static_cast<uint16_t>(sizeof(int32_t) + safe_count);
+  } else {
+    hdr_val = -static_cast<int32_t>(MsgToI2cResult(msg, errs));
+    memcpy(data, &hdr_val, sizeof(hdr_val));
+    *response_length = sizeof(int32_t);
+  }
+}
+
+void RemoteGPIOService::RPCI2cTransmit(uint16_t call_id, uint8_t BusID, uint8_t Address, const uint8_t* Data,
+                                       uint32_t DataLen) {
+  auto* bus = FindBus(BusID);
+  if (!bus) {
+    uint8_t result = static_cast<uint8_t>(I2cResult::ERR_BUS);
+    SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
+    return;
+  }
+  if (!IsValidI2CAddress(Address) || DataLen == 0) {
+    uint8_t result = static_cast<uint8_t>(I2cResult::ERR_UNKNOWN);
+    SendRpcResponse(call_id, RpcStatus::ERROR, &result, sizeof(result));
+    return;
+  }
+  i2cAcquireBus(bus->driver);
+  msg_t msg = xbot::i2c::TransmitTimeoutWithRecovery(bus->driver, Address, Data, DataLen, nullptr, 0, kI2CTimeout,
+                                                     "RemoteGPIO");
+  const i2cflags_t errs = (msg == MSG_OK) ? 0 : i2cGetErrors(bus->driver);
+  i2cReleaseBus(bus->driver);
+  uint8_t result = MsgToI2cResult(msg, errs);
+  RpcStatus status = (msg == MSG_OK) ? RpcStatus::SUCCESS : RpcStatus::ERROR;
+  SendRpcResponse(call_id, status, &result, sizeof(result));
+}
+
+void RemoteGPIOService::RPCI2cReceive(uint16_t call_id, uint8_t BusID, uint8_t Address, uint8_t Count, uint8_t* data,
+                                      uint16_t* response_length) {
+  auto* bus = FindBus(BusID);
+  if (!bus) {
+    FillErrorResponse(I2cResult::ERR_BUS, data, response_length);
+    SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
+    return;
+  }
+  uint8_t count = etl::min<uint8_t>(Count, kI2CReadBufferSize);
+  if (!IsValidI2CAddress(Address) || count == 0) {
+    FillErrorResponse(I2cResult::ERR_UNKNOWN, data, response_length);
+    SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
+    return;
+  }
+  uint8_t rx_buf[kI2CReadBufferSize];
+  i2cAcquireBus(bus->driver);
+  msg_t msg = xbot::i2c::ReceiveTimeoutWithRecovery(bus->driver, Address, rx_buf, count, kI2CTimeout, "RemoteGPIO");
+  const i2cflags_t errs = (msg == MSG_OK) ? 0 : i2cGetErrors(bus->driver);
+  i2cReleaseBus(bus->driver);
+  FillReceiveResponse(msg, errs, rx_buf, count, data, response_length);
+  SendRpcResponse(call_id, msg == MSG_OK ? RpcStatus::SUCCESS : RpcStatus::ERROR, data, *response_length);
+}
+
+void RemoteGPIOService::RPCI2cTransmitReceive(uint16_t call_id, uint8_t BusID, uint8_t Address, const uint8_t* TxData,
+                                              uint32_t TxDataLen, uint8_t RxCount, uint8_t* data,
+                                              uint16_t* response_length) {
+  auto* bus = FindBus(BusID);
+  if (!bus) {
+    FillErrorResponse(I2cResult::ERR_BUS, data, response_length);
+    SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
+    return;
+  }
+  uint8_t rx_count = etl::min<uint8_t>(RxCount, kI2CReadBufferSize);
+  if (!IsValidI2CAddress(Address) || TxDataLen == 0) {
+    FillErrorResponse(I2cResult::ERR_UNKNOWN, data, response_length);
+    SendRpcResponse(call_id, RpcStatus::ERROR, data, *response_length);
+    return;
+  }
+  uint8_t rx_buf[kI2CReadBufferSize];
+  i2cAcquireBus(bus->driver);
+  msg_t msg = xbot::i2c::TransmitTimeoutWithRecovery(bus->driver, Address, TxData, TxDataLen, rx_buf, rx_count,
+                                                     kI2CTimeout, "RemoteGPIO");
+  const i2cflags_t errs = (msg == MSG_OK) ? 0 : i2cGetErrors(bus->driver);
+  i2cReleaseBus(bus->driver);
+  FillReceiveResponse(msg, errs, rx_buf, rx_count, data, response_length);
+  SendRpcResponse(call_id, msg == MSG_OK ? RpcStatus::SUCCESS : RpcStatus::ERROR, data, *response_length);
+}
