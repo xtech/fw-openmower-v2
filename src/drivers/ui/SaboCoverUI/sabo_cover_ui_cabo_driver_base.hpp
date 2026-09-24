@@ -86,6 +86,35 @@ class SaboCoverUICaboDriverBase {
 
   void ProcessLedStates();  // Process the different LED modes (on, blink, ...)
 
+  /**
+   * @brief Busy-wait delay in microseconds, based on the DWT cycle counter.
+   *
+   * Needed for the CoverUI Series-II control signals (HEF4794BT STR, HC165 SH/LD).
+   * Their 5V HIGH level is built by pull-ups only (open-drain level shifter, e.g. SN74LVC07A
+   * as of carrierboard v0.6), so the rising edge is an RC edge in the range of some 10 to
+   * 100ns. A strobe created by back-to-back palWriteLine() calls lasts only a few CPU cycles
+   * (~15ns @ 550MHz in -Os builds) and would therefore never reach the input threshold of the
+   * 5V devices. This busy-wait makes the strobe/setup times deterministic and independent of
+   * the build's optimization level, the instruction cache and the kernel tick frequency.
+   *
+   * @note The DWT cycle counter counts CPU/core cycles (STM32_SYS_CK), not AHB cycles
+   *       (STM32_HCLK, which is SYSCLK/2 as of carrierboard v0.6). A wrong clock assumption
+   *       by a factor of two is harmless here, the delay only has to be >= 5 * R * C.
+   * @note The DWT cycle counter gets enabled in Init().
+   * @param[in] us        microseconds to wait for
+   */
+  static void DelayMicroseconds(uint32_t us) {
+#if defined(STM32_SYS_CK)
+    const uint32_t cycles_per_us = STM32_SYS_CK / 1000000U;  // STM32H7: CPU clock, see note
+#else
+    const uint32_t cycles_per_us = STM32_HCLK / 1000000U;
+#endif
+    const uint32_t delay_cycles = us * cycles_per_us;
+    const uint32_t start_cycles = DWT->CYCCNT;
+    while ((DWT->CYCCNT - start_cycles) < delay_cycles) {
+    }
+  }
+
   uint16_t btn_stable_raw_mask_ = 0xFFFF;  // Stable (debounced) button state
 };
 

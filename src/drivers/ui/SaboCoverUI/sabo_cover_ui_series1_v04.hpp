@@ -23,7 +23,7 @@ namespace xbot::driver::ui {
 
 /** CoverUI Series-I driver for Carrierboard v0.4.
  *
- * Uses GPIO expander with LEDs at bits [9:13] and buttons at bits [0:8].
+ * Uses GPIO expander with buttons at bits [0:8], and LEDs at bits [9:13]
  */
 using SaboCoverUISeries1V04 = SaboCoverUISeries1GPIO<0b0011111000000000, 9>;
 

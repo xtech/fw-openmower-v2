@@ -401,23 +401,18 @@ bool SaboBmsDriver::DumpDevice() {
 
 msg_t SaboBmsDriver::I2cMasterTransmit(const uint8_t* tx, size_t tx_len, uint8_t* rx, size_t rx_len) {
   chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
-  return xbot::i2c::TransmitWithRecovery(bms_cfg_->i2c, DEVICE_ADDRESS, tx, tx_len, rx, rx_len, "BMS",
-                                         i2c_retry_delay_ms);
+  return xbot::i2c::TransmitWithRecovery(bms_cfg_->i2c, DEVICE_ADDRESS, tx, tx_len, rx, rx_len, "BMS");
 }
 
 msg_t SaboBmsDriver::ReadRegisterRaw(uint8_t reg, uint8_t* rx, size_t rx_len) {
   chDbgAssert(bms_cfg_->i2c && bms_cfg_->i2c->mutex.owner == chThdGetSelfX(), "NEED TO OWN THE I2C");
   if (bms_cfg_ == nullptr || bms_cfg_->i2c == nullptr || rx == nullptr || rx_len == 0) return MSG_RESET;
 
-  msg_t last_msg = MSG_RESET;
-  for (unsigned attempt = 0; attempt < i2c_retries; attempt++) {
-    const msg_t msg = I2cMasterTransmit(&reg, 1, rx, rx_len);
-    last_msg = msg;
-    if (msg == MSG_OK) break;
-    chThdSleepMilliseconds(i2c_retry_delay_ms);
-  }
-
-  return last_msg;
+  // Single attempt: the I2C helper (xbot::i2c::TransmitWithRecovery) retries a
+  // failed transfer a few times and recovers the bus afterwards, so retrying
+  // here would only multiply the attempts (and the bus load while the pack is
+  // absent).
+  return I2cMasterTransmit(&reg, 1, rx, rx_len);
 }
 
 msg_t SaboBmsDriver::ReadRegister(uint8_t reg, uint8_t& result) {
@@ -453,45 +448,35 @@ msg_t SaboBmsDriver::ReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity,
   // Read the maximum (1 + 32) in one transaction.
   const size_t rx_max = etl::min((int)data_capacity, 33);
 
-  msg_t last_msg = MSG_RESET;
-
-  for (unsigned attempt = 0; attempt < i2c_retries; attempt++) {
-    memset(data, 0, rx_max);
-    const msg_t msg = I2cMasterTransmit(&cmd, 1, data, rx_max);
-    last_msg = msg;
-    if (msg != MSG_OK) {
-      chThdSleepMilliseconds(i2c_retry_delay_ms);
-      continue;
-    }
-
-    // Validate SMBus length byte.
-    const uint8_t len_u8 = data[0];
-    if (len_u8 > 32U) {
-      last_msg = MSG_RESET;
-      chThdSleepMilliseconds(i2c_retry_delay_ms);
-      continue;
-    }
-    const size_t len = (size_t)len_u8;
-
-    // Ensure we actually received the whole payload in this single transaction.
-    if ((1U + len) > rx_max) {
-      last_msg = MSG_RESET;
-      chThdSleepMilliseconds(i2c_retry_delay_ms);
-      continue;
-    }
-
-    // Shift payload in-place (data[0] was the length byte).
-    if (len > 0U) {
-      memmove(data, &data[1], len);
-    }
-    out_len = len;
-    if (len < data_capacity) {
-      data[len] = 0;
-    }
-    break;
+  // Single attempt (the I2C helper retries and recovers, see ReadRegisterRaw).
+  memset(data, 0, rx_max);
+  const msg_t msg = I2cMasterTransmit(&cmd, 1, data, rx_max);
+  if (msg != MSG_OK) {
+    return msg;
   }
 
-  return last_msg;
+  // Validate SMBus length byte.
+  const uint8_t len_u8 = data[0];
+  if (len_u8 > 32U) {
+    return MSG_RESET;
+  }
+  const size_t len = (size_t)len_u8;
+
+  // Ensure we actually received the whole payload in this single transaction.
+  if ((1U + len) > rx_max) {
+    return MSG_RESET;
+  }
+
+  // Shift payload in-place (data[0] was the length byte).
+  if (len > 0U) {
+    memmove(data, &data[1], len);
+  }
+  out_len = len;
+  if (len < data_capacity) {
+    data[len] = 0;
+  }
+
+  return MSG_OK;
 }
 
 int16_t SaboBmsDriver::ScaleCurrentRawToMilliA(int16_t raw) {
