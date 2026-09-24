@@ -45,11 +45,10 @@ void SaboRobot::InitPlatform() {
 }
 
 bool SaboRobot::IsAutoDetected() {
-  // Accept Sabo 0.1 through 0.5.x boards
+  // Accept Sabo 0.1 through 0.6.x boards
   if (strncmp("hw-openmower-sabo", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
-      strncmp("xcore", board_info.board_id, sizeof(board_info.board_id)) == 0 && board_info.version_major == 1 &&
       carrier_board_info.version_major == 0 && carrier_board_info.version_minor >= 1 &&
-      carrier_board_info.version_minor <= 5) {
+      carrier_board_info.version_minor <= 6) {
     return true;
   }
 

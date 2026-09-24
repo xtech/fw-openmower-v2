@@ -116,12 +116,22 @@ class SaboCoverUICaboDriverV04 : public SaboCoverUICaboDriverBase {
 
     palWriteLine(pins_.s2_load, PAL_HIGH);  // Set S2-Load to high to enable HC165 shifting
 
+    // Let the 5V side of S2-Load settle. It is driven by an open-drain level shifter with
+    // pull-ups (no push-pull driver), so its rising edge lasts some 10 to 100ns and the first
+    // clock edge must not overtake it, otherwise the first bits would be shifted during the
+    // level transition.
+    DelayMicroseconds(2);
+
     // Send LEDs (& button rows) and read button columns
     spiExchange(cover_ui_cfg_->spi.instance, 1, &tx_data, &rx_data);
 
+    // Latch HEF4794. The length of this strobe matters: S2-Latch is a 5V input that gets its
+    // HIGH level from a pull-up (open-drain level shifter) only, so a strobe of just a few CPU
+    // cycles would never build up a valid HIGH (carrierboard v0.6, 74LVC07A + 10k pull-up)
     palWriteLine(pins_.s2_latch, PAL_HIGH);  // Latch HEF4794
-    palWriteLine(pins_.s2_load, PAL_LOW);    // Set S2-Load to low to block HC165 shifting
-    palWriteLine(pins_.s2_latch, PAL_LOW);   // Close HEF4794 latch
+    DelayMicroseconds(2);
+    palWriteLine(pins_.s2_load, PAL_LOW);   // Set S2-Load to low to block HC165 shifting
+    palWriteLine(pins_.s2_latch, PAL_LOW);  // Close HEF4794 latch
 
     spiReleaseBus(cover_ui_cfg_->spi.instance);
 

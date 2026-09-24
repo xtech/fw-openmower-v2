@@ -28,7 +28,7 @@ namespace xbot::driver::sabo {
 // Main types and enums
 namespace types {
 // Hardware versions are "as of" versions
-enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2_0, V0_2_1, V0_3, V0_4, V0_5 };
+enum class HardwareVersion : uint8_t { V0_1 = 0, V0_2_0, V0_2_1, V0_3, V0_4, V0_5, V0_6 };
 
 enum class InputType : uint8_t { SENSOR, BUTTON };
 
@@ -203,6 +203,10 @@ inline const Lcd LCD_V0_2 = {
     .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, LINE_GPIO5}},  // SPI, SCK, MISO, MOSI, CS
     .pins = {LINE_AGPIO4, LINE_UART7_TX, LINE_GPIO3}};                             // D/C, /RST, Backlight
 
+inline const Lcd LCD_V0_6 = {
+    .spi = {&SPID1, {LINE_SPI1_SCK, LINE_SPI1_MISO, LINE_SPI1_MOSI, LINE_GPIO5}},  // SPI, SCK, MISO, MOSI, CS
+    .pins = {LINE_GPIO22, LINE_GPIO8, LINE_AGPIO3}};                               // D/C, /RST, Backlight
+
 #ifndef STM32_I2C_USE_I2C2
 #error STM32_I2C_USE_I2C2 must be enabled for BMS support
 #endif
@@ -216,15 +220,20 @@ inline const Adc ADC_V0_2_1 = {.charger_voltage_scale_factor = 16.3846f,  // (20
 inline const Adc ADC_V0_4 = {.charger_voltage_scale_factor = 16.4047f,    // (59k Rtop + 3k83 Rbot)/3k83 Rbot
                              .battery_voltage_scale_factor = 11.0f,       // (32k4 Rtop + 3k24 Rbot)/3k24 Rbot
                              .dcdc_in_current_scale_factor = 1.0f};       // 1/(20gain * Rshunt 0.05)
+inline const Adc ADC_V0_6 = {.charger_voltage_scale_factor = 18.4074f,    // (47k Rtop + 2k7 Rbot)/2k7 Rbot
+                             .battery_voltage_scale_factor = 11.0f,       // (32k4 Rtop + 3k24 Rbot)/3k24 Rbot
+                             .dcdc_in_current_scale_factor = 1.0f};       // 1/(20gain * Rshunt 0.05)
 
 inline const Charger CHARGER_V0_1 = {.r_top = 249000, .r_bot = 13700, .r_ac_sense = 0.005f};
 inline const Charger CHARGER_V0_5 = {.r_top = 249000, .r_bot = 14300, .r_ac_sense = 0.005f};
+inline const Charger CHARGER_V0_6 = {.r_top = 249000, .r_bot = 14000, .r_ac_sense = 0.005f};
 
 inline const Limits LIMITS_V0_1 = {.max_adapter_current = 4.2f, .max_charge_current = 5.0f};
 inline const Limits LIMITS_V0_2 = {.max_adapter_current = 4.9f, .max_charge_current = 4.9f};
 inline const Limits LIMITS_V0_3 = {.max_adapter_current = 4.8f, .max_charge_current = 5.5f};
-inline const Limits LIMITS_V0_4 = {.max_adapter_current = 6.0f, .max_charge_current = 9.0f};
-inline const Limits LIMITS_V0_5 = {.max_adapter_current = 10.0f, .max_charge_current = 9.0f};
+// AH20260922: c.ez measured 95°C coil, 100°C FET @ 7A @ v0.6 so this is most likely also the limit for <v0.6
+inline const Limits LIMITS_V0_4 = {.max_adapter_current = 6.0f, .max_charge_current = 6.5f};
+inline const Limits LIMITS_V0_5 = {.max_adapter_current = 10.0f, .max_charge_current = 6.5f};
 
 // Hardware configuration references
 struct HardwareConfig {
@@ -238,8 +247,7 @@ struct HardwareConfig {
 };
 
 // Hardware version to configuration array which need to be in sync with HardwareVersion enum
-inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
-    // V0_1
+inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {  // V0_1
     {.limits = &LIMITS_V0_1,
      .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
      .cover_ui = &COVER_UI_V0_1,
@@ -282,7 +290,15 @@ inline constexpr HardwareConfig HARDWARE_CONFIGS[] = {
      .charger = &CHARGER_V0_5,
      .lcd = &LCD_V0_2,
      .bms = &BMS_V0_3,
-     .adc = &ADC_V0_4}};
+     .adc = &ADC_V0_4},
+    // V0_6
+    {.limits = &LIMITS_V0_5,
+     .sensors = etl::array_view<const ioline_t>(SENSORS_V0_1),
+     .cover_ui = &COVER_UI_V0_5,
+     .charger = &CHARGER_V0_6,
+     .lcd = &LCD_V0_6,
+     .bms = &BMS_V0_3,
+     .adc = &ADC_V0_6}};
 }  // namespace config
 
 // Constants and definitions
@@ -363,12 +379,12 @@ static_assert(sizeof(GPSSettings) == 8, "GPSSettings must be 8 bytes (2 version 
 }  // namespace settings
 
 // Compile-time validation for supported hardware versions
-static_assert(static_cast<uint8_t>(types::HardwareVersion::V0_5) + 1 ==
+static_assert(static_cast<uint8_t>(types::HardwareVersion::V0_6) + 1 ==
                   sizeof(config::HARDWARE_CONFIGS) / sizeof(config::HARDWARE_CONFIGS[0]),
               "HardwareVersion enum count must match HARDWARE_CONFIGS array size");
 
 inline types::HardwareVersion GetHardwareVersion(const struct carrier_board_info& board_info) {
-  types::HardwareVersion version = types::HardwareVersion::V0_5;  // Default fallback
+  types::HardwareVersion version = types::HardwareVersion::V0_6;  // Default fallback
 
   if (board_info.version_major == 0) {
     switch (board_info.version_minor) {
@@ -382,6 +398,7 @@ inline types::HardwareVersion GetHardwareVersion(const struct carrier_board_info
       case 3: version = types::HardwareVersion::V0_3; break;
       case 4: version = types::HardwareVersion::V0_4; break;
       case 5: version = types::HardwareVersion::V0_5; break;
+      case 6: version = types::HardwareVersion::V0_6; break;
     }
   }
   return version;

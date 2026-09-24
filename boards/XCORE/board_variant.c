@@ -22,13 +22,8 @@ void InitBoardVariant(const char *board_id, size_t board_id_len) {
   if (board_id_is(board_id, board_id_len, "xcore-lite")) {
     board_variant = BOARD_VARIANT_XCORE_LITE;
   } else {
-    // Unknown, unprogrammed, or checksum-invalid board_id: fall back to the
-    // original board so existing hardware keeps working without needing to
-    // be reprovisioned.
-    //
-    // Note this makes a correctly programmed ID EEPROM a hard requirement for
-    // xcore-lite: an unprogrammed one lands here, and PhyGsw141_Reset() then
-    // retries forever waiting for a GSW141 that this board does not have.
+    // InitGlobals() has obtained a checksum-valid, nonempty board identity.
+    // Preserve the original-xcore fallback for legacy board identifiers.
     board_variant = BOARD_VARIANT_XCORE;
   }
 

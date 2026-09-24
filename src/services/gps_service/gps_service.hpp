@@ -13,7 +13,23 @@ using namespace xbot::driver::gps;
 
 class GpsService : public GpsServiceBase {
  private:
-  THD_WORKING_AREA(wa, 1536){};
+  // 3072 byte stack: GpsService::OnStart() persists changed GPS settings via
+  // robot->SaveGpsSettings() -> VersionedStruct<GPSSettings>::Save(), and that call runs deep
+  // inside LittleFS (File::mkdirp -> lfs_mkdir/lfs_dir_alloc/lfs_alloc_scan/lfs_fs_traverse ->
+  // lfs_dir_fetch -> lfs_bd_read -> read_flash -> wspiReceive), which needs well above 1.5 kB.
+  // Measured on a Sabo board: a repeat save (file already exists) uses 1596 bytes, while the very
+  // first save on a fresh/just-formatted filesystem needs at least 1892 bytes and is still
+  // descending (lfs_fs_traverse walks the whole filesystem looking for free blocks) -- the
+  // FileService, which commits the same LittleFS metadata, measured 3388 bytes.
+  // With the earlier 1536 bytes the thread ran into the MPU guard page at the bottom of its
+  // working area (PORT_ENABLE_GUARD_PAGES), which raises a MemManage fault: chSysHalt in
+  // DEBUG_BUILD, a silent NVIC_SystemReset in release builds. Either way the robot stays
+  // unreachable for ROS (no MetaService), so this is a hard boot blocker, not a cosmetic issue.
+  // TODO: Once the FileService of the sound2 branch is merged, route all firmware-side LittleFS
+  // writes through its thread -- it owns the filesystem and already has a 4096 byte stack (see
+  // "fix(file_service): increase stack size and avoid repeated mkdirp"). This stack can then be
+  // shrunk back to what GpsService itself needs.
+  THD_WORKING_AREA(wa, 3072){};
 
  public:
   explicit GpsService(const uint16_t service_id) : GpsServiceBase(service_id, wa, sizeof(wa)) {

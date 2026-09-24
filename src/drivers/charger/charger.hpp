@@ -14,11 +14,11 @@
 
 class ChargerDriver {
  protected:
-  I2CDriver *i2c_driver_ = nullptr;
+  I2CDriver* i2c_driver_ = nullptr;
 
   // Wraps i2cMasterTransmit with bus-storm recovery. The caller must already
   // hold the I2C bus.
-  msg_t i2cTransmitChecked(uint8_t addr, const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len) {
+  msg_t i2cTransmitChecked(uint8_t addr, const uint8_t* tx, size_t tx_len, uint8_t* rx, size_t rx_len) {
     return xbot::i2c::TransmitWithRecovery(i2c_driver_, addr, tx, tx_len, rx, rx_len, "Charger");
   }
 
@@ -36,7 +36,7 @@ class ChargerDriver {
     UNKNOWN
   };
 
-  static constexpr const char *CHARGER_STATUS_STRINGS[] = {
+  static constexpr const char* CHARGER_STATUS_STRINGS[] = {
       "Not Charging",       // NOT_CHARGING
       "Trickle Charge",     // TRICKLE
       "Pre Charge",         // PRE_CHARGE
@@ -74,20 +74,26 @@ class ChargerDriver {
     return true;
   }
 
-  virtual bool readChargeCurrent(float &result) = 0;
-  virtual bool readAdapterVoltage(float &result) = 0;
-  virtual bool readAdapterCurrent(float &result) = 0;
-  virtual bool readBatteryVoltage(float &result) = 0;
+  virtual bool readChargeCurrent(float& result) = 0;
+  virtual bool readAdapterVoltage(float& result) = 0;
+  virtual bool readAdapterCurrent(float& result) = 0;
+  virtual bool readBatteryVoltage(float& result) = 0;
 
   virtual float getChargeVoltageTarget() const {
     return std::numeric_limits<float>::quiet_NaN();
   }
 
-  void setI2C(I2CDriver *i2c) {
+  void setI2C(I2CDriver* i2c) {
     i2c_driver_ = i2c;
   }
 
-  static constexpr const char *statusToString(CHARGER_STATUS status) {
+  // The bus this charger is connected to (may be nullptr if not set yet).
+  // Used to check whether the bus is idle before (re-)initialising the charger.
+  I2CDriver* GetI2C() const {
+    return i2c_driver_;
+  }
+
+  static constexpr const char* statusToString(CHARGER_STATUS status) {
     return CHARGER_STATUS_STRINGS[static_cast<size_t>(status)];
   }
 };
