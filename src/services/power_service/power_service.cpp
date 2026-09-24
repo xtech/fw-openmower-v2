@@ -254,6 +254,11 @@ void PowerService::update_charger_() {
                          (unsigned)charger_fail_ticks_, (unsigned)xbot::i2c::kChargerFailTicksBeforeReinit);
         return;
       }
+      // Decide to reconfigure now and clear the configured gate *before* the bus check: IsHealthy()
+      ULOG_ARG_ERROR(&service_id_, "Error during charging comms (%u failed ticks in a row) - reconfiguring",
+                     (unsigned)charger_fail_ticks_);
+      charger_configured_ = false;
+      charger_fail_ticks_ = 0;
       if (charger_->GetI2C() != nullptr) {
         I2CDriver* i2c = charger_->GetI2C();
         i2cAcquireBus(i2c);
@@ -264,16 +269,12 @@ void PowerService::update_charger_() {
         if ((scl == 0U) || (sda == 0U)) {
           // The bus is held low: the charger cannot answer anyway, and
           // re-initialising it would just add (failing) traffic while the bus is
-          // down - postpone until the bus is idle again.
+          // down - postpone the physical re-init until the bus is idle again.
           ULOG_ARG_WARNING(&service_id_, "Charger re-init postponed - I2C bus is not idle (SCL/SDA=%u/%u)",
                            (unsigned)scl, (unsigned)sda);
           return;
         }
       }
-      charger_configured_ = false;
-      ULOG_ARG_ERROR(&service_id_, "Error during charging comms (%u failed ticks in a row) - reconfiguring",
-                     (unsigned)charger_fail_ticks_);
-      charger_fail_ticks_ = 0;
     } else {
       charger_fail_ticks_ = 0;
       if (battery_volts_ < robot->Power_GetAbsoluteMinVoltage()) {
