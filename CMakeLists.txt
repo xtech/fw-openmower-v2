@@ -64,10 +64,22 @@ file(GLOB LVGL_ASSETS_SRC
     "src/drivers/ui/lvgl/assets/fontawesome-free-7.1.0-desktop/*.c"
 )
 
+# Compiled without LTO: these files define symbols that non-LTO newlib archive
+# members reference (__assert_func from dtoa/mprec; _close & friends from the
+# *_r reentrant wrappers). GCC14's LTO plugin was observed to claim such a
+# symbol without emitting its code, failing the link with
+# "undefined reference to `__assert_func' / Unknown destination type (ARM/Thumb)".
+# The same direction happens to link fine for the syscall stubs under LTO, but
+# the trigger was never pinned down and may depend on link order or build
+# config - keep both files off LTO rather than gamble.
+set_source_files_properties(src/assert_handler.cpp src/newlib_syscalls.c PROPERTIES COMPILE_OPTIONS "-fno-lto")
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         boards/XCORE/board_utils.cpp
         src/main.cpp
+        src/assert_handler.cpp
+        src/newlib_syscalls.c
         src/globals.cpp
         src/heartbeat.c
         src/id_eeprom.c

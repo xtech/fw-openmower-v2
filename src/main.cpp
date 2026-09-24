@@ -101,7 +101,7 @@ int main() {
 
   // Safe to do before checking the carrier board, needed for logging
   xbot::service::system::initSystem();
-  xbot::service::startRemoteLogging();
+  remote_logging_up = xbot::service::startRemoteLogging();
   // Debug-only: periodically log per-thread stack watermark (no-op in release).
   InitThreadWatermark();
 

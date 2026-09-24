@@ -45,5 +45,8 @@ CC_SECTION(".ram4") extern struct carrier_board_info carrier_board_info;
 // event source for mower events (e.g. emergency)
 extern event_source_t mower_events;
 
+// Set by main() once xbot remote logging is up. Read by the global __assert_func()
+extern volatile bool remote_logging_up;
+
 void InitGlobals();
 #endif  // GLOBALS_H
