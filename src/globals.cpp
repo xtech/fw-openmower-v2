@@ -16,6 +16,8 @@ CC_SECTION(".ram4") struct carrier_board_info carrier_board_info {};
 
 EVENTSOURCE_DECL(mower_events);
 
+volatile bool remote_logging_up = false;
+
 void InitGlobals() {
   // Start with emergency engaged
 

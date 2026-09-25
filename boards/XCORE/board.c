@@ -269,7 +269,7 @@ void boardInit(void) {
     
 }
 
-static void Fault_Handler(const char *reason) {
+void Fault_Handler(const char *reason) {
 #ifdef RELEASE_BUILD
   NVIC_SystemReset();
 #else
