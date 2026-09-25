@@ -45,8 +45,16 @@ extern "C" void __assert_func(const char *file, int line, const char *function, 
     // own internal asserts and must not be able to re-enter here. The buffer
     // is one ULOG line; truncation (long C++ function names) cuts the tail,
     // which holds the least important part ([function]).
+    //
+    // A null function name is valid input: newlib's assert.h passes (char *)0
+    // when it cannot detect __func__/__FUNCTION__ support, and the libc call
+    // sites reached from floating point formatting (__assert, mprec/dtoa) pass
+    // 0 too. %s with a null pointer is undefined behavior - it can fault
+    // instead of printing "(null)", which must not happen on the way to
+    // Fault_Handler - so substitute a marker. Non-null names are unchanged.
+    const char *func = function != nullptr ? function : "?";
     char msg[ULOG_MAX_MESSAGE_LENGTH];
-    const int written = snprintf(msg, sizeof(msg), "assert %s:%d: %s [%s]", file, line, expr, function);
+    const int written = snprintf(msg, sizeof(msg), "assert %s:%d: %s [%s]", file, line, expr, func);
     if (written > 0) {
       remote_logger(ULOG_CRITICAL_LEVEL, msg, nullptr);
       // sendto() only queues the frame into lwIP; give the stack and the
