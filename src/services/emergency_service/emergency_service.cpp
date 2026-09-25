@@ -93,9 +93,7 @@ void EmergencyService::AnnounceHighLevelLink(uint16_t changed_reasons, uint32_t 
 }
 
 uint16_t EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {
-  bool was_latched;
-  bool now_latched;
-  uint16_t changed;
+  uint16_t changed = 0U;
   {
     Lock lk{&mtx_};
     const uint16_t old_reason = reasons_;
@@ -105,20 +103,19 @@ uint16_t EmergencyService::UpdateEmergency(uint16_t add, uint16_t clear) {
       return 0U;
     }
     changed = static_cast<uint16_t>(old_reason ^ reasons_);
-    was_latched = (old_reason & EmergencyReason::LATCH) != 0;
-    now_latched = (reasons_ & EmergencyReason::LATCH) != 0;
+    const bool danger = (reasons_ & kAudibleReasons) != 0U;
+    const bool latched = (reasons_ & EmergencyReason::LATCH) != 0U;
+    if (danger && !emergency_announced_) {
+      emergency_announced_ = true;
+      xbot::driver::sound::play_sound_id(SoundId::EMERGENCY);
+    } else if (emergency_announced_ && !danger && !latched) {
+      emergency_announced_ = false;
+      xbot::driver::sound::stop();
+      xbot::driver::sound::play_sound_id(SoundId::SUCCESS);
+    }
   }
   chEvtBroadcastFlags(&mower_events, MowerEvents::EMERGENCY_CHANGED);
   SendStatus();
-
-  // Only latched emergencies matter for the audio feedback
-  if (now_latched && !was_latched) {
-    // The EMERGENCY definition carries preempt=true, so whatever is playing and drops the rest of the queue.
-    xbot::driver::sound::play_sound_id(SoundId::EMERGENCY);
-  } else if (!now_latched && was_latched) {
-    xbot::driver::sound::stop();
-    xbot::driver::sound::play_sound_id(SoundId::SUCCESS);
-  }
   return changed;
 }
 

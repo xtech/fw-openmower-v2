@@ -62,6 +62,21 @@ class EmergencyService : public EmergencyServiceBase {
    */
   static constexpr uint32_t kLinkLostDelayUs = 2'000'000;
 
+  /**
+   * @brief Reasons that get the EMERGENCY alert tone.
+   *
+   * The real dangers: the physical conditions from the input service (their configured
+   * `emergency_reason` masks carry EmergencyReason::LATCH together with the condition
+   * bit, and only once the input's delay elapsed — see InputService::GetEmergencyReasons)
+   * and the mower RPM cutoffs (MowerService / MowingBehavior).  Infrastructure/state
+   * reasons (TIMEOUT_*, SERVICE_NOT_READY, HIGH_LEVEL, ...) stay silent: the link state
+   * has its own ROS_CONNECTED/ROS_DISCONNECTED sounds, and the high level's initial
+   * latched state at connect is normal operation, not an alert.
+   */
+  static constexpr uint16_t kAudibleReasons =
+      EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::LIFT_MULTIPLE | EmergencyReason::COLLISION |
+      EmergencyReason::COLLISION_MULTIPLE | EmergencyReason::MOWER_RPM_LIMIT | EmergencyReason::MOWER_RPM_TIMEOUT;
+
   /** What was last announced for the high level link. */
   enum class LinkAnnounce : uint8_t {
     NONE,       ///< Nothing yet: the high level never talked to us
@@ -91,6 +106,13 @@ class EmergencyService : public EmergencyServiceBase {
   uint16_t reasons_ = EmergencyReason::TIMEOUT_INPUTS | EmergencyReason::TIMEOUT_HIGH_LEVEL;
   uint32_t last_high_level_emergency_message_ = 0;
   LinkAnnounce link_announced_ = LinkAnnounce::NONE;
+
+  /**
+   * @brief Whether the EMERGENCY tone was played for the current episode.
+   *
+   * One alert per emergency episode — new dangers do not re-trigger it
+   */
+  bool emergency_announced_ = false;
 
   etl::vector<ServiceExt*, 16> required_services_{};
 };
