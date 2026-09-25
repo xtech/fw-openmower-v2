@@ -18,6 +18,8 @@ PowerService power_service{xbot::service_ids::POWER};
 GpsService gps_service{xbot::service_ids::GPS};
 InputService input_service{xbot::service_ids::INPUT};
 HighLevelService high_level_service{xbot::service_ids::HIGH_LEVEL};
+FileService file_service{xbot::service_ids::FILE};
+SoundService sound_service{xbot::service_ids::SOUND};
 
 void StartServices() {
 #define START_IF_NEEDED(service, id)                \
@@ -61,4 +63,5 @@ void StartServices() {
   START_IF_NEEDED(gps_service, GPS)
   START_IF_NEEDED(input_service, INPUT)
   START_IF_NEEDED(high_level_service, HIGH_LEVEL)
+  START_IF_NEEDED(sound_service, SOUND)
 }

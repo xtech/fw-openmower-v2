@@ -51,6 +51,9 @@ target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
 add_subdirectory(ext)
 target_compile_definitions(ulog PUBLIC ULOG_ENABLED)
 
+# Expose project-specific ChibiOS LLD implementations (hal_i2s.c needs hal_i2s_lld.h, etc.)
+target_include_directories(ChibiOS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/chibios_lld)
+
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -64,10 +67,22 @@ file(GLOB LVGL_ASSETS_SRC
     "src/drivers/ui/lvgl/assets/fontawesome-free-7.1.0-desktop/*.c"
 )
 
+# Compiled without LTO: these files define symbols that non-LTO newlib archive
+# members reference (__assert_func from dtoa/mprec; _close & friends from the
+# *_r reentrant wrappers). GCC14's LTO plugin was observed to claim such a
+# symbol without emitting its code, failing the link with
+# "undefined reference to `__assert_func' / Unknown destination type (ARM/Thumb)".
+# The same direction happens to link fine for the syscall stubs under LTO, but
+# the trigger was never pinned down and may depend on link order or build
+# config - keep both files off LTO rather than gamble.
+set_source_files_properties(src/assert_handler.cpp src/newlib_syscalls.c PROPERTIES COMPILE_OPTIONS "-fno-lto")
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         boards/XCORE/board_utils.cpp
         src/main.cpp
+        src/assert_handler.cpp
+        src/newlib_syscalls.c
         src/globals.cpp
         src/heartbeat.c
         src/id_eeprom.c
@@ -90,6 +105,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/input_service/input_service.cpp
         src/services/high_level_service/high_level_service.cpp
         src/services/meta_service/meta_service.cpp
+        src/services/file_service/file_service.cpp
+        src/services/sound_service/sound_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
         # BQ25679 driver
@@ -113,6 +130,12 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/drivers/input/sabo_input_driver.cpp
         src/drivers/input/worx_input_driver.cpp
         $<$<BOOL:${DEBUG_BUILD}>:src/drivers/input/simulated_input_driver.cpp>
+        # Sound
+        src/chibios_lld/hal_i2s_lld.c
+        src/drivers/sound/sound_player.cpp
+        src/drivers/sound/sound_source.cpp
+        src/drivers/sound/sound_mp3.cpp
+        src/drivers/sound/sound_synth.cpp
         # YardForce Cover UI driver (yf_cover_ui — YardForce 500 panel via UART7)
         src/drivers/ui/yf_cover_ui/yf_cover_ui.cpp
         # Sabo driver
@@ -159,7 +182,11 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC
         LittleFS
         lwjson
         lvgl
+        dr_mp3
 )
+
+# The MP3 decoder is large; compile it for size even in debug builds.
+set_source_files_properties(src/drivers/sound/sound_mp3.cpp PROPERTIES COMPILE_OPTIONS "-Os")
 
 target_add_service(${CMAKE_PROJECT_NAME} ImuService ${CMAKE_CURRENT_SOURCE_DIR}/services/imu_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} PowerService ${CMAKE_CURRENT_SOURCE_DIR}/services/power_service.json)
@@ -171,6 +198,8 @@ target_add_service(${CMAKE_PROJECT_NAME} GpsService ${CMAKE_CURRENT_SOURCE_DIR}/
 target_add_service(${CMAKE_PROJECT_NAME} InputService ${CMAKE_CURRENT_SOURCE_DIR}/services/input_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} HighLevelService ${CMAKE_CURRENT_SOURCE_DIR}/services/high_level_service.json)
 target_add_service(${CMAKE_PROJECT_NAME} MetaService ${CMAKE_CURRENT_SOURCE_DIR}/services/meta_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} FileService ${CMAKE_CURRENT_SOURCE_DIR}/services/file_service.json)
+target_add_service(${CMAKE_PROJECT_NAME} SoundService ${CMAKE_CURRENT_SOURCE_DIR}/services/sound_service.json)
 
 set_target_properties(${CMAKE_PROJECT_NAME}
         PROPERTIES SUFFIX ".elf")

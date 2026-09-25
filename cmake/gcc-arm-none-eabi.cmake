@@ -29,7 +29,7 @@ set(TARGET_FLAGS "-mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -fomit-frame-p
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${TARGET_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections")
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g3 -DDEBUG_BUILD")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Og -g3 -DDEBUG_BUILD")
     set(DEBUG_BUILD TRUE)
 else()
     set(DEBUG_BUILD FALSE)
