@@ -135,6 +135,8 @@ bool Synth::fill(int16_t* buf, size_t frames, uint8_t volume) {
       if (phase_inc > 0U) {
         uint32_t eff_inc = phase_inc;
         if (lfo_inc > 0U) {
+          // mod may be negative: the sum is added as a 2^32 ring increment,
+          // i.e. the oscillator runs backwards through zero when lfo_depth > freq.
           eff_inc += static_cast<uint32_t>((static_cast<int64_t>(lfo_depth_inc) * sine_sample(lfo_phase)) >> 15);
           lfo_phase += lfo_inc;
         }
