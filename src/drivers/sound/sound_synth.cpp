@@ -109,6 +109,12 @@ void Synth::start_sequence(const Note* src, uint8_t n, Waveform wf) {
 
 bool Synth::fill(int16_t* buf, size_t frames, uint8_t volume) {
   bool exhausted = false;
+  /* Voices actually summed below: a centre voice plus one +/-detune pair per step, so odd
+     counts give exactly `unison` voices (1 = single, 3 = centre +/- detune, ...).  The level
+     is normalised by that count, not by the raw value: dividing by the requested number when
+     fewer voices are summed would make any even/unvalidated count play quieter than asked
+     (unison 2 = one voice at half level). */
+  const uint8_t voice_count = (unison > 1U) ? static_cast<uint8_t>(1U + 2U * ((unison - 1U) / 2U)) : 1U;
   for (size_t i = 0U; i < frames; ++i) {
     /* Advance to the next note whenever the current one has been exhausted. */
     while (samples_left == 0U && idx < count) {
@@ -149,7 +155,7 @@ bool Synth::fill(int16_t* buf, size_t frames, uint8_t volume) {
         if (unison > 1U) {
           detune_phase += detune_inc;
         }
-        s = scale_volume(static_cast<int16_t>(sum / unison), volume);
+        s = scale_volume(static_cast<int16_t>(sum / voice_count), volume);
         /* Amplitude envelope: linear attack ramp, then an exponential fade.  The
            whole block is skipped (and costs nothing) while both are disabled. */
         if (env_attack_left > 0U) {

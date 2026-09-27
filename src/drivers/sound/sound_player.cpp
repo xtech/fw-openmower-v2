@@ -589,6 +589,10 @@ PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, ui
                          uint16_t detune_hz, uint8_t attack_ms, uint8_t decay_ms, uint16_t repeat_ms, bool preempt) {
   if (notes == nullptr || count == 0U) return PlayResult::INVALID_ARGUMENT;
   if (count > kMaxNotes) count = kMaxNotes;
+  /* The voices are summed around a centre voice, so only odd counts are meaningful; the
+     config parser enforces the same list, and checking here keeps the RPC path (and any
+     later caller) honest instead of silently playing a different sound than requested. */
+  if (unison != 1U && unison != 3U && unison != 5U && unison != 7U) return PlayResult::INVALID_ARGUMENT;
 
   SoundDefinition def{};
   def.type = SoundType::SEQUENCE;
