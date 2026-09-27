@@ -166,6 +166,9 @@ bool Synth::fill(int16_t* buf, size_t frames, uint8_t volume) {
       if (--samples_left == 0U && idx >= count) {
         exhausted = true; /* sequence finished */
       }
+    } else if (idx >= count) {
+      // The note loaded above renders no sample at all
+      exhausted = true;
     }
     buf[2U * i] = s;
     buf[2U * i + 1] = 0;

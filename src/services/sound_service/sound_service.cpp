@@ -97,6 +97,11 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
       JsonExpectTypeOrEnd(OBJECT);
       if (type == LWJSON_STREAM_TYPE_OBJECT_END) {
         if (data->have_current && data->current_def.type == SoundType::SEQUENCE) {
+          if (data->note_idx == 0U) {
+            // A SEQUENCE without notes cannot produce a sound
+            ULOG_ERROR("Sound config: SEQUENCE needs at least one note");
+            return false;
+          }
           data->current_def.sequence.count = data->note_idx;
         }
         set_sound_override(data->current_id, data->current_def);
@@ -329,17 +334,17 @@ void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint3
         play_sequence(notes, count, Wave, Volume, Unison, DetuneHz, AttackMs, DecayMs, RepeatMs, Preempt != 0U);
     result = (res == PlayResult::QUEUED) ? 1U : 0U;
     if (res == PlayResult::QUEUED) {
-      /* The only feedback a host gets (the response goes to the service owner), so
-         log everything it would need to hear the same sound again. */
+      // The only feedback a host gets (the response goes to the service owner), so log everything
       ULOG_INFO(
-          "Sound: RPC sequence '%s' (%hhu notes, %s, vol %hhu, unison %hhu, detune %hu, attack %hhu ms, decay %hhu ms, "
-          "repeat %hu ms)",
-          Sequence, count, Waveform_to_string(Wave), Volume, Unison, DetuneHz, AttackMs, DecayMs, RepeatMs);
+          "Sound: RPC sequence '%.*s' (%hhu notes, %s, vol %hhu, unison %hhu, detune %hu, attack %hhu ms, "
+          "decay %hhu ms, repeat %hu ms)",
+          static_cast<int>(SequenceLen), Sequence, count, Waveform_to_string(Wave), Volume, Unison, DetuneHz, AttackMs,
+          DecayMs, RepeatMs);
     } else {
       ULOG_WARNING("Sound: RPC sequence rejected (%s)", play_result_text(res));
     }
   } else {
-    /* %.*s takes an int width, hence the one cast that is actually needed here. */
+    /* %.*s takes an int width, hence the cast. */
     ULOG_WARNING("Sound: RPC sequence rejected (%.*s)", static_cast<int>(SequenceLen), Sequence);
   }
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
