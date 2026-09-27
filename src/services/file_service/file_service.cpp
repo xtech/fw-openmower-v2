@@ -68,8 +68,10 @@ bool read_sidecar_hash(const char* path, uint32_t& out_hash) {
  * @brief Commit a fully-written `<path>.tmp` upload to `<path>`.
  *
  * Order matters for crash-safety: the old sidecar is removed first so a stale
- * hash can never point at a partially-updated file, then the old file is
- * removed, the upload renamed into place, and finally the sidecar written.
+ * hash can never point at a partially-updated file, then the upload is renamed
+ * over the destination — lfs_rename() replaces an existing same-type destination
+ * (here always a file) within a single commit, so the old version stays intact
+ * until the new one is in place — and finally the sidecar is written.
  */
 int finalize_file(const char* path, uint32_t hash) {
   char hash_path[kMaxPath + 6];
@@ -78,15 +80,10 @@ int finalize_file(const char* path, uint32_t hash) {
 
   lfs_remove(&lfs, hash_path);  // best effort: invalidate previous version
 
-  int result = lfs_remove(&lfs, path);
-  if (result != LFS_ERR_OK && result != LFS_ERR_NOENT) {
-    return result;
-  }
-
   char tmp[kMaxPath + 5];
   strcpy(tmp, path);
   strcat(tmp, ".tmp");
-  result = lfs_rename(&lfs, tmp, path);
+  int result = lfs_rename(&lfs, tmp, path);
   if (result != LFS_ERR_OK) {
     return result;
   }
