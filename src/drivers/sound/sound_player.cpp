@@ -77,6 +77,7 @@ static constexpr uint8_t kFileVolume = 100U;
  * is then *detected* and the file is ignored with a warning, instead of being read with
  * the wrong offsets and silently producing garbage definitions. */
 static constexpr const char* kSoundDefsPath = "/cfg/sound_defs.bin";
+static constexpr const char* kSoundDefsTmpPath = "/cfg/sound_defs.bin.tmp";
 static constexpr uint32_t kSoundDefsMagic = 0x53444631U;  // "SDF1"
 static constexpr uint16_t kSoundDefsVersion = 1U;
 
@@ -671,6 +672,20 @@ void load_sound_overrides_from_storage() {
   ULOG_INFO("Sound: loaded %hu override(s) from flash", loaded);
 }
 
+// A flash failure, as opposed to a request the filesystem rejected (e.g. a full one)
+static bool is_flash_error(int err) {
+  return err == LFS_ERR_IO || err == LFS_ERR_CORRUPT;
+}
+
+// Writes one field of the staged store and remembers its first failing write.
+static bool write_staged(File& file, int& write_error, const void* data, size_t size) {
+  const int written = file.write(const_cast<void*>(data), size);  // File::write() takes a non-const pointer
+  if (written != static_cast<int>(size) && write_error == LFS_ERR_OK) {
+    write_error = (written < 0) ? written : LFS_ERR_IO;
+  }
+  return written == static_cast<int>(size);
+}
+
 void save_sound_overrides_to_storage() {
   // Count first. The header carries it and every valid sound is one record.
   uint16_t count = 0U;
@@ -693,8 +708,9 @@ void save_sound_overrides_to_storage() {
     return;
   }
 
-  if (file.open(kSoundDefsPath, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: cannot open defs store '%s'", kSoundDefsPath);
+  // Stage the store in a temp file and rename it over kSoundDefsPath only once it is complete
+  if (file.open(kSoundDefsTmpPath, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) != LFS_ERR_OK) {
+    ULOG_WARNING("Sound: cannot open defs store '%s'", kSoundDefsTmpPath);
     return;
   }
 
@@ -705,7 +721,9 @@ void save_sound_overrides_to_storage() {
   h.header_size = sizeof(PersistedDefsHeader);
   h.record_size = kOverrideRecordSize;
 
-  bool ok = (file.write(&h, sizeof(h)) == static_cast<int>(sizeof(h)));
+  // The first failing write decides whether the staged file may be dropped again below.
+  int write_error = LFS_ERR_OK;
+  bool ok = write_staged(file, write_error, &h, sizeof(h));
   for (uint8_t i = 0U; ok && i < SoundId_count; ++i) {
     SoundDefinition def{};
     chMtxLock(&s_override_mutex);
@@ -716,19 +734,36 @@ void save_sound_overrides_to_storage() {
     chMtxUnlock(&s_override_mutex);
     if (!valid) continue;
 
-    uint8_t id = i;  // File::write() takes a non-const pointer
-    ok = (file.write(&id, sizeof(id)) == static_cast<int>(sizeof(id))) &&
-         (file.write(&def, sizeof(def)) == static_cast<int>(sizeof(def)));
+    const uint8_t id = i;
+    ok = write_staged(file, write_error, &id, sizeof(id)) && write_staged(file, write_error, &def, sizeof(def));
   }
-  file.sync();
+
+  // sync() flushes the staged file and commits its size
+  const int sync_result = file.sync();
   file.close();
 
-  if (!ok) {
-    ULOG_WARNING("Sound: defs store write failed");
-  } else {
-    const unsigned int file_bytes = static_cast<unsigned int>(sizeof(h) + (count * kOverrideRecordSize));
-    ULOG_INFO("Sound: persisted %hu override(s) (%u bytes) to %s", count, file_bytes, kSoundDefsPath);
+  // A flash failure leaves LittleFS's program cache dirty (lfs_bd_flush() returns without
+  // clearing it), and programming another block through that cache hits an LFS_ASSERT — so
+  // only touch the filesystem again while the flash is known to be healthy. sync() can still
+  // report success in that state, which is why both errors are checked. A staged file that
+  // is left behind is harmless: nothing reads it and the next save truncates it again.
+  const bool flash_healthy = !is_flash_error(write_error) && !is_flash_error(sync_result);
+
+  if (!ok || sync_result != LFS_ERR_OK) {
+    ULOG_WARNING("Sound: defs store write failed (write=%d, sync=%d), previous store kept", write_error, sync_result);
+    if (flash_healthy) lfs_remove(&lfs, kSoundDefsTmpPath);  // best effort: drop the partial file
+    return;
   }
+
+  const int rename_result = lfs_rename(&lfs, kSoundDefsTmpPath, kSoundDefsPath);
+  if (rename_result != LFS_ERR_OK) {
+    ULOG_WARNING("Sound: cannot replace defs store (%d), previous store kept", rename_result);
+    if (flash_healthy && !is_flash_error(rename_result)) lfs_remove(&lfs, kSoundDefsTmpPath);  // best effort
+    return;
+  }
+
+  const unsigned int file_bytes = static_cast<unsigned int>(sizeof(h) + (count * kOverrideRecordSize));
+  ULOG_INFO("Sound: persisted %hu override(s) (%u bytes) to %s", count, file_bytes, kSoundDefsPath);
 }
 
 void stop() {
