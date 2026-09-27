@@ -110,7 +110,11 @@ size_t Mp3Decoder::read(int16_t* out, size_t count) {
         break;
       }
 
-      // samples == 0: need more data (resync or EOF). Refill and retry.
+      // Stream is at EOF and the decoder consumed no bytes, so we cannot make progress
+      if (eof && info.frame_bytes == 0) {
+        return produced;
+      }
+      // samples == 0: need more data (resync or EOF). Refill and retry
       refill();
     }
   }
