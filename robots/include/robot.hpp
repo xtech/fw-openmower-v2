@@ -23,7 +23,14 @@ class Robot {
   //   Phase 2 (name-configured): static bool BoardIsCompatible() + static const char* FirmwareName()
 
   virtual bool NeedsService(uint16_t id) {
-    return id != xbot::service_ids::BMS;  // BMS is opt-in, all other services are required by default
+    if (id == xbot::service_ids::SOUND) return HasSound();  // sound only where the board has a chip
+    return id != xbot::service_ids::BMS;                    // BMS is opt-in, all other services are required by default
+  }
+
+  // Return true if this board has a sound chip (MAX98357A).
+  // Sound is only initialized/used when true. Default false (opt-in).
+  virtual bool HasSound() const {
+    return false;
   }
 
   // Return false to skip GpioInputDriver registration (e.g. robots with dedicated input hardware).

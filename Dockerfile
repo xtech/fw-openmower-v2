@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:24.04 AS builder
 LABEL authors="Clemens Elflein"
 
 RUN apt-get update && apt-get install -y  \
@@ -9,7 +9,10 @@ RUN apt-get update && apt-get install -y  \
     make \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install elf-size-analyze
+# venv because 24.04 marks the system python as externally managed (PEP 668)
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir elf-size-analyze
+ENV PATH="/opt/venv/bin:${PATH}"
 
 # Build preset to use for all platforms. CI passes "Debug" for pull requests and
 # "Release" for main / tagged releases.

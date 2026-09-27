@@ -27,11 +27,11 @@
 
 // C++ linkage on purpose: defined non-static in
 // ext/xbot_framework/libxbot-service/src/RemoteLogging.cpp.
-extern void remote_logger(ulog_level_t severity, char *msg, const void *args);
+extern void remote_logger(ulog_level_t severity, char* msg, const void* args);
 
-extern "C" void Fault_Handler(const char *reason);
+extern "C" void Fault_Handler(const char* reason);
 
-extern "C" void __assert_func(const char *file, int line, const char *function, const char *expr) {
+extern "C" void __assert_func(const char* file, int line, const char* function, const char* expr) {
   static volatile bool in_assert = false;
 
   // First entry logs; re-entry (assert from inside the logging path itself)
@@ -52,7 +52,7 @@ extern "C" void __assert_func(const char *file, int line, const char *function, 
     // 0 too. %s with a null pointer is undefined behavior - it can fault
     // instead of printing "(null)", which must not happen on the way to
     // Fault_Handler - so substitute a marker. Non-null names are unchanged.
-    const char *func = function != nullptr ? function : "?";
+    const char* func = function != nullptr ? function : "?";
     char msg[ULOG_MAX_MESSAGE_LENGTH];
     const int written = snprintf(msg, sizeof(msg), "assert %s:%d: %s [%s]", file, line, expr, func);
     if (written > 0) {

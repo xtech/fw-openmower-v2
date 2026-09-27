@@ -109,7 +109,7 @@ void MowerService::ESCCallback(const MotorDriver::ESCState& state) {
     mower_driver_->SetDuty(0);
     chMtxUnlock(&mtx);
     // Trigger emergency so the HighLevel/UI sees it
-    emergency_service.UpdateEmergency(EmergencyReason::MOWER_RPM_LIMIT);
+    emergency_service.UpdateEmergency(EmergencyReason::MOWER_RPM_LIMIT | EmergencyReason::LATCH);
   }
 
   chMtxUnlock(&state_mutex_);

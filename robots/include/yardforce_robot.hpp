@@ -15,6 +15,10 @@ class YardForceRobot : public MowerRobot {
   }
   void InitPlatform() override;
 
+  bool HasSound() const override {
+    return true;
+  }
+
   UARTDriver* GPS_GetUartPort() override {
 #ifndef STM32_UART_USE_USART6
 #error STM32_UART_USE_USART6 must be enabled for the YardForce build to work
