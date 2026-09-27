@@ -192,12 +192,23 @@ void FileService::RPCFileWrite(uint16_t call_id, const char* Path, uint32_t Path
       break;
     }
     r = file.write(const_cast<uint8_t*>(Data), DataLen);
-    if (r < 0) {
-      ULOG_WARNING("File: write '%s' failed (%d)", tmp, r);
-      result = r;
+    if (r != static_cast<int>(DataLen)) {
+      // LittleFS returns the full count or a negative error, but a short write must never be
+      // committed: the hash below would then vouch for a truncated file.
+      ULOG_WARNING("File: write '%s' failed (%d of %u bytes)", tmp, r, static_cast<unsigned int>(DataLen));
+      result = (r < 0) ? r : LFS_ERR_IO;
       break;
     }
-    file.sync();
+
+    // sync() flushes the chunk and commits the file size. If it fails, the staged upload is
+    // incomplete or not durable and must not be finalized, so report the error and leave the
+    // .tmp behind (the next upload with Offset == 0 truncates it again). ~File() closes it.
+    const int sync_result = file.sync();
+    if (sync_result != LFS_ERR_OK) {
+      ULOG_WARNING("File: sync '%s' failed (%d)", tmp, sync_result);
+      result = sync_result;
+      break;
+    }
     file.close();
     result = r;  // bytes written
 
