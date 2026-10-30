@@ -15,7 +15,8 @@ struct sound_config_json_data_t : public json_data_t {
   SoundDefinition current_def{};
   bool have_current = false;
   uint8_t note_idx = 0;
-  uint8_t num_sounds = 0;  ///< successfully parsed + applied definitions
+  uint8_t num_sounds = 0;    ///< successfully parsed + applied definitions
+  bool saw_ambient = false;  ///< every_ms/chance seen (playback not implemented yet)
 };
 
 namespace {
@@ -43,15 +44,24 @@ bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t le
   // A fresh blob fully replaces the previous configuration: clear any sound
   // overrides first so missing entries fall back to the ROM defaults.
   clear_sound_overrides();
+  // The take lists are staged: a rejected blob leaves the previous ones in place.
+  begin_sound_variants_write();
 
   sound_config_json_data_t json_data;
   json_data.callback = etl::make_delegate<SoundService, &SoundService::SoundDefinitionsJsonCallback>(*this);
   definitions_configured_ = ProcessJson(source, json_data);
   if (definitions_configured_) {
-    // Persist the parsed overrides to flash so they survive a reboot.
+    // Persist the parsed overrides and takes to flash so they survive a reboot.
+    commit_sound_variants_write();
     save_sound_overrides_to_storage();
     ULOG_INFO("Sound: %hhu definition(s) applied (%zu byte blob)", json_data.num_sounds, length);
+    if (json_data.saw_ambient) {
+      /* One line per blob: `soundctl sync` runs on every connect, so a per-attribute
+         warning would repeat itself on every high-level start. */
+      ULOG_INFO("Sound: every/chance accepted (autonomous playback is not implemented yet)");
+    }
   } else {
+    abort_sound_variants_write();
     ULOG_WARNING("Sound: definitions blob rejected (%zu byte blob)", length);
   }
   return definitions_configured_;
@@ -196,6 +206,48 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
         }
         strcpy(data->current_def.path, "/sounds/");
         strcat(data->current_def.path, name);
+      } else if (strcmp(key, "variants") == 0) {
+        // Several takes: the names go straight into the staged store and are read
+        // back when the sound plays (no RAM list, see sound_player.hpp).
+        JsonExpectTypeOrEnd(ARRAY);
+        if (type == LWJSON_STREAM_TYPE_ARRAY) {
+          begin_sound_variant_set(data->current_id);
+        } else {
+          end_sound_variant_set();
+        }
+      } else if (strcmp(key, "pick") == 0) {
+        JsonExpectType(STRING);
+        const char* mode = jsp->data.str.buff;
+        PickMode pick;
+        if (strcmp(mode, "first") == 0) {
+          pick = PickMode::FIRST;
+        } else if (strcmp(mode, "random") == 0) {
+          pick = PickMode::RANDOM;
+        } else if (strcmp(mode, "rotate") == 0) {
+          pick = PickMode::ROTATE;
+        } else {
+          ULOG_ERROR("Sound config: unknown pick \"%s\"", mode);
+          return false;
+        }
+        set_sound_variant_pick(data->current_id, pick);
+      } else if (strcmp(key, "every_ms") == 0) {
+        // Ambient sound: the low level rolls by itself whether to play at all.
+        // Accepted so the blob stays forward compatible; playback is still to come.
+        uint32_t every = 0;
+        if (!JsonGetNumber(jsp, type, every)) {
+          ULOG_ERROR("Sound config: invalid every_ms");
+          return false;
+        }
+        data->saw_ambient = true;
+        (void)every;
+      } else if (strcmp(key, "chance") == 0) {
+        JsonExpectType(NUMBER);
+        const float chance = strtof(jsp->data.prim.buff, nullptr);
+        if (chance < 0.0F || chance > 1.0F) {
+          ULOG_ERROR("Sound config: invalid chance (expected 0..1)");
+          return false;
+        }
+        data->saw_ambient = true;
       } else if (strcmp(key, "tone") == 0) {
         JsonExpectTypeOrEnd(OBJECT);
       } else if (strcmp(key, "sequence") == 0) {
@@ -226,6 +278,9 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
         } else {
           data->note_idx++;
         }
+      } else if (strcmp(parent, "variants") == 0) {
+        // One take object per array element; the name itself arrives in case 9.
+        JsonExpectTypeOrEnd(OBJECT);
       }
       break;
     }
@@ -250,14 +305,25 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
           data->current_def.tone.duration_ms = static_cast<uint16_t>(d);
         }
         // Unknown tone sub-fields are ignored (forward compatibility).
+      } else if (strcmp(jsp->stack[5].meta.name, "variants") == 0) {
+        JsonExpectType(KEY);  // "file"; the value is handled in case 9.
       }
       // When parent is "sequence", stack_pos 8 is a note field key; its value
       // is handled in case 9.
       break;
     }
 
-    // Sequence note field value (key at stack[8]).
+    // Take file value ("variants": [{"file": "..."}]), or a sequence note field value.
     case 9: {
+      if (strcmp(jsp->stack[5].meta.name, "variants") == 0) {
+        JsonExpectType(STRING);
+        // The store keeps the bare name (the "/sounds/" prefix is the low level's
+        // contract) and rejects a name or count that does not fit.
+        if (!add_sound_variant(etl::string_view(jsp->data.str.buff))) {
+          return false;
+        }
+        break;
+      }
       if (!data->have_current || data->note_idx >= kMaxNotes) break;
       const char* key = jsp->stack[8].meta.name;
       Note& note = data->current_def.sequence.notes[data->note_idx];
