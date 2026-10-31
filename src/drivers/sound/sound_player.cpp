@@ -42,9 +42,9 @@
 
 #include <etl/atomic.h>
 #include <etl/queue.h>
+#include <hal_trng.h>
 #include <ulog.h>
 
-#include <cstdlib>
 #include <cstring>
 
 #include "filesystem/file.hpp"
@@ -219,6 +219,53 @@ static uint8_t s_variant_set_id = 0U;
 static uint16_t s_variant_set_offset = 0U;
 static uint8_t s_variant_set_count = 0U;
 
+/*===========================================================================*/
+/* Take selection: a tiny PRNG.                                              */
+/*===========================================================================*/
+
+/*
+ * rand() from newlib is a linear congruential generator, and its seed is a boot
+ * tick that is nearly the same on every boot. A xorshift32 mixes the bits a "% count"
+ * uses and needs no library call.
+ *
+ * The state is seeded once at boot from the MCU's true random generator and advances
+ * on every play, so consecutive plays differ.
+ */
+static uint32_t s_random_state = 0x2545F491U; /* xorshift32 must never be 0 */
+
+static uint32_t random_next() {
+  uint32_t x = s_random_state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  s_random_state = x;
+  return x;
+}
+
+static void random_seed() {
+  uint32_t word = 0U;
+  if (trngStart(&TRNGD1, nullptr) == HAL_RET_SUCCESS) {
+    /* ChibiOS' TRNG LLD reports a timeout as true and success as false. */
+    const bool timed_out = trngGenerate(&TRNGD1, sizeof(word), reinterpret_cast<uint8_t*>(&word));
+    trngStop(&TRNGD1); /* one word at boot is all the take selection needs */
+    if (!timed_out && word != 0U) {
+      s_random_state = word;
+      return;
+    }
+  }
+
+  /* No word from the TRNG: keep the default state. The selection still varies per
+     play, it just repeats the same sequence after the next boot. */
+  ULOG_WARNING("Sound: no TRNG word at boot, the take selection sequence repeats itself");
+}
+
+/** True for a take name that ends in ".mp3" (case-insensitive). */
+static bool has_mp3_suffix(etl::string_view name) {
+  if (name.size() <= 4U) return false;
+  const etl::string_view ext = name.substr(name.size() - 4U);
+  return ext[0] == '.' && (ext[1] == 'm' || ext[1] == 'M') && (ext[2] == 'p' || ext[2] == 'P') && ext[3] == '3';
+}
+
 /** Reads the names of one take set. Returns false when the store cannot deliver. */
 static bool read_variant_names(const PersistedVariantRef& ref, char names[kMaxVariants][kVariantNameMax]) {
   chMtxLock(&s_variant_io_mutex);
@@ -231,8 +278,7 @@ static bool read_variant_names(const PersistedVariantRef& ref, char names[kMaxVa
     if (ok) {
       /* A corrupt store - or a read that raced a commit between its rename and the
          index swap - must not end in playing a garbage path: fall back to take 1. */
-      const etl::string_view name(names[i]);
-      ok = !name.empty() && name.size() > 4U && name.substr(name.size() - 4U) == ".mp3";
+      ok = has_mp3_suffix(etl::string_view(names[i]));
     }
   }
   s_variant_in.close();
@@ -584,8 +630,8 @@ void player_init() {
 
   s_player_thd = chThdCreateStatic(s_player_wa, sizeof(s_player_wa), NORMALPRIO + 1, player_thread, nullptr);
 
-  // Seed the take selection: without it every boot would roll the same sequence.
-  srand(static_cast<unsigned>(chVTGetSystemTimeX()));
+  // Seed the take selection; see random_next() for why this is not rand().
+  random_seed();
 
   s_source.volume = 80U;
   s_source.synth.set_unison(1U, 0U);
@@ -635,10 +681,8 @@ PlayResult play_sound_id(SoundId id) {
      "first" needs no flash read at all. */
   if (def.type == SoundType::MP3) {
     PersistedVariantRef ref{};
-    uint8_t last_take = 0U;
     chMtxLock(&s_override_mutex);
     ref = s_variant_ref[idx];
-    last_take = s_variant_last[idx];
     chMtxUnlock(&s_override_mutex);
 
     const PickMode pick = static_cast<PickMode>(ref.pick);
@@ -647,14 +691,14 @@ PlayResult play_sound_id(SoundId id) {
          caller's stack, transient. */
       char names[kMaxVariants][kVariantNameMax];
       if (read_variant_names(ref, names)) {
+        /* Take and PRNG state under the lock: several threads trigger sounds. */
         uint8_t take = 0U;
-        switch (pick) {
-          case PickMode::ROTATE: take = static_cast<uint8_t>((last_take + 1U) % ref.count); break;
-          case PickMode::RANDOM:
-          default: take = static_cast<uint8_t>(rand() % ref.count); break;
-        }
-        if (take >= ref.count) take = 0U;
         chMtxLock(&s_override_mutex);
+        if (pick == PickMode::ROTATE) {
+          take = static_cast<uint8_t>((s_variant_last[idx] + 1U) % ref.count);
+        } else {
+          take = static_cast<uint8_t>(random_next() % ref.count);
+        }
         s_variant_last[idx] = take;
         chMtxUnlock(&s_override_mutex);
         strcpy(def.path, "/sounds/");
@@ -956,9 +1000,22 @@ void begin_sound_variant_set(SoundId id) {
 }
 
 bool add_sound_variant(etl::string_view name) {
-  if (!s_variant_writing || !s_variant_set_open) return true; /* no store: parse on */
+  /* Without a staged store (read-only flash, ...) the definitions still apply; the
+     takes are simply not kept. A take outside an open set, though, is a broken
+     stream and has to reject the blob. */
+  if (!s_variant_writing) return true;
+  if (!s_variant_set_open) {
+    ULOG_ERROR("Sound config: take outside a 'variants' array");
+    return false;
+  }
   if (name.size() + 1U > kVariantNameMax) {
     ULOG_ERROR("Sound config: take name too long (%.*s)", static_cast<int>(name.size()), name.data());
+    return false;
+  }
+  /* The player concatenates the name with "/sounds/", so an empty name or one
+     that is not an MP3 has to fail here instead of at play time. */
+  if (!has_mp3_suffix(name)) {
+    ULOG_ERROR("Sound config: take '%.*s' is not an .mp3 file name", static_cast<int>(name.size()), name.data());
     return false;
   }
   if (s_variant_set_count >= kMaxVariants) {

@@ -15,8 +15,9 @@ struct sound_config_json_data_t : public json_data_t {
   SoundDefinition current_def{};
   bool have_current = false;
   uint8_t note_idx = 0;
-  uint8_t num_sounds = 0;    ///< successfully parsed + applied definitions
-  bool saw_ambient = false;  ///< every_ms/chance seen (playback not implemented yet)
+  uint8_t num_sounds = 0;              ///< successfully parsed + applied definitions
+  bool saw_ambient = false;            ///< every_ms/chance seen (playback not implemented yet)
+  char first_take[kVariantNameMax]{};  ///< take 1, used when the blob sends no "file"
 };
 
 namespace {
@@ -97,6 +98,7 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
       }
       data->current_id = id;
       data->current_def = SoundDefinition{};
+      data->first_take[0] = '\0';
       data->have_current = true;
       data->note_idx = 0;
       break;
@@ -113,6 +115,14 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
             return false;
           }
           data->current_def.sequence.count = data->note_idx;
+        }
+        /* A producer may send only the take list: the first take is the same MP3 a
+           single-take definition would name, so it becomes the path. An explicit
+           "file" always wins (it arrives before this point in the JSON). */
+        if (data->current_def.type == SoundType::MP3 && data->current_def.path[0] == '\0' &&
+            data->first_take[0] != '\0' && strlen(data->first_take) + sizeof("/sounds/") <= kMaxPath) {
+          strcpy(data->current_def.path, "/sounds/");
+          strcat(data->current_def.path, data->first_take);
         }
         set_sound_override(data->current_id, data->current_def);
         data->num_sounds++;
@@ -319,8 +329,14 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
         JsonExpectType(STRING);
         // The store keeps the bare name (the "/sounds/" prefix is the low level's
         // contract) and rejects a name or count that does not fit.
-        if (!add_sound_variant(etl::string_view(jsp->data.str.buff))) {
+        const etl::string_view take(jsp->data.str.buff);
+        if (!add_sound_variant(take)) {
           return false;
+        }
+        if (data->first_take[0] == '\0') {
+          for (size_t i = 0U; i < take.size() && i + 1U < kVariantNameMax; ++i) {
+            data->first_take[i] = take[i];
+          }
         }
         break;
       }
