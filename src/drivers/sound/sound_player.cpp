@@ -80,7 +80,7 @@ static constexpr uint8_t kFileVolume = 100U;
 static constexpr const char* kSoundDefsPath = "/cfg/sound_defs.bin";
 static constexpr const char* kSoundDefsTmpPath = "/cfg/sound_defs.bin.tmp";
 static constexpr uint32_t kSoundDefsMagic = 0x53444631U;  // "SDF1"
-static constexpr uint16_t kSoundDefsVersion = 1U;
+static constexpr uint16_t kSoundDefsVersion = 2U;
 
 /** Bytes of one stored override: its SoundId plus the raw definition. */
 static constexpr size_t kOverrideRecordSize = sizeof(uint8_t) + sizeof(SoundDefinition);
@@ -166,6 +166,35 @@ static bool queue_has_request() {
   const bool queued = !s_queue.empty();
   chSysUnlock();
   return queued;
+}
+
+/*===========================================================================*/
+/* Pause after a sound (SoundDefinition::pause_after_ms > 0).                 */
+/*===========================================================================*/
+
+/**
+ * @note  The pause belongs to the sound that just ended: on_source_end() starts it,
+ *        the idle tick (pump_player) lets the next request through once it is over.
+ *        A preempting request cuts it short like it cuts the sound itself, stop()
+ *        discards it, and a repeating sound never pauses between its own iterations
+ *        (repeat_ms and pause_after_ms are independent).
+ */
+static uint16_t s_pause_ms = 0U;      ///< pause_after_ms of the sound that started last
+static bool s_pause_active = false;   ///< true while the player owes that pause
+static systime_t s_pause_start = 0U;  ///< when the sound ended
+
+/** @brief Ticks left of the pause after the last sound; 0 when it is over or not owed. */
+static systime_t pause_ticks_left() {
+  if (!s_pause_active) return static_cast<systime_t>(0U);
+  const systime_t period = TIME_MS2I(s_pause_ms);
+  const systime_t elapsed = chVTTimeElapsedSinceX(s_pause_start);
+  return (elapsed >= period) ? static_cast<systime_t>(0U) : static_cast<systime_t>(period - elapsed);
+}
+
+/** @brief Drop a pending pause (a preempting request, stop(), or the pause being over). */
+static void clear_pause() {
+  s_pause_active = false;
+  s_pause_ms = 0U;
 }
 
 /* Runtime sound overrides (SoundId -> definition), written by the SoundService
@@ -348,11 +377,13 @@ static void play_definition(const SoundDefinition& def, bool is_repeat = false) 
     return;                  /* FILE open/parse failed — remain idle */
   }
 
-  /* The definition that starts a sound owns the repetition: every new sound replaces
-     the previous one, and a definition without repeat_ms ends it. */
+  // The definition that starts a sound owns the repetition: every new sound replaces
+  // the previous one, and a definition without repeat_ms ends it.
   s_repeat_def = def;
   s_repeat_active = (def.repeat_ms > 0U);
   s_repeat_start = chVTGetSystemTimeX();
+  // The pause is owed by this sound when it ends (on_source_end).
+  s_pause_ms = def.pause_after_ms;
 
   /* Pre-fill both halves before starting BDMA so DMA has valid data immediately. */
   s_source.fill(s_audio_buf, SOUND_HALF_SIZE, s_master_volume.load());
@@ -397,6 +428,14 @@ static void play_definition(const SoundDefinition& def, bool is_repeat = false) 
 static void dequeue_and_play() {
   if (s_playing.load()) return;
 
+  /* A sound that ended with pause_after_ms keeps the next request back: the idle tick
+     (pump_player) comes back here once the pause is over, and a preempting request
+     cleared it before calling us. */
+  if (s_pause_active) {
+    if (pause_ticks_left() > 0U) return;
+    clear_pause();
+  }
+
   SoundDefinition def{};
   chSysLock();
   const bool have_request = !s_queue.empty();
@@ -425,6 +464,15 @@ static void on_source_end() {
   s_playing.store(false);
 
   if (!s_repeat_active) {
+    /* pause_after_ms: stay silent for that time before the next request starts. Logged
+       once per sound — a request that arrives during the pause is delayed just like one
+       that was already queued. */
+    if (s_pause_ms > 0U) {
+      s_pause_active = true;
+      s_pause_start = chVTGetSystemTimeX();
+      ULOG_INFO("Sound: pausing %hu ms after playback", s_pause_ms);
+      return;
+    }
     dequeue_and_play();
     return;
   }
@@ -498,6 +546,8 @@ static void handle_request() {
   }
 
   ULOG_INFO("Sound: preempt request (playing=%u)", s_playing.load() ? 1U : 0U);
+  // An alert also cuts a pause_after_ms short, like it cuts the running sound.
+  clear_pause();
   if (s_playing.load()) {
     i2sStopExchange(&I2SD6);
     s_playing.store(false);
@@ -546,6 +596,12 @@ static THD_FUNCTION(player_thread, arg) {
       const systime_t left = repeat_ticks_left();
       if (left < wait) wait = left;
     }
+    /* Likewise bound the wait by an owed pause, so the next queued sound starts right
+       after pause_after_ms instead of on the next idle tick. */
+    if (s_pause_active && !s_playing.load()) {
+      const systime_t left = pause_ticks_left();
+      if (left < wait) wait = left;
+    }
     const eventmask_t ev = chEvtWaitAnyTimeout(EVT_HTIF | EVT_TCIF | EVT_REQUEST | EVT_STOP_PLAYBACK, wait);
 
     if (ev == 0U) {
@@ -556,6 +612,7 @@ static THD_FUNCTION(player_thread, arg) {
     if (ev & EVT_STOP_PLAYBACK) {
       /* Stop current playback; the queues have already been flushed by stop(). */
       s_repeat_active = false; /* an explicit stop also ends a repetition */
+      clear_pause();           /* ... and a pending pause_after_ms */
       if (s_playing.load()) {
         i2sStopExchange(&I2SD6);
         s_playing.store(false);

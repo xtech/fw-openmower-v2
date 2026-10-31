@@ -196,6 +196,14 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
           return false;
         }
         data->current_def.repeat_ms = repeat;
+      } else if (strcmp(key, "pause_after_ms") == 0) {
+        // Silence after this sound before the next one starts (0 = play through).
+        uint16_t pause = 0;
+        if (!JsonGetNumber(jsp, type, pause)) {
+          ULOG_ERROR("Sound config: invalid pause_after_ms");
+          return false;
+        }
+        data->current_def.pause_after_ms = pause;
       } else if (strcmp(key, "preempt") == 0) {
         // Per-sound priority: alerts stop a running sound and drop the queue.
         if (type == LWJSON_STREAM_TYPE_TRUE) {

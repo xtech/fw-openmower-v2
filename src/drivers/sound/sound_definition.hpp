@@ -59,6 +59,7 @@ struct SoundDefinition {
   bool preempt = false;                ///< Preemptive sounds drop the queue and play immediately (e.g. EMERGENCY)
   uint8_t reserved_ = 0U;              ///< Explicit padding: keeps the layout (and the persisted size) stable
   uint16_t repeat_ms = 0U;             ///< Repeat the sound every n ms until another sound plays
+  uint16_t pause_after_ms = 0U;        ///< Silence after this sound before the next one starts (0 = play through)
   union alignas(4) {
     struct {
       uint16_t freq;
