@@ -725,10 +725,14 @@ PlayResult play_sound_id(SoundId id) {
   const uint8_t idx = static_cast<uint8_t>(id);
   if (idx >= SoundId_count) return PlayResult::INVALID_ARGUMENT;
 
-  /* Prefer a flash override; otherwise fall back to the ROM default. */
+  // Prefer a flash override; otherwise fall back to the ROM default.
   SoundDefinition def;
   const bool has_override = load_sound_definition(id, def);
   if (!has_override) {
+    if (idx >= kDefaultSoundDefsCount) {
+      // ULOG_DEBUG("Sound: '%s' has no definition yet, staying silent", SoundId_to_string(id));
+      return PlayResult::QUEUED;
+    }
     def = kDefaultSoundDefs[idx];
   }
 

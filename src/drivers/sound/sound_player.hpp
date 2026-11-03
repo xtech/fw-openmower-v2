@@ -79,7 +79,7 @@ inline const char* play_result_text(PlayResult result) {
  * @brief Play a sound by logical identifier.
  *
  * Resolves the SoundDefinition for @p id: a flash override if present,
- * otherwise the ROM default (kDefaultSoundDefs).
+ * otherwise the ROM default (if exists).
  *
  * @param id  Logical sound to play.
  * @return QUEUED when accepted, otherwise why it was rejected (see PlayResult)

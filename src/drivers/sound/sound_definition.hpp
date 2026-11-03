@@ -78,20 +78,16 @@ struct SoundDefinition {
 /*---------------------------------------------------------------------------
  * ROM defaults — tone/sequence only, indexed by SoundId.
  *
- * ⚠️  The table is POSITIONAL: entry n is the default for SoundId n, so its order has
- *     to match "SoundId" in services/sound_service.json (the static_assert below only
- *     checks the count, a swapped order compiles fine and silently plays the wrong
- *     sounds).
- *
- * The sequence payload is {notes, count, attack_ms, decay_ms}: SUCCESS is a
- * single decaying note (a "ping"), the announcements and alerts are flat note
- * runs.  0 = instant onset / hold the note at full level (see Synth).
+ * ⚠️  The table is POSITIONAL and covers a PREFIX of the ids: entry n is the default
+ *     for SoundId n, so its order has to match "SoundId" in services/sound_service.json.
+ *     Ids from kDefaultSoundDefsCount on have no ROM sound: play_sound_id() accepts them
+ *     and stays silent until the high level provides a definition for them.
  *---------------------------------------------------------------------------*/
 
 inline constexpr SoundDefinition kDefaultSoundDefs[] = {
-    // BOOT_PING — the player repeats it (repeat_ms) while Stage 2 waits for ROS.
+    // BOOT_PING - the player repeats it (repeat_ms) while Stage 2 waits for ROS.
     {SoundType::SEQUENCE, 30, .waveform = Waveform::SINE, .repeat_ms = 2000,
-     .sequence = {{{554, 360, 0, 0}}, 1, 4, 220}},
+     .sequence = {{{554, 360, 0, 0}}, 1, 4, 220}},  // BOOT_PING
     // BOOT_COMPLETE
     {SoundType::SEQUENCE, 85, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4, 0, 0}},
@@ -105,29 +101,44 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
      .sequence = {{{300, 200, 0, 0}, {240, 200, 0, 0}, {180, 300, 0, 0}}, 3, 0, 0}},
     // EMERGENCY
     {SoundType::SEQUENCE, 90, .preempt = true, .sequence = {{{950, 8000, 20, 220}}, 1, 0, 0}},
+    // EMERGENCY_CLEARED == SUCCESS
+    {SoundType::SEQUENCE, 70, .waveform = Waveform::SINE, .sequence = {{{554, 360, 0, 0}}, 1, 4, 220}},
+    // ROS_CONNECTED - the high level (ROS) link came up (see EmergencyService::CheckTimeouts)
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
+     .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 4, 120}},
+    // ROS_DISCONNECTED - heartbeat timeout, i.e. the high level is gone
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{880, 120, 0, 0}, {587, 220, 0, 0}}, 2, 4, 150}},
+    // GPS_RTK_FIX
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
+     .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 0, 0}},
+    // GPS_RTK_LOST
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{660, 120, 0, 0}, {440, 200, 0, 0}}, 2, 0, 0}},
+    // AUTONOMOUS_NOTICE
+    {SoundType::SEQUENCE, 80, .waveform = Waveform::SQUARE, .repeat_ms = 3000,
+     .sequence =
+         {{{1020, 180, 0, 0}, {0, 180, 0, 0}, {1020, 180, 0, 0}, {0, 180, 0, 0}, {1020, 180, 0, 0}, {0, 180, 0, 0}},
+          6,
+          3,
+          60}},
+    // VOLUME_UP - a short rising figure: "one step louder" (stays useful without configuration)
+    {SoundType::SEQUENCE, 60, .waveform = Waveform::SINE,
+     .sequence = {{{660, 70, 0, 0}, {880, 70, 0, 0}, {1100, 90, 0, 0}}, 3, 3, 60}},
+    // VOLUME_DOWN - the same figure falling: "one step quieter"
+    {SoundType::SEQUENCE, 60, .waveform = Waveform::SINE,
+     .sequence = {{{1100, 70, 0, 0}, {880, 70, 0, 0}, {660, 90, 0, 0}}, 3, 3, 60}},
     // LOW_BATTERY
     {SoundType::SEQUENCE, 75,
      .sequence = {{{659, 300, 0, 0}, {587, 300, 0, 0}, {523, 300, 0, 0}, {440, 400, 0, 0}}, 4, 0, 0}},
     // CHARGING_START
     {SoundType::SEQUENCE, 65, .waveform = Waveform::SINE,
      .sequence = {{{523, 100, 0, 0}, {659, 100, 0, 0}, {784, 150, 0, 0}}, 3, 0, 0}},
-    // CHARGING_DONE  */
+    // CHARGING_DONE
     {SoundType::SEQUENCE, 70, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 120, 0, 0}, {1046, 300, 0, 0}}, 4, 0, 0}},
-    // ROS_CONNECTED — the high level (ROS) link came up (See EmergencyService::CheckTimeouts)
-    {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
-     .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 4, 120}},
-    // ROS_DISCONNECTED — heartbeat timeout, i.e. the high level is gone
-    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{880, 120, 0, 0}, {587, 220, 0, 0}}, 2, 4, 150}},
-    // GPS_RTK_FIX    */
-    {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
-     .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 0, 0}},
-    // GPS_RTK_LOST   */
-    {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{660, 120, 0, 0}, {440, 200, 0, 0}}, 2, 0, 0}},
 };
 
-static_assert(sizeof(kDefaultSoundDefs) / sizeof(kDefaultSoundDefs[0]) == SoundId_count,
-              "kDefaultSoundDefs must have one entry per SoundId");
+/** @brief How many ids the ROM default table covers (SoundId 0 .. count-1). */
+inline constexpr size_t kDefaultSoundDefsCount = sizeof(kDefaultSoundDefs) / sizeof(kDefaultSoundDefs[0]);
 
 static_assert(sizeof(SoundDefinition) == 80U, "SoundDefinition size changed — it is part of the flash format");
 
