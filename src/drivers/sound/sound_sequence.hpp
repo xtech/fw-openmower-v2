@@ -21,6 +21,11 @@
  *
  *        freq 0 is a pause.  No libc / no float / no allocation — a hand-rolled
  *        parser keeps this tiny and stack-flat (Note[8] = 64 bytes).
+ *
+ *        @p len may be the exact text length, the length including the NUL, or
+ *        the full size of a char[N] parameter padded with NULs (the generated Go
+ *        client pads to sizeof(char[N]) and the generated C++ passes that payload
+ *        size on). Only the text before the first NUL is parsed.
  */
 
 #ifndef SOUND_SEQUENCE_HPP
@@ -56,7 +61,11 @@ inline uint8_t parse_sequence(const char* text, size_t len, Note* notes, uint8_t
     while (i < len && (text[i] == ' ' || text[i] == ',' || text[i] == ';' || text[i] == '\t')) {
       ++i;
     }
-    if (i >= len) break;
+    /* End of input - or the end of the NUL-terminated text: a caller may pass the
+       exact length, the length including the NUL, or a char[N] padded with NULs.
+       Without this check the padding would be read as a note start and the whole
+       sequence rejected (that is what `soundctl play sequence` used to hit). */
+    if (i >= len || text[i] == '\0') break;
     if (count >= max_notes) break; /* silently drop extra notes */
 
     uint32_t v[4] = {0U, 0U, 0U, 0U};
