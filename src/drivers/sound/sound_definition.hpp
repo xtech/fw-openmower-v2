@@ -91,8 +91,9 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     // BOOT_COMPLETE
     {SoundType::SEQUENCE, 85, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{262, 90, 0, 0}, {330, 90, 0, 0}, {392, 90, 0, 0}, {523, 300, 0, 0}}, 4, 0, 0}},
-    // SUCCESS
-    {SoundType::SEQUENCE, 70, .waveform = Waveform::SINE, .sequence = {{{554, 360, 0, 0}}, 1, 4, 220}},
+    // SUCCESS - a short rising figure (D6 D6 G6), deliberately distinct from the 554 Hz decaying ping of BOOT_PING.
+    {SoundType::SEQUENCE, 65, .waveform = Waveform::TRIANGLE,
+     .sequence = {{{1174, 60, 0, 0}, {0, 40, 0, 0}, {1174, 60, 0, 0}, {0, 40, 0, 0}, {1568, 140, 0, 0}}, 5, 0, 80}},
     // WARNING
     {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW,
      .sequence = {{{880, 150, 0, 0}, {0, 80, 0, 0}, {880, 150, 0, 0}, {0, 80, 0, 0}}, 4, 0, 0}},
@@ -101,8 +102,9 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
      .sequence = {{{300, 200, 0, 0}, {240, 200, 0, 0}, {180, 300, 0, 0}}, 3, 0, 0}},
     // EMERGENCY
     {SoundType::SEQUENCE, 90, .preempt = true, .sequence = {{{950, 8000, 20, 220}}, 1, 0, 0}},
-    // EMERGENCY_CLEARED == SUCCESS
-    {SoundType::SEQUENCE, 70, .waveform = Waveform::SINE, .sequence = {{{554, 360, 0, 0}}, 1, 4, 220}},
+    // EMERGENCY_CLEARED
+    {SoundType::SEQUENCE, 65, .waveform = Waveform::TRIANGLE,
+     .sequence = {{{1174, 60, 0, 0}, {0, 40, 0, 0}, {1174, 60, 0, 0}, {0, 40, 0, 0}, {1568, 140, 0, 0}}, 5, 0, 80}},
     // ROS_CONNECTED - the high level (ROS) link came up (see EmergencyService::CheckTimeouts)
     {SoundType::SEQUENCE, 80, .waveform = Waveform::SINE, .unison = 3, .detune_hz = 4,
      .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 4, 120}},
@@ -113,13 +115,9 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
      .sequence = {{{880, 120, 0, 0}, {1174, 180, 0, 0}}, 2, 0, 0}},
     // GPS_RTK_LOST
     {SoundType::SEQUENCE, 80, .waveform = Waveform::SAW, .sequence = {{{660, 120, 0, 0}, {440, 200, 0, 0}}, 2, 0, 0}},
-    // AUTONOMOUS_NOTICE
-    {SoundType::SEQUENCE, 80, .waveform = Waveform::SQUARE, .repeat_ms = 3000,
-     .sequence =
-         {{{1020, 180, 0, 0}, {0, 180, 0, 0}, {1020, 180, 0, 0}, {0, 180, 0, 0}, {1020, 180, 0, 0}, {0, 180, 0, 0}},
-          6,
-          3,
-          60}},
+    // AUTONOMOUS_NOTICE - the reversing alarm of lorries and forklifts
+    {SoundType::SEQUENCE, 75, .waveform = Waveform::SINE, .repeat_ms = 5000,
+     .sequence = {{{970, 350, 0, 0}, {0, 650, 0, 0}, {970, 350, 0, 0}, {0, 650, 0, 0}, {970, 350, 0, 0}}, 5, 0, 0}},
     // VOLUME_UP - a short rising figure: "one step louder" (stays useful without configuration)
     {SoundType::SEQUENCE, 60, .waveform = Waveform::SINE,
      .sequence = {{{660, 70, 0, 0}, {880, 70, 0, 0}, {1100, 90, 0, 0}}, 3, 3, 60}},
@@ -127,13 +125,13 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     {SoundType::SEQUENCE, 60, .waveform = Waveform::SINE,
      .sequence = {{{1100, 70, 0, 0}, {880, 70, 0, 0}, {660, 90, 0, 0}}, 3, 3, 60}},
     // LOW_BATTERY
-    {SoundType::SEQUENCE, 75,
+    {SoundType::SEQUENCE, 60,
      .sequence = {{{659, 300, 0, 0}, {587, 300, 0, 0}, {523, 300, 0, 0}, {440, 400, 0, 0}}, 4, 0, 0}},
     // CHARGING_START
-    {SoundType::SEQUENCE, 65, .waveform = Waveform::SINE,
+    {SoundType::SEQUENCE, 60, .waveform = Waveform::SINE,
      .sequence = {{{523, 100, 0, 0}, {659, 100, 0, 0}, {784, 150, 0, 0}}, 3, 0, 0}},
     // CHARGING_DONE
-    {SoundType::SEQUENCE, 70, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
+    {SoundType::SEQUENCE, 60, .waveform = Waveform::TRIANGLE, .unison = 3, .detune_hz = 6,
      .sequence = {{{523, 120, 0, 0}, {659, 120, 0, 0}, {784, 120, 0, 0}, {1046, 300, 0, 0}}, 4, 0, 0}},
 };
 
