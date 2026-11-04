@@ -8,17 +8,25 @@
 #   abc1234             (no tags found, fallback to hash)
 
 function(get_git_version OUTPUT_DIR)
-    # Get version string: tag + commits + hash + dirty flag
-    execute_process(
-        COMMAND git describe --tags --dirty --always
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE BUILD_VERSION
-        ERROR_QUIET
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
+    # Preferred: a string computed by the caller, e.g. CI running
+    # `git describe --tags --dirty --always` on the runner. The image build has no
+    # .git (see .dockerignore), so without this the version would be "unknown".
+    # Local builds keep the git lookup below.
+    if(DEFINED FW_VERSION AND NOT FW_VERSION STREQUAL "")
+        set(BUILD_VERSION "${FW_VERSION}")
+    else()
+        # Get version string: tag + commits + hash + dirty flag
+        execute_process(
+            COMMAND git describe --tags --dirty --always
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            OUTPUT_VARIABLE BUILD_VERSION
+            ERROR_QUIET
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
 
-    if(NOT BUILD_VERSION)
-        set(BUILD_VERSION "unknown")
+        if(NOT BUILD_VERSION)
+            set(BUILD_VERSION "unknown")
+        endif()
     endif()
 
     # Get current date and time (ISO 8601 format)

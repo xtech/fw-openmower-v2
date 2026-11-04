@@ -18,6 +18,11 @@ ENV PATH="/opt/venv/bin:${PATH}"
 # "Release" for main / tagged releases.
 ARG BUILD_PRESET=Release
 
+# Firmware version string (`git describe --tags --dirty --always`). The build
+# context excludes .git, so CI computes it on the runner and passes it in; a local
+# `docker build` without it gets "unknown" (see cmake/GetGitVersion.cmake).
+ARG FW_VERSION=""
+
 ####################################################################################################
 # Fetch the third-party sources in their own layer. Its only input is
 # cmake/deps.cmake, so editing firmware code reuses the layer; only a dependency
@@ -50,7 +55,7 @@ WORKDIR /project
 
 RUN mkdir -p build
 
-RUN cd build && cmake .. --preset=${BUILD_PRESET} -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -DFETCHCONTENT_UPDATES_DISCONNECTED=ON -B${BUILD_PRESET} && cd ${BUILD_PRESET} && make -j$(nproc)
+RUN cd build && cmake .. --preset=${BUILD_PRESET} -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR} -DFETCHCONTENT_UPDATES_DISCONNECTED=ON -DFW_VERSION="${FW_VERSION}" -B${BUILD_PRESET} && cd ${BUILD_PRESET} && make -j$(nproc)
 RUN elf-size-analyze -H -R -t arm-none-eabi- ./build/${BUILD_PRESET}/openmower-firmware.elf -W > build/ram-info.html
 RUN elf-size-analyze -H -F -t arm-none-eabi- ./build/${BUILD_PRESET}/openmower-firmware.elf -W > build/flash-info.html
 
