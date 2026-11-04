@@ -18,11 +18,6 @@ ENV PATH="/opt/venv/bin:${PATH}"
 # "Release" for main / tagged releases.
 ARG BUILD_PRESET=Release
 
-# Firmware version string (`git describe --tags --dirty --always`). The build
-# context excludes .git, so CI computes it on the runner and passes it in; a local
-# `docker build` without it gets "unknown" (see cmake/GetGitVersion.cmake).
-ARG FW_VERSION=""
-
 ####################################################################################################
 # Fetch the third-party sources in their own layer. Its only input is
 # cmake/deps.cmake, so editing firmware code reuses the layer; only a dependency
@@ -43,6 +38,14 @@ RUN cmake -S /project -B /project/build \
 
 ####################################################################################################
 FROM builder AS build
+
+# Firmware version string (`git describe --tags --dirty --always`). The build
+# context excludes .git, so CI computes it on the runner and passes it in; a local
+# `docker build` without it gets "unknown" (see cmake/GetGitVersion.cmake).
+# Declared here, in the volatile stage, and not in "builder": an ARG that changes
+# on every commit must not be able to invalidate the cached deps stage above.
+ARG BUILD_PRESET=Release
+ARG FW_VERSION=""
 
 # The sources come from the layer above. FETCHCONTENT_UPDATES_DISCONNECTED stops
 # ETL's git from running fetch/checkout again on the already pinned clone.
