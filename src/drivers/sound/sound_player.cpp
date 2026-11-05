@@ -120,17 +120,29 @@ static THD_WORKING_AREA(s_player_wa, 3072U);
 static thread_t* s_player_thd = nullptr;
 
 /**
+ * @brief One queued request: what to play, and whether it may take over the player.
+ *
+ * The take-over flag belongs to the *request*, not to the sound definition: an alert is
+ * an action ("stop what runs, then play this"), and the sound state machine decides when
+ * one is due.
+ */
+struct SoundRequest {
+  SoundDefinition def;
+  bool preempt;  ///< stop the running sound and drop the queue, then play this
+};
+
+/**
  * @brief Playback queue (ETL container, statically allocated, no heap).
  *
- * @note  There is deliberately only ONE queue: queued requests wait in FIFO order,
- *        while a request whose definition carries `preempt` (alerts such as
- *        EMERGENCY) stops the running sound, drops everything queued and starts
- *        immediately.
+ * @note  There is deliberately only ONE queue: requests wait in FIFO order. A request
+ *        whose SoundRequest::preempt is set stops the running sound, drops everything
+ *        queued and starts immediately; everything else is played one after another
+ *        (that is how a "what happened" announcement is followed by the alert tone).
  *
  *        Every access happens under chSysLock(): ETL containers are not thread-safe,
  *        and the player thread must never see a half-updated ring.
  */
-static etl::queue<SoundDefinition, kQueueDepth> s_queue;
+static etl::queue<SoundRequest, kQueueDepth> s_queue;
 
 /* Master volume (0-100, written by set_volume from any thread, read by the player thread) */
 static etl::atomic<uint8_t> s_master_volume{100U};
@@ -408,17 +420,16 @@ static void play_definition(const SoundDefinition& def, bool is_repeat = false) 
   /* The only place that knows a sound actually reached the I2S/DMA stage — the
      host-side RPC log only proves the request was queued. */
   if (def.type == SoundType::TONE) {
-    ULOG_INFO("Sound: play tone %hu Hz %hu ms vol %hhu unison %hhu preempt=%u (master %hhu)", def.tone.freq,
-              def.tone.duration_ms, def.volume, def.unison, def.preempt ? 1U : 0U, s_master_volume.load());
+    ULOG_INFO("Sound: play tone %hu Hz %hu ms vol %hhu unison %hhu (master %hhu)", def.tone.freq, def.tone.duration_ms,
+              def.volume, def.unison, s_master_volume.load());
   } else if (def.type == SoundType::SEQUENCE) {
     /* Only a sequence has an envelope; an MP3 definition's union holds the path. */
-    ULOG_INFO(
-        "Sound: play sequence vol %hhu %s unison %hhu detune %hu attack %hhu ms decay %hhu ms preempt=%u (master %hhu)",
-        def.volume, Waveform_to_string(def.waveform), def.unison, def.detune_hz, def.sequence.attack_ms,
-        def.sequence.decay_ms, def.preempt ? 1U : 0U, s_master_volume.load());
+    ULOG_INFO("Sound: play sequence vol %hhu %s unison %hhu detune %hu attack %hhu ms decay %hhu ms (master %hhu)",
+              def.volume, Waveform_to_string(def.waveform), def.unison, def.detune_hz, def.sequence.attack_ms,
+              def.sequence.decay_ms, s_master_volume.load());
   } else {
-    ULOG_INFO("Sound: play %s '%s' vol %hhu preempt=%u (master %hhu)", SoundType_to_string(def.type), def.path,
-              def.volume, def.preempt ? 1U : 0U, s_master_volume.load());
+    ULOG_INFO("Sound: play %s '%s' vol %hhu (master %hhu)", SoundType_to_string(def.type), def.path, def.volume,
+              s_master_volume.load());
   }
 
   if (def.repeat_ms > 0U) {
@@ -447,17 +458,13 @@ static void dequeue_and_play() {
     clear_pause();
   }
 
-  SoundDefinition def{};
+  SoundRequest request{};
   chSysLock();
   const bool have_request = !s_queue.empty();
-  if (have_request) {
-    s_queue.pop_into(def);
-  }
+  if (have_request) s_queue.pop_into(request);
   chSysUnlock();
 
-  if (have_request) {
-    play_definition(def);
-  }
+  if (have_request) play_definition(request.def);
 }
 
 /*===========================================================================*/
@@ -660,14 +667,18 @@ static THD_FUNCTION(player_thread, arg) {
 /**
  * @brief Queue a playback request (safe from any thread context).
  *
+ * @param def      What to play.
+ * @param preempt  Stop the running sound, drop the queue and start immediately. Used by the
+ *                ad-hoc RPC commands ("play this now"); machine-driven sounds are queued and
+ *                the caller stops the player itself if it needs to cut something off.
  * @return QUEUED when the request was accepted, otherwise why it was dropped
  */
-static PlayResult enqueue(const SoundDefinition& def) {
+static PlayResult enqueue(const SoundDefinition& def, bool preempt = false) {
   if (s_player_thd == nullptr) return PlayResult::PLAYER_NOT_RUNNING;
 
   PlayResult result = PlayResult::QUEUED;
   chSysLock();
-  if (def.preempt) {
+  if (preempt) {
     /* Alerts take over: everything queued is dropped. The running sound itself is
        stopped by the player thread when it handles the request. */
     s_queue.clear();
@@ -677,7 +688,7 @@ static PlayResult enqueue(const SoundDefinition& def) {
   if (result == PlayResult::QUEUED) {
     /* Not full here: either just cleared or checked above. ETL's push() asserts on a
        full queue, so the check has to come first. */
-    s_queue.push(def);
+    s_queue.push(SoundRequest{def, preempt});
   }
   chEvtSignalI(s_player_thd, EVT_REQUEST);
   /* Required after I-class calls that may have made a higher-priority thread
@@ -790,11 +801,10 @@ PlayResult play_tone(uint16_t freq, uint16_t duration_ms, uint8_t volume, bool p
   SoundDefinition def{};
   def.type = SoundType::TONE;
   def.volume = volume;
-  def.preempt = preempt;
   def.tone.freq = freq;
   def.tone.duration_ms = duration_ms;
 
-  return enqueue(def);
+  return enqueue(def, preempt);
 }
 
 PlayResult play_file(const char* path, bool preempt) {
@@ -803,11 +813,10 @@ PlayResult play_file(const char* path, bool preempt) {
   SoundDefinition def{};
   def.type = SoundType::MP3;
   def.volume = kFileVolume; /* pre-mastered at full scale; master volume scales it */
-  def.preempt = preempt;
   strncpy(def.path, path, kMaxPath - 1U);
   def.path[kMaxPath - 1U] = '\0';
 
-  return enqueue(def);
+  return enqueue(def, preempt);
 }
 
 PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, uint8_t volume, uint8_t unison,
@@ -825,7 +834,6 @@ PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, ui
   def.volume = volume;
   def.unison = unison;
   def.detune_hz = detune_hz;
-  def.preempt = preempt;
   def.repeat_ms = repeat_ms;
   def.sequence.count = count;
   def.sequence.attack_ms = attack_ms;
@@ -834,7 +842,7 @@ PlayResult play_sequence(const Note* notes, uint8_t count, Waveform waveform, ui
     def.sequence.notes[i] = notes[i];
   }
 
-  return enqueue(def);
+  return enqueue(def, preempt);
 }
 
 void set_volume(uint8_t volume) {

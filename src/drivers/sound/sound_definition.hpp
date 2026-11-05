@@ -56,8 +56,6 @@ struct SoundDefinition {
   Waveform waveform = Waveform::SINE;  ///< Oscillator waveform (tone/sequence only)
   uint8_t unison = 1U;                 ///< Number of detuned voices (1 = single, odd: 3/5/7)
   uint16_t detune_hz = 0U;             ///< Frequency spread between unison voices in Hz
-  bool preempt = false;                ///< Preemptive sounds drop the queue and play immediately (e.g. EMERGENCY)
-  uint8_t reserved_ = 0U;              ///< Explicit padding: keeps the layout (and the persisted size) stable
   uint16_t repeat_ms = 0U;             ///< Repeat the sound every n ms until another sound plays
   uint16_t pause_after_ms = 0U;        ///< Silence after this sound before the next one starts (0 = play through)
   union alignas(4) {
@@ -101,7 +99,7 @@ inline constexpr SoundDefinition kDefaultSoundDefs[] = {
     {SoundType::SEQUENCE, 85, .waveform = Waveform::SAW,
      .sequence = {{{300, 200, 0, 0}, {240, 200, 0, 0}, {180, 300, 0, 0}}, 3, 0, 0}},
     // EMERGENCY
-    {SoundType::SEQUENCE, 90, .preempt = true, .sequence = {{{950, 8000, 20, 220}}, 1, 0, 0}},
+    {SoundType::SEQUENCE, 90, .sequence = {{{950, 8000, 20, 220}}, 1, 0, 0}},
     // EMERGENCY_CLEARED
     {SoundType::SEQUENCE, 65, .waveform = Waveform::TRIANGLE,
      .sequence = {{{1174, 60, 0, 0}, {0, 40, 0, 0}, {1174, 60, 0, 0}, {0, 40, 0, 0}, {1568, 140, 0, 0}}, 5, 0, 80}},

@@ -251,16 +251,6 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
           return false;
         }
         data->current_def.pause_after_ms = pause;
-      } else if (strcmp(key, "preempt") == 0) {
-        // Per-sound priority: alerts stop a running sound and drop the queue.
-        if (type == LWJSON_STREAM_TYPE_TRUE) {
-          data->current_def.preempt = true;
-        } else if (type == LWJSON_STREAM_TYPE_FALSE) {
-          data->current_def.preempt = false;
-        } else {
-          ULOG_ERROR("Sound config: invalid preempt (expected true/false)");
-          return false;
-        }
       } else if (strcmp(key, "file") == 0) {
         JsonExpectType(STRING);
         const char* name = jsp->data.str.buff;
@@ -589,31 +579,16 @@ StateInputs SoundService::ReadInputs() {
 }
 
 void SoundService::PlayAction(const StateAction& action) {
-  if (action.stop_first) {
-    /* An alert tone repeats; the "all clear" must not queue up behind it. */
-    stop();
-  }
-  /* A new decision replaces an older follow-up: the alert that was about to be announced
-     is history as well. */
-  pending_follow_up_ = action.follow_up;
-  follow_up_at_ms_ = now_ms_ + kFollowUpGraceMs;
-
+  if (action.stop_first) stop();
   const PlayResult res = play_sound_id(action.sound);
   ULOG_INFO("Sound: announced '%s' (activity=%s alert=%s, %s)", SoundId_to_string(action.sound),
             activity_name(machine_.activity()), alert_name(machine_.alert()), play_result_text(res));
-}
 
-void SoundService::PlayPendingFollowUp() {
-  if (pending_follow_up_ == kNoSound) {
-    return;
+  if (action.follow_up != kNoSound) {
+    /* The announcement's `pause_after_ms` (YAML) spaces the two. */
+    const PlayResult then_res = play_sound_id(action.follow_up);
+    ULOG_INFO("Sound: queued '%s' after it (%s)", SoundId_to_string(action.follow_up), play_result_text(then_res));
   }
-  if (static_cast<int32_t>(now_ms_ - follow_up_at_ms_) < 0 || is_playing()) {
-    return; /* the announcement is still running (or the player has not started it yet) */
-  }
-  const PlayResult res = play_sound_id(pending_follow_up_);
-  ULOG_INFO("Sound: announced '%s' (after the announcement, %s)", SoundId_to_string(pending_follow_up_),
-            play_result_text(res));
-  pending_follow_up_ = kNoSound;
 }
 
 uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/) {
@@ -627,6 +602,5 @@ uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/
   if (!action.silent()) {
     PlayAction(action);
   }
-  PlayPendingFollowUp();
   return kStateMachineTickUs;
 }
