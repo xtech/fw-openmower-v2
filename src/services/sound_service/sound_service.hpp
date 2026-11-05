@@ -50,6 +50,26 @@ class SoundService : public SoundServiceBase {
   sound::StateInputs ReadInputs();
   /** @brief Apply one machine decision to the player. */
   void PlayAction(const sound::StateAction& action);
+  /** @brief Play the pending follow-up once the announcement is done (see PlayAction). */
+  void PlayPendingFollowUp();
+
+  /**
+   * @brief The sound that follows the current announcement.
+   *
+   * The alarm preempts by its definition, so it cannot be queued in front of a voice
+   * without cutting it off. The machine therefore hands it over as a follow-up and this
+   * plays it as soon as the player is idle again.
+   */
+  SoundId pending_follow_up_ = sound::kNoSound;
+  uint32_t follow_up_at_ms_ = 0;
+
+  /**
+   * @brief How long to wait before a follow-up may play.
+   *
+   * play_sound_id() only queues, and is_playing() turns true a moment later - checking it
+   * in the same tick would fire the alarm into an empty player and drop the voice.
+   */
+  static constexpr uint32_t kFollowUpGraceMs = 500U;
 
   /**
    * @brief Monotonic millisecond clock for the machine, built from the loop's deltas.

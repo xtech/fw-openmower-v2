@@ -528,13 +528,43 @@ bool SoundService::Dice(uint8_t chance_pct) {
   return random_chance(chance_pct);
 }
 
+/**
+ * @brief Which emergency condition the reasons describe.
+ *
+ * Only one condition names the episode (the machine announces it once).
+ */
+static EmergencyKind KindOf(uint16_t reasons) {
+  if ((reasons & EmergencyReason::STOP) != 0U) {
+    return EmergencyKind::STOP;
+  }
+  if ((reasons & (EmergencyReason::LIFT | EmergencyReason::LIFT_MULTIPLE)) != 0U) {
+    return EmergencyKind::LIFT;
+  }
+  if ((reasons & (EmergencyReason::COLLISION | EmergencyReason::COLLISION_MULTIPLE)) != 0U) {
+    return EmergencyKind::COLLISION;
+  }
+  if ((reasons & EmergencyReason::MOWER_RPM_LIMIT) != 0U) {
+    return EmergencyKind::RPM_LIMIT;
+  }
+  if ((reasons & EmergencyReason::MOWER_RPM_TIMEOUT) != 0U) {
+    return EmergencyKind::RPM_TIMEOUT;
+  }
+  if ((reasons & kAudibleReasons) != 0U) {
+    return EmergencyKind::OTHER;
+  }
+  return EmergencyKind::NONE;
+}
+
 StateInputs SoundService::ReadInputs() {
   StateInputs in{};
 
-  /* Emergency: the high level timeout is the link, the audible bits are danger. */
+  /* Emergency: the high level timeout is the link, the audible bits are the danger. Every
+     audible condition arrives together with EmergencyReason::LATCH once it lasted its
+     configured delay, so a flickering sensor never reaches the machine. */
   const uint16_t reasons = emergency_service.GetEmergencyReasons();
   in.high_level_alive = (reasons & EmergencyReason::TIMEOUT_HIGH_LEVEL) == 0U;
-  in.emergency = (reasons & kAudibleReasons) != 0U;
+  in.emergency = KindOf(reasons);
+  in.emergency_latched = (reasons & EmergencyReason::LATCH) != 0U;
 
   /* Mowing: the blade turns. MowerService owns that definition (it is the same value it
      reports as `MowerRunning`), so the sound logic needs no RPM threshold of its own. */
@@ -563,9 +593,27 @@ void SoundService::PlayAction(const StateAction& action) {
     /* An alert tone repeats; the "all clear" must not queue up behind it. */
     stop();
   }
+  /* A new decision replaces an older follow-up: the alert that was about to be announced
+     is history as well. */
+  pending_follow_up_ = action.follow_up;
+  follow_up_at_ms_ = now_ms_ + kFollowUpGraceMs;
+
   const PlayResult res = play_sound_id(action.sound);
   ULOG_INFO("Sound: announced '%s' (activity=%s alert=%s, %s)", SoundId_to_string(action.sound),
             activity_name(machine_.activity()), alert_name(machine_.alert()), play_result_text(res));
+}
+
+void SoundService::PlayPendingFollowUp() {
+  if (pending_follow_up_ == kNoSound) {
+    return;
+  }
+  if (static_cast<int32_t>(now_ms_ - follow_up_at_ms_) < 0 || is_playing()) {
+    return; /* the announcement is still running (or the player has not started it yet) */
+  }
+  const PlayResult res = play_sound_id(pending_follow_up_);
+  ULOG_INFO("Sound: announced '%s' (after the announcement, %s)", SoundId_to_string(pending_follow_up_),
+            play_result_text(res));
+  pending_follow_up_ = kNoSound;
 }
 
 uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/) {
@@ -579,5 +627,6 @@ uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/
   if (!action.silent()) {
     PlayAction(action);
   }
+  PlayPendingFollowUp();
   return kStateMachineTickUs;
 }

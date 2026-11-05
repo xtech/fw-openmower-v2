@@ -56,6 +56,26 @@ enum class Alert : uint8_t {
   EMERGENCY,  ///< An audible emergency condition is active
 };
 
+/**
+ * @brief Which condition triggered the emergency.
+ *
+ * Decides *what* is announced: a pressed stop button is no surprise (the user just did it),
+ * so it gets a plain confirmation instead of the alert tone, while a lift or a collision is
+ * reported as "what happened" and *then* raises the alarm.
+ *
+ * The values are ordered by precedence — when several conditions are latched at once, the
+ * first one in this list names the episode.
+ */
+enum class EmergencyKind : uint8_t {
+  NONE,         ///< No condition
+  STOP,         ///< The user pressed stop — confirm, do not alarm
+  LIFT,         ///< Lifted / handle released
+  COLLISION,    ///< Bumped into something
+  RPM_LIMIT,    ///< Blade RPM above the safe limit (the low level cut the power)
+  RPM_TIMEOUT,  ///< Blade did not spin up (the high level gave up after its timeout)
+  OTHER,        ///< Anything else audible — alarm only
+};
+
 /** @brief Short names for logs (and test failures). */
 inline const char* activity_name(Activity a) {
   switch (a) {
@@ -82,8 +102,20 @@ inline const char* alert_name(Alert a) {
  * the machine itself has no dependency on them.
  */
 struct StateInputs {
-  bool high_level_alive = false;   ///< The ROS heartbeat is here (never true before the first one)
-  bool emergency = false;          ///< An emergency that deserves a sound is active
+  bool high_level_alive = false;                  ///< The ROS heartbeat is here (never true before the first one)
+  EmergencyKind emergency = EmergencyKind::NONE;  ///< Which audible condition is active
+  /**
+   * @brief The emergency is *latched*, i.e. it only clears when the latch is released.
+   *
+   * Every audible condition reaches the low level together with EmergencyReason::LATCH
+   * once it lasted its configured delay (input_service/mower_service), so a flickering
+   * sensor never shows up here at all. A definition may switch latching off
+   * (`latch: false`), then the condition simply disappears again — and so does the alert.
+   *
+   * The consequence for the machine: the alert is *entered* by the condition and only
+   * *left* once neither the condition nor the latch is there any more.
+   */
+  bool emergency_latched = false;
   bool blade_running = false;      ///< The mower motor turns (mowing)
   bool charging = false;           ///< The charger charges right now
   bool charge_done = false;        ///< The charger reports DONE
@@ -109,8 +141,9 @@ constexpr SoundId kNoSound = static_cast<SoundId>(SoundId_count);
 
 /** @brief What the caller should do with the audio after one Update(). */
 struct StateAction {
-  SoundId sound = kNoSound;  ///< kNoSound: nothing to play
-  bool stop_first = false;   ///< Flush the running sound and the queue first
+  SoundId sound = kNoSound;      ///< Play now (kNoSound: nothing)
+  SoundId follow_up = kNoSound;  ///< Play as soon as `sound` finished (kNoSound: nothing)
+  bool stop_first = false;       ///< Flush the running sound and the queue first
 
   bool silent() const {
     return sound == kNoSound;
@@ -217,7 +250,7 @@ class StateMachine {
   };
 
   /** @brief The sound of an alert transition (rules: sound_state_machine.cpp). */
-  static StateAction AlertAction(Alert from, Alert to);
+  static StateAction AlertAction(Alert from, Alert to, EmergencyKind kind);
 
   /** @brief The sound of an activity transition (rules: sound_state_machine.cpp). */
   static SoundId ActivitySound(Activity from, Activity to, bool charge_done);

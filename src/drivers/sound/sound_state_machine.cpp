@@ -76,7 +76,12 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
   }
 
   Alert next_alert = Alert::NONE;
-  if (inputs.emergency) {
+  /* An audible condition *starts* the alert; leaving it needs the latch to be released as
+     well, so a sensor that lets go while the robot is still latched keeps the alert (and
+     the "all clear" waits for the reset). Reasons whose definition disables latching
+     (`latch: false`) clear as soon as the condition is gone. */
+  const bool dangerous = (inputs.emergency != EmergencyKind::NONE);
+  if (dangerous || (alert_ == Alert::EMERGENCY && inputs.emergency_latched)) {
     next_alert = Alert::EMERGENCY;
   } else if (!inputs.high_level_alive &&
              (alert_ == Alert::LINK_LOST || time_reached(now_ms, link_lost_since_ms_ + kLinkLostDelayMs))) {
@@ -102,7 +107,10 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     activity_ = next_activity;
     alert_ = next_alert;
     AmbientArm(now_ms);
-    return next_alert == Alert::EMERGENCY ? StateAction{SoundId::EMERGENCY} : StateAction{SoundId::BOOT_COMPLETE};
+    if (next_alert == Alert::EMERGENCY) {
+      return AlertAction(Alert::NONE, Alert::EMERGENCY, inputs.emergency);
+    }
+    return StateAction{SoundId::BOOT_COMPLETE};
   }
 
   // --- An alert change is announced, and it swallows a pending activity change -----
@@ -111,7 +119,7 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     alert_ = next_alert;
     activity_ = next_activity;
     AmbientArm(now_ms);
-    return AlertAction(previous, next_alert);
+    return AlertAction(previous, next_alert, inputs.emergency);
   }
 
   // --- Otherwise the activity decides ---------------------------------------------
@@ -153,26 +161,52 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
 /**
  * @brief Which sound an alert transition plays.
  *
- * | from        | to          | sound                                    |
- * |-------------|-------------|------------------------------------------|
- * | anything    | EMERGENCY   | EMERGENCY (preempts, see its definition) |
- * | EMERGENCY   | LINK_LOST   | ROS_DISCONNECTED, after stopping the tone |
- * | EMERGENCY   | NONE        | EMERGENCY_CLEARED                         |
- * | LINK_LOST   | NONE        | ROS_CONNECTED                             |
- * | NONE        | LINK_LOST   | ROS_DISCONNECTED                          |
+ * | from      | to          | sound                                            |
+ * |-----------|-------------|--------------------------------------------------|
+ * | anything  | EMERGENCY   | by kind, see below                                |
+ * | EMERGENCY | LINK_LOST   | ROS_DISCONNECTED, after stopping the tone         |
+ * | EMERGENCY | NONE        | EMERGENCY_CLEARED                                 |
+ * | LINK_LOST | NONE        | ROS_CONNECTED                                     |
+ * | NONE      | LINK_LOST   | ROS_DISCONNECTED                                  |
  *
- * @note  A repeating alert (the emergency tone holds ~8 s) has to be stopped before the
- *        "all clear" plays, hence stop_first.
+ * Entering an emergency depends on *why* it happened — a pressed stop button is no
+ * surprise, the user just did it, so it is confirmed in words instead of being alarmed:
+ *
+ * | kind        | sound                                  |
+ * |-------------|----------------------------------------|
+ * | STOP_BUTTON | STOP_BUTTON only (never the alarm)     |
+ * | LIFT        | LIFT_TRIGGERED, then the alarm         |
+ * | COLLISION   | COLLISION_TRIGGERED, then the alarm    |
+ * | MOWER_RPM_LIMIT | MOWER_RPM_LIMIT, then the alarm  |
+ * | MOWER_RPM_TIMEOUT    | MOWER_RPM_TIMEOUT, then the alarm     |
+ * | OTHER       | the alarm only (e.g. a firmware fault) |
+ *
+ * The "what happened" announcement plays first and the alarm follows it (follow_up): the
+ * alarm preempts by its definition, so it cannot be queued *before* the voice without
+ * cutting it off. While an emergency is latched no further announcement is made - the
+ * alert simply stays.
+ *
+ * @note  A repeating alert (the emergency tone holds several seconds) has to be stopped
+ *        before the "all clear" plays, hence stop_first.
  */
-StateAction StateMachine::AlertAction(Alert from, Alert to) {
+StateAction StateMachine::AlertAction(Alert from, Alert to, EmergencyKind kind) {
   if (to == Alert::EMERGENCY) {
+    switch (kind) {
+      case EmergencyKind::STOP: return StateAction{SoundId::STOP_BUTTON, kNoSound, true};
+      case EmergencyKind::LIFT: return StateAction{SoundId::LIFT_TRIGGERED, SoundId::EMERGENCY, true};
+      case EmergencyKind::COLLISION: return StateAction{SoundId::COLLISION_TRIGGERED, SoundId::EMERGENCY, true};
+      case EmergencyKind::RPM_LIMIT: return StateAction{SoundId::MOWER_RPM_LIMIT, SoundId::EMERGENCY, true};
+      case EmergencyKind::RPM_TIMEOUT: return StateAction{SoundId::MOWER_RPM_TIMEOUT, SoundId::EMERGENCY, true};
+      case EmergencyKind::OTHER:
+      case EmergencyKind::NONE: break;
+    }
     return StateAction{SoundId::EMERGENCY};
   }
   const bool was_emergency = (from == Alert::EMERGENCY);
   if (to == Alert::LINK_LOST) {
-    return StateAction{SoundId::ROS_DISCONNECTED, was_emergency};
+    return StateAction{SoundId::ROS_DISCONNECTED, kNoSound, was_emergency};
   }
-  return StateAction{was_emergency ? SoundId::EMERGENCY_CLEARED : SoundId::ROS_CONNECTED, was_emergency};
+  return StateAction{was_emergency ? SoundId::EMERGENCY_CLEARED : SoundId::ROS_CONNECTED, kNoSound, was_emergency};
 }
 
 /**
