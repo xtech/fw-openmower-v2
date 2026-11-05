@@ -251,6 +251,15 @@ void stop();
 /** @brief Returns true while the player is actively outputting audio. */
 bool is_playing();
 
+/**
+ * @brief True with a probability of @p chance_percent (0..100).
+ *
+ * Uses the player's own PRNG (seeded from the MCU TRNG at boot, see random_seed()), so
+ * the sound state machine rolls its `chance` per robot instead of repeating the same
+ * pattern after every boot. Thread safe; costs a few instructions.
+ */
+bool random_chance(uint8_t chance_percent);
+
 }  // namespace xbot::driver::sound
 
 #endif  // SOUND_PLAYER_HPP

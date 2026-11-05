@@ -288,6 +288,17 @@ static void random_seed() {
   ULOG_WARNING("Sound: no TRNG word at boot, the take selection sequence repeats itself");
 }
 
+bool random_chance(uint8_t chance_percent) {
+  if (chance_percent == 0U) return false;
+  if (chance_percent >= 100U) return true;
+
+  /* Same lock as the take selection: the PRNG state is shared with the player thread. */
+  chMtxLock(&s_override_mutex);
+  const uint32_t roll = random_next() % 100U;
+  chMtxUnlock(&s_override_mutex);
+  return roll < chance_percent;
+}
+
 /** True for a take name that ends in ".mp3" (case-insensitive). */
 static bool has_mp3_suffix(etl::string_view name) {
   if (name.size() <= 4U) return false;

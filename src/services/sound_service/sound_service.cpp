@@ -1,5 +1,6 @@
 #include "sound_service.hpp"
 
+#include <service_ids.h>
 #include <ulog.h>
 
 #include <cstring>
@@ -8,7 +9,38 @@
 #include <drivers/sound/sound_sequence.hpp>
 #include <json_stream.hpp>
 
+#include "globals.hpp"
+#include "services.hpp"
+
 using namespace xbot::driver::sound;
+
+/**
+ * @brief How often the state machine looks at the world.
+ *
+ * The *loop* wants microseconds (Service::OnLoop returns its block time in µs, and the
+ * framework clamps it to 1 s), while everything the machine itself handles is
+ * milliseconds. Keeping the period in ms and converting here makes that obvious.
+ */
+static constexpr uint32_t kStateMachineTickMs = 100U;
+static constexpr uint32_t kStateMachineTickUs = kStateMachineTickMs * 1'000U;
+
+/**
+ * @brief Which emergency reasons are announced with a sound.
+ *
+ * The real dangers: the physical conditions from the input service (their configured
+ * `emergency_reason` masks carry EmergencyReason::LATCH together with the condition bit,
+ * and only once the input's delay elapsed — see InputService::GetEmergencyReasons) and
+ * the mower RPM cutoffs (MowerService / MowingBehavior).
+ *
+ * Infrastructure/state reasons (TIMEOUT_*, SERVICE_NOT_READY, HIGH_LEVEL, ...) stay
+ * silent: the link state has its own ROS_CONNECTED/ROS_DISCONNECTED sounds, and the high
+ * level's initial latched state at connect is normal operation, not an alert.
+ */
+static constexpr uint16_t kAudibleReasons =
+    EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::LIFT_MULTIPLE | EmergencyReason::COLLISION |
+    EmergencyReason::COLLISION_MULTIPLE | EmergencyReason::MOWER_RPM_LIMIT | EmergencyReason::MOWER_RPM_TIMEOUT;
+
+sound::AmbientPolicy SoundService::s_ambient[SoundId_count]{};
 
 struct sound_config_json_data_t : public json_data_t {
   SoundId current_id = SoundId::BOOT_PING;
@@ -16,7 +48,9 @@ struct sound_config_json_data_t : public json_data_t {
   bool have_current = false;
   uint8_t note_idx = 0;
   uint8_t num_sounds = 0;              ///< successfully parsed + applied definitions
-  bool saw_ambient = false;            ///< every_ms/chance seen (playback not implemented yet)
+  uint8_t num_ambient = 0;             ///< definitions that carry an every/chance
+  uint32_t current_every_ms = 0;       ///< "every_ms" of the current sound
+  uint8_t current_chance_pct = 0;      ///< "chance" (0..1 in the YAML) of the current sound
   char first_take[kVariantNameMax]{};  ///< take 1, used when the blob sends no "file"
 };
 
@@ -45,6 +79,9 @@ bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t le
   // A fresh blob fully replaces the previous configuration: clear any sound
   // overrides first so missing entries fall back to the ROM defaults.
   clear_sound_overrides();
+  for (auto& policy : s_ambient) {
+    policy = AmbientPolicy{};
+  }
   // The take lists are staged: a rejected blob leaves the previous ones in place.
   begin_sound_variants_write();
 
@@ -55,12 +92,12 @@ bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t le
     // Persist the parsed overrides and takes to flash so they survive a reboot.
     commit_sound_variants_write();
     save_sound_overrides_to_storage();
-    ULOG_INFO("Sound: %hhu definition(s) applied (%zu byte blob)", json_data.num_sounds, length);
-    if (json_data.saw_ambient) {
-      /* One line per blob: `soundctl sync` runs on every connect, so a per-attribute
-         warning would repeat itself on every high-level start. */
-      ULOG_INFO("Sound: every/chance accepted (autonomous playback is not implemented yet)");
-    }
+    ULOG_INFO("Sound: %hhu definition(s) applied (%zu byte blob), %hhu with every/chance", json_data.num_sounds, length,
+              json_data.num_ambient);
+    /* A new blob may carry a different `every`/`chance`: restart the ambience interval so
+       it takes effect without waiting for the next state change. The clock is the same
+       monotonic one the loop uses (this callback runs on the service thread). */
+    machine_.AmbientPolicyChanged(now_ms_);
   } else {
     abort_sound_variants_write();
     ULOG_WARNING("Sound: definitions blob rejected (%zu byte blob)", length);
@@ -101,6 +138,8 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
       data->first_take[0] = '\0';
       data->have_current = true;
       data->note_idx = 0;
+      data->current_every_ms = 0U;
+      data->current_chance_pct = 0U;
       break;
     }
 
@@ -125,6 +164,14 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
           strcat(data->current_def.path, data->first_take);
         }
         set_sound_override(data->current_id, data->current_def);
+        /* The blob carries milliseconds; the machine keeps seconds (see AmbientPolicy).
+           Rounded half up, so `every: 60s` stays 60 — soundctl rejects < 1 s anyway. */
+        const uint32_t every_s = (data->current_every_ms + 500U) / 1'000U;
+        s_ambient[static_cast<uint8_t>(data->current_id)] =
+            AmbientPolicy{static_cast<uint16_t>(every_s > 0xFFFFU ? 0xFFFFU : every_s), data->current_chance_pct};
+        if (data->current_every_ms >= 500U && data->current_chance_pct != 0U) {
+          data->num_ambient++;
+        }
         data->num_sounds++;
         data->have_current = false;
       }
@@ -249,15 +296,14 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
         }
         set_sound_variant_pick(data->current_id, pick);
       } else if (strcmp(key, "every_ms") == 0) {
-        // Ambient sound: the low level rolls by itself whether to play at all.
-        // Accepted so the blob stays forward compatible; playback is still to come.
+        // Ambient sound: the low level rolls by itself whether to play at all. The rate
+        // arrives in ms and is applied together with "chance" (see the object end above).
         uint32_t every = 0;
         if (!JsonGetNumber(jsp, type, every)) {
           ULOG_ERROR("Sound config: invalid every_ms");
           return false;
         }
-        data->saw_ambient = true;
-        (void)every;
+        data->current_every_ms = every;
       } else if (strcmp(key, "chance") == 0) {
         JsonExpectType(NUMBER);
         const float chance = strtof(jsp->data.prim.buff, nullptr);
@@ -265,7 +311,7 @@ bool SoundService::SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwj
           ULOG_ERROR("Sound config: invalid chance (expected 0..1)");
           return false;
         }
-        data->saw_ambient = true;
+        data->current_chance_pct = static_cast<uint8_t>(chance * 100.0F + 0.5F);
       } else if (strcmp(key, "tone") == 0) {
         JsonExpectTypeOrEnd(OBJECT);
       } else if (strcmp(key, "sequence") == 0) {
@@ -462,4 +508,76 @@ void SoundService::RPCStop(uint16_t call_id) {
   ULOG_INFO("Sound: RPC stop (queues flushed)");
   const uint8_t result = 1U;
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
+}
+
+/*---------------------------------------------------------------------------*\
+ * Sound state machine
+ *
+ * The services own the state and the player owns the audio; the machine
+ * (drivers/sound/sound_state_machine.*) maps a state transition to a sound.
+ * The plumbing below is all this file has to do for it: fill the inputs from
+ * the services, apply the decision, log the announcement.
+\*---------------------------------------------------------------------------*/
+
+AmbientPolicy SoundService::AmbientPolicyFor(SoundId id) {
+  const uint8_t idx = static_cast<uint8_t>(id);
+  return idx < SoundId_count ? s_ambient[idx] : AmbientPolicy{};
+}
+
+bool SoundService::Dice(uint8_t chance_pct) {
+  return random_chance(chance_pct);
+}
+
+StateInputs SoundService::ReadInputs() {
+  StateInputs in{};
+
+  /* Emergency: the high level timeout is the link, the audible bits are danger. */
+  const uint16_t reasons = emergency_service.GetEmergencyReasons();
+  in.high_level_alive = (reasons & EmergencyReason::TIMEOUT_HIGH_LEVEL) == 0U;
+  in.emergency = (reasons & kAudibleReasons) != 0U;
+
+  /* Mowing: the blade turns. MowerService owns that definition (it is the same value it
+     reports as `MowerRunning`), so the sound logic needs no RPM threshold of its own. */
+  if (robot != nullptr && robot->NeedsService(xbot::service_ids::MOWER)) {
+    in.blade_running = mower_service.IsMowerRunning();
+  }
+
+  /* Charging: any active phase counts, DONE is what CHARGING_DONE announces. */
+  if (robot != nullptr && robot->NeedsService(xbot::service_ids::POWER)) {
+    const CHARGER_STATUS charger = power_service.GetChargerStatus();
+    in.charging = (charger == CHARGER_STATUS::TRICKLE) || (charger == CHARGER_STATUS::PRE_CHARGE) ||
+                  (charger == CHARGER_STATUS::CC) || (charger == CHARGER_STATUS::CV) ||
+                  (charger == CHARGER_STATUS::TOP_OFF);
+    in.charge_done = (charger == CHARGER_STATUS::DONE);
+    const float percent = power_service.GetBatteryPercent();
+    if (percent >= 0.0F && percent <= 100.0F) {
+      in.battery_percent = static_cast<uint8_t>(percent + 0.5F);
+    }
+  }
+
+  return in;
+}
+
+void SoundService::PlayAction(const StateAction& action) {
+  if (action.stop_first) {
+    /* An alert tone repeats; the "all clear" must not queue up behind it. */
+    stop();
+  }
+  const PlayResult res = play_sound_id(action.sound);
+  ULOG_INFO("Sound: announced '%s' (activity=%s alert=%s, %s)", SoundId_to_string(action.sound),
+            activity_name(machine_.activity()), alert_name(machine_.alert()), play_result_text(res));
+}
+
+uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/) {
+  /* Wrapping microseconds in, monotonic milliseconds out (see now_ms_). */
+  now_ms_ += (now_micros - last_loop_micros_) / 1000U;
+  last_loop_micros_ = now_micros;
+
+  /* Nothing here needs the packet queue: the machine is the only periodic work, so the
+     loop simply wakes up for it. */
+  const StateAction action = machine_.Update(ReadInputs(), now_ms_);
+  if (!action.silent()) {
+    PlayAction(action);
+  }
+  return kStateMachineTickUs;
 }
