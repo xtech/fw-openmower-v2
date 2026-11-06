@@ -545,12 +545,37 @@ static EmergencyKind KindOf(uint16_t reasons) {
   return EmergencyKind::NONE;
 }
 
+/**
+ * @brief Which of the high level's behaviours the announced state belongs to.
+ *
+ * The high level sends its behaviour name, which is what the announcements follow: the
+ * mode alone (IDLE/AUTONOMOUS/RECORDING) cannot tell undocking from docking. Unknown names
+ * stay UNKNOWN, so a new behaviour in the high level never silences the existing ones - the
+ * machine then falls back to the blade (see StateMachine::DrivingNoticeStep).
+ */
+static HlState HlStateOf(HighLevelStatus state_id, const char* name) {
+  if (name != nullptr) {
+    if (strcmp(name, "IDLE") == 0) return HlState::IDLE;
+    if (strcmp(name, "UNDOCKING") == 0) return HlState::UNDOCKING;
+    if (strcmp(name, "MOWING") == 0) return HlState::MOWING;
+    if (strcmp(name, "PAUSED") == 0) return HlState::PAUSED;
+    if (strcmp(name, "DOCKING") == 0) return HlState::DOCKING;
+    if (strcmp(name, "AREA_RECORDING") == 0) return HlState::RECORDING;
+  }
+  if (state_id == HighLevelStatus::RECORDING) return HlState::RECORDING;
+  return HlState::UNKNOWN;
+}
+
 StateInputs SoundService::ReadInputs() {
   StateInputs in{};
 
   /* Emergency: the high level timeout is the link, the audible bits are the danger. Every
      audible condition arrives together with EmergencyReason::LATCH once it lasted its
      configured delay, so a flickering sensor never reaches the machine. */
+  /* What the high level is doing: its behaviour name is what the announcements follow. */
+  const etl::string<100> hl_name = high_level_service.GetStateName();
+  in.hl_state = HlStateOf(high_level_service.GetStateId(), hl_name.c_str());
+
   const uint16_t reasons = emergency_service.GetEmergencyReasons();
   in.high_level_alive = (reasons & EmergencyReason::TIMEOUT_HIGH_LEVEL) == 0U;
   in.emergency = KindOf(reasons);
@@ -580,9 +605,17 @@ StateInputs SoundService::ReadInputs() {
 
 void SoundService::PlayAction(const StateAction& action) {
   if (action.stop_first) stop();
+  if (action.silent()) {
+    /* Nothing to announce, only to stop (the warning device ended): stop() above did it. */
+    ULOG_INFO("Sound: silenced (alert=%s hl=%s charging=%u blade=%u)", alert_name(machine_.alert()),
+              hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U, machine_.blade_running() ? 1U : 0U);
+    return;
+  }
+
   const PlayResult res = play_sound_id(action.sound);
-  ULOG_INFO("Sound: announced '%s' (activity=%s alert=%s, %s)", SoundId_to_string(action.sound),
-            activity_name(machine_.activity()), alert_name(machine_.alert()), play_result_text(res));
+  ULOG_INFO("Sound: announced '%s' (alert=%s hl=%s charging=%u blade=%u, %s)", SoundId_to_string(action.sound),
+            alert_name(machine_.alert()), hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U,
+            machine_.blade_running() ? 1U : 0U, play_result_text(res));
 
   if (action.follow_up != kNoSound) {
     /* The announcement's `pause_after_ms` (YAML) spaces the two. */
@@ -599,7 +632,7 @@ uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/
   /* Nothing here needs the packet queue: the machine is the only periodic work, so the
      loop simply wakes up for it. */
   const StateAction action = machine_.Update(ReadInputs(), now_ms_);
-  if (!action.silent()) {
+  if (!action.silent() || action.stop_first) {
     PlayAction(action);
   }
   return kStateMachineTickUs;

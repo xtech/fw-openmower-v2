@@ -21,17 +21,15 @@
  *        sentences, and the machine needs neither hardware nor a service to run — which
  *        is what makes it testable.
  *
- *        The state has two axes:
- *          Activity — what the robot is doing (idle, mowing, charging).
- *          Alert    — what is wrong (link lost, emergency) and therefore wins.
+ *        The state has three sources, and only one of them needs an axis of its own:
+ *          HlState — what the high level says it does (idle, undocking, mowing, paused,
+ *                    docking, recording)
+ *          Alert   — what is wrong (link lost, emergency) and therefore wins.
+ *          Sensors — the charger (the high level does not report charging) and the blade
+ *                    (the ambience runs while it turns).
  *        Only a *change* makes a sound, and an alert change is announced first: a link
  *        loss matters more than the blade starting, and the machine catches up with the
- *        activity silently afterwards.
- *
- *        Sounds only the high level can know about (MOWING_START/PAUSED/COMPLETE,
- *        DOCKING_START, AREA_RECORDING_MODE, RAIN_DETECTED, …) stay under its control —
- *        it plays them through the SoundService RPC.  Adding one here later is a single
- *        entry in the rule functions.
+ *        rest silently afterwards.
  */
 
 #ifndef SOUND_STATE_MACHINE_HPP
@@ -42,14 +40,7 @@
 
 namespace xbot::driver::sound {
 
-/** @brief What the robot is doing. Mutually exclusive; the base of the state. */
-enum class Activity : uint8_t {
-  IDLE,      ///< Nothing runs: standing, or the blade is off
-  MOWING,    ///< The mower motor turns
-  CHARGING,  ///< The charger charges the battery
-};
-
-/** @brief What is wrong; overrides the activity while it lasts (EMERGENCY wins). */
+/** @brief What is wrong; overrides everything else while it lasts (EMERGENCY wins). */
 enum class Alert : uint8_t {
   NONE,       ///< Everything is fine
   LINK_LOST,  ///< The high level (ROS) is gone
@@ -76,21 +67,57 @@ enum class EmergencyKind : uint8_t {
   OTHER,        ///< Anything else audible — alarm only
 };
 
-/** @brief Short names for logs (and test failures). */
-inline const char* activity_name(Activity a) {
-  switch (a) {
-    case Activity::IDLE: return "IDLE";
-    case Activity::MOWING: return "MOWING";
-    case Activity::CHARGING: return "CHARGING";
-  }
-  return "?";
-}
-
 inline const char* alert_name(Alert a) {
   switch (a) {
     case Alert::NONE: return "NONE";
     case Alert::LINK_LOST: return "LINK_LOST";
     case Alert::EMERGENCY: return "EMERGENCY";
+  }
+  return "?";
+}
+
+/**
+ * @brief What the high level is doing, collapsed to the states that change the audio.
+ *
+ * The high level already sends this with every cycle (`/high_level_status` →
+ * HighLevelService: `HighLevelStatus` IDLE/AUTONOMOUS/RECORDING plus the behaviour name).
+ * The *names* are what matters here: the mode alone cannot tell undocking from docking.
+ */
+enum class HlState : uint8_t {
+  UNKNOWN,    ///< No high level state (yet, or an unknown behaviour)
+  IDLE,       ///< Nothing runs: standing in the station or on the lawn
+  UNDOCKING,  ///< Leaving the station (autonomous driving)
+  MOWING,     ///< Mowing
+  PAUSED,     ///< Mowing was paused
+  DOCKING,    ///< Driving back to the station
+  RECORDING,  ///< Area recording (the app drives it)
+};
+
+/**
+ * @brief True while the high level *manoeuvres* the robot (the warning device runs).
+ *
+ * Deliberately not MOWING: mowing runs for hours (and has its own background sounds), while
+ * the warning is meant for the docking manoeuvres - the reversing alarm the definition was
+ * written for. Add MOWING here if the robot should beep all the time it works.
+ *
+ * The *cadence* is the definition's `repeat_ms` (the player repeats the sound by itself),
+ * so the machine only has to start the pattern when a manoeuvre begins and stop it when it
+ * ends.
+ */
+inline bool hl_manoeuvres(HlState state) {
+  return state == HlState::UNDOCKING || state == HlState::DOCKING;
+}
+
+/** @brief Short names for logs (and test failures). */
+inline const char* hl_state_name(HlState s) {
+  switch (s) {
+    case HlState::UNKNOWN: return "UNKNOWN";
+    case HlState::IDLE: return "IDLE";
+    case HlState::UNDOCKING: return "UNDOCKING";
+    case HlState::MOWING: return "MOWING";
+    case HlState::PAUSED: return "PAUSED";
+    case HlState::DOCKING: return "DOCKING";
+    case HlState::RECORDING: return "RECORDING";
   }
   return "?";
 }
@@ -116,10 +143,11 @@ struct StateInputs {
    * *left* once neither the condition nor the latch is there any more.
    */
   bool emergency_latched = false;
-  bool blade_running = false;      ///< The mower motor turns (mowing)
-  bool charging = false;           ///< The charger charges right now
-  bool charge_done = false;        ///< The charger reports DONE
-  uint8_t battery_percent = 255U;  ///< 0..100; 255 = unknown (no LOW_BATTERY announcement)
+  HlState hl_state = HlState::UNKNOWN;  ///< What the high level reports (its behaviour name)
+  bool blade_running = false;           ///< The mower motor turns (mowing)
+  bool charging = false;                ///< The charger charges right now
+  bool charge_done = false;             ///< The charger reports DONE
+  uint8_t battery_percent = 255U;       ///< 0..100; 255 = unknown (no LOW_BATTERY announcement)
 };
 
 /**
@@ -224,12 +252,22 @@ class StateMachine {
     AmbientArm(now_ms);
   }
 
-  Activity activity() const {
-    return activity_;
+  /** @brief True while the charger charges (the only state the high level lacks). */
+  bool charging() const {
+    return charging_;
+  }
+
+  /** @brief True while the blade turns (the ambience and LOW_BATTERY follow it). */
+  bool blade_running() const {
+    return blade_.value();
   }
 
   Alert alert() const {
     return alert_;
+  }
+
+  HlState hl_state() const {
+    return hl_state_;
   }
 
  private:
@@ -252,11 +290,11 @@ class StateMachine {
   /** @brief The sound of an alert transition (rules: sound_state_machine.cpp). */
   static StateAction AlertAction(Alert from, Alert to, EmergencyKind kind);
 
-  /** @brief The sound of an activity transition (rules: sound_state_machine.cpp). */
-  static SoundId ActivitySound(Activity from, Activity to, bool charge_done);
+  /** @brief The sound of a high level state transition (rules: sound_state_machine.cpp). */
+  static SoundId HlSound(HlState from, HlState to);
 
-  /** @brief The ambient sound of an activity, if it has one. */
-  static SoundId AmbientSound(Activity activity);
+  /** @brief Which sound may play by itself while the blade turns (the ambience). */
+  SoundId AmbientSound() const;
 
   /** @brief Restart the ambient interval (on boot and on every state change). */
   void AmbientArm(uint32_t now_ms);
@@ -267,15 +305,16 @@ class StateMachine {
   Hooks hooks_{};
 
   bool started_ = false;
-  Activity activity_ = Activity::IDLE;
+  bool charging_ = false;           ///< Debounced charger state (the CHARGING_START/DONE edges)
   Alert alert_ = Alert::LINK_LOST;  ///< The robot boots without a high level
 
   Debounced blade_;
   Debounced charger_;
 
-  bool link_lost_timer_ = false;      ///< A link loss is being timed
-  uint32_t link_lost_since_ms_ = 0U;  ///< … and started here
-  bool charge_done_seen_ = false;     ///< The charger reached DONE during this charge
+  bool link_lost_timer_ = false;         ///< A link loss is being timed
+  uint32_t link_lost_since_ms_ = 0U;     ///< … and started here
+  HlState hl_state_ = HlState::UNKNOWN;  ///< Last reported high level state
+  bool charge_done_seen_ = false;        ///< The charger reached DONE during this charge
   bool low_battery_announced_ = false;
 
   bool ambient_armed_ = false;    ///< An interval is running

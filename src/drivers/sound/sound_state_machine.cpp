@@ -15,7 +15,7 @@
  *
  * @note  Everything that decides *what* is announced lives in this file; the plumbing
  *        (which service reports what, and how a sound is played) lives in SoundService.
- *        Read AlertSound()/ActivitySound() to change the behaviour.
+ *        Read AlertAction()/HlSound() to change the behaviour.
  */
 
 #include "sound_state_machine.hpp"
@@ -41,7 +41,7 @@ StateMachine::StateMachine(Hooks hooks) : hooks_(hooks) {
 
 void StateMachine::Reset() {
   started_ = false;
-  activity_ = Activity::IDLE;
+  charging_ = false;
   // A booting robot has no high level yet; the first heartbeat is then a transition
   // into NONE, i.e. ROS_CONNECTED. See Update().
   alert_ = Alert::LINK_LOST;
@@ -49,6 +49,7 @@ void StateMachine::Reset() {
   charger_ = Debounced{};
   link_lost_timer_ = false;
   link_lost_since_ms_ = 0U;
+  hl_state_ = HlState::UNKNOWN;
   charge_done_seen_ = false;
   low_battery_announced_ = false;
   ambient_armed_ = false;
@@ -90,21 +91,26 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     next_alert = Alert::LINK_LOST;
   }
 
-  // --- The activity: debounced, so a blade ramp-up or a charger handshake is no event
+  // --- The sensors: debounced, so a blade ramp-up or a charger handshake is no event
   const bool charging = charger_.Update(inputs.charging, now_ms, kInputDebounceMs);
-  const bool blade = blade_.Update(inputs.blade_running, now_ms, kInputDebounceMs);
-  const Activity next_activity = charging ? Activity::CHARGING : (blade ? Activity::MOWING : Activity::IDLE);
+  const bool blade_before = blade_.value();
+  blade_.Update(inputs.blade_running, now_ms, kInputDebounceMs);
+  if (blade_.value() != blade_before) {
+    /* The ambience belongs to the blade (see AmbientSound()): its interval restarts when
+       the motor starts or stops. */
+    AmbientArm(now_ms);
+  }
 
   if (inputs.charge_done) {
-    /* DONE is not an active charge phase, so it can arrive in the same tick that ends
-       CHARGING: remember it here, the activity transition below consumes it. */
+    /* DONE is not an active charge phase, so it can arrive in the same tick that ends the
+       charge: remember it here, the edge below consumes it. */
     charge_done_seen_ = true;
   }
 
   // --- Boot: the power-up sweep, but an active emergency outranks it ---------------
   if (!started_) {
     started_ = true;
-    activity_ = next_activity;
+    charging_ = charging;
     alert_ = next_alert;
     AmbientArm(now_ms);
     if (next_alert == Alert::EMERGENCY) {
@@ -113,27 +119,56 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     return StateAction{SoundId::BOOT_COMPLETE};
   }
 
-  // --- An alert change is announced, and it swallows a pending activity change -----
+  // --- An alert change is announced, and it swallows a pending state change --------
   if (next_alert != alert_) {
     const Alert previous = alert_;
     alert_ = next_alert;
-    activity_ = next_activity;
+    charging_ = charging;
     AmbientArm(now_ms);
-    return AlertAction(previous, next_alert, inputs.emergency);
+    StateAction action = AlertAction(previous, next_alert, inputs.emergency);
+    if (next_alert == Alert::NONE && hl_manoeuvres(hl_state_)) {
+      /* The alert (and its stop_first) ended the warning pattern: start it again. */
+      action.follow_up = SoundId::AUTONOMOUS_NOTICE;
+    }
+    return action;
   }
 
-  // --- Otherwise the activity decides ---------------------------------------------
-  if (next_activity != activity_) {
-    const Activity previous = activity_;
-    activity_ = next_activity;
+  // --- Charging: the charger is the only source (the high level reports no charging)
+  if (charging != charging_) {
+    charging_ = charging;
     AmbientArm(now_ms);
-    if (next_activity == Activity::CHARGING) {
+    if (charging) {
       charge_done_seen_ = false;  // a fresh charge: DONE can only be reported from now on
+      return StateAction{SoundId::CHARGING_START};
     }
-    const SoundId sound = ActivitySound(previous, next_activity, charge_done_seen_);
-    if (previous == Activity::CHARGING) {
-      charge_done_seen_ = false;
+    const bool done = charge_done_seen_;
+    charge_done_seen_ = false;
+    if (done) {
+      return StateAction{SoundId::CHARGING_DONE};
     }
+  }
+
+  // --- The high level's own state: its announcements ------------------------------
+  if (inputs.hl_state != hl_state_) {
+    const HlState previous = hl_state_;
+    hl_state_ = inputs.hl_state;
+
+    if (hl_manoeuvres(hl_state_) && !hl_manoeuvres(previous)) {
+      /* A manoeuvre starts the warning device. Its cadence is the definition's
+         repeat_ms, so this only has to start it - and as a follow-up when the same
+         transition also has an announcement (the queue plays that one first). */
+      const SoundId announce = HlSound(previous, hl_state_);
+      if (announce != kNoSound) {
+        return StateAction{announce, SoundId::AUTONOMOUS_NOTICE, true};
+      }
+      return StateAction{SoundId::AUTONOMOUS_NOTICE, kNoSound, true};
+    }
+    if (!hl_manoeuvres(hl_state_) && hl_manoeuvres(previous)) {
+      /* The manoeuvre is over: stop the pattern (repeat_ms would run on by itself). */
+      return StateAction{kNoSound, kNoSound, true};
+    }
+
+    const SoundId sound = HlSound(previous, hl_state_);
     if (sound != kNoSound) {
       return StateAction{sound};
     }
@@ -143,15 +178,20 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
   if (inputs.battery_percent != 255U) {
     if (inputs.battery_percent >= static_cast<uint8_t>(kLowBatteryPercent + kLowBatteryHysteresis)) {
       low_battery_announced_ = false;
-    } else if (alert_ == Alert::NONE && activity_ == Activity::MOWING && !low_battery_announced_ &&
+    } else if (alert_ == Alert::NONE && blade_.value() && !low_battery_announced_ &&
                inputs.battery_percent <= kLowBatteryPercent) {
       low_battery_announced_ = true;
       return StateAction{SoundId::LOW_BATTERY};
     }
   }
 
-  // --- Ambience: the background sound of the current activity ----------------------
-  return AmbientStep(now_ms);
+  // --- Ambience: the background sound while the blade turns ------------------------
+  const StateAction ambient = AmbientStep(now_ms);
+  if (!ambient.silent()) {
+    return ambient;
+  }
+
+  return StateAction{};
 }
 
 //=============================================================================
@@ -210,45 +250,55 @@ StateAction StateMachine::AlertAction(Alert from, Alert to, EmergencyKind kind) 
 }
 
 /**
- * @brief Which sound an activity transition plays.
+ * @brief Which sound a high level state change plays.
  *
- * | from              | to                | sound                        |
- * |-------------------|-------------------|------------------------------|
- * | IDLE              | CHARGING          | CHARGING_START               |
- * | MOWING            | CHARGING          | CHARGING_START               |
- * | CHARGING          | IDLE / MOWING     | CHARGING_DONE (only if DONE) |
- * | IDLE              | MOWING            | — (the high level owns it)   |
- * | MOWING            | IDLE              | — (pause and "done" differ, only the HL knows which) |
+ * | from                    | to          | sound                 |
+ * |-------------------------|-------------|-----------------------|
+ * | IDLE / UNDOCKING        | MOWING      | MOWING_START          |
+ * | MOWING                  | PAUSED      | MOWING_PAUSED         |
+ * | PAUSED                  | MOWING      | MOWING_RESUMED        |
+ * | MOWING / PAUSED         | DOCKING     | MOWING_COMPLETE       |
+ * | anything else           | DOCKING     | DOCKING_START         |
+ * | anything else           | RECORDING   | AREA_RECORDING_MODE   |
+ * | anything else           | …           | silent                |
  *
- * @note  MOWING_START/PAUSED/RESUMED/COMPLETE are *semantic* events: the low level only
- *        sees the blade turn, which is neither a start nor a completion.  The high level
- *        plays those itself (SoundService RPC), so a state change here stays silent.
+ * @note  Only the *high level* knows these: the blade says "the robot mows", but not
+ *        whether it is undocking, paused, done or merely driving home. A docking that
+ *        follows mowing is reported as "complete"; the high level may also dock for rain
+ *        or a low battery, and the low level cannot tell - the announcement is the same
+ *        either way.
  */
-SoundId StateMachine::ActivitySound(Activity from, Activity to, bool charge_done) {
-  if (to == Activity::CHARGING) {
-    return SoundId::CHARGING_START;
+SoundId StateMachine::HlSound(HlState from, HlState to) {
+  switch (to) {
+    case HlState::MOWING: return (from == HlState::PAUSED) ? SoundId::MOWING_RESUMED : SoundId::MOWING_START;
+    case HlState::PAUSED: return (from == HlState::MOWING) ? SoundId::MOWING_PAUSED : kNoSound;
+    case HlState::DOCKING:
+      return (from == HlState::MOWING || from == HlState::PAUSED) ? SoundId::MOWING_COMPLETE : SoundId::DOCKING_START;
+    case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+    case HlState::UNKNOWN:
+    case HlState::IDLE:
+    case HlState::UNDOCKING: break;
   }
-  if (from == Activity::CHARGING && charge_done) {
-    return SoundId::CHARGING_DONE;
-  }
-  return kNoSound;
+  return kNoSound; /* undocking and stopping are silent - the warning device starts/stops */
 }
 
-/** @brief Which sound may play by itself while the activity lasts. */
-SoundId StateMachine::AmbientSound(Activity activity) {
-  switch (activity) {
-    case Activity::MOWING: return SoundId::MOWING_AMBIENCE;  // every/chance come from the definition
-    case Activity::IDLE:
-    case Activity::CHARGING: break;
-  }
-  return kNoSound;
+/**
+ * @brief Which sound may play by itself while the blade turns.
+ *
+ * The blade is the low level's own truth for "the robot is cutting": the high level's
+ * MOWING starts before the motor spins up (and keeps running while it waits for GPS), and a
+ * background sound should belong to the work, not to the plan. The ambience rate and the
+ * probability come from the definition (`every`, `chance`).
+ */
+SoundId StateMachine::AmbientSound() const {
+  return blade_.value() ? SoundId::MOWING_AMBIENCE : kNoSound;
 }
 
 void StateMachine::AmbientArm(uint32_t now_ms) {
   ambient_armed_ = false;
   ambient_due_ms_ = 0U;
 
-  const SoundId id = AmbientSound(activity_);
+  const SoundId id = AmbientSound();
   if (id == kNoSound || hooks_.policy == nullptr) {
     return;
   }
@@ -271,7 +321,7 @@ StateAction StateMachine::AmbientStep(uint32_t now_ms) {
     return StateAction{};
   }
 
-  const SoundId id = AmbientSound(activity_);
+  const SoundId id = AmbientSound();
   if (id == kNoSound || hooks_.policy == nullptr) {
     ambient_armed_ = false;
     return StateAction{};
