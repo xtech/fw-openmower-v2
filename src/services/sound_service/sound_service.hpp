@@ -48,6 +48,8 @@ class SoundService : public SoundServiceBase {
 
   /** @brief Snapshot of the state the machine reacts to, read from the other services. */
   sound::StateInputs ReadInputs();
+  /** @brief Log the sound-relevant inputs whenever they change (see the .cpp). */
+  void LogInputChanges(const sound::StateInputs& now);
   /**
    * @brief Apply one machine decision to the player.
    *
@@ -63,6 +65,9 @@ class SoundService : public SoundServiceBase {
    * machine compares timestamps up to a minute apart — so the wrapping value is turned
    * into a monotonic one here.
    */
+  /** @brief Previous snapshot, so the state trace only prints something that changed. */
+  sound::StateInputs last_inputs_{};
+
   uint32_t last_loop_micros_ = 0;
   uint32_t now_ms_ = 0;
 

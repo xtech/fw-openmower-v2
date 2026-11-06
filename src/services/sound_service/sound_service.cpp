@@ -624,6 +624,51 @@ void SoundService::PlayAction(const StateAction& action) {
   }
 }
 
+/**
+ * @brief Log every change of a sound-relevant input, whether a sound follows or not.
+ *
+ * This is the debugging trace: a mower that stays silent is diagnosed from its state
+ * history, not from its sounds. One line per changed input keeps it greppable
+ * (`Sound: input …`) and costs nothing while everything is steady - which is most of the
+ * time on a robot that stands in the garden.
+ *
+ * The machine additionally *debounces* the blade and the charger (kInputDebounceMs); the
+ * raw changes are logged here because a bouncing signal is exactly what one wants to see
+ * when a sound is late.
+ */
+void SoundService::LogInputChanges(const StateInputs& now) {
+  const StateInputs& was = last_inputs_;
+
+  if (now.high_level_alive != was.high_level_alive) {
+    ULOG_INFO("Sound: input link: %u -> %u", was.high_level_alive ? 1U : 0U, now.high_level_alive ? 1U : 0U);
+  }
+  if (now.hl_state != was.hl_state) {
+    ULOG_INFO("Sound: input hl: %s -> %s", hl_state_name(was.hl_state), hl_state_name(now.hl_state));
+  }
+  if (now.blade_running != was.blade_running) {
+    ULOG_INFO("Sound: input blade: %u -> %u", was.blade_running ? 1U : 0U, now.blade_running ? 1U : 0U);
+  }
+  if (now.charging != was.charging) {
+    ULOG_INFO("Sound: input charging: %u -> %u", was.charging ? 1U : 0U, now.charging ? 1U : 0U);
+  }
+  if (now.charge_done != was.charge_done) {
+    ULOG_INFO("Sound: input charge_done: %u -> %u", was.charge_done ? 1U : 0U, now.charge_done ? 1U : 0U);
+  }
+  if (now.emergency != was.emergency) {
+    ULOG_INFO("Sound: input emergency: %s -> %s", emergency_kind_name(was.emergency),
+              emergency_kind_name(now.emergency));
+  }
+  if (now.emergency_latched != was.emergency_latched) {
+    ULOG_INFO("Sound: input emergency_latched: %u -> %u", was.emergency_latched ? 1U : 0U,
+              now.emergency_latched ? 1U : 0U);
+  }
+  if (now.battery_percent != was.battery_percent) {
+    ULOG_INFO("Sound: input battery: %u -> %u %%", was.battery_percent, now.battery_percent);
+  }
+
+  last_inputs_ = now;
+}
+
 uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/) {
   /* Wrapping microseconds in, monotonic milliseconds out (see now_ms_). */
   now_ms_ += (now_micros - last_loop_micros_) / 1000U;
@@ -631,7 +676,9 @@ uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/
 
   /* Nothing here needs the packet queue: the machine is the only periodic work, so the
      loop simply wakes up for it. */
-  const StateAction action = machine_.Update(ReadInputs(), now_ms_);
+  const StateInputs in = ReadInputs();
+  LogInputChanges(in);
+  const StateAction action = machine_.Update(in, now_ms_);
   if (!action.silent() || action.stop_first) {
     PlayAction(action);
   }

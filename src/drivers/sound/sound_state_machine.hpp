@@ -67,6 +67,20 @@ enum class EmergencyKind : uint8_t {
   OTHER,        ///< Anything else audible — alarm only
 };
 
+/** @brief Short names for logs (and test failures). */
+inline const char* emergency_kind_name(EmergencyKind k) {
+  switch (k) {
+    case EmergencyKind::NONE: return "NONE";
+    case EmergencyKind::STOP: return "STOP";
+    case EmergencyKind::LIFT: return "LIFT";
+    case EmergencyKind::COLLISION: return "COLLISION";
+    case EmergencyKind::RPM_LIMIT: return "RPM_LIMIT";
+    case EmergencyKind::RPM_TIMEOUT: return "RPM_TIMEOUT";
+    case EmergencyKind::OTHER: return "OTHER";
+  }
+  return "?";
+}
+
 inline const char* alert_name(Alert a) {
   switch (a) {
     case Alert::NONE: return "NONE";
