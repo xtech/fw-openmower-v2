@@ -14,9 +14,9 @@ RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir elf-size-analyze
 ENV PATH="/opt/venv/bin:${PATH}"
 
-# Build preset to use for all platforms. CI passes "Debug" for pull requests and
-# "Release" for main / tagged releases.
-ARG BUILD_PRESET=Release
+# No ARG in this stage: a stage built FROM another one inherits its build args,
+# so an ARG here would become part of the cache key of every RUN in "deps" (a
+# Debug build would then never reuse deps fetched by a Release build).
 
 ####################################################################################################
 # Fetch the third-party sources in their own layer. Its only input is
@@ -39,12 +39,14 @@ RUN cmake -S /project -B /project/build \
 ####################################################################################################
 FROM builder AS build
 
+# Both build args are declared here, in the volatile stage, and not in "builder":
+# they must not be able to invalidate the cached deps stage above.
+# Build preset to use for all platforms. CI passes "Debug" for pull requests and
+# "Release" for main / tagged releases.
+ARG BUILD_PRESET=Release
 # Firmware version string (`git describe --tags --dirty --always`). The build
 # context excludes .git, so CI computes it on the runner and passes it in; a local
 # `docker build` without it gets "unknown" (see cmake/GetGitVersion.cmake).
-# Declared here, in the volatile stage, and not in "builder": an ARG that changes
-# on every commit must not be able to invalidate the cached deps stage above.
-ARG BUILD_PRESET=Release
 ARG FW_VERSION=""
 
 # The sources come from the layer above. FETCHCONTENT_UPDATES_DISCONNECTED stops

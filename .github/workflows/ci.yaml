@@ -25,11 +25,6 @@ jobs:
     name: "Build Artifacts"
     needs: pre-commit
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      # The registry cache from .github/workflows/deps-cache.yaml is pulled from
-      # the repo's GHCR namespace.
-      packages: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,14 +38,20 @@ jobs:
         run: echo "value=$(git describe --tags --dirty --always)" >> "$GITHUB_OUTPUT"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      # Pulling the deps cache needs a login even for a public package, and a
-      # missing cache is only a warning (see the cache-from below).
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      # Only the stable part of the image (toolchain, venv, fetched LVGL/ETL) is
+      # cached, and it is exported from its own target: those layers only change
+      # with the Dockerfile or cmake/deps.cmake, so an unchanged export writes no
+      # new blobs. The firmware build below writes no cache at all - its layers
+      # sit on top of COPY . and are new on every commit (~0.5-1 GB per run that
+      # nothing ever read, plus 70-100 s of export time).
+      - name: Build deps stage
+        uses: docker/build-push-action@v6
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          push: false
+          context: .
+          target: deps
+          cache-from: type=gha,scope=deps
+          cache-to: type=gha,scope=deps,mode=max
       - name: Build
         uses: docker/build-push-action@v6
         with:
@@ -60,12 +61,8 @@ jobs:
           build-args: |
             BUILD_PRESET=${{ github.event_name == 'pull_request' && 'Debug' || 'Release' }}
             FW_VERSION=${{ steps.version.outputs.value }}
-          # The stable part (toolchain, venv, fetched LVGL/ETL) comes from the
-          # registry cache built by .github/workflows/deps-cache.yaml. No cache-to
-          # on purpose: the layers above COPY . are new on every commit, so
-          # exporting them only filled the 10 GB Actions cache with ~1.1 GB per
-          # run and evicted the entries that were actually reused.
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:deps-cache
+          # No cache-to on purpose, see "Build deps stage" above.
+          cache-from: type=gha,scope=deps
           outputs: type=local,dest=./out
       - name: Copy Artifacts
         run: |
