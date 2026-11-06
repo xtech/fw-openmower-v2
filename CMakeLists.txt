@@ -48,12 +48,21 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${GENERATED_INCLUDE_DIR
 target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Werror)
 
 # Add lib subdirectory
+include(cmake/deps.cmake)
 add_subdirectory(ext)
 target_compile_definitions(ulog PUBLIC ULOG_ENABLED)
 
 # Expose project-specific ChibiOS LLD implementations (hal_i2s.c needs hal_i2s_lld.h, etc.)
 target_include_directories(ChibiOS PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/chibios_lld)
 
+# The vendored ChibiOS CMake list has no RNGv1 LLD (HAL_USE_TRNG is off upstream),
+# but the board enables the MCU's true random generator: compile the LLD here, so the
+# vendored tree stays untouched by a ChibiOS update.
+target_sources(ChibiOS PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/ext/ChibiOS_21.11.3/os/hal/ports/STM32/LLD/RNGv1/hal_trng_lld.c)
+# ... and its header, which hal_trng.h includes (the ChibiOS list adds the other LLD dirs).
+target_include_directories(ChibiOS PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/ext/ChibiOS_21.11.3/os/hal/ports/STM32/LLD/RNGv1)
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -133,6 +142,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Sound
         src/chibios_lld/hal_i2s_lld.c
         src/drivers/sound/sound_player.cpp
+        src/drivers/sound/sound_state_machine.cpp
         src/drivers/sound/sound_source.cpp
         src/drivers/sound/sound_mp3.cpp
         src/drivers/sound/sound_synth.cpp

@@ -175,9 +175,6 @@ int main() {
   SetStatusLedMode(LED_MODE_ON);
   SetStatusLedColor(GREEN);
 
-  // Boot complete — power-up sweep.
-  sound::play_sound_id(::SoundId::BOOT_COMPLETE);
-
   DispatchEvents();
 }
 

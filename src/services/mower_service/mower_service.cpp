@@ -72,7 +72,7 @@ void MowerService::tick() {
   SendRainDetected(rain_detected);
 
   // Check, if we have received ESC status updates recently. If not, send a disconnected message
-  if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1'000'000 || !esc_state_valid_) {
+  if (!HasEscState()) {
     // No recent update received (or none at all)
     mower_duty_ = 0;
     mower_duty_target_ = 0;
@@ -85,7 +85,7 @@ void MowerService::tick() {
     SendMowerMotorCurrent(esc_state_.current_input);
     SendMowerStatus(static_cast<uint8_t>(esc_state_.status));
     SendMowerMotorTemperature(esc_state_.temperature_motor);
-    SendMowerRunning(std::fabs(esc_state_.rpm) > 0);
+    SendMowerRunning(IsMowerRunning());
     SendMowerMotorRPM(esc_state_.rpm);
   }
   CommitTransaction();

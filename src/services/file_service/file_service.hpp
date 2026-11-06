@@ -33,6 +33,7 @@ class FileService : public FileServiceBase {
                     uint32_t DataLen, uint32_t Hash) override;
   void RPCFileList(uint16_t call_id, const char* Path, uint32_t PathLen, uint32_t StartIndex, uint8_t* data,
                    uint16_t* response_length) override;
+  void RPCFileStats(uint16_t call_id, uint32_t* data, uint16_t* response_length) override;
 
  private:
   // LittleFS directory commits (lfs_rename -> lfs_dir_commit -> compact/traverse)

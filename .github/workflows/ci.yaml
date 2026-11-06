@@ -31,8 +31,27 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+      # The build context excludes .git (229 MB), so the version string that
+      # git_version.h carries is computed here and passed in as a build arg.
+      - name: Compute firmware version
+        id: version
+        run: echo "value=$(git describe --tags --dirty --always)" >> "$GITHUB_OUTPUT"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      # Only the stable part of the image (toolchain, venv, fetched LVGL/ETL) is
+      # cached, and it is exported from its own target: those layers only change
+      # with the Dockerfile or cmake/deps.cmake, so an unchanged export writes no
+      # new blobs. The firmware build below writes no cache at all - its layers
+      # sit on top of COPY . and are new on every commit (~0.5-1 GB per run that
+      # nothing ever read, plus 70-100 s of export time).
+      - name: Build deps stage
+        uses: docker/build-push-action@v6
+        with:
+          push: false
+          context: .
+          target: deps
+          cache-from: type=gha,scope=deps
+          cache-to: type=gha,scope=deps,mode=max
       - name: Build
         uses: docker/build-push-action@v6
         with:
@@ -41,8 +60,9 @@ jobs:
           # Debug build for pull requests, Release build for main / tagged releases.
           build-args: |
             BUILD_PRESET=${{ github.event_name == 'pull_request' && 'Debug' || 'Release' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            FW_VERSION=${{ steps.version.outputs.value }}
+          # No cache-to on purpose, see "Build deps stage" above.
+          cache-from: type=gha,scope=deps
           outputs: type=local,dest=./out
       - name: Copy Artifacts
         run: |
