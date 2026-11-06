@@ -1,13 +1,33 @@
 FROM ubuntu:24.04 AS builder
 LABEL authors="Clemens Elflein"
 
-RUN apt-get update && apt-get install -y  \
-    gcc-arm-none-eabi git \
-    libasio-dev iproute2 \
-    python3 python3-venv python3-pip \
+# --no-install-recommends keeps the host gcc/g++, boost, X11 and friends out (137
+# of 205 packages were only pulled in as recommendations). The target C/C++
+# runtime is one of those recommendations of gcc-arm-none-eabi, so newlib and
+# libstdc++ are listed explicitly; ca-certificates is needed for the https
+# downloads of the deps stage.
+#
+# newlib, libstdc++ and libgcc ship prebuilt for 39 multilib variants (2.4 GB);
+# the firmware links exactly one. Everything else is deleted in the same RUN, so
+# it never ends up in a layer. The variant is asked from the compiler with the
+# CPU flags of TARGET_FLAGS in cmake/gcc-arm-none-eabi.cmake - change them
+# together: with other flags the link fails with "cannot find -lc" and friends.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib \
+    ca-certificates git \
+    python3 python3-venv \
     cmake \
     make \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && keep=$(arm-none-eabi-gcc -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -print-multi-directory) \
+    && tops=$(arm-none-eabi-gcc -print-multi-lib | cut -d';' -f1 | cut -d/ -f1 | grep -vx '\.' | sort -u) \
+    && for root in /usr/lib/arm-none-eabi/newlib "$(dirname "$(arm-none-eabi-gcc -print-libgcc-file-name)")"; do \
+         test -d "$root/$keep" || { echo "multilib $keep missing in $root" >&2; exit 1; }; \
+         for top in $tops; do \
+           find "$root/$top" -path "$root/$keep" -prune -o ! -type d -exec rm -f {} +; \
+           find "$root/$top" -type d -empty -delete; \
+         done; \
+       done
 
 # venv because 24.04 marks the system python as externally managed (PEP 668)
 RUN python3 -m venv /opt/venv \
