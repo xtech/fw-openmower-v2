@@ -603,6 +603,13 @@ StateInputs SoundService::ReadInputs() {
   return in;
 }
 
+void SoundService::PlayOne(SoundId id, const char* what) {
+  const PlayResult res = play_sound_id(id);
+  ULOG_INFO("Sound: %s '%s' (alert=%s hl=%s charging=%u blade=%u, %s)", what, SoundId_to_string(id),
+            alert_name(machine_.alert()), hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U,
+            machine_.blade_running() ? 1U : 0U, play_result_text(res));
+}
+
 void SoundService::PlayAction(const StateAction& action) {
   if (action.stop_first) stop();
   if (action.silent()) {
@@ -612,15 +619,21 @@ void SoundService::PlayAction(const StateAction& action) {
     return;
   }
 
-  const PlayResult res = play_sound_id(action.sound);
-  ULOG_INFO("Sound: announced '%s' (alert=%s hl=%s charging=%u blade=%u, %s)", SoundId_to_string(action.sound),
-            alert_name(machine_.alert()), hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U,
-            machine_.blade_running() ? 1U : 0U, play_result_text(res));
+  /* The warning device leads a manoeuvre announcement. The announcement can be a half
+     minute theme song, and "stay back, mower at work" has to be heard *before* the robot
+     drives off - not after the song. The notice is queued a second time behind the
+     announcement because the player's repetition always yields to a waiting request (and
+     stop_first just ended the previous pattern), so the cadence has to be re-armed. */
+  const bool manoeuvre = action.follow_up == SoundId::AUTONOMOUS_NOTICE;
+  if (manoeuvre) {
+    PlayOne(SoundId::AUTONOMOUS_NOTICE, "warned");
+  }
+
+  PlayOne(action.sound, "announced");
 
   if (action.follow_up != kNoSound) {
     /* The announcement's `pause_after_ms` (YAML) spaces the two. */
-    const PlayResult then_res = play_sound_id(action.follow_up);
-    ULOG_INFO("Sound: queued '%s' after it (%s)", SoundId_to_string(action.follow_up), play_result_text(then_res));
+    PlayOne(action.follow_up, "queued");
   }
 }
 

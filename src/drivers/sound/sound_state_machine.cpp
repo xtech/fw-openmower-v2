@@ -155,8 +155,9 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
 
     if (hl_manoeuvres(hl_state_) && !hl_manoeuvres(previous)) {
       /* A manoeuvre starts the warning device. Its cadence is the definition's
-         repeat_ms, so this only has to start it - and as a follow-up when the same
-         transition also has an announcement (the queue plays that one first). */
+         repeat_ms, so this only has to start it - as a follow-up when the same
+         transition also has an announcement (the service then orders "warn first,
+         then announce", see SoundService::PlayAction). */
       const SoundId announce = HlSound(previous, hl_state_);
       if (announce != kNoSound) {
         return StateAction{announce, SoundId::AUTONOMOUS_NOTICE, true};
