@@ -436,7 +436,7 @@ void SoundService::RPCPlaySound(uint16_t call_id, SoundId Sound) {
   const PlayResult res = play_sound_id(Sound);
   ULOG_INFO("Sound: RPC sound '%s' (%s, playing=%u)", SoundId_to_string(Sound), play_result_text(res),
             is_playing() ? 1U : 0U);
-  const uint8_t result = (res == PlayResult::QUEUED) ? 1U : 0U;
+  const uint8_t result = play_result_accepted(res) ? 1U : 0U;
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
@@ -444,7 +444,7 @@ void SoundService::RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t Duratio
   const PlayResult res = play_tone(Freq, DurationMs, Volume, Preempt != 0U);
   ULOG_INFO("Sound: RPC tone %hu Hz %hu ms vol %hhu preempt=%hhu (%s, playing=%u)", Freq, DurationMs, Volume, Preempt,
             play_result_text(res), is_playing() ? 1U : 0U);
-  const uint8_t result = (res == PlayResult::QUEUED) ? 1U : 0U;
+  const uint8_t result = play_result_accepted(res) ? 1U : 0U;
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
@@ -458,8 +458,8 @@ void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint3
   if (count > 0U) {
     const PlayResult res =
         play_sequence(notes, count, Wave, Volume, Unison, DetuneHz, AttackMs, DecayMs, RepeatMs, Preempt != 0U);
-    result = (res == PlayResult::QUEUED) ? 1U : 0U;
-    if (res == PlayResult::QUEUED) {
+    result = play_result_accepted(res) ? 1U : 0U;
+    if (play_result_accepted(res)) {
       // The only feedback a host gets (the response goes to the service owner), so log everything
       ULOG_INFO(
           "Sound: RPC sequence '%.*s' (%hhu notes, %s, vol %hhu, unison %hhu, detune %hu, attack %hhu ms, "
@@ -485,7 +485,7 @@ void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathL
   uint8_t result = 0U;
   if (n > 0U) {
     const PlayResult res = play_file(path, Preempt != 0U);
-    result = (res == PlayResult::QUEUED) ? 1U : 0U;
+    result = play_result_accepted(res) ? 1U : 0U;
     ULOG_INFO("Sound: RPC mp3 '%s' (%s)", path, play_result_text(res));
   } else {
     ULOG_WARNING("Sound: RPC mp3 rejected (empty path)");
@@ -550,8 +550,8 @@ static EmergencyKind KindOf(uint16_t reasons) {
  *
  * The high level sends its behaviour name, which is what the announcements follow: the
  * mode alone (IDLE/AUTONOMOUS/RECORDING) cannot tell undocking from docking. Unknown names
- * stay UNKNOWN, so a new behaviour in the high level never silences the existing ones - the
- * machine then falls back to the blade (see StateMachine::DrivingNoticeStep).
+ * stay UNKNOWN, so a new behaviour in the high level never silences the existing ones; the
+ * machine then simply has no announcement (and no drive warning) for it.
  */
 static HlState HlStateOf(HighLevelStatus state_id, const char* name) {
   if (name != nullptr) {
@@ -564,6 +564,28 @@ static HlState HlStateOf(HighLevelStatus state_id, const char* name) {
   }
   if (state_id == HighLevelStatus::RECORDING) return HlState::RECORDING;
   return HlState::UNKNOWN;
+}
+
+/**
+ * @brief Map the charger driver status to the one value the sound logic needs.
+ *
+ * Only an active phase is "charging", DONE is the end of a charge; a fault or a comms
+ * error is UNKNOWN (no sound, the power service reports the fault itself).
+ */
+static ChargerState ChargerStateOf(CHARGER_STATUS status) {
+  switch (status) {
+    case CHARGER_STATUS::TRICKLE:
+    case CHARGER_STATUS::PRE_CHARGE:
+    case CHARGER_STATUS::CC:
+    case CHARGER_STATUS::CV:
+    case CHARGER_STATUS::TOP_OFF: return ChargerState::CHARGING;
+    case CHARGER_STATUS::DONE: return ChargerState::DONE;
+    case CHARGER_STATUS::NOT_CHARGING: return ChargerState::IDLE;
+    case CHARGER_STATUS::FAULT:
+    case CHARGER_STATUS::COMMS_ERROR:
+    case CHARGER_STATUS::UNKNOWN: break;
+  }
+  return ChargerState::UNKNOWN;
 }
 
 StateInputs SoundService::ReadInputs() {
@@ -587,17 +609,9 @@ StateInputs SoundService::ReadInputs() {
     in.blade_running = mower_service.IsMowerRunning();
   }
 
-  /* Charging: any active phase counts, DONE is what CHARGING_DONE announces. */
+  /* Charging: one enum instead of two booleans (the states are mutually exclusive). */
   if (robot != nullptr && robot->NeedsService(xbot::service_ids::POWER)) {
-    const CHARGER_STATUS charger = power_service.GetChargerStatus();
-    in.charging = (charger == CHARGER_STATUS::TRICKLE) || (charger == CHARGER_STATUS::PRE_CHARGE) ||
-                  (charger == CHARGER_STATUS::CC) || (charger == CHARGER_STATUS::CV) ||
-                  (charger == CHARGER_STATUS::TOP_OFF);
-    in.charge_done = (charger == CHARGER_STATUS::DONE);
-    const float percent = power_service.GetBatteryPercent();
-    if (percent >= 0.0F && percent <= 100.0F) {
-      in.battery_percent = static_cast<uint8_t>(percent + 0.5F);
-    }
+    in.charger = ChargerStateOf(power_service.GetChargerStatus());
   }
 
   return in;
@@ -613,19 +627,19 @@ void SoundService::PlayOne(SoundId id, const char* what) {
 void SoundService::PlayAction(const StateAction& action) {
   if (action.stop_first) stop();
   if (action.silent()) {
-    /* Nothing to announce, only to stop (the warning device ended): stop() above did it. */
+    /* Nothing to announce, only to stop (the drive warning ended): stop() above did it. */
     ULOG_INFO("Sound: silenced (alert=%s hl=%s charging=%u blade=%u)", alert_name(machine_.alert()),
               hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U, machine_.blade_running() ? 1U : 0U);
     return;
   }
 
-  /* The warning device leads a manoeuvre announcement. The announcement can be a half
-     minute theme song, and "stay back, mower at work" has to be heard *before* the robot
-     drives off - not after the song. The notice is queued a second time behind the
-     announcement because the player's repetition always yields to a waiting request (and
-     stop_first just ended the previous pattern), so the cadence has to be re-armed. */
-  const bool manoeuvre = action.follow_up == SoundId::AUTONOMOUS_NOTICE;
-  if (manoeuvre) {
+  /* The drive warning leads a drive announcement. The announcement can be a half minute
+     theme song, and "stay back, mower at work" has to be heard *before* the robot drives
+     off - not after the song. The notice is queued a second time behind the announcement
+     because the player's repetition always yields to a waiting request (and stop_first just
+     ended the previous pattern), so the cadence has to be re-armed. */
+  const bool drive_warning = action.follow_up == SoundId::AUTONOMOUS_NOTICE;
+  if (drive_warning) {
     PlayOne(SoundId::AUTONOMOUS_NOTICE, "warned");
   }
 
@@ -645,9 +659,10 @@ void SoundService::PlayAction(const StateAction& action) {
  * (`Sound: input …`) and costs nothing while everything is steady - which is most of the
  * time on a robot that stands in the garden.
  *
- * The machine additionally *debounces* the blade and the charger (kInputDebounceMs); the
- * raw changes are logged here because a bouncing signal is exactly what one wants to see
- * when a sound is late.
+ * The machine follows the inputs as the services report them; filtering belongs to the
+ * owning service (the charger is polled once per second, the mower state already comes
+ * from a fresh ESC sample). The raw changes are logged here because a bouncing signal is
+ * exactly what one wants to see when a sound is late.
  */
 void SoundService::LogInputChanges(const StateInputs& now) {
   const StateInputs& was = last_inputs_;
@@ -661,11 +676,8 @@ void SoundService::LogInputChanges(const StateInputs& now) {
   if (now.blade_running != was.blade_running) {
     ULOG_INFO("Sound: input blade: %u -> %u", was.blade_running ? 1U : 0U, now.blade_running ? 1U : 0U);
   }
-  if (now.charging != was.charging) {
-    ULOG_INFO("Sound: input charging: %u -> %u", was.charging ? 1U : 0U, now.charging ? 1U : 0U);
-  }
-  if (now.charge_done != was.charge_done) {
-    ULOG_INFO("Sound: input charge_done: %u -> %u", was.charge_done ? 1U : 0U, now.charge_done ? 1U : 0U);
+  if (now.charger != was.charger) {
+    ULOG_INFO("Sound: input charger: %s -> %s", charger_state_name(was.charger), charger_state_name(now.charger));
   }
   if (now.emergency != was.emergency) {
     ULOG_INFO("Sound: input emergency: %s -> %s", emergency_kind_name(was.emergency),
@@ -674,9 +686,6 @@ void SoundService::LogInputChanges(const StateInputs& now) {
   if (now.emergency_latched != was.emergency_latched) {
     ULOG_INFO("Sound: input emergency_latched: %u -> %u", was.emergency_latched ? 1U : 0U,
               now.emergency_latched ? 1U : 0U);
-  }
-  if (now.battery_percent != was.battery_percent) {
-    ULOG_INFO("Sound: input battery: %u -> %u %%", was.battery_percent, now.battery_percent);
   }
 
   last_inputs_ = now;

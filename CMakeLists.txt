@@ -142,7 +142,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Sound
         src/chibios_lld/hal_i2s_lld.c
         src/drivers/sound/sound_player.cpp
+        src/drivers/sound/sound_playback.cpp
+        src/drivers/sound/sound_random.cpp
         src/drivers/sound/sound_state_machine.cpp
+        src/drivers/sound/sound_storage.cpp
+        src/drivers/sound/sound_variants.cpp
         src/drivers/sound/sound_source.cpp
         src/drivers/sound/sound_mp3.cpp
         src/drivers/sound/sound_synth.cpp

@@ -21,8 +21,8 @@
  *        ┌────────────────────────────────────────────┐
  *        │  player_thread  (NORMALPRIO + 1)           │
  *        │                                            │
- *        │  request queue (etl::queue, depth 4) ← FIFO│
- *        │  preempt request: stop + clear + play now  │
+ *        │  PlaybackSequencer (sound_playback.hpp):   │
+ *        │  FIFO queue, preempt, repeat, pause_after  │
  *        │                                            │
  *        │  Owns: s_audio_buf in SRAM4, I2SD6         │
  *        │  ISR: chEvtSignalI(EVT_HTIF / EVT_TCIF)    │
@@ -41,16 +41,17 @@
 #include "sound_player.hpp"
 
 #include <etl/atomic.h>
-#include <etl/queue.h>
-#include <hal_trng.h>
 #include <ulog.h>
 
 #include <cstring>
 
-#include "filesystem/file.hpp"
 #include "hal.h"
 #include "sound_definition.hpp"
+#include "sound_playback.hpp"
+#include "sound_random.hpp"
 #include "sound_source.hpp"
+#include "sound_storage.hpp"
+#include "sound_variants.hpp"
 
 namespace xbot::driver::sound {
 
@@ -65,35 +66,6 @@ static constexpr size_t SOUND_HALF_SIZE = SOUND_BUFFER_SIZE / 2U;
 
 /* MP3 sources are pre-mastered at full scale; only the master volume scales them. */
 static constexpr uint8_t kFileVolume = 100U;
-
-/* Persisted sound-definition overrides (LittleFS) — survive a reboot.
- *
- * Format: a header, then one record per overridden sound — a SoundId byte followed by
- * the raw SoundDefinition bytes (the layout is pinned by the static_assert in
- * sound_definition.hpp).  Only the sounds the high level actually pushed are stored, so
- * the file stays small (16 B + n × 81 B instead of a full SoundId_count table) and no
- * validity bitmask is needed: the record's id says which sound it replaces.
- *
- * header_size and record_size are part of the header on purpose: any future layout change
- * is then *detected* and the file is ignored with a warning, instead of being read with
- * the wrong offsets and silently producing garbage definitions. */
-static constexpr const char* kSoundDefsPath = "/cfg/sound_defs.bin";
-static constexpr const char* kSoundDefsTmpPath = "/cfg/sound_defs.bin.tmp";
-static constexpr uint32_t kSoundDefsMagic = 0x53444631U;  // "SDF1"
-static constexpr uint16_t kSoundDefsVersion = 2U;
-
-/** Bytes of one stored override: its SoundId plus the raw definition. */
-static constexpr size_t kOverrideRecordSize = sizeof(uint8_t) + sizeof(SoundDefinition);
-
-/** On-disk layout of the persisted sound overrides. */
-struct PersistedDefsHeader {
-  uint32_t magic;
-  uint16_t version;
-  uint16_t count;        ///< Number of override records that follow
-  uint16_t header_size;  ///< sizeof(PersistedDefsHeader) — guards a header change
-  uint16_t record_size;  ///< kOverrideRecordSize — guards a definition change
-};
-static_assert(sizeof(PersistedDefsHeader) == 12U, "PersistedDefsHeader layout changed — the store format is affected");
 
 /*===========================================================================*/
 /* DMA buffer — MUST reside in SRAM4 (D3 domain) for BDMA.                  */
@@ -113,36 +85,17 @@ static constexpr eventmask_t EVT_STOP_PLAYBACK = EVENT_MASK(3U);  ///< Stop play
 /** @brief Idle poll interval of the player thread (see the watchdog in player_thread). */
 static constexpr uint32_t kIdlePollMs = 250U;
 
-/** @brief Number of playback requests that may wait in the queue. */
-static constexpr uint8_t kQueueDepth = 4U;
-
 static THD_WORKING_AREA(s_player_wa, 3072U);
 static thread_t* s_player_thd = nullptr;
 
-/**
- * @brief One queued request: what to play, and whether it may take over the player.
- *
- * The take-over flag belongs to the *request*, not to the sound definition: an alert is
- * an action ("stop what runs, then play this"), and the sound state machine decides when
- * one is due.
- */
-struct SoundRequest {
-  SoundDefinition def;
-  bool preempt;  ///< stop the running sound and drop the queue, then play this
-};
+/** @brief The playback policy (queue, preempt, repeat, pause), guarded by s_playback_mutex. */
+static PlaybackSequencer s_playback;
+static MUTEX_DECL(s_playback_mutex);
 
-/**
- * @brief Playback queue (ETL container, statically allocated, no heap).
- *
- * @note  There is deliberately only ONE queue: requests wait in FIFO order. A request
- *        whose SoundRequest::preempt is set stops the running sound, drops everything
- *        queued and starts immediately; everything else is played one after another
- *        (that is how a "what happened" announcement is followed by the alert tone).
- *
- *        Every access happens under chSysLock(): ETL containers are not thread-safe,
- *        and the player thread must never see a half-updated ring.
- */
-static etl::queue<SoundRequest, kQueueDepth> s_queue;
+/** @brief The same monotonic millisecond clock the policy uses. */
+static uint32_t now_ms() {
+  return static_cast<uint32_t>(TIME_I2MS(chVTGetSystemTimeX()));
+}
 
 /* Master volume (0-100, written by set_volume from any thread, read by the player thread) */
 static etl::atomic<uint8_t> s_master_volume{100U};
@@ -151,192 +104,8 @@ static etl::atomic<uint8_t> s_master_volume{100U};
 static etl::atomic<bool> s_playing{false};
 
 /*===========================================================================*/
-/* Repeating sounds (SoundDefinition::repeat_ms > 0).                        */
+/* Playback policy                                                           */
 /*===========================================================================*/
-
-/**
- * @note  The player owns the repetition: it keeps the definition and restarts the
- *        source itself.  Nothing goes through s_queue, so a repeating sound cannot
- *        fill the queue — it only ever occupies the single request that started it.
- *        The queue always wins: as soon as a request is waiting (or a new sound
- *        starts, or stop() is called) the repetition ends.
- */
-static SoundDefinition s_repeat_def{};  ///< Definition being repeated
-static systime_t s_repeat_start = 0U;   ///< When the running iteration started
-static bool s_repeat_active = false;    ///< true while s_repeat_def owns the player
-
-/** @brief Ticks until the next repeat iteration; 0 when it is due. */
-static systime_t repeat_ticks_left() {
-  const systime_t period = TIME_MS2I(s_repeat_def.repeat_ms);
-  const systime_t elapsed = chVTTimeElapsedSinceX(s_repeat_start);
-  return (elapsed >= period) ? static_cast<systime_t>(0U) : static_cast<systime_t>(period - elapsed);
-}
-
-/** @brief true while a request is waiting in the queue. */
-static bool queue_has_request() {
-  chSysLock();
-  const bool queued = !s_queue.empty();
-  chSysUnlock();
-  return queued;
-}
-
-/*===========================================================================*/
-/* Pause after a sound (SoundDefinition::pause_after_ms > 0).                 */
-/*===========================================================================*/
-
-/**
- * @note  The pause belongs to the sound that just ended: on_source_end() starts it,
- *        the idle tick (pump_player) lets the next request through once it is over.
- *        A preempting request cuts it short like it cuts the sound itself, stop()
- *        discards it, and a repeating sound never pauses between its own iterations
- *        (repeat_ms and pause_after_ms are independent).
- */
-static uint16_t s_pause_ms = 0U;      ///< pause_after_ms of the sound that started last
-static bool s_pause_active = false;   ///< true while the player owes that pause
-static systime_t s_pause_start = 0U;  ///< when the sound ended
-
-/** @brief Ticks left of the pause after the last sound; 0 when it is over or not owed. */
-static systime_t pause_ticks_left() {
-  if (!s_pause_active) return static_cast<systime_t>(0U);
-  const systime_t period = TIME_MS2I(s_pause_ms);
-  const systime_t elapsed = chVTTimeElapsedSinceX(s_pause_start);
-  return (elapsed >= period) ? static_cast<systime_t>(0U) : static_cast<systime_t>(period - elapsed);
-}
-
-/** @brief Drop a pending pause (a preempting request, stop(), or the pause being over). */
-static void clear_pause() {
-  s_pause_active = false;
-  s_pause_ms = 0U;
-}
-
-/* Runtime sound overrides (SoundId -> definition), written by the SoundService
-   during configuration and read by load_sound_definition() from play_sound_id(). */
-static MUTEX_DECL(s_override_mutex);
-static SoundDefinition s_sound_overrides[SoundId_count];
-static bool s_override_valid[SoundId_count];
-
-/* Take lists (persisted, see sound_player.hpp): the index stays in RAM (4 B per
-   sound), the names are read from the store when the sound plays. The same mutex
-   guards the index and the overrides. */
-/* Store location and identity (used by the reader below and by the writer). */
-static constexpr const char* kVariantsPath = "/cfg/sound_variants.bin";
-static constexpr const char* kVariantsTmpPath = "/cfg/sound_variants.bin.tmp";
-static constexpr uint32_t kVariantsMagic = 0x53445631U;  // "SDV1"
-static constexpr uint16_t kVariantsVersion = 1U;
-
-struct PersistedVariantRef {
-  uint16_t offset;  ///< byte offset of take 1 in the store (0 = no takes)
-  uint8_t count;    ///< number of takes
-  uint8_t pick;     ///< PickMode
-};
-static_assert(sizeof(PersistedVariantRef) == 4U, "PersistedVariantRef layout changed - the store format is affected");
-
-struct PersistedVariantsHeader {
-  uint32_t magic;
-  uint16_t version;
-  uint16_t index_size;  ///< sizeof(PersistedVariantRef) - guards an index change
-  uint16_t name_size;   ///< kVariantNameMax - guards a name-length change
-  uint16_t reserved;
-};
-static_assert(sizeof(PersistedVariantsHeader) == 12U,
-              "PersistedVariantsHeader layout changed - the store format is affected");
-
-/** Bytes of the store before the names start (header + one ref per SoundId). */
-static constexpr uint16_t kVariantsDataOffset =
-    static_cast<uint16_t>(sizeof(PersistedVariantsHeader) + (SoundId_count * sizeof(PersistedVariantRef)));
-
-static PersistedVariantRef s_variant_ref[SoundId_count];  ///< index of the persisted store
-static uint8_t s_variant_last[SoundId_count];             ///< ROTATE: the take that played last
-
-/* Write state of a staged store (begin_sound_variants_write .. commit/abort). */
-static File s_variant_out;              ///< the staged store (writer side)
-static File s_variant_in;               ///< the store readers share this one
-static MUTEX_DECL(s_variant_io_mutex);  ///< serialises the readers
-static bool s_variant_writing = false;
-static uint16_t s_variant_next_offset = kVariantsDataOffset;
-static PersistedVariantRef s_variant_pending[SoundId_count];
-static bool s_variant_set_open = false;
-static uint8_t s_variant_set_id = 0U;
-static uint16_t s_variant_set_offset = 0U;
-static uint8_t s_variant_set_count = 0U;
-
-/*===========================================================================*/
-/* Take selection: a tiny PRNG.                                              */
-/*===========================================================================*/
-
-/*
- * rand() from newlib is a linear congruential generator, and its seed is a boot
- * tick that is nearly the same on every boot. A xorshift32 mixes the bits a "% count"
- * uses and needs no library call.
- *
- * The state is seeded once at boot from the MCU's true random generator and advances
- * on every play, so consecutive plays differ.
- */
-static uint32_t s_random_state = 0x2545F491U; /* xorshift32 must never be 0 */
-
-static uint32_t random_next() {
-  uint32_t x = s_random_state;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  s_random_state = x;
-  return x;
-}
-
-static void random_seed() {
-  uint32_t word = 0U;
-  if (trngStart(&TRNGD1, nullptr) == HAL_RET_SUCCESS) {
-    /* ChibiOS' TRNG LLD reports a timeout as true and success as false. */
-    const bool timed_out = trngGenerate(&TRNGD1, sizeof(word), reinterpret_cast<uint8_t*>(&word));
-    trngStop(&TRNGD1); /* one word at boot is all the take selection needs */
-    if (!timed_out && word != 0U) {
-      s_random_state = word;
-      return;
-    }
-  }
-
-  /* No word from the TRNG: keep the default state. The selection still varies per
-     play, it just repeats the same sequence after the next boot. */
-  ULOG_WARNING("Sound: no TRNG word at boot, the take selection sequence repeats itself");
-}
-
-bool random_chance(uint8_t chance_percent) {
-  if (chance_percent == 0U) return false;
-  if (chance_percent >= 100U) return true;
-
-  /* Same lock as the take selection: the PRNG state is shared with the player thread. */
-  chMtxLock(&s_override_mutex);
-  const uint32_t roll = random_next() % 100U;
-  chMtxUnlock(&s_override_mutex);
-  return roll < chance_percent;
-}
-
-/** True for a take name that ends in ".mp3" (case-insensitive). */
-static bool has_mp3_suffix(etl::string_view name) {
-  if (name.size() <= 4U) return false;
-  const etl::string_view ext = name.substr(name.size() - 4U);
-  return ext[0] == '.' && (ext[1] == 'm' || ext[1] == 'M') && (ext[2] == 'p' || ext[2] == 'P') && ext[3] == '3';
-}
-
-/** Reads the names of one take set. Returns false when the store cannot deliver. */
-static bool read_variant_names(const PersistedVariantRef& ref, char names[kMaxVariants][kVariantNameMax]) {
-  chMtxLock(&s_variant_io_mutex);
-  s_variant_in.close(); /* no-op unless an earlier attempt left it open */
-  bool ok = s_variant_in.open(kVariantsPath, LFS_O_RDONLY) == LFS_ERR_OK;
-  if (ok) ok = s_variant_in.seek(static_cast<lfs_soff_t>(ref.offset), LFS_SEEK_SET) >= 0;
-  for (uint8_t i = 0U; ok && i < ref.count; ++i) {
-    ok = s_variant_in.read(names[i], kVariantNameMax) == static_cast<int>(kVariantNameMax);
-    names[i][kVariantNameMax - 1U] = '\0';
-    if (ok) {
-      /* A corrupt store - or a read that raced a commit between its rename and the
-         index swap - must not end in playing a garbage path: fall back to take 1. */
-      ok = has_mp3_suffix(etl::string_view(names[i]));
-    }
-  }
-  s_variant_in.close();
-  chMtxUnlock(&s_variant_io_mutex);
-  return ok;
-}
 
 /* Active playback source — owned by player thread.
    NOTE: this must stay in AXI SRAM (.bss). It contains LittleFS/DMA buffers
@@ -396,19 +165,15 @@ static void play_definition(const SoundDefinition& def, bool is_repeat = false) 
 
   if (!s_source.start(def)) {
     ULOG_WARNING("Sound: source start failed (type=%s)", SoundType_to_string(def.type));
-    s_repeat_active = false; /* never retry a source that cannot start */
-    return;                  /* FILE open/parse failed — remain idle */
+    /* Never retry a source that cannot start: drop the repetition the sequencer armed. */
+    chMtxLock(&s_playback_mutex);
+    s_playback.CancelRepeat();
+    chMtxUnlock(&s_playback_mutex);
+    return; /* FILE open/parse failed — remain idle */
   }
 
-  // The definition that starts a sound owns the repetition: every new sound replaces
-  // the previous one, and a definition without repeat_ms ends it.
-  s_repeat_def = def;
-  s_repeat_active = (def.repeat_ms > 0U);
-  s_repeat_start = chVTGetSystemTimeX();
-  // The pause is owed by this sound when it ends (on_source_end).
-  s_pause_ms = def.pause_after_ms;
-
-  /* Pre-fill both halves before starting BDMA so DMA has valid data immediately. */
+  /* Pre-fill both halves before starting BDMA so DMA has valid data immediately. The
+     sequencer already armed repeat_ms/pause_after_ms for this definition. */
   s_source.fill(s_audio_buf, SOUND_HALF_SIZE, s_master_volume.load());
   s_source.fill(s_audio_buf + SOUND_HALF_SIZE, SOUND_HALF_SIZE, s_master_volume.load());
 
@@ -438,102 +203,99 @@ static void play_definition(const SoundDefinition& def, bool is_repeat = false) 
 }
 
 /*===========================================================================*/
-/* Internal: dequeue and play the next pending request (if any).            */
+/* Internal: the playback policy.                                            */
 /*===========================================================================*/
 
-/**
- * @brief Play the next queued request (no-op while a sound is playing).
- *
- * pop_into() copies the request out and removes it in one step — done under the lock
- * so a preempting enqueue() cannot clear/reuse the slot underneath the copy.
- */
-static void dequeue_and_play() {
-  if (s_playing.load()) return;
+static PlaybackStep take_next(uint32_t now, SoundDefinition& out) {
+  chMtxLock(&s_playback_mutex);
+  const PlaybackStep step = s_playback.TakeNext(now, out);
+  chMtxUnlock(&s_playback_mutex);
+  return step;
+}
 
-  /* A sound that ended with pause_after_ms keeps the next request back: the idle tick
-     (pump_player) comes back here once the pause is over, and a preempting request
-     cleared it before calling us. */
-  if (s_pause_active) {
-    if (pause_ticks_left() > 0U) return;
-    clear_pause();
+static PlaybackStep source_end_step(uint32_t now, SoundDefinition& out) {
+  chMtxLock(&s_playback_mutex);
+  const PlaybackStep step = s_playback.OnSourceEnd(now, out);
+  chMtxUnlock(&s_playback_mutex);
+  return step;
+}
+
+static PlaybackStep tick_step(uint32_t now, SoundDefinition& out) {
+  chMtxLock(&s_playback_mutex);
+  const PlaybackStep step = s_playback.OnTick(now, out);
+  chMtxUnlock(&s_playback_mutex);
+  return step;
+}
+
+static bool front_preempts() {
+  chMtxLock(&s_playback_mutex);
+  const bool preempt = s_playback.FrontPreempts();
+  chMtxUnlock(&s_playback_mutex);
+  return preempt;
+}
+
+static uint32_t pause_left(uint32_t now) {
+  chMtxLock(&s_playback_mutex);
+  const uint32_t left = s_playback.TimeUntilPause(now);
+  chMtxUnlock(&s_playback_mutex);
+  return left;
+}
+
+static uint32_t repeat_left(uint32_t now) {
+  chMtxLock(&s_playback_mutex);
+  const uint32_t left = s_playback.TimeUntilRepeat(now);
+  chMtxUnlock(&s_playback_mutex);
+  return left;
+}
+
+static void run_step(PlaybackStep step, const SoundDefinition& def) {
+  if (step == PlaybackStep::START) {
+    play_definition(def);
+  } else if (step == PlaybackStep::REPLAY) {
+    play_definition(def, true);
   }
+}
 
-  SoundRequest request{};
-  chSysLock();
-  const bool have_request = !s_queue.empty();
-  if (have_request) s_queue.pop_into(request);
-  chSysUnlock();
-
-  if (have_request) play_definition(request.def);
+/** @brief Play the next queued request (no-op while a sound is playing or a pause runs). */
+static void start_next_if_idle(uint32_t now) {
+  if (s_playing.load()) return;
+  SoundDefinition def{};
+  run_step(take_next(now, def), def);
 }
 
 /*===========================================================================*/
 /* Internal: the running source is exhausted.                                */
 /*===========================================================================*/
 
-/**
- * @brief Repeat the sound, or play the next request.
- *
- * The queue wins over the repetition: a waiting request ends it, so a repeating
- * boot ping can never delay a real sound.
- */
+/** @brief Repeat the sound, play the next request, or owe a pause. */
 static void on_source_end() {
   i2sStopExchange(&I2SD6);
   s_playing.store(false);
 
-  if (!s_repeat_active) {
-    /* pause_after_ms: stay silent for that time before the next request starts. Logged
-       once per sound — a request that arrives during the pause is delayed just like one
-       that was already queued. */
-    if (s_pause_ms > 0U) {
-      s_pause_active = true;
-      s_pause_start = chVTGetSystemTimeX();
-      ULOG_INFO("Sound: pausing %hu ms after playback", s_pause_ms);
-      return;
+  const uint32_t now = now_ms();
+  SoundDefinition def{};
+  const PlaybackStep step = source_end_step(now, def);
+  if (step == PlaybackStep::NONE) {
+    const uint32_t pause = pause_left(now);
+    if (pause > 0U) {
+      ULOG_INFO("Sound: pausing %u ms after playback", pause);
     }
-    dequeue_and_play();
     return;
   }
-  if (queue_has_request()) {
-    s_repeat_active = false;
-    dequeue_and_play();
-    return;
-  }
-  if (repeat_ticks_left() == 0U) {
-    /* Period already over (sound longer than repeat_ms) — start the next iteration
-       right away instead of waiting for the idle poll. */
-    play_definition(s_repeat_def, true);
-    return;
-  }
-  /* Otherwise the player thread picks the next iteration up in pump_player(). */
+  run_step(step, def);
 }
 
 /**
- * @brief Player is idle: play a queued request, or the next repeat iteration when due.
+ * @brief Player is idle: start a due repeat or a queued request.
  *
- * Called from the player thread's idle tick (see player_thread) — a no-op when
- * nothing is queued and no repeat is pending.  A source that just ended goes
- * through on_source_end() instead, which restarts it directly when the period is
- * already over.
+ * Called from the player thread's idle tick (see player_thread). A source that just
+ * ended goes through on_source_end() instead.
  */
 static void pump_player() {
-  if (!s_repeat_active) {
-    dequeue_and_play();
-    return;
-  }
-
-  /* A waiting request still wins over the repetition. */
-  if (repeat_ticks_left() > 0U) {
-    dequeue_and_play();
-    return;
-  }
-
-  s_repeat_active = false; /* ends here; play_definition() re-arms it if it repeats */
-  if (queue_has_request()) {
-    dequeue_and_play();
-    return;
-  }
-  play_definition(s_repeat_def, true);
+  if (s_playing.load()) return;
+  const uint32_t now = now_ms();
+  SoundDefinition def{};
+  run_step(tick_step(now, def), def);
 }
 
 /*===========================================================================*/
@@ -547,31 +309,28 @@ static void pump_player() {
  * left in the queue and picked up when the player becomes idle again.
  */
 static void handle_request() {
-  bool preempt = false;
-  chSysLock();
-  if (!s_queue.empty()) {
-    preempt = s_queue.front().preempt;
-  }
-  chSysUnlock();
+  const uint32_t now = now_ms();
 
-  if (!preempt) {
+  if (!front_preempts()) {
     if (s_playing.load()) {
       ULOG_INFO("Sound: request waits behind the running sound");
       return;
     }
-    dequeue_and_play();
+    start_next_if_idle(now);
     return;
   }
 
   ULOG_INFO("Sound: preempt request (playing=%u)", s_playing.load() ? 1U : 0U);
-  // An alert also cuts a pause_after_ms short, like it cuts the running sound.
-  clear_pause();
+  /* An alert also cuts a pause_after_ms short, like it cuts the running sound. */
+  chMtxLock(&s_playback_mutex);
+  s_playback.Preempt();
+  chMtxUnlock(&s_playback_mutex);
   if (s_playing.load()) {
     i2sStopExchange(&I2SD6);
     s_playing.store(false);
     s_source.stop();
   }
-  dequeue_and_play();
+  start_next_if_idle(now);
 }
 
 /*===========================================================================*/
@@ -610,15 +369,20 @@ static THD_FUNCTION(player_thread, arg) {
        never come.  While a sound is between two repeat iterations it also bounds the
        wait, so the next iteration starts on time (repeat_ms resolution). */
     systime_t wait = TIME_MS2I(kIdlePollMs);
-    if (s_repeat_active && !s_playing.load()) {
-      const systime_t left = repeat_ticks_left();
+    const uint32_t now = now_ms();
+    const uint32_t repeat = repeat_left(now);
+    if (!s_playing.load() && repeat != UINT32_MAX) {
+      const systime_t left = TIME_MS2I(repeat);
       if (left < wait) wait = left;
     }
     /* Likewise bound the wait by an owed pause, so the next queued sound starts right
        after pause_after_ms instead of on the next idle tick. */
-    if (s_pause_active && !s_playing.load()) {
-      const systime_t left = pause_ticks_left();
-      if (left < wait) wait = left;
+    if (!s_playing.load()) {
+      const uint32_t pause = pause_left(now);
+      if (pause > 0U) {
+        const systime_t left = TIME_MS2I(pause);
+        if (left < wait) wait = left;
+      }
     }
     const eventmask_t ev = chEvtWaitAnyTimeout(EVT_HTIF | EVT_TCIF | EVT_REQUEST | EVT_STOP_PLAYBACK, wait);
 
@@ -629,8 +393,9 @@ static THD_FUNCTION(player_thread, arg) {
 
     if (ev & EVT_STOP_PLAYBACK) {
       /* Stop current playback; the queues have already been flushed by stop(). */
-      s_repeat_active = false; /* an explicit stop also ends a repetition */
-      clear_pause();           /* ... and a pending pause_after_ms */
+      chMtxLock(&s_playback_mutex);
+      s_playback.Stop(); /* an explicit stop also ends a repetition and a pause */
+      chMtxUnlock(&s_playback_mutex);
       if (s_playing.load()) {
         i2sStopExchange(&I2SD6);
         s_playing.store(false);
@@ -676,26 +441,13 @@ static THD_FUNCTION(player_thread, arg) {
 static PlayResult enqueue(const SoundDefinition& def, bool preempt = false) {
   if (s_player_thd == nullptr) return PlayResult::PLAYER_NOT_RUNNING;
 
-  PlayResult result = PlayResult::QUEUED;
-  chSysLock();
-  if (preempt) {
-    /* Alerts take over: everything queued is dropped. The running sound itself is
-       stopped by the player thread when it handles the request. */
-    s_queue.clear();
-  } else if (s_queue.full()) {
-    result = PlayResult::QUEUE_FULL; /* drop this request instead of delaying the queued ones */
-  }
-  if (result == PlayResult::QUEUED) {
-    /* Not full here: either just cleared or checked above. ETL's push() asserts on a
-       full queue, so the check has to come first. */
-    s_queue.push(SoundRequest{def, preempt});
-  }
-  chEvtSignalI(s_player_thd, EVT_REQUEST);
-  /* Required after I-class calls that may have made a higher-priority thread
-     ready: chSysUnlock() asserts "priority order violation" if we skip this. */
-  chSchRescheduleS();
-  chSysUnlock();
-  return result;
+  chMtxLock(&s_playback_mutex);
+  const bool accepted = s_playback.Enqueue(def, preempt);
+  chMtxUnlock(&s_playback_mutex);
+  if (!accepted) return PlayResult::QUEUE_FULL;
+
+  chEvtSignal(s_player_thd, EVT_REQUEST);
+  return PlayResult::QUEUED;
 }
 
 /*===========================================================================*/
@@ -709,7 +461,7 @@ void player_init() {
 
   s_player_thd = chThdCreateStatic(s_player_wa, sizeof(s_player_wa), NORMALPRIO + 1, player_thread, nullptr);
 
-  // Seed the take selection; see random_next() for why this is not rand().
+  // Seed the take selection; see sound_random.hpp for why this is not rand().
   random_seed();
 
   s_source.volume = 80U;
@@ -724,72 +476,25 @@ void player_init() {
   ULOG_INFO("Sound: player started (sample_rate=%u, volume=%hhu)", SAMPLE_RATE, s_master_volume.load());
 }
 
-/**
- * @brief Load a runtime override for @p id, if present.
- *
- * The SoundService stores parsed overrides (from the HL configuration blob)
- * via set_sound_override(); otherwise the ROM default applies.
- */
-static bool load_sound_definition(SoundId id, SoundDefinition& out) {
-  const uint8_t idx = static_cast<uint8_t>(id);
-  if (idx >= SoundId_count) return false;
-
-  chMtxLock(&s_override_mutex);
-  const bool has_override = s_override_valid[idx];
-  if (has_override) {
-    out = s_sound_overrides[idx];
-  }
-  chMtxUnlock(&s_override_mutex);
-  return has_override;
-}
-
 PlayResult play_sound_id(SoundId id) {
   const uint8_t idx = static_cast<uint8_t>(id);
   if (idx >= SoundId_count) return PlayResult::INVALID_ARGUMENT;
 
-  // Prefer a flash override; otherwise fall back to the ROM default.
-  SoundDefinition def;
-  const bool has_override = load_sound_definition(id, def);
-  if (!has_override) {
+  // Prefer the high-level override (RAM or persisted); otherwise the ROM default.
+  SoundDefinition def{};
+  if (!get_sound_override(id, def)) {
     if (idx >= kDefaultSoundDefsCount) {
-      // ULOG_DEBUG("Sound: '%s' has no definition yet, staying silent", SoundId_to_string(id));
-      return PlayResult::QUEUED;
+      // The high level has not configured this sound (yet): accepted, but silent.
+      return PlayResult::NO_DEFINITION;
     }
     def = kDefaultSoundDefs[idx];
   }
 
-  /* Several takes for the same event: ask the store which one to play. Only the
-     chosen name is copied into the definition, so the working set stays at take 1
-     (which is also the fallback when the store cannot deliver). One take or
-     "first" needs no flash read at all. */
+  /* Several takes for the same event: ask the store which one to play. Only the chosen
+     name is copied into the definition, so the working set stays at take 1 (which is
+     also the fallback when the store cannot deliver). */
   if (def.type == SoundType::MP3) {
-    PersistedVariantRef ref{};
-    chMtxLock(&s_override_mutex);
-    ref = s_variant_ref[idx];
-    chMtxUnlock(&s_override_mutex);
-
-    const PickMode pick = static_cast<PickMode>(ref.pick);
-    if (ref.count > 1U && ref.count <= kMaxVariants && pick != PickMode::FIRST) {
-      /* Largest possible list: kMaxVariants x kVariantNameMax = 448 B on the
-         caller's stack, transient. */
-      char names[kMaxVariants][kVariantNameMax];
-      if (read_variant_names(ref, names)) {
-        /* Take and PRNG state under the lock: several threads trigger sounds. */
-        uint8_t take = 0U;
-        chMtxLock(&s_override_mutex);
-        if (pick == PickMode::ROTATE) {
-          take = static_cast<uint8_t>((s_variant_last[idx] + 1U) % ref.count);
-        } else {
-          take = static_cast<uint8_t>(random_next() % ref.count);
-        }
-        s_variant_last[idx] = take;
-        chMtxUnlock(&s_override_mutex);
-        strcpy(def.path, "/sounds/");
-        strncat(def.path, names[take], kMaxPath - sizeof("/sounds/"));
-      } else {
-        ULOG_WARNING("Sound: take store unreadable, '%s' plays its first take", SoundId_to_string(id));
-      }
-    }
+    (void)choose_variant(id, def.path, sizeof(def.path));
   }
 
   return enqueue(def);
@@ -850,375 +555,14 @@ void set_volume(uint8_t volume) {
   s_master_volume.store(volume);
 }
 
-void set_sound_override(SoundId id, const SoundDefinition& def) {
-  const uint8_t idx = static_cast<uint8_t>(id);
-  if (idx >= SoundId_count) return;
-
-  chMtxLock(&s_override_mutex);
-  s_sound_overrides[idx] = def;
-  s_override_valid[idx] = true;
-  chMtxUnlock(&s_override_mutex);
-}
-
-void clear_sound_overrides() {
-  chMtxLock(&s_override_mutex);
-  for (uint8_t i = 0U; i < SoundId_count; ++i) {
-    s_override_valid[i] = false;
-  }
-  chMtxUnlock(&s_override_mutex);
-}
-
-void load_sound_overrides_from_storage() {
-  static File file;
-  SoundDefinition def{};
-
-  file.close();  // no-op unless an earlier attempt left it open
-  if (file.open(kSoundDefsPath, LFS_O_RDONLY) != LFS_ERR_OK) {
-    ULOG_INFO("Sound: no persisted overrides ('%s' missing), using ROM defaults", kSoundDefsPath);
-    return;  // No persisted overrides — fall back to ROM defaults.
-  }
-
-  PersistedDefsHeader h{};
-  int n = file.read(&h, sizeof(h));
-  if (n != static_cast<int>(sizeof(h)) || h.magic != kSoundDefsMagic || h.version != kSoundDefsVersion ||
-      h.header_size != sizeof(PersistedDefsHeader) || h.record_size != kOverrideRecordSize || h.count > SoundId_count) {
-    ULOG_WARNING("Sound: defs store invalid, ignoring");
-    file.close();
-    return;
-  }
-
-  // The store lists exactly the overridden sounds, so start from "none"
-  clear_sound_overrides();
-
-  uint16_t loaded = 0U;
-  for (uint16_t i = 0U; i < h.count; ++i) {
-    uint8_t id = 0U;
-    const bool record_read = (file.read(&id, sizeof(id)) == static_cast<int>(sizeof(id))) &&
-                             (file.read(&def, sizeof(def)) == static_cast<int>(sizeof(def)));
-    if (!record_read || (id >= SoundId_count)) {
-      ULOG_WARNING("Sound: defs store truncated, ignoring");
-      clear_sound_overrides();  // do not keep a half applied store
-      file.close();
-      return;
-    }
-    set_sound_override(static_cast<SoundId>(id), def);
-    ++loaded;
-  }
-  file.close();
-
-  ULOG_INFO("Sound: loaded %hu override(s) from flash", loaded);
-}
-
-// A flash failure, as opposed to a request the filesystem rejected (e.g. a full one)
-static bool is_flash_error(int err) {
-  return err == LFS_ERR_IO || err == LFS_ERR_CORRUPT;
-}
-
-// Writes one field of the staged store and remembers its first failing write.
-static bool write_staged(File& file, int& write_error, const void* data, size_t size) {
-  const int written = file.write(const_cast<void*>(data), size);  // File::write() takes a non-const pointer
-  if (written != static_cast<int>(size) && write_error == LFS_ERR_OK) {
-    write_error = (written < 0) ? written : LFS_ERR_IO;
-  }
-  return written == static_cast<int>(size);
-}
-
-void save_sound_overrides_to_storage() {
-  // Count first. The header carries it and every valid sound is one record.
-  uint16_t count = 0U;
-  chMtxLock(&s_override_mutex);
-  for (uint8_t i = 0U; i < SoundId_count; ++i) {
-    if (s_override_valid[i]) ++count;
-  }
-  chMtxUnlock(&s_override_mutex);
-
-  // A File is ~330 bytes (256 B cache buffer) and this runs from the
-  // SoundService thread's configuration callback, whose working area is only
-  // 3 KB — the JSON parser frames are still live at this point. Keep a single
-  // static instance (mkdirp() does not touch the file handle) off the stack.
-  static File file;
-  file.close();  // no-op unless an earlier attempt left it open
-
-  // Ensure the /cfg directory exists (idempotent).
-  if (file.mkdirp(kSoundDefsPath) != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: cannot create defs store dir");
-    return;
-  }
-
-  // Stage the store in a temp file and rename it over kSoundDefsPath only once it is complete
-  if (file.open(kSoundDefsTmpPath, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: cannot open defs store '%s'", kSoundDefsTmpPath);
-    return;
-  }
-
-  PersistedDefsHeader h{};
-  h.magic = kSoundDefsMagic;
-  h.version = kSoundDefsVersion;
-  h.count = count;
-  h.header_size = sizeof(PersistedDefsHeader);
-  h.record_size = kOverrideRecordSize;
-
-  // The first failing write decides whether the staged file may be dropped again below.
-  int write_error = LFS_ERR_OK;
-  bool ok = write_staged(file, write_error, &h, sizeof(h));
-  for (uint8_t i = 0U; ok && i < SoundId_count; ++i) {
-    SoundDefinition def{};
-    chMtxLock(&s_override_mutex);
-    const bool valid = s_override_valid[i];
-    if (valid) {
-      def = s_sound_overrides[i];
-    }
-    chMtxUnlock(&s_override_mutex);
-    if (!valid) continue;
-
-    const uint8_t id = i;
-    ok = write_staged(file, write_error, &id, sizeof(id)) && write_staged(file, write_error, &def, sizeof(def));
-  }
-
-  // sync() flushes the staged file and commits its size
-  const int sync_result = file.sync();
-  file.close();
-
-  // A flash failure leaves LittleFS's program cache dirty (lfs_bd_flush() returns without
-  // clearing it), and programming another block through that cache hits an LFS_ASSERT — so
-  // only touch the filesystem again while the flash is known to be healthy. sync() can still
-  // report success in that state, which is why both errors are checked. A staged file that
-  // is left behind is harmless: nothing reads it and the next save truncates it again.
-  const bool flash_healthy = !is_flash_error(write_error) && !is_flash_error(sync_result);
-
-  if (!ok || sync_result != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: defs store write failed (write=%d, sync=%d), previous store kept", write_error, sync_result);
-    if (flash_healthy) lfs_remove(&lfs, kSoundDefsTmpPath);  // best effort: drop the partial file
-    return;
-  }
-
-  const int rename_result = lfs_rename(&lfs, kSoundDefsTmpPath, kSoundDefsPath);
-  if (rename_result != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: cannot replace defs store (%d), previous store kept", rename_result);
-    if (flash_healthy && !is_flash_error(rename_result)) lfs_remove(&lfs, kSoundDefsTmpPath);  // best effort
-    return;
-  }
-
-  const unsigned int file_bytes = static_cast<unsigned int>(sizeof(h) + (count * kOverrideRecordSize));
-  ULOG_INFO("Sound: persisted %hu override(s) (%u bytes) to %s", count, file_bytes, kSoundDefsPath);
-}
-
-/*===========================================================================*/
-/* Take lists: the LittleFS store.                                           */
-/*===========================================================================*/
-
-/*
- * Layout of /cfg/sound_variants.bin:
- *
- *   header (12 B: magic, version, index_size, name_size)
- *   index  (SoundId_count x PersistedVariantRef, fixed position per sound)
- *   data   (per take one NUL padded kVariantNameMax name; the "/sounds/" prefix
- *           is a low level contract and is not stored)
- *
- * The index sits at a fixed position, so an entry is one seek away and no search
- * is needed. Written like the definition store: staged in a .tmp file that is
- * renamed on commit, so a rejected blob or a power loss leaves the previous lists
- * in place. A header whose sizes do not match the compiled layout is ignored,
- * which simply means every sound plays its first take.
- */
-
-static PersistedVariantsHeader variant_header() {
-  PersistedVariantsHeader h{};
-  h.magic = kVariantsMagic;
-  h.version = kVariantsVersion;
-  h.index_size = sizeof(PersistedVariantRef);
-  h.name_size = static_cast<uint16_t>(kVariantNameMax);
-  return h;
-}
-
-void begin_sound_variants_write() {
-  if (s_variant_writing) abort_sound_variants_write();
-  for (uint8_t i = 0U; i < SoundId_count; ++i) {
-    s_variant_pending[i] = PersistedVariantRef{};
-  }
-  s_variant_set_open = false;
-  s_variant_set_count = 0U;
-  s_variant_next_offset = kVariantsDataOffset;
-
-  /* mkdirp() lives on File; borrow the reader instance for that one call. */
-  chMtxLock(&s_variant_io_mutex);
-  const int mkdir_result = s_variant_in.mkdirp(kVariantsPath);
-  chMtxUnlock(&s_variant_io_mutex);
-  if (mkdir_result != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: cannot create the take store dir");
-    return;
-  }
-  if (s_variant_out.open(kVariantsTmpPath, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC) != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: cannot open the take store '%s'", kVariantsTmpPath);
-    return;
-  }
-
-  /* Reserve header and index; the commit writes both again. */
-  int err = LFS_ERR_OK;
-  const PersistedVariantsHeader h = variant_header();
-  bool ok = write_staged(s_variant_out, err, &h, sizeof(h));
-  for (uint8_t i = 0U; ok && i < SoundId_count; ++i) {
-    const PersistedVariantRef zero{};
-    ok = write_staged(s_variant_out, err, &zero, sizeof(zero));
-  }
-  if (!ok) {
-    ULOG_WARNING("Sound: take store write failed (%d)", err);
-    s_variant_out.close();
-    lfs_remove(&lfs, kVariantsTmpPath); /* best effort */
-    return;
-  }
-  s_variant_writing = true;
-}
-
-void begin_sound_variant_set(SoundId id) {
-  const uint8_t idx = static_cast<uint8_t>(id);
-  if (idx >= SoundId_count) return;
-  s_variant_set_open = true;
-  s_variant_set_id = idx;
-  s_variant_set_offset = s_variant_next_offset;
-  s_variant_set_count = 0U;
-}
-
-bool add_sound_variant(etl::string_view name) {
-  /* Without a staged store (read-only flash, ...) the definitions still apply; the
-     takes are simply not kept. A take outside an open set, though, is a broken
-     stream and has to reject the blob. */
-  if (!s_variant_writing) return true;
-  if (!s_variant_set_open) {
-    ULOG_ERROR("Sound config: take outside a 'variants' array");
-    return false;
-  }
-  if (name.size() + 1U > kVariantNameMax) {
-    ULOG_ERROR("Sound config: take name too long (%.*s)", static_cast<int>(name.size()), name.data());
-    return false;
-  }
-  /* The player concatenates the name with "/sounds/", so an empty name or one
-     that is not an MP3 has to fail here instead of at play time. */
-  if (!has_mp3_suffix(name)) {
-    ULOG_ERROR("Sound config: take '%.*s' is not an .mp3 file name", static_cast<int>(name.size()), name.data());
-    return false;
-  }
-  if (s_variant_set_count >= kMaxVariants) {
-    ULOG_ERROR("Sound config: more than %hhu takes for one sound", kMaxVariants);
-    return false;
-  }
-
-  /* Fixed stride, NUL padded - the reader indexes it without a length table. */
-  char record[kVariantNameMax]{};
-  for (size_t i = 0U; i < name.size(); ++i) {
-    record[i] = name[i];
-  }
-
-  int err = LFS_ERR_OK;
-  if (!write_staged(s_variant_out, err, record, sizeof(record))) {
-    ULOG_WARNING("Sound: take store write failed (%d)", err);
-    return false;
-  }
-  s_variant_set_count++;
-  s_variant_next_offset = static_cast<uint16_t>(s_variant_next_offset + sizeof(record));
-  return true;
-}
-
-void end_sound_variant_set() {
-  if (s_variant_set_open && s_variant_set_count > 0U) {
-    s_variant_pending[s_variant_set_id].offset = s_variant_set_offset;
-    s_variant_pending[s_variant_set_id].count = s_variant_set_count;
-  }
-  s_variant_set_open = false;
-  s_variant_set_count = 0U;
-}
-
-void set_sound_variant_pick(SoundId id, PickMode pick) {
-  const uint8_t idx = static_cast<uint8_t>(id);
-  if (idx >= SoundId_count) return;
-  s_variant_pending[idx].pick = static_cast<uint8_t>(pick);
-}
-
-void commit_sound_variants_write() {
-  if (!s_variant_writing) return;
-  s_variant_writing = false;
-
-  int err = LFS_ERR_OK;
-  bool ok = s_variant_out.seek(0, LFS_SEEK_SET) >= 0;
-  const PersistedVariantsHeader h = variant_header();
-  ok = ok && write_staged(s_variant_out, err, &h, sizeof(h));
-  for (uint8_t i = 0U; ok && i < SoundId_count; ++i) {
-    ok = write_staged(s_variant_out, err, &s_variant_pending[i], sizeof(PersistedVariantRef));
-  }
-  const int sync_result = s_variant_out.sync();
-  s_variant_out.close();
-
-  const bool flash_healthy = !is_flash_error(err) && !is_flash_error(sync_result);
-  if (!ok || sync_result != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: take store write failed (write=%d, sync=%d), previous store kept", err, sync_result);
-    if (flash_healthy) lfs_remove(&lfs, kVariantsTmpPath); /* best effort */
-    return;
-  }
-  const int rename_result = lfs_rename(&lfs, kVariantsTmpPath, kVariantsPath);
-  if (rename_result != LFS_ERR_OK) {
-    ULOG_WARNING("Sound: cannot replace the take store (%d), previous store kept", rename_result);
-    if (flash_healthy && !is_flash_error(rename_result)) lfs_remove(&lfs, kVariantsTmpPath);
-    return;
-  }
-  load_sound_variants_from_storage();
-}
-
-void abort_sound_variants_write() {
-  if (!s_variant_writing) return;
-  s_variant_writing = false;
-  s_variant_set_open = false;
-  s_variant_out.close();
-  lfs_remove(&lfs, kVariantsTmpPath); /* best effort */
-}
-
-void load_sound_variants_from_storage() {
-  PersistedVariantRef refs[SoundId_count]{};
-  PersistedVariantsHeader h{};
-
-  chMtxLock(&s_variant_io_mutex);
-  s_variant_in.close(); /* no-op unless an earlier attempt left it open */
-  bool ok = s_variant_in.open(kVariantsPath, LFS_O_RDONLY) == LFS_ERR_OK;
-  if (ok) ok = s_variant_in.read(&h, sizeof(h)) == static_cast<int>(sizeof(h));
-  if (ok) {
-    ok = h.magic == kVariantsMagic && h.version == kVariantsVersion && h.index_size == sizeof(PersistedVariantRef) &&
-         h.name_size == kVariantNameMax;
-  }
-  if (ok) ok = s_variant_in.read(refs, sizeof(refs)) == static_cast<int>(sizeof(refs));
-  const int file_size = ok ? s_variant_in.size() : 0;
-  s_variant_in.close();
-  chMtxUnlock(&s_variant_io_mutex);
-
-  chMtxLock(&s_override_mutex);
-  uint8_t with_takes = 0U;
-  for (uint8_t i = 0U; i < SoundId_count; ++i) {
-    PersistedVariantRef r = ok ? refs[i] : PersistedVariantRef{};
-    /* A truncated or foreign file must not make the player read past its end. */
-    const uint32_t end = static_cast<uint32_t>(r.offset) + (static_cast<uint32_t>(r.count) * kVariantNameMax);
-    if (r.count == 0U || r.count > kMaxVariants || end > static_cast<uint32_t>(file_size)) {
-      r = PersistedVariantRef{};
-    }
-    if (r.count > 0U) with_takes++;
-    s_variant_ref[i] = r;
-  }
-  chMtxUnlock(&s_override_mutex);
-
-  if (ok) {
-    ULOG_INFO("Sound: %hhu take list(s) restored from %s", with_takes, kVariantsPath);
-  } else {
-    ULOG_INFO("Sound: no usable take store ('%s'), every sound plays its first take", kVariantsPath);
-  }
-}
-
 void stop() {
   if (s_player_thd == nullptr) return;
-  chSysLock();
-  /* Flush pending requests so playback cannot resume after stop. */
-  s_queue.clear();
-  chEvtSignalI(s_player_thd, EVT_STOP_PLAYBACK);
-  /* Required after I-class calls that may have made a higher-priority thread
-     ready: chSysUnlock() asserts "priority order violation" if we skip this. */
-  chSchRescheduleS();
-  chSysUnlock();
+  /* Flush pending requests so playback cannot resume after stop. The player thread stops
+     the audio itself when it handles EVT_STOP_PLAYBACK. */
+  chMtxLock(&s_playback_mutex);
+  s_playback.Stop();
+  chMtxUnlock(&s_playback_mutex);
+  chEvtSignal(s_player_thd, EVT_STOP_PLAYBACK);
 }
 
 bool is_playing() {

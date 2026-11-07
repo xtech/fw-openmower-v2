@@ -54,8 +54,8 @@ class SoundService : public SoundServiceBase {
    * @brief Apply one machine decision to the player.
    *
    * `stop_first` cuts whatever runs, then the announcement and its follow-up are queued (a
-   * plain FIFO queue, no per-sound "cut everything" flag needed). The warning device of a
-   * manoeuvre leads that order - see the .cpp for why.
+   * plain FIFO queue, no per-sound "cut everything" flag needed). The drive warning leads
+   * that order - see the .cpp for why.
    */
   void PlayAction(const sound::StateAction& action);
   /** @brief Play one sound and log the outcome together with the machine's state. */
