@@ -2,7 +2,6 @@
 #define SOUND_SERVICE_HPP
 
 #include <etl/atomic.h>
-#include <lwjson/lwjson.h>
 
 #include <SoundServiceBase.hpp>
 #include <drivers/sound/sound_state_machine.hpp>
@@ -10,8 +9,6 @@
 using namespace xbot::service;
 /** @brief The sound driver (StateMachine, StateInputs, …) — spelled `sound::` below. */
 namespace sound = xbot::driver::sound;
-
-struct sound_config_json_data_t;
 
 class SoundService : public SoundServiceBase, public sound::SoundOutput {
  public:
@@ -34,14 +31,6 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
    */
   sound::StateMachine machine_{*this, {&SoundService::AmbientPolicyFor, &SoundService::Dice}};
 
-  /**
-   * @brief every/chance per sound, parsed from the definitions blob.
-   *
-   * RAM only (a 5-byte entry per id): the high level sends the blob on every connect, and
-   * an ambience that plays before that simply has no rate yet.
-   */
-  static sound::AmbientPolicy s_ambient[SoundId_count];
-
   /** @brief every/chance of one sound as configured (the machine's policy hook). */
   static sound::AmbientPolicy AmbientPolicyFor(SoundId id);
   /** @brief true with the given probability (the machine's dice hook). */
@@ -57,6 +46,9 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
   /** @brief Output: push one sound into the player queue (order is the play order). */
   void PlaySound(SoundId id) override;
 
+  /** @brief Previous snapshot, so the state trace only prints something that changed. */
+  sound::StateInputs last_inputs_{};
+
   /**
    * @brief Monotonic millisecond clock for the machine, built from the loop's deltas.
    *
@@ -64,16 +56,12 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
    * machine compares timestamps up to a minute apart — so the wrapping value is turned
    * into a monotonic one here.
    */
-  /** @brief Previous snapshot, so the state trace only prints something that changed. */
-  sound::StateInputs last_inputs_{};
-
   uint32_t last_loop_micros_ = 0;
   uint32_t now_ms_ = 0;
 
   uint32_t OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
 
   bool OnRegisterSoundDefinitionsChanged(const void* data, size_t length) override;
-  bool SoundDefinitionsJsonCallback(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data);
   void OnVolumeChanged(const uint8_t& new_value) override;
 
   /* RPCs (services/sound_service.json): let a host audition sounds at runtime.

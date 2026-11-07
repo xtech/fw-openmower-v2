@@ -115,6 +115,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         src/services/high_level_service/high_level_service.cpp
         src/services/meta_service/meta_service.cpp
         src/services/file_service/file_service.cpp
+        src/services/sound_service/sound_config.cpp
         src/services/sound_service/sound_service.cpp
         # BQ2567 driver
         src/drivers/charger/bq_2576/bq_2576.cpp
