@@ -35,7 +35,7 @@ inline bool time_reached(uint32_t now_ms, uint32_t due_ms) {
 // Plumbing
 //=============================================================================
 
-StateMachine::StateMachine(Hooks hooks) : hooks_(hooks) {
+StateMachine::StateMachine(SoundOutput& output, Hooks hooks) : output_(output), hooks_(hooks) {
   Reset();
 }
 
@@ -45,7 +45,7 @@ void StateMachine::Reset() {
   rt_ = Runtime{};
 }
 
-StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
+void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
   // --- The alert: emergency first, then a link loss that lasted long enough -------
   if (inputs.high_level_alive) {
     rt_.link_lost_timer = false;
@@ -95,9 +95,11 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     rt_.hl_state = inputs.hl_state;
     AmbientArm(now_ms);
     if (next_alert == Alert::EMERGENCY) {
-      return AlertAction(Alert::NONE, Alert::EMERGENCY, inputs.emergency);
+      AlertAction(Alert::NONE, Alert::EMERGENCY, inputs.emergency);
+    } else {
+      output_.PlaySound(SoundId::BOOT_COMPLETE);
     }
-    return StateAction{SoundId::BOOT_COMPLETE};
+    return;
   }
 
   // --- An alert change is announced, and it swallows every other transition --------
@@ -110,12 +112,13 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     rt_.hl_state = inputs.hl_state;
     rt_.charge_done_seen = false;
     AmbientArm(now_ms);
-    StateAction action = AlertAction(previous, next_alert, inputs.emergency);
+    AlertAction(previous, next_alert, inputs.emergency);
     if (next_alert == Alert::NONE && HlStateIsDockTransfer(rt_.hl_state)) {
-      /* The alert (and its stop_first) ended the drive warning: start it again. */
-      action.follow_up = SoundId::AUTONOMOUS_NOTICE;
+      /* The alert (and its stop) ended the drive warning: start it again after the
+         all-clear. */
+      output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
     }
-    return action;
+    return;
   }
 
   // --- While an alert lasts, changes are tracked but never announced ---------------
@@ -123,7 +126,7 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     rt_.charging = charging;
     rt_.hl_state = inputs.hl_state;
     rt_.charge_done_seen = false;
-    return StateAction{};
+    return;
   }
 
   // --- Charging: the charger is the only source (the high level reports no charging)
@@ -132,12 +135,14 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     AmbientArm(now_ms);
     if (charging) {
       rt_.charge_done_seen = false;  // a fresh charge: DONE can only be reported from now on
-      return StateAction{SoundId::CHARGING_START};
+      output_.PlaySound(SoundId::CHARGING_START);
+      return;
     }
     const bool done = rt_.charge_done_seen;
     rt_.charge_done_seen = false;
     if (done) {
-      return StateAction{SoundId::CHARGING_DONE};
+      output_.PlaySound(SoundId::CHARGING_DONE);
+      return;
     }
   }
 
@@ -148,33 +153,34 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
 
     if (HlStateIsDockTransfer(rt_.hl_state) && !HlStateIsDockTransfer(previous)) {
       /* A drive starts the drive warning. Its cadence is the definition's repeat_ms, so
-         this only has to start it - as a follow-up when the same transition also has an
-         announcement (the service then orders "warn first, then announce", see
-         SoundService::PlayAction). */
+         the machine only has to start it. A docking announcement is queued behind it;
+         the player plays the requests in the order they arrive. */
       const SoundId announce = HlSound(previous, rt_.hl_state);
       if (announce != kNoSound) {
-        return StateAction{announce, SoundId::AUTONOMOUS_NOTICE, true};
+        output_.StopPlayback();
+        output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
+        output_.PlaySound(announce);
+      } else {
+        output_.StopPlayback();
+        output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
       }
-      return StateAction{SoundId::AUTONOMOUS_NOTICE, kNoSound, true};
+      return;
     }
     if (!HlStateIsDockTransfer(rt_.hl_state) && HlStateIsDockTransfer(previous)) {
       /* The drive is over: stop the pattern (repeat_ms would run on by itself). */
-      return StateAction{kNoSound, kNoSound, true};
+      output_.StopPlayback();
+      return;
     }
 
     const SoundId sound = HlSound(previous, rt_.hl_state);
     if (sound != kNoSound) {
-      return StateAction{sound};
+      output_.PlaySound(sound);
+      return;
     }
   }
 
   // --- Ambience: the background sound while the blade turns ------------------------
-  const StateAction ambient = AmbientStep(now_ms);
-  if (!ambient.silent()) {
-    return ambient;
-  }
-
-  return StateAction{};
+  AmbientStep(now_ms);
 }
 
 //=============================================================================
@@ -204,32 +210,59 @@ StateAction StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
  * | MOWER_RPM_TIMEOUT    | MOWER_RPM_TIMEOUT, then the alarm     |
  * | OTHER       | the alarm only (e.g. a firmware fault) |
  *
- * The "what happened" announcement plays first and the alarm follows it (follow_up): the
- * alarm preempts by its definition, so it cannot be queued *before* the voice without
- * cutting it off. While an emergency is latched no further announcement is made - the
- * alert simply stays.
+ * The "what happened" announcement plays first and the alarm follows it (second sound):
+ * the alarm is queued behind the voice, so the user hears what happened before the
+ * tone. Every audible emergency stops whatever runs first — an alert
+ * must not wait behind an announcement. While an emergency is latched no further
+ * announcement is made - the alert simply stays.
  *
  * @note  A repeating alert (the emergency tone holds several seconds) has to be stopped
- *        before the "all clear" plays, hence stop_first.
+ *        before the "all clear" plays, hence the stop.
  */
-StateAction StateMachine::AlertAction(Alert from, Alert to, EmergencyKind kind) {
+void StateMachine::AlertAction(Alert from, Alert to, EmergencyKind kind) {
   if (to == Alert::EMERGENCY) {
     switch (kind) {
-      case EmergencyKind::STOP: return StateAction{SoundId::STOP_BUTTON, kNoSound, true};
-      case EmergencyKind::LIFT: return StateAction{SoundId::LIFT_TRIGGERED, SoundId::EMERGENCY, true};
-      case EmergencyKind::COLLISION: return StateAction{SoundId::COLLISION_TRIGGERED, SoundId::EMERGENCY, true};
-      case EmergencyKind::RPM_LIMIT: return StateAction{SoundId::MOWER_RPM_LIMIT, SoundId::EMERGENCY, true};
-      case EmergencyKind::RPM_TIMEOUT: return StateAction{SoundId::MOWER_RPM_TIMEOUT, SoundId::EMERGENCY, true};
+      case EmergencyKind::STOP:
+        output_.StopPlayback();
+        output_.PlaySound(SoundId::STOP_BUTTON);
+        return;
+      case EmergencyKind::LIFT:
+        output_.StopPlayback();
+        output_.PlaySound(SoundId::LIFT_TRIGGERED);
+        output_.PlaySound(SoundId::EMERGENCY);
+        return;
+      case EmergencyKind::COLLISION:
+        output_.StopPlayback();
+        output_.PlaySound(SoundId::COLLISION_TRIGGERED);
+        output_.PlaySound(SoundId::EMERGENCY);
+        return;
+      case EmergencyKind::RPM_LIMIT:
+        output_.StopPlayback();
+        output_.PlaySound(SoundId::MOWER_RPM_LIMIT);
+        output_.PlaySound(SoundId::EMERGENCY);
+        return;
+      case EmergencyKind::RPM_TIMEOUT:
+        output_.StopPlayback();
+        output_.PlaySound(SoundId::MOWER_RPM_TIMEOUT);
+        output_.PlaySound(SoundId::EMERGENCY);
+        return;
       case EmergencyKind::OTHER:
       case EmergencyKind::NONE: break;
     }
-    return StateAction{SoundId::EMERGENCY};
+    output_.StopPlayback();
+    output_.PlaySound(SoundId::EMERGENCY);
+    return;
   }
+
   const bool was_emergency = (from == Alert::EMERGENCY);
-  if (to == Alert::LINK_LOST) {
-    return StateAction{SoundId::ROS_DISCONNECTED, kNoSound, was_emergency};
+  if (was_emergency) {
+    output_.StopPlayback();
   }
-  return StateAction{was_emergency ? SoundId::EMERGENCY_CLEARED : SoundId::ROS_CONNECTED, kNoSound, was_emergency};
+  if (to == Alert::LINK_LOST) {
+    output_.PlaySound(SoundId::ROS_DISCONNECTED);
+    return;
+  }
+  output_.PlaySound(was_emergency ? SoundId::EMERGENCY_CLEARED : SoundId::ROS_CONNECTED);
 }
 
 /**
@@ -298,21 +331,21 @@ void StateMachine::AmbientArm(uint32_t now_ms) {
   rt_.ambient_due_ms = now_ms + static_cast<uint32_t>(policy.every_s) * 1'000U;
 }
 
-StateAction StateMachine::AmbientStep(uint32_t now_ms) {
+void StateMachine::AmbientStep(uint32_t now_ms) {
   /* No ambience under an alert: an emergency or a lost high level is not the moment for
      a cow. The alert change above has just re-armed the interval. */
   if (rt_.alert != Alert::NONE) {
-    return StateAction{};
+    return;
   }
   if (!rt_.ambient_armed || !time_reached(now_ms, rt_.ambient_due_ms)) {
-    return StateAction{};
+    return;
   }
 
   const SoundId id = AmbientSound();
   AmbientPolicy policy{};
   if (!AmbientPolicyFor(id, policy)) {
     rt_.ambient_armed = false;
-    return StateAction{};
+    return;
   }
 
   /* The interval restarts whether or not the dice hit: `every` is the evaluation rate,
@@ -320,9 +353,9 @@ StateAction StateMachine::AmbientStep(uint32_t now_ms) {
   rt_.ambient_due_ms = now_ms + static_cast<uint32_t>(policy.every_s) * 1'000U;
 
   if (hooks_.dice == nullptr || !hooks_.dice(policy.chance_pct)) {
-    return StateAction{};
+    return;
   }
-  return StateAction{id};
+  output_.PlaySound(id);
 }
 
 }  // namespace xbot::driver::sound

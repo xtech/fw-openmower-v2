@@ -104,6 +104,14 @@ class PlaybackSequencer {
   /** @brief End the current repetition without touching the queue or a pause. */
   void CancelRepeat();
 
+  /**
+   * @brief End repeat/pause, but keep queued requests.
+   *
+   * Used by the player thread when it handles a stop that the service already flushed:
+   * requests enqueued after that stop belong to the next action and must survive.
+   */
+  void CancelPlayback();
+
   /** @brief A preempting request takes over: drop an owed pause (the repeat is replaced). */
   void Preempt();
 

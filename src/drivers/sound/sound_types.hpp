@@ -202,17 +202,6 @@ struct AmbientPolicy {
 constexpr SoundId kNoSound = static_cast<SoundId>(SoundId_count);
 static_assert(SoundId_count <= 255U, "SoundId (uint8_t) must leave room for the no-sound sentinel");
 
-/** @brief What the caller should do with the audio after one Update(). */
-struct StateAction {
-  SoundId sound = kNoSound;      ///< Play now (kNoSound: nothing)
-  SoundId follow_up = kNoSound;  ///< Play as soon as `sound` finished (kNoSound: nothing)
-  bool stop_first = false;       ///< Flush the running sound and the queue first
-
-  bool silent() const {
-    return sound == kNoSound;
-  }
-};
-
 }  // namespace xbot::driver::sound
 
 #endif  // SOUND_TYPES_HPP

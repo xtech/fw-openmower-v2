@@ -617,38 +617,17 @@ StateInputs SoundService::ReadInputs() {
   return in;
 }
 
-void SoundService::PlayOne(SoundId id, const char* what) {
-  const PlayResult res = play_sound_id(id);
-  ULOG_INFO("Sound: %s '%s' (alert=%s hl=%s charging=%u blade=%u, %s)", what, SoundId_to_string(id),
-            alert_name(machine_.alert()), hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U,
-            machine_.blade_running() ? 1U : 0U, play_result_text(res));
+void SoundService::StopPlayback() {
+  stop();
+  ULOG_INFO("Sound: stop (alert=%s hl=%s charging=%u blade=%u)", alert_name(machine_.alert()),
+            hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U, machine_.blade_running() ? 1U : 0U);
 }
 
-void SoundService::PlayAction(const StateAction& action) {
-  if (action.stop_first) stop();
-  if (action.silent()) {
-    /* Nothing to announce, only to stop (the drive warning ended): stop() above did it. */
-    ULOG_INFO("Sound: silenced (alert=%s hl=%s charging=%u blade=%u)", alert_name(machine_.alert()),
-              hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U, machine_.blade_running() ? 1U : 0U);
-    return;
-  }
-
-  /* The drive warning leads a drive announcement. The announcement can be a half minute
-     theme song, and "stay back, mower at work" has to be heard *before* the robot drives
-     off - not after the song. The notice is queued a second time behind the announcement
-     because the player's repetition always yields to a waiting request (and stop_first just
-     ended the previous pattern), so the cadence has to be re-armed. */
-  const bool drive_warning = action.follow_up == SoundId::AUTONOMOUS_NOTICE;
-  if (drive_warning) {
-    PlayOne(SoundId::AUTONOMOUS_NOTICE, "warned");
-  }
-
-  PlayOne(action.sound, "announced");
-
-  if (action.follow_up != kNoSound) {
-    /* The announcement's `pause_after_ms` (YAML) spaces the two. */
-    PlayOne(action.follow_up, "queued");
-  }
+void SoundService::PlaySound(SoundId id) {
+  const PlayResult res = play_sound_id(id);
+  ULOG_INFO("Sound: play '%s' (alert=%s hl=%s charging=%u blade=%u, %s)", SoundId_to_string(id),
+            alert_name(machine_.alert()), hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U,
+            machine_.blade_running() ? 1U : 0U, play_result_text(res));
 }
 
 /**
@@ -697,12 +676,10 @@ uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/
   last_loop_micros_ = now_micros;
 
   /* Nothing here needs the packet queue: the machine is the only periodic work, so the
-     loop simply wakes up for it. */
+     loop simply wakes up for it. Update() performs its stop/play calls through the
+     output hooks; the player queue preserves their order. */
   const StateInputs in = ReadInputs();
   LogInputChanges(in);
-  const StateAction action = machine_.Update(in, now_ms_);
-  if (!action.silent() || action.stop_first) {
-    PlayAction(action);
-  }
+  machine_.Update(in, now_ms_);
   return kStateMachineTickUs;
 }

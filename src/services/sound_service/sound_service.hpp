@@ -13,7 +13,7 @@ namespace sound = xbot::driver::sound;
 
 struct sound_config_json_data_t;
 
-class SoundService : public SoundServiceBase {
+class SoundService : public SoundServiceBase, public sound::SoundOutput {
  public:
   explicit SoundService(uint16_t service_id) : SoundServiceBase(service_id, wa, sizeof(wa)) {
   }
@@ -26,12 +26,13 @@ class SoundService : public SoundServiceBase {
   etl::atomic<bool> definitions_configured_{false};
 
   /**
-   * @brief Drives the announcements: a state change in, a sound out.
+   * @brief Drives the announcements: a state change in, stop/play calls out.
    *
-   * The hooks are static functions of this class, so the machine itself stays free of
-   * services and of the player (see drivers/sound/sound_state_machine.hpp).
+   * The input hooks are static functions of this class; the output is this service as
+   * SoundOutput. The machine itself stays free of services and of the player (see
+   * drivers/sound/sound_state_machine.hpp).
    */
-  sound::StateMachine machine_{sound::StateMachine::Hooks{&SoundService::AmbientPolicyFor, &SoundService::Dice}};
+  sound::StateMachine machine_{*this, {&SoundService::AmbientPolicyFor, &SoundService::Dice}};
 
   /**
    * @brief every/chance per sound, parsed from the definitions blob.
@@ -50,16 +51,11 @@ class SoundService : public SoundServiceBase {
   sound::StateInputs ReadInputs();
   /** @brief Log the sound-relevant inputs whenever they change (see the .cpp). */
   void LogInputChanges(const sound::StateInputs& now);
-  /**
-   * @brief Apply one machine decision to the player.
-   *
-   * `stop_first` cuts whatever runs, then the announcement and its follow-up are queued (a
-   * plain FIFO queue, no per-sound "cut everything" flag needed). The drive warning leads
-   * that order - see the .cpp for why.
-   */
-  void PlayAction(const sound::StateAction& action);
-  /** @brief Play one sound and log the outcome together with the machine's state. */
-  void PlayOne(SoundId id, const char* what);
+
+  /** @brief Output: stop the current playback and clear the player queue. */
+  void StopPlayback() override;
+  /** @brief Output: push one sound into the player queue (order is the play order). */
+  void PlaySound(SoundId id) override;
 
   /**
    * @brief Monotonic millisecond clock for the machine, built from the loop's deltas.

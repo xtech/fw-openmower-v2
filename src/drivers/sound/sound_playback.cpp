@@ -119,13 +119,17 @@ PlaybackStep PlaybackSequencer::OnTick(uint32_t now_ms, SoundDefinition& out) {
 
 void PlaybackSequencer::Stop() {
   queue_.clear();
-  repeat_active_ = false;
-  pause_active_ = false;
-  pause_ms_ = 0U;
+  CancelPlayback();
 }
 
 void PlaybackSequencer::CancelRepeat() {
   repeat_active_ = false;
+}
+
+void PlaybackSequencer::CancelPlayback() {
+  repeat_active_ = false;
+  pause_active_ = false;
+  pause_ms_ = 0U;
 }
 
 void PlaybackSequencer::Preempt() {

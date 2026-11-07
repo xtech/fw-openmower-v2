@@ -392,9 +392,10 @@ static THD_FUNCTION(player_thread, arg) {
     }
 
     if (ev & EVT_STOP_PLAYBACK) {
-      /* Stop current playback; the queues have already been flushed by stop(). */
+      /* Stop the current playback; the queue was already flushed by stop(). Requests
+         enqueued after that stop belong to the next action and must survive. */
       chMtxLock(&s_playback_mutex);
-      s_playback.Stop(); /* an explicit stop also ends a repetition and a pause */
+      s_playback.CancelPlayback();
       chMtxUnlock(&s_playback_mutex);
       if (s_playing.load()) {
         i2sStopExchange(&I2SD6);

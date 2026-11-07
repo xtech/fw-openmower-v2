@@ -37,16 +37,17 @@
 
 #include <cstdint>
 
+#include "sound_output.hpp"
 #include "sound_types.hpp"
 
 namespace xbot::driver::sound {
 
 /**
- * @brief Event-driven sound logic: state in, sound out.
+ * @brief Event-driven sound logic: state in, stop/play out.
  *
  * Call Reset() once (boot), then Update() a few times per second from the service
- * loop.  Every call returns at most one sound, so a burst of input changes never
- * floods the player queue.
+ * loop. Update() performs the decision through the SoundOutput interface: stop the
+ * current playback (if needed), then push the sound(s) into the player queue in order.
  *
  * @note  All times are uint32 milliseconds — the same type as the clock they are
  *        compared with, so no conversion can silently truncate an interval.
@@ -56,8 +57,8 @@ class StateMachine {
   /**
    * @brief How the machine reaches the outside world.
    *
-   * Function pointers instead of virtual methods: they are set once at construction
-   * (the service passes static functions) and a test can pass deterministic ones.
+   * The input hooks are function pointers (deterministic in tests); the output is the
+   * small SoundOutput interface, implemented by the service with the real player.
    */
   struct Hooks {
     /** every/chance of a sound as configured; nullptr or every_ms 0 = no ambience. */
@@ -74,10 +75,13 @@ class StateMachine {
    */
   static constexpr uint32_t kLinkLostDelayMs = 2000;
 
-  explicit StateMachine(Hooks hooks);
-
-  /** @brief No hooks: no ambience, never a lucky roll (used by tests). */
-  StateMachine() = default;
+  /**
+   * @brief Construct with the player output and the input hooks.
+   *
+   * The output must outlive the machine: the service passes itself, a host test passes
+   * its recorder.
+   */
+  StateMachine(SoundOutput& output, Hooks hooks);
 
   /**
    * @brief Forget every state; the next Update() announces the boot.
@@ -88,15 +92,14 @@ class StateMachine {
   void Reset();
 
   /**
-   * @brief Evaluate one snapshot.
+   * @brief Evaluate one snapshot and perform the resulting output.
    *
    * @param inputs  What the services report (see StateInputs).
    * @param now_ms  A monotonic millisecond clock. It has to be 32 bit: the value is
    *                compared up to a minute apart (the ambience `every`) and wraps only
    *                after 49 days, while a uint16 clock would wrap every 65 seconds.
-   * @return The sound to play, or an empty action.
    */
-  StateAction Update(const StateInputs& inputs, uint32_t now_ms);
+  void Update(const StateInputs& inputs, uint32_t now_ms);
 
   /**
    * @brief Re-evaluate the ambient rate, e.g. after a new definitions blob.
@@ -127,8 +130,8 @@ class StateMachine {
   }
 
  private:
-  /** @brief The sound of an alert transition (rules: sound_state_machine.cpp). */
-  static StateAction AlertAction(Alert from, Alert to, EmergencyKind kind);
+  /** @brief The output of an alert transition (rules: sound_state_machine.cpp). */
+  void AlertAction(Alert from, Alert to, EmergencyKind kind);
 
   /** @brief The sound of a high level state transition (rules: sound_state_machine.cpp). */
   static SoundId HlSound(HlState from, HlState to);
@@ -143,8 +146,9 @@ class StateMachine {
   void AmbientArm(uint32_t now_ms);
 
   /** @brief One ambience decision: due and lucky -> play. */
-  StateAction AmbientStep(uint32_t now_ms);
+  void AmbientStep(uint32_t now_ms);
 
+  SoundOutput& output_;
   Hooks hooks_{};
 
   /**
