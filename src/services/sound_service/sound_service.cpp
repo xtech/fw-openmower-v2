@@ -180,7 +180,7 @@ static EmergencyKind KindOf(uint16_t reasons) {
  * The high level sends its behaviour name, which is what the announcements follow: the
  * mode alone (IDLE/AUTONOMOUS/RECORDING) cannot tell undocking from docking. Unknown names
  * stay UNKNOWN, so a new behaviour in the high level never silences the existing ones; the
- * machine then simply has no announcement (and no drive warning) for it.
+ * machine then simply has no announcement for it.
  */
 static HlState HlStateOf(HighLevelStatus state_id, const char* name) {
   if (name != nullptr) {

@@ -108,22 +108,6 @@ inline const char* hl_state_name(HlState s) {
 }
 
 /**
- * @brief True while the high level transfers the robot to or from the dock.
- *
- * Those are the states where the drive warning runs (UNDOCKING, DOCKING). MOWING is
- * deliberately not one of them: mowing lasts for hours (and has its own background sound),
- * while the warning is meant for the transfer that starts or ends a job. Add MOWING here if
- * the robot should beep all the time it works.
- *
- * The cadence is the definition's `repeat_ms` (the player repeats the sound by itself),
- * so the machine only starts the pattern when such a transfer begins and stops it when the
- * transfer ends.
- */
-inline bool HlStateIsDockTransfer(HlState state) {
-  return state == HlState::UNDOCKING || state == HlState::DOCKING;
-}
-
-/**
  * @brief What the charger reports right now.
  *
  * One value instead of separate `charging`/`charge_done` booleans: the two states are

@@ -113,11 +113,6 @@ void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     rt_.charge_done_seen = false;
     AmbientArm(now_ms);
     AlertAction(previous, next_alert, inputs.emergency);
-    if (next_alert == Alert::NONE && HlStateIsDockTransfer(rt_.hl_state)) {
-      /* The alert (and its stop) ended the drive warning: start it again after the
-         all-clear. */
-      output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
-    }
     return;
   }
 
@@ -151,25 +146,19 @@ void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     const HlState previous = rt_.hl_state;
     rt_.hl_state = inputs.hl_state;
 
-    if (HlStateIsDockTransfer(rt_.hl_state) && !HlStateIsDockTransfer(previous)) {
-      /* A drive starts the drive warning. Its cadence is the definition's repeat_ms, so
-         the machine only has to start it. A docking announcement is queued behind it;
-         the player plays the requests in the order they arrive. */
-      const SoundId announce = HlSound(previous, rt_.hl_state);
-      if (announce != kNoSound) {
-        output_.StopPlayback();
-        output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
-        output_.PlaySound(announce);
-      } else {
-        output_.StopPlayback();
-        output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
-      }
+    if (rt_.hl_state == HlState::UNDOCKING) {
+      /* The drive starts with a single autonomous notice. Its definition may repeat (the
+         ROM fallback uses repeat_ms), so leaving UNDOCKING stops it below. */
+      output_.StopPlayback();
+      output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
       return;
     }
-    if (!HlStateIsDockTransfer(rt_.hl_state) && HlStateIsDockTransfer(previous)) {
-      /* The drive is over: stop the pattern (repeat_ms would run on by itself). */
+
+    if (rt_.hl_state == HlState::DOCKING || previous == HlState::UNDOCKING || previous == HlState::DOCKING) {
+      /* Leaving a dock transfer ends its sound - the ROM notice repeats until a new sound
+         arrives, and a docking theme may still be running. Entering DOCKING also cuts the
+         mowing sound before its own announcement. */
       output_.StopPlayback();
-      return;
     }
 
     const SoundId sound = HlSound(previous, rt_.hl_state);
@@ -189,32 +178,6 @@ void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
 
 /**
  * @brief Which sound an alert transition plays.
- *
- * | from      | to          | sound                                            |
- * |-----------|-------------|--------------------------------------------------|
- * | anything  | EMERGENCY   | by kind, see below                                |
- * | EMERGENCY | LINK_LOST   | ROS_DISCONNECTED, after stopping the tone         |
- * | EMERGENCY | NONE        | EMERGENCY_CLEARED                                 |
- * | LINK_LOST | NONE        | ROS_CONNECTED                                     |
- * | NONE      | LINK_LOST   | ROS_DISCONNECTED                                  |
- *
- * Entering an emergency depends on *why* it happened — a pressed stop button is no
- * surprise, the user just did it, so it is confirmed in words instead of being alarmed:
- *
- * | kind        | sound                                  |
- * |-------------|----------------------------------------|
- * | STOP_BUTTON | STOP_BUTTON only (never the alarm)     |
- * | LIFT        | LIFT_TRIGGERED, then the alarm         |
- * | COLLISION   | COLLISION_TRIGGERED, then the alarm    |
- * | MOWER_RPM_LIMIT | MOWER_RPM_LIMIT, then the alarm  |
- * | MOWER_RPM_TIMEOUT    | MOWER_RPM_TIMEOUT, then the alarm     |
- * | OTHER       | the alarm only (e.g. a firmware fault) |
- *
- * The "what happened" announcement plays first and the alarm follows it (second sound):
- * the alarm is queued behind the voice, so the user hears what happened before the
- * tone. Every audible emergency stops whatever runs first — an alert
- * must not wait behind an announcement. While an emergency is latched no further
- * announcement is made - the alert simply stays.
  *
  * @note  A repeating alert (the emergency tone holds several seconds) has to be stopped
  *        before the "all clear" plays, hence the stop.
@@ -267,35 +230,53 @@ void StateMachine::AlertAction(Alert from, Alert to, EmergencyKind kind) {
 
 /**
  * @brief Which sound a high level state change plays.
- *
- * | from                    | to          | sound                 |
- * |-------------------------|-------------|-----------------------|
- * | IDLE / UNDOCKING        | MOWING      | MOWING_START          |
- * | MOWING                  | PAUSED      | MOWING_PAUSED         |
- * | PAUSED                  | MOWING      | MOWING_RESUMED        |
- * | MOWING / PAUSED         | DOCKING     | MOWING_COMPLETE       |
- * | anything else           | DOCKING     | DOCKING_START         |
- * | anything else           | RECORDING   | AREA_RECORDING_MODE   |
- * | anything else           | …           | silent                |
- *
- * @note  Only the *high level* knows these: the blade says "the robot mows", but not
- *        whether it is undocking, paused, done or merely driving home. A docking that
- *        follows mowing is reported as "complete"; the high level may also dock for rain
- *        or a low battery, and the low level cannot tell - the announcement is the same
- *        either way.
  */
 SoundId StateMachine::HlSound(HlState from, HlState to) {
-  switch (to) {
-    case HlState::MOWING: return (from == HlState::PAUSED) ? SoundId::MOWING_RESUMED : SoundId::MOWING_START;
-    case HlState::PAUSED: return (from == HlState::MOWING) ? SoundId::MOWING_PAUSED : kNoSound;
+  if (from == to) return kNoSound;  // Update() only calls this for a change
+
+  switch (from) {
+    case HlState::MOWING:
+      switch (to) {
+        case HlState::PAUSED: return SoundId::MOWING_PAUSED;
+        case HlState::DOCKING: return SoundId::DOCKING_START;
+        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        default: return kNoSound;
+      }
+
+    case HlState::PAUSED:
+      switch (to) {
+        case HlState::MOWING: return SoundId::MOWING_RESUMED;
+        case HlState::DOCKING: return SoundId::DOCKING_START;
+        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        default: return kNoSound;
+      }
+
+    case HlState::UNDOCKING:
+      switch (to) {
+        case HlState::MOWING: return SoundId::MOWING_START;
+        case HlState::DOCKING: return SoundId::DOCKING_START;
+        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        default: return kNoSound;
+      }
+
     case HlState::DOCKING:
-      return (from == HlState::MOWING || from == HlState::PAUSED) ? SoundId::MOWING_COMPLETE : SoundId::DOCKING_START;
-    case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
-    case HlState::UNKNOWN:
+      switch (to) {
+        case HlState::MOWING: return SoundId::MOWING_START;
+        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        default: return kNoSound;
+      }
+
     case HlState::IDLE:
-    case HlState::UNDOCKING: break;
+    case HlState::RECORDING:
+    case HlState::UNKNOWN:
+      switch (to) {
+        case HlState::MOWING: return SoundId::MOWING_START;
+        case HlState::DOCKING: return SoundId::DOCKING_START;
+        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        default: return kNoSound;
+      }
   }
-  return kNoSound; /* undocking and docking are silent - the drive warning starts/stops */
+  return kNoSound;
 }
 
 /**
