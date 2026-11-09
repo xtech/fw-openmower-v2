@@ -15,11 +15,15 @@ set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(CONFIG_LV_BUILD_EXAMPLES OFF)
 set(CONFIG_LV_BUILD_DEMOS OFF)
 set(CONFIG_LV_USE_THORVG_INTERNAL OFF)
-FetchContent_Declare(
-        lvgl
+# DOWNLOAD_EXTRACT_TIMESTAMP was added in CMake 3.24; the project still supports 3.22.
+set(LVGL_FETCH_ARGS
         URL      https://github.com/lvgl/lvgl/archive/refs/tags/v9.4.0.tar.gz
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        URL_HASH SHA256=932c864de98431b38c5758a87f1de12bbee7b76943b8312bcf13d2f29ac14627
 )
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+  list(APPEND LVGL_FETCH_ARGS DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+endif()
+FetchContent_Declare(lvgl ${LVGL_FETCH_ARGS})
 
 # ETL ------------------------------------------------------------------ ETL
 # GIT_REPOSITORY on purpose, not an archive URL: ETL derives its version with

@@ -10,6 +10,7 @@ using namespace xbot::service;
 /** @brief The sound driver (StateMachine, StateInputs, …) — spelled `sound::` below. */
 namespace sound = xbot::driver::sound;
 
+/** @brief The low-level sound service: owns the player and runs the state machine. */
 class SoundService : public SoundServiceBase, public sound::SoundOutput {
  public:
   explicit SoundService(uint16_t service_id) : SoundServiceBase(service_id, wa, sizeof(wa)) {
@@ -59,19 +60,27 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
   uint32_t last_loop_micros_ = 0;
   uint32_t now_ms_ = 0;
 
+  /** @brief Advance the sound tick and run one machine update. */
   uint32_t OnLoop(uint32_t now_micros, uint32_t last_tick_micros) override;
 
+  /** @brief Apply a new high-level definitions blob. */
   bool OnRegisterSoundDefinitionsChanged(const void* data, size_t length) override;
+  /** @brief Forward the master volume to the player. */
   void OnVolumeChanged(const uint8_t& new_value) override;
 
   /* RPCs (services/sound_service.json): let a host audition sounds at runtime.
      Return 1 = accepted, 0 = rejected */
+  /** @brief RPC: play one configured SoundId. */
   void RPCPlaySound(uint16_t call_id, SoundId Sound) override;
+  /** @brief RPC: play a synthesised tone. */
   void RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume, uint8_t Preempt) override;
+  /** @brief RPC: play a synthesised sequence. */
   void RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave, uint8_t Volume,
                        uint8_t Unison, uint16_t DetuneHz, uint8_t AttackMs, uint8_t DecayMs, uint8_t Preempt,
                        uint16_t RepeatMs) override;
+  /** @brief RPC: play an MP3 from the sound store. */
   void RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) override;
+  /** @brief RPC: stop playback and clear the queue. */
   void RPCStop(uint16_t call_id) override;
 
   THD_WORKING_AREA(wa, 3072){};

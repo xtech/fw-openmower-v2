@@ -300,9 +300,13 @@ void SoundService::LogInputChanges(const StateInputs& now) {
 }
 
 uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/) {
-  /* Wrapping microseconds in, monotonic milliseconds out (see now_ms_). */
-  now_ms_ += (now_micros - last_loop_micros_) / 1000U;
-  last_loop_micros_ = now_micros;
+  /* Wrapping microseconds in, monotonic milliseconds out (see now_ms_). Keep the
+     unconverted sub-millisecond remainder in last_loop_micros_, so repeated 100 ms
+     ticks cannot lose up to 999 us each time. */
+  const uint32_t elapsed_us = now_micros - last_loop_micros_;
+  const uint32_t elapsed_ms = elapsed_us / 1000U;
+  now_ms_ += elapsed_ms;
+  last_loop_micros_ = now_micros - (elapsed_us % 1000U);
 
   /* Nothing here needs the packet queue: the machine is the only periodic work, so the
      loop simply wakes up for it. Update() performs its stop/play calls through the

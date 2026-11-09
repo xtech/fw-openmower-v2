@@ -121,10 +121,12 @@ class StateMachine {
     return rt_.blade_running;
   }
 
+  /** @brief The current alert (NONE, LINK_LOST or EMERGENCY). */
   Alert alert() const {
     return rt_.alert;
   }
 
+  /** @brief The last high-level state reported to the machine. */
   HlState hl_state() const {
     return rt_.hl_state;
   }

@@ -13,10 +13,10 @@
  * @author Apehaenger <joerg@ebeling.ws>
  * @date 2026-11-07
  *
- * @note  The blob is a heatshrink-compressed JSON stream. The parser applies every
- *        definition to the runtime override table, stages the take lists and fills the
- *        ambient-policy table. A rejected blob leaves the previous take lists in place
- *        and reports false; the service then keeps the previous definitions.
+ * @note  The blob is a heatshrink-compressed JSON stream. The parser validates the whole
+ *        stream first, stages the take lists, and only then applies the definitions and
+ *        ambient policies. A rejected blob leaves the previous RAM configuration and take
+ *        lists in place and reports false; the service then keeps the previous definitions.
  */
 
 #ifndef SOUND_CONFIG_HPP

@@ -164,7 +164,9 @@ static PersistedVariantsHeader variant_header() {
 void begin_sound_variants_write() {
   if (s_variant_writing) abort_sound_variants_write();
   for (uint8_t i = 0U; i < SoundId_count; ++i) {
-    s_variant_pending[i] = PersistedVariantRef{};
+    PersistedVariantRef ref{};
+    ref.pick = static_cast<uint8_t>(PickMode::RANDOM);  // the default when the blob omits "pick"
+    s_variant_pending[i] = ref;
   }
   s_variant_set_open = false;
   s_variant_set_count = 0U;
@@ -298,9 +300,12 @@ void commit_sound_variants_write() {
 }
 
 void abort_sound_variants_write() {
+  /* Drop the current set even when the writer never opened: a rejected blob must not
+     leave a half-open take set behind for the next parse. */
+  s_variant_set_open = false;
+  s_variant_set_count = 0U;
   if (!s_variant_writing) return;
   s_variant_writing = false;
-  s_variant_set_open = false;
   s_variant_out.close();
   lfs_remove(&lfs, kVariantsTmpPath); /* best effort */
 }

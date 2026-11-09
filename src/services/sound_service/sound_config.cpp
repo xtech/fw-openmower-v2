@@ -29,6 +29,8 @@ struct ParseState : public json_data_t {
   SoundId current_id = SoundId::BOOT_PING;
   SoundDefinition current_def{};
   bool have_current = false;
+  bool apply = true;            ///< Apply overrides and ambient policies (second pass)
+  bool store_variants = false;  ///< Stage take lists while validating (first pass)
   uint8_t note_idx = 0;
   uint8_t num_sounds = 0;              ///< successfully parsed + applied definitions
   uint8_t num_ambient = 0;             ///< definitions that carry an every/chance
@@ -57,16 +59,19 @@ bool EnumFromString(const char* s, EnumT& out) {
 
 // --- Root / sounds object ---------------------------------------------------
 
+/** @brief Validate the root object shape. */
 bool OnRoot(ParseState& /*data*/, lwjson_stream_parser_t* /*jsp*/, lwjson_stream_type_t type) {
   JsonExpectTypeOrEnd(OBJECT);
   return true;
 }
 
+/** @brief Validate the "sounds" object shape. */
 bool OnSoundsObject(ParseState& /*data*/, lwjson_stream_parser_t* /*jsp*/, lwjson_stream_type_t type) {
   JsonExpectTypeOrEnd(OBJECT);
   return true;
 }
 
+/** @brief Require the single "sounds" root key. */
 bool OnRootKey(ParseState& /*data*/, lwjson_stream_parser_t* jsp, lwjson_stream_type_t type) {
   JsonExpectType(KEY);
   if (strcmp(jsp->data.str.buff, "sounds") != 0) {
@@ -78,6 +83,7 @@ bool OnRootKey(ParseState& /*data*/, lwjson_stream_parser_t* jsp, lwjson_stream_
 
 // --- One sound --------------------------------------------------------------
 
+/** @brief Start one sound definition and reset its per-sound parser state. */
 bool OnSoundKey(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_type_t type) {
   JsonExpectType(KEY);
   SoundId id;
@@ -95,6 +101,13 @@ bool OnSoundKey(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_typ
   return true;
 }
 
+/**
+ * @brief Finish one sound object.
+ *
+ * The definition is validated here. The first (staging) pass only stages its takes and
+ * leaves the runtime overrides untouched; the second pass applies the definition and its
+ * ambient policy after the whole blob has passed validation.
+ */
 bool OnSoundDefinition(ParseState& data, lwjson_stream_parser_t* /*jsp*/, lwjson_stream_type_t type) {
   JsonExpectTypeOrEnd(OBJECT);
   if (type == LWJSON_STREAM_TYPE_OBJECT_END) {
@@ -114,21 +127,24 @@ bool OnSoundDefinition(ParseState& data, lwjson_stream_parser_t* /*jsp*/, lwjson
       strcpy(data.current_def.path, "/sounds/");
       strcat(data.current_def.path, data.first_take);
     }
-    set_sound_override(data.current_id, data.current_def);
-    /* The blob carries milliseconds; the machine keeps seconds (see AmbientPolicy).
-       Rounded half up, so `every: 60s` stays 60 — soundctl rejects < 1 s anyway. */
-    const uint32_t every_s = (data.current_every_ms + 500U) / 1'000U;
-    s_ambient[static_cast<uint8_t>(data.current_id)] =
-        AmbientPolicy{static_cast<uint16_t>(every_s > 0xFFFFU ? 0xFFFFU : every_s), data.current_chance_pct};
-    if (data.current_every_ms >= 500U && data.current_chance_pct != 0U) {
-      data.num_ambient++;
+    if (data.apply) {
+      set_sound_override(data.current_id, data.current_def);
+      /* The blob carries milliseconds; the machine keeps seconds (see AmbientPolicy).
+         Rounded half up, so `every: 60s` stays 60 — soundctl rejects < 1 s anyway. */
+      const uint32_t every_s = (data.current_every_ms + 500U) / 1'000U;
+      s_ambient[static_cast<uint8_t>(data.current_id)] =
+          AmbientPolicy{static_cast<uint16_t>(every_s > 0xFFFFU ? 0xFFFFU : every_s), data.current_chance_pct};
+      if (data.current_every_ms >= 500U && data.current_chance_pct != 0U) {
+        data.num_ambient++;
+      }
+      data.num_sounds++;
     }
-    data.num_sounds++;
     data.have_current = false;
   }
   return true;
 }
 
+/** @brief Parse one field of the current sound definition. */
 bool OnSoundField(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_type_t type) {
   if (!data.have_current) return true;
   const char* key = jsp->stack[5].meta.name;
@@ -215,10 +231,12 @@ bool OnSoundField(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_t
     // Several takes: the names go straight into the staged store and are read
     // back when the sound plays (no RAM list, see sound_player.hpp).
     JsonExpectTypeOrEnd(ARRAY);
-    if (type == LWJSON_STREAM_TYPE_ARRAY) {
-      begin_sound_variant_set(data.current_id);
-    } else {
-      end_sound_variant_set();
+    if (data.store_variants) {
+      if (type == LWJSON_STREAM_TYPE_ARRAY) {
+        begin_sound_variant_set(data.current_id);
+      } else {
+        end_sound_variant_set();
+      }
     }
   } else if (strcmp(key, "pick") == 0) {
     JsonExpectType(STRING);
@@ -234,7 +252,9 @@ bool OnSoundField(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_t
       ULOG_ERROR("Sound config: unknown pick \"%s\"", mode);
       return false;
     }
-    set_sound_variant_pick(data.current_id, pick);
+    if (data.store_variants) {
+      set_sound_variant_pick(data.current_id, pick);
+    }
   } else if (strcmp(key, "every_ms") == 0) {
     // Ambient sound: the low level rolls by itself whether to play at all. The rate
     // arrives in ms and is applied together with "chance" (see the object end above).
@@ -268,6 +288,7 @@ bool OnSoundField(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_t
 
 // --- Nested tone / sequence / take objects ----------------------------------
 
+/** @brief Parse one tone/sequence item or a take-list object. */
 bool OnToneOrItem(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_type_t type) {
   const char* parent = jsp->stack[5].meta.name;
   if (strcmp(parent, "tone") == 0) {
@@ -290,6 +311,7 @@ bool OnToneOrItem(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_t
   return true;
 }
 
+/** @brief Parse a field of a tone or a take object. */
 bool OnToneField(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_type_t type) {
   if (strcmp(jsp->stack[5].meta.name, "tone") == 0) {
     const char* key = jsp->stack[7].meta.name;
@@ -317,13 +339,14 @@ bool OnToneField(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_ty
   return true;
 }
 
+/** @brief Parse a take name or a sequence-note field. */
 bool OnTakeOrNoteField(ParseState& data, lwjson_stream_parser_t* jsp, lwjson_stream_type_t type) {
   if (strcmp(jsp->stack[5].meta.name, "variants") == 0) {
     JsonExpectType(STRING);
     // The store keeps the bare name (the "/sounds/" prefix is the low level's
     // contract) and rejects a name or count that does not fit.
     const etl::string_view take(jsp->data.str.buff);
-    if (!add_sound_variant(take)) {
+    if (data.store_variants && !add_sound_variant(take)) {
       return false;
     }
     if (data.first_take[0] == '\0') {
@@ -393,19 +416,33 @@ bool OnEvent(lwjson_stream_parser_t* jsp, lwjson_stream_type_t type, void* data_
 }  // namespace
 
 bool SoundConfig::Parse(const void* data, size_t length) {
-  xbot::service::HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
+  /* First pass: validate the complete schema and stage the take lists. Overrides and
+     ambient policies are untouched here, so a rejected blob leaves the previous RAM
+     configuration in place. */
+  begin_sound_variants_write();
 
-  // A fresh blob fully replaces the previous configuration: clear any sound
-  // overrides first so missing entries fall back to the ROM defaults.
+  ParseState state;
+  state.apply = false;
+  state.store_variants = true;
+  state.callback = etl::delegate<bool(lwjson_stream_parser_t*, lwjson_stream_type_t, void*)>::create<&OnEvent>();
+  xbot::service::HeatshrinkDataSource staging_source{static_cast<const uint8_t*>(data), length};
+  if (!ProcessJson(staging_source, state)) {
+    abort_sound_variants_write();
+    ULOG_WARNING("Sound: definitions blob rejected (%zu byte blob)", length);
+    return false;
+  }
+
+  /* The whole blob is valid and its takes are staged. Only now replace the previous
+     RAM state; the second pass applies the definitions without touching the take store
+     again. If that pass fails, it can only be an I/O error, not a schema error. */
   clear_sound_overrides();
   for (auto& policy : s_ambient) {
     policy = AmbientPolicy{};
   }
-  // The take lists are staged: a rejected blob leaves the previous ones in place.
-  begin_sound_variants_write();
 
-  ParseState state;
+  state = ParseState{};
   state.callback = etl::delegate<bool(lwjson_stream_parser_t*, lwjson_stream_type_t, void*)>::create<&OnEvent>();
+  xbot::service::HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
   const bool accepted = ProcessJson(source, state);
   if (accepted) {
     // Persist the parsed overrides and takes to flash so they survive a reboot.

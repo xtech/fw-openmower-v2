@@ -92,9 +92,32 @@ static thread_t* s_player_thd = nullptr;
 static PlaybackSequencer s_playback;
 static MUTEX_DECL(s_playback_mutex);
 
-/** @brief The same monotonic millisecond clock the policy uses. */
+/**
+ * @brief Monotonic milliseconds for the playback deadlines.
+ *
+ * The 32-bit system tick counter wraps. Converting only the elapsed tick difference and
+ * keeping the unconverted sub-millisecond remainder makes the millisecond clock
+ * continuous across that wrap; the millisecond value itself wraps naturally.
+ */
 static uint32_t now_ms() {
-  return static_cast<uint32_t>(TIME_I2MS(chVTGetSystemTimeX()));
+  static systime_t s_last_ticks = 0;
+  static uint32_t s_sub_ms_remainder = 0;  ///< remainder in 1/1000 tick units
+  static uint32_t s_ms = 0;
+  static bool s_initialized = false;
+
+  const systime_t ticks = chVTGetSystemTimeX();
+  if (!s_initialized) {
+    s_initialized = true;
+    s_last_ticks = ticks;
+    return 0;
+  }
+
+  const uint32_t delta = static_cast<uint32_t>(ticks - s_last_ticks);
+  s_last_ticks = ticks;
+  const uint64_t total = static_cast<uint64_t>(s_sub_ms_remainder) + (static_cast<uint64_t>(delta) * 1000U);
+  s_ms += static_cast<uint32_t>(total / CH_CFG_ST_FREQUENCY);
+  s_sub_ms_remainder = static_cast<uint32_t>(total % CH_CFG_ST_FREQUENCY);
+  return s_ms;
 }
 
 /* Master volume (0-100, written by set_volume from any thread, read by the player thread) */
