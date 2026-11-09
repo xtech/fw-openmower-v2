@@ -83,7 +83,9 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
   /** @brief RPC: stop playback and clear the queue. */
   void RPCStop(uint16_t call_id) override;
 
-  THD_WORKING_AREA(wa, 3072){};
+  // Measured high-water mark after a full definitions sync: 2724 bytes with one
+  // HeatshrinkDataSource. 4096 leaves ~1.7 KB free for the error/LittleFS paths.
+  THD_WORKING_AREA(wa, 4096){};
 };
 
 #endif  // SOUND_SERVICE_HPP

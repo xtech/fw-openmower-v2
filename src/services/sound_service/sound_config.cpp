@@ -421,12 +421,12 @@ bool SoundConfig::Parse(const void* data, size_t length) {
      configuration in place. */
   begin_sound_variants_write();
 
+  xbot::service::HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
   ParseState state;
   state.apply = false;
   state.store_variants = true;
   state.callback = etl::delegate<bool(lwjson_stream_parser_t*, lwjson_stream_type_t, void*)>::create<&OnEvent>();
-  xbot::service::HeatshrinkDataSource staging_source{static_cast<const uint8_t*>(data), length};
-  if (!ProcessJson(staging_source, state)) {
+  if (!ProcessJson(source, state)) {
     abort_sound_variants_write();
     ULOG_WARNING("Sound: definitions blob rejected (%zu byte blob)", length);
     return false;
@@ -442,7 +442,6 @@ bool SoundConfig::Parse(const void* data, size_t length) {
 
   state = ParseState{};
   state.callback = etl::delegate<bool(lwjson_stream_parser_t*, lwjson_stream_type_t, void*)>::create<&OnEvent>();
-  xbot::service::HeatshrinkDataSource source{static_cast<const uint8_t*>(data), length};
   const bool accepted = ProcessJson(source, state);
   if (accepted) {
     // Persist the parsed overrides and takes to flash so they survive a reboot.
