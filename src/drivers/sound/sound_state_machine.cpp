@@ -93,6 +93,10 @@ void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     /* The first look at the high level is not a transition: it must not replay a state
        that started before the firmware did (e.g. a reconnect while mowing). */
     rt_.hl_state = inputs.hl_state;
+    rt_.gps_rtk = inputs.gps_rtk;
+    /* Do not replay the fix announcement at boot, but a fix that already existed still
+       arms the later lost sound. */
+    rt_.gps_fix_seen = (inputs.gps_rtk == GpsRtkMode::RTK_FIX);
     AmbientArm(now_ms);
     if (next_alert == Alert::EMERGENCY) {
       AlertAction(Alert::NONE, Alert::EMERGENCY, inputs.emergency);
@@ -111,6 +115,16 @@ void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     rt_.charging = charging;
     rt_.hl_state = inputs.hl_state;
     rt_.charge_done_seen = false;
+    if (next_alert == Alert::NONE) {
+      /* Absorb the GPS state that is current when an alert clears: a fix that happened
+         while the alert was active is not announced retroactively, but it still arms a
+         later lost sound. */
+      rt_.gps_rtk = inputs.gps_rtk;
+      rt_.gps_fix_seen = (inputs.gps_rtk == GpsRtkMode::RTK_FIX);
+    } else {
+      rt_.gps_rtk = GpsRtkMode::RTK_NONE;
+      rt_.gps_fix_seen = false;
+    }
     AmbientArm(now_ms);
     AlertAction(previous, next_alert, inputs.emergency);
     return;
@@ -121,6 +135,8 @@ void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     rt_.charging = charging;
     rt_.hl_state = inputs.hl_state;
     rt_.charge_done_seen = false;
+    rt_.gps_rtk = GpsRtkMode::RTK_NONE;
+    rt_.gps_fix_seen = false;
     return;
   }
 
@@ -168,8 +184,36 @@ void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
     }
   }
 
+  // --- GPS: RTK fix/lost edges, independent of the high level's state changes ------
+  UpdateGpsSounds(inputs);
+
   // --- Ambience: the background sound while the blade turns ------------------------
   AmbientStep(now_ms);
+}
+
+void StateMachine::UpdateGpsSounds(const StateInputs& inputs) {
+  /* IDLE is the high level's "GPS is off" state (it calls setGPS(false) there). Reset the
+     fix latch so a fix from the previous session cannot make a later lost sound. While
+     idle, GPS transitions are deliberately silent. */
+  if (inputs.hl_state == HlState::IDLE || rt_.alert != Alert::NONE) {
+    rt_.gps_rtk = GpsRtkMode::RTK_NONE;
+    rt_.gps_fix_seen = false;
+    return;
+  }
+
+  if (inputs.gps_rtk == rt_.gps_rtk) {
+    return;
+  }
+
+  if (inputs.gps_rtk == GpsRtkMode::RTK_FIX) {
+    output_.PlaySound(SoundId::GPS_RTK_FIX);
+    rt_.gps_fix_seen = true;
+  } else if (rt_.gps_rtk == GpsRtkMode::RTK_FIX && rt_.gps_fix_seen) {
+    /* FLOAT and NONE both mean "the fix is gone"; the sound is the same. */
+    output_.PlaySound(SoundId::GPS_RTK_LOST);
+    rt_.gps_fix_seen = false;
+  }
+  rt_.gps_rtk = inputs.gps_rtk;
 }
 
 //=============================================================================

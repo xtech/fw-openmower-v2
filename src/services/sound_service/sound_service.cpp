@@ -1,5 +1,6 @@
 #include "sound_service.hpp"
 
+#include <drivers/gps/gps_driver.h>
 #include <service_ids.h>
 #include <ulog.h>
 
@@ -243,6 +244,13 @@ StateInputs SoundService::ReadInputs() {
     in.charger = ChargerStateOf(power_service.GetChargerStatus());
   }
 
+  /* GPS RTK: the local receiver state is the source of the fix/lost announcements. The
+     high level's gps_enabled flag is not part of HighLevelStatus, and the actual RTK
+     state is what those sounds describe. */
+  if (robot != nullptr && robot->NeedsService(xbot::service_ids::GPS)) {
+    in.gps_rtk = gps_service.GetGpsRtkMode();
+  }
+
   return in;
 }
 
@@ -286,6 +294,10 @@ void SoundService::LogInputChanges(const StateInputs& now) {
   }
   if (now.charger != was.charger) {
     ULOG_INFO("Sound: input charger: %s -> %s", charger_state_name(was.charger), charger_state_name(now.charger));
+  }
+  if (now.gps_rtk != was.gps_rtk) {
+    ULOG_INFO("Sound: input gps_rtk: %s -> %s", GpsService::GetGpsRtkName(was.gps_rtk),
+              GpsService::GetGpsRtkName(now.gps_rtk));
   }
   if (now.emergency != was.emergency) {
     ULOG_INFO("Sound: input emergency: %s -> %s", emergency_kind_name(was.emergency),

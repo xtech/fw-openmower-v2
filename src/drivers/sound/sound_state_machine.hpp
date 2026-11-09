@@ -141,6 +141,14 @@ class StateMachine {
   /** @brief Which sound may play by itself while the blade turns (the ambience). */
   SoundId AmbientSound() const;
 
+  /**
+   * @brief Turn the local RTK edges into the GPS_RTK_FIX/LOST announcements.
+   *
+   * A lost sound is only played after a fix was seen. IDLE and alerts reset that latch,
+   * so booting or recovering in a non-fixed state cannot produce a lost sound.
+   */
+  void UpdateGpsSounds(const StateInputs& inputs);
+
   /** @brief Fetch a usable every/chance policy for @p id; false when it has none. */
   bool AmbientPolicyFor(SoundId id, AmbientPolicy& out) const;
 
@@ -158,14 +166,15 @@ class StateMachine {
    *
    * Grouped so Reset() is one assignment: a new field cannot be forgotten there.
    * The 32-bit timers come first and the small values afterwards, so the struct has
-   * no internal padding (16 B instead of 20 B) without bit-field tricks.
+   * no avoidable internal padding (20 B with the current fields).
    */
   struct Runtime {
     uint32_t link_lost_since_ms = 0U;  ///< A link loss started here
     uint32_t ambient_due_ms = 0U;      ///< The ambience interval is due here
 
-    Alert alert = Alert::LINK_LOST;       ///< The robot boots without a high level
-    HlState hl_state = HlState::UNKNOWN;  ///< Last reported high level state
+    Alert alert = Alert::LINK_LOST;             ///< The robot boots without a high level
+    HlState hl_state = HlState::UNKNOWN;        ///< Last reported high level state
+    GpsRtkMode gps_rtk = GpsRtkMode::RTK_NONE;  ///< Last local GPS RTK state
 
     bool started = false;           ///< The boot announcement was done
     bool charging = false;          ///< Last charger state (the CHARGING_START/DONE edges)
@@ -173,7 +182,10 @@ class StateMachine {
     bool link_lost_timer = false;   ///< A link loss is being timed
     bool charge_done_seen = false;  ///< The charger reached DONE during this charge
     bool ambient_armed = false;     ///< An interval is running
+    bool gps_fix_seen = false;      ///< A RTK fix was seen; lost may be announced once
   };
+
+  static_assert(sizeof(Runtime) == 20U, "Runtime size changed - check the RAM budget");
 
   Runtime rt_{};
 };

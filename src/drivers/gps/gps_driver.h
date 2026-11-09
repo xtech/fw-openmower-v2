@@ -139,6 +139,20 @@ class GpsDriver : public DebuggableDriver {
 
   static void threadHelper(void *instance);
 };
+
+/** @brief The RTK mode used by the driver and its consumers. */
+using GpsRtkMode = GpsDriver::GpsState::RTKType;
+
+/** @brief Human-readable name of the RTK state, for logs and diagnostics. */
+inline const char *gps_rtk_name(GpsRtkMode type) {
+  switch (type) {
+    case GpsRtkMode::RTK_NONE: return "NONE";
+    case GpsRtkMode::RTK_FLOAT: return "FLOAT";
+    case GpsRtkMode::RTK_FIX: return "FIX";
+  }
+  return "?";
+}
+
 }  // namespace xbot::driver::gps
 
 #endif  // XBOT_DRIVER_GPS_GPS_INTERFACE_H

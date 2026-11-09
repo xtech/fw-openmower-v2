@@ -13,18 +13,22 @@
  * @author Apehaenger <joerg@ebeling.ws>
  * @date 2026-11-07
  *
- * @note  Header-only value types, deliberately free of hardware and services (apart from
- *        the generated SoundId enum), so both the state machine and the host tests can use
- *        them without pulling ChibiOS in.
+ * @note  Header-only value types. The state machine itself stays free of service wiring;
+ *        the vocabulary reuses the generated SoundId enum and the GPS driver's RTK enum,
+ *        so there is only one GPS RTK enum in the firmware.
  */
 
 #ifndef SOUND_TYPES_HPP
 #define SOUND_TYPES_HPP
 
+#include <drivers/gps/gps_driver.h>
+
 #include <SoundServiceBase.hpp>
 #include <cstdint>
 
 namespace xbot::driver::sound {
+
+using xbot::driver::gps::GpsRtkMode;
 
 /** @brief What is wrong; overrides everything else while it lasts (EMERGENCY wins). */
 enum class Alert : uint8_t {
@@ -157,6 +161,7 @@ struct StateInputs {
    */
   bool emergency_latched = false;
   HlState hl_state = HlState::UNKNOWN;           ///< What the high level reports (its behaviour name)
+  GpsRtkMode gps_rtk = GpsRtkMode::RTK_NONE;     ///< Local GPS RTK state (GpsService)
   bool blade_running = false;                    ///< The mower motor turns (mowing)
   ChargerState charger = ChargerState::UNKNOWN;  ///< Charger phase (the high level reports no charging)
 };
