@@ -428,7 +428,7 @@ bool SoundConfig::Parse(const void* data, size_t length) {
   state.callback = etl::delegate<bool(lwjson_stream_parser_t*, lwjson_stream_type_t, void*)>::create<&OnEvent>();
   if (!ProcessJson(source, state)) {
     abort_sound_variants_write();
-    ULOG_WARNING("Sound: definitions blob rejected (%zu byte blob)", length);
+    ULOG_WARNING("Sound: definitions blob rejected (%u byte blob)", static_cast<unsigned>(length));
     return false;
   }
 
@@ -447,11 +447,12 @@ bool SoundConfig::Parse(const void* data, size_t length) {
     // Persist the parsed overrides and takes to flash so they survive a reboot.
     commit_sound_variants_write();
     save_sound_overrides_to_storage();
-    ULOG_INFO("Sound: %hhu definition(s) applied (%zu byte blob), %hhu with every/chance", state.num_sounds, length,
-              state.num_ambient);
+    ULOG_INFO("Sound: %u definition(s) applied (%u byte blob), %u with every/chance",
+              static_cast<unsigned>(state.num_sounds), static_cast<unsigned>(length),
+              static_cast<unsigned>(state.num_ambient));
   } else {
     abort_sound_variants_write();
-    ULOG_WARNING("Sound: definitions blob rejected (%zu byte blob)", length);
+    ULOG_WARNING("Sound: definitions blob rejected (%u byte blob)", static_cast<unsigned>(length));
   }
   return accepted;
 }
