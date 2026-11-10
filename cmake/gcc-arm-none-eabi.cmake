@@ -12,6 +12,13 @@ set(CMAKE_C_COMPILER                ${TOOLCHAIN_PREFIX}gcc)
 set(CMAKE_ASM_COMPILER              ${CMAKE_C_COMPILER})
 set(CMAKE_CXX_COMPILER              ${TOOLCHAIN_PREFIX}g++)
 set(CMAKE_LINKER                    ${TOOLCHAIN_PREFIX}g++)
+# The gcc- wrappers, not plain ar/ranlib: with -flto the objects only hold LTO
+# bytecode, and only the wrappers load this compiler's LTO plugin to index them.
+# Plain ar silently writes archives without a symbol table unless some other gcc
+# happens to have put its plugin into /usr/lib/bfd-plugins - the link then fails
+# with undefined references into the project's own static libraries.
+set(CMAKE_AR                        ${TOOLCHAIN_PREFIX}gcc-ar)
+set(CMAKE_RANLIB                    ${TOOLCHAIN_PREFIX}gcc-ranlib)
 set(CMAKE_OBJCOPY                   ${TOOLCHAIN_PREFIX}objcopy)
 set(CMAKE_SIZE                      ${TOOLCHAIN_PREFIX}size)
 

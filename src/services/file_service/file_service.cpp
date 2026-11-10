@@ -296,3 +296,38 @@ void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathL
 
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, data, *response_length);
 }
+
+/**
+ * @brief Report the LittleFS usage.
+ *
+ * See FileStats in file_service.json: four uint32 - total, used, free, block size.
+ * free keeps one block back, because LittleFS needs a free block while it updates
+ * metadata. Array returns carry the element count in response_length (see the RPC
+ * contract in the generated base class), not the byte count.
+ */
+void FileService::RPCFileStats(uint16_t call_id, uint32_t* data, uint16_t* response_length) {
+  const uint32_t block_size = static_cast<uint32_t>(lfs.cfg->block_size);
+  const uint32_t block_count = static_cast<uint32_t>(lfs.cfg->block_count);
+  const lfs_ssize_t used = lfs_fs_size(&lfs);
+
+  /* lfs_fs_size() counts allocated blocks; a negative result means the walk failed,
+     so report the storage as full to stay on the safe side. */
+  uint32_t used_blocks = (used < 0) ? block_count : static_cast<uint32_t>(used);
+  if (used_blocks > block_count) used_blocks = block_count;
+
+  const uint32_t total_bytes = block_count * block_size;
+  const uint32_t used_bytes = used_blocks * block_size;
+  const uint32_t free_bytes = (used_blocks + 1U < block_count) ? ((block_count - used_blocks - 1U) * block_size) : 0U;
+
+  ULOG_INFO("File: stats %lu of %lu bytes used, %lu free (block %lu B)", static_cast<unsigned long>(used_bytes),
+            static_cast<unsigned long>(total_bytes), static_cast<unsigned long>(free_bytes),
+            static_cast<unsigned long>(block_size));
+
+  data[0] = total_bytes;
+  data[1] = used_bytes;
+  data[2] = free_bytes;
+  data[3] = block_size;
+  *response_length = 4U;
+
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, data, *response_length * sizeof(uint32_t));
+}

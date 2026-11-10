@@ -9,9 +9,11 @@
 #include <etl/atomic.h>
 
 #include <MowerServiceBase.hpp>
+#include <cmath>
 #include <debug/debug_tcp_interface.hpp>
 #include <drivers/motor/motor_driver.hpp>
 #include <globals.hpp>
+#include <xbot-service/portable/system.hpp>
 
 using namespace xbot::driver::motor;
 using namespace xbot::service;
@@ -23,6 +25,27 @@ class MowerService : public MowerServiceBase {
 
   MotorDriver::ESCState GetESCState() const {
     return esc_state_;
+  }
+
+  /**
+   * @brief Whether a recent ESC status arrived (the last one may be a second old).
+   *
+   * The tick reports DISCONNECTED when this is false, and nothing that reads the last
+   * known state may treat it as current.
+   */
+  [[nodiscard]] bool HasEscState() const {
+    return esc_state_valid_ &&
+           (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ <= kEscStateTimeoutUs);
+  }
+
+  /**
+   * @brief Whether the blade runs right now — the value `SendMowerRunning` reports.
+   *
+   * One definition of "the robot is mowing", used by the status message and by the sound
+   * state machine: the ESC talks to us and the motor turns.
+   */
+  [[nodiscard]] bool IsMowerRunning() const {
+    return HasEscState() && (std::fabs(esc_state_.rpm) > 0.0F);
   }
 
   void SetDriver(MotorDriver* motor_driver);
@@ -54,6 +77,9 @@ class MowerService : public MowerServiceBase {
   THD_WORKING_AREA(wa, 1024){};
   MotorDriver::ESCState esc_state_{};
   bool esc_state_valid_ = false;
+
+  // How old the last ESC status may be before it counts as "no ESC" (see HasEscState).
+  static constexpr uint32_t kEscStateTimeoutUs = 1'000'000;
   uint32_t last_duty_received_micros_ = 0;
   uint32_t last_valid_esc_state_micros_ = 0;
 

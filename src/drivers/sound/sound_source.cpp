@@ -76,20 +76,32 @@ void SoundSource::fill(int16_t* buf, size_t count, uint8_t master_volume) {
 }
 
 void SoundSource::fill_mp3(int16_t* buf, size_t frames, uint8_t vol) {
-  for (size_t i = 0U; i < frames; ++i) {
-    int16_t s = 0;
-    if (active) {
-      int16_t raw = 0;
-      if (mp3.read(&raw, 1U) == 1U) {
-        s = scale_volume(raw, vol);
-      } else {
-        /* EOF or read error — silence and stop */
-        mp3.close();
-        active = false;
-      }
+  /* Decode in small blocks instead of one sample per call: Mp3Decoder::read() serves a
+     whole frame at a time anyway, so this turns ~16k calls/s into ~250. The block lives
+     on the player thread's stack (64 x 2 B), not on the audio buffer. */
+  static constexpr size_t kBlock = 64U;
+  int16_t pcm[kBlock];
+  size_t done = 0U;
+
+  while (done < frames && active) {
+    const size_t want = ((frames - done) < kBlock) ? (frames - done) : kBlock;
+    const size_t got = mp3.read(pcm, want);
+    const size_t n = (got < want) ? got : want;
+    for (size_t i = 0U; i < n; ++i) {
+      buf[2U * (done + i)] = scale_volume(pcm[i], vol);
+      buf[2U * (done + i) + 1U] = 0;
     }
-    buf[2U * i] = s;
-    buf[2U * i + 1] = 0;
+    done += n;
+    if (got < want) {
+      /* EOF or read error — stop; the rest of the half-buffer becomes silence. */
+      mp3.close();
+      active = false;
+    }
+  }
+
+  for (size_t i = done; i < frames; ++i) {
+    buf[2U * i] = 0;
+    buf[2U * i + 1U] = 0;
   }
 }
 

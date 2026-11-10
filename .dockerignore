@@ -1,3 +1,7 @@
+# The image gets its version string via --build-arg FW_VERSION (see
+# cmake/GetGitVersion.cmake); nothing in the container needs the repository, and
+# .git is 229 MB of build context that no build step reads.
+.git
 .dep
 build
 .idea

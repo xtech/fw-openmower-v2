@@ -39,6 +39,21 @@ class GpsService : public GpsServiceBase {
     return gps_driver_ ? gps_driver_->GetGpsState() : empty_gps_state_;
   }
 
+  /** @brief Current RTK mode; NONE when no driver is loaded. */
+  GpsRtkMode GetGpsRtkMode() const {
+    return gps_driver_ ? gps_driver_->GetGpsState().rtk_type : GpsRtkMode::RTK_NONE;
+  }
+
+  /** @brief Human-readable name of an RTK mode. */
+  static const char* GetGpsRtkName(GpsRtkMode mode) {
+    return gps_rtk_name(mode);
+  }
+
+  /** @brief Human-readable name of the current RTK mode. */
+  const char* GetGpsRtkName() const {
+    return GetGpsRtkName(GetGpsRtkMode());
+  }
+
   bool IsGpsStateValid() const {
     return gps_driver_ ? gps_driver_->IsGpsStateValid() : false;
   }
