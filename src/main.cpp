@@ -41,7 +41,8 @@
  * The region is not initialized at boot (NOLOAD), which is fine: a block is written
  * before it is read.
  */
-alignas(xbot::service::buffer::block_alignment) uint8_t rpc_pool_storage[2 * xbot::config::buffer_block_size]
+alignas(xbot::service::buffer::block_alignment) uint8_t
+    rpc_pool_storage[xbot::config::buffer_block_count * xbot::config::buffer_block_size]
     __attribute__((section(".sram4")));
 
 static void DispatchEvents();
