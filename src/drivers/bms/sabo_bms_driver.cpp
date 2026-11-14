@@ -250,6 +250,41 @@ void SaboBmsDriver::Tick() {
   i2cReleaseBus(bms_cfg_->i2c);
 }
 
+/*
+ * Append one field to the extra data JSON and never move the write offset past the
+ * end of the buffer.
+ *
+ * chsnprintf() returns the number of characters it *would* have written, so a
+ * truncated call reports more than fits. Summing those return values into a
+ * running offset therefore ends up beyond the buffer, and the next call then gets
+ * an underflowed (huge, because size_t) size and writes far behind json_buf.
+ * json_buf ends right in front of the idle thread working area, so such a write
+ * corrupts the idle thread's stack and ends in a HardFault. Only the characters
+ * that actually fit may advance the offset.
+ */
+static void AppendJson(char* buf, size_t size, int* used, const char* fmt, ...) {
+  if (*used < 0) {
+    *used = 0;
+  }
+
+  const size_t offset = (size_t)*used;
+  if ((size == 0U) || (offset >= (size - 1U))) {
+    return;  // No room for another character, size includes the terminator.
+  }
+
+  va_list args;
+  va_start(args, fmt);
+  const int written = chvsnprintf(buf + offset, size - offset, fmt, args);
+  va_end(args);
+
+  if (written <= 0) {
+    return;
+  }
+
+  const size_t capacity = size - offset - 1U;
+  *used = (int)(offset + (((size_t)written < capacity) ? (size_t)written : capacity));
+}
+
 const char* SaboBmsDriver::GetExtraDataJson() const {
   static char json_buf[512];
 
@@ -263,39 +298,36 @@ const char* SaboBmsDriver::GetExtraDataJson() const {
   char esc_str[60] = {0};
 
   EscapeStringInto(data_.mfr_name, esc_str, sizeof(esc_str));
-  chars += chsnprintf(json_buf, sizeof(json_buf), "{\"mfr_name\":\"%s\"", esc_str);
+  AppendJson(json_buf, sizeof(json_buf), &chars, "{\"mfr_name\":\"%s\"", esc_str);
 
   // Manufacturer date: already formatted as YYYY-MM-DD.
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"mfr_date\":\"%s\"", data_.mfr_date);
+  AppendJson(json_buf, sizeof(json_buf), &chars, ",\"mfr_date\":\"%s\"", data_.mfr_date);
 
   EscapeStringInto(data_.dev_name, esc_str, sizeof(esc_str));
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"dev_name\":\"%s\"", esc_str);
+  AppendJson(json_buf, sizeof(json_buf), &chars, ",\"dev_name\":\"%s\"", esc_str);
 
   EscapeStringInto(data_.dev_version, esc_str, sizeof(esc_str));
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"dev_version\":\"%s\"", esc_str);
+  AppendJson(json_buf, sizeof(json_buf), &chars, ",\"dev_version\":\"%s\"", esc_str);
 
   EscapeStringInto(data_.dev_chemistry, esc_str, sizeof(esc_str));
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"dev_chemistry\":\"%s\"", esc_str);
+  AppendJson(json_buf, sizeof(json_buf), &chars, ",\"dev_chemistry\":\"%s\"", esc_str);
 
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars,
-                      ",\"serial_number\":%u,\"design_capacity_ah\":%.3f,\"design_voltage_v\":%.3f",
-                      (unsigned)data_.serial_number, (double)data_.design_capacity_ah, (double)data_.design_voltage_v);
+  AppendJson(json_buf, sizeof(json_buf), &chars,
+             ",\"serial_number\":%u,\"design_capacity_ah\":%.3f,\"design_voltage_v\":%.3f",
+             (unsigned)data_.serial_number, (double)data_.design_capacity_ah, (double)data_.design_voltage_v);
 
   // Status
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"status\":%u", battery_status_);
+  AppendJson(json_buf, sizeof(json_buf), &chars, ",\"status\":%u", battery_status_);
 
-  // Cell voltages
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, ",\"cell_count\":%u,\"cell_voltage_v\": [",
-                      (unsigned)data_.cell_count);
-  for (uint8_t i = 0; i < data_.cell_count; i++) {
-    chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, "%.3f%s", (double)data_.cell_voltage_v[i],
-                        (i + 1U < data_.cell_count) ? "," : "");
+  // Cell voltages: the loop is bounded by kMaxCells, cell_voltage_v[] has no room for more
+  // (a corrupt cell_count must not read past the array nor grow the JSON without limit).
+  const uint8_t cell_count = ClampCells(data_.cell_count);
+  AppendJson(json_buf, sizeof(json_buf), &chars, ",\"cell_count\":%u,\"cell_voltage_v\": [", (unsigned)cell_count);
+  for (uint8_t i = 0; i < cell_count; i++) {
+    AppendJson(json_buf, sizeof(json_buf), &chars, "%.3f%s", (double)data_.cell_voltage_v[i],
+               (i + 1U < cell_count) ? "," : "");
   }
-  chars += chsnprintf(json_buf + chars, sizeof(json_buf) - chars, "]}");
-
-  if (chars <= 0) {
-    json_buf[0] = '\0';
-  }
+  AppendJson(json_buf, sizeof(json_buf), &chars, "]}");
 
   return json_buf;
 }
