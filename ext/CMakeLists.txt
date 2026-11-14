@@ -7,6 +7,10 @@ add_subdirectory(xbot_framework)
 target_link_libraries(xbot-service PUBLIC ChibiOS etl::etl)
 target_compile_definitions(xbot-service PUBLIC XBOT_ENABLE_STATIC_STACK)
 
+# The firmware places the RPC buffer pool in SRAM4 itself (see src/main.cpp), so the
+# framework default storage must not be linked in.
+target_compile_definitions(xbot-service PUBLIC XBOT_BUFFER_DEFAULT_POOL=0)
+
 add_subdirectory(LSM6DS3TR-C-PID)
 
 # etl and lvgl are fetched in cmake/deps.cmake (before this subdirectory), so that

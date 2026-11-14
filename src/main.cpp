@@ -16,9 +16,11 @@
 #include <filesystem/file.hpp>
 #include <filesystem/filesystem.hpp>
 #include <robot.hpp>
+#include <xbot-service/Buffer.hpp>
 #include <xbot-service/Io.hpp>
 #include <xbot-service/RemoteLogging.hpp>
 #include <xbot-service/portable/system.hpp>
+#include <xbot/config.hpp>
 
 #include "board_variant.h"
 #include "debug/checksum_test_interface.hpp"
@@ -29,6 +31,18 @@
 #include "id_eeprom.h"
 #include "services.hpp"
 #include "status_led.h"
+
+/*
+ * Storage for the RPC payload pool (see xbot-service/Buffer.hpp).
+ *
+ * A service thread stack has no room for a packet sized return value, so the generated
+ * dispatcher borrows a block from here while it fills one. SRAM4 is a separate 16 KB
+ * region in the D3 domain that only the audio DMA buffers use, so this costs no AXI SRAM.
+ * The region is not initialized at boot (NOLOAD), which is fine: a block is written
+ * before it is read.
+ */
+alignas(xbot::service::buffer::block_alignment) uint8_t rpc_pool_storage[2 * xbot::config::buffer_block_size]
+    __attribute__((section(".sram4")));
 
 static void DispatchEvents();
 
@@ -114,6 +128,13 @@ int main() {
       ULOG_ERROR("Error mounting filesystem!");
       chThdSleep(TIME_S2I(1));
     }
+  }
+
+  // The generated RPC dispatchers take large return values from this pool, so it has to
+  // be registered before the first service can be claimed.
+  if (!xbot::service::buffer::initialize(rpc_pool_storage, xbot::config::buffer_block_size,
+                                         xbot::config::buffer_block_count)) {
+    ULOG_ERROR("Error initializing the RPC buffer pool!");
   }
   file_service.start();
 
