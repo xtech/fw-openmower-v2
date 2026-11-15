@@ -74,12 +74,12 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
   void RPCPlaySound(uint16_t call_id, SoundId Sound) override;
   /** @brief RPC: play a synthesised tone. */
   void RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume, uint8_t Preempt) override;
-  /** @brief RPC: play a synthesised sequence. */
-  void RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave, uint8_t Volume,
+  /** @brief RPC: play a synthesised sequence. The notes stay in the received packet. */
+  void RPCPlaySequence(uint16_t call_id, const uint8_t* Sequence, uint32_t SequenceLen, Waveform Wave, uint8_t Volume,
                        uint8_t Unison, uint16_t DetuneHz, uint8_t AttackMs, uint8_t DecayMs, uint8_t Preempt,
                        uint16_t RepeatMs) override;
   /** @brief RPC: play an MP3 from the sound store. */
-  void RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) override;
+  void RPCPlayMp3(uint16_t call_id, const uint8_t* Path, uint32_t PathLen, uint8_t Preempt) override;
   /** @brief RPC: stop playback and clear the queue. */
   void RPCStop(uint16_t call_id) override;
 

@@ -79,12 +79,14 @@ void SoundService::RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t Duratio
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
-void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave,
+void SoundService::RPCPlaySequence(uint16_t call_id, const uint8_t* Sequence, uint32_t SequenceLen, Waveform Wave,
                                    uint8_t Volume, uint8_t Unison, uint16_t DetuneHz, uint8_t AttackMs, uint8_t DecayMs,
                                    uint8_t Preempt, uint16_t RepeatMs) {
+  /* blob parameter: the text stays in the received packet, nothing is copied. */
+  const char* text = reinterpret_cast<const char*>(Sequence);
   /* Note array stays on this thread's stack: kMaxNotes * 8 B = 64 B. */
   Note notes[kMaxNotes]{};
-  const uint8_t count = parse_sequence(Sequence, SequenceLen, notes, kMaxNotes);
+  const uint8_t count = parse_sequence(text, SequenceLen, notes, kMaxNotes);
   uint8_t result = 0U;
   if (count > 0U) {
     const PlayResult res =
@@ -95,19 +97,20 @@ void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint3
       ULOG_INFO(
           "Sound: RPC sequence '%.*s' (%hhu notes, %s, vol %hhu, unison %hhu, detune %hu, attack %hhu ms, "
           "decay %hhu ms, repeat %hu ms)",
-          static_cast<int>(SequenceLen), Sequence, count, Waveform_to_string(Wave), Volume, Unison, DetuneHz, AttackMs,
+          static_cast<int>(SequenceLen), text, count, Waveform_to_string(Wave), Volume, Unison, DetuneHz, AttackMs,
           DecayMs, RepeatMs);
     } else {
       ULOG_WARNING("Sound: RPC sequence rejected (%s)", play_result_text(res));
     }
   } else {
     /* %.*s takes an int width, hence the cast. */
-    ULOG_WARNING("Sound: RPC sequence rejected (%.*s)", static_cast<int>(SequenceLen), Sequence);
+    ULOG_WARNING("Sound: RPC sequence rejected (%.*s)", static_cast<int>(SequenceLen), text);
   }
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
-void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) {
+void SoundService::RPCPlayMp3(uint16_t call_id, const uint8_t* Path, uint32_t PathLen, uint8_t Preempt) {
+  /* blob parameter, but the path is copied: LittleFS wants a NUL terminated name. */
   char path[kMaxPath];
   size_t n = (PathLen < (kMaxPath - 1U)) ? PathLen : (kMaxPath - 1U);
   memcpy(path, Path, n);
