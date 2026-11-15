@@ -120,7 +120,7 @@ void FileService::RPCFileExists(uint16_t call_id, const uint8_t* Path, uint32_t 
     }
   }
 
-  ULOG_INFO("File: exists '%s' -> %hhu (hash=%#010x)", path, result, Hash);
+  ULOG_DEBUG("File: exists '%s' -> %hhu (hash=%#010x)", path, result, Hash);
 
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
@@ -165,7 +165,7 @@ void FileService::RPCFileWrite(uint16_t call_id, const uint8_t* Path, uint32_t P
   copy_path(Path, PathLen, path, sizeof(path));
 
   if (Offset == 0U) {
-    ULOG_INFO("File: write '%s' (start)", path);
+    ULOG_DEBUG("File: write '%s' (start)", path);
   }
 
   int32_t result = 0;

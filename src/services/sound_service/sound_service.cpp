@@ -287,28 +287,28 @@ void SoundService::LogInputChanges(const StateInputs& now) {
   const StateInputs& was = last_inputs_;
 
   if (now.high_level_alive != was.high_level_alive) {
-    ULOG_INFO("Sound: input link: %u -> %u", was.high_level_alive ? 1U : 0U, now.high_level_alive ? 1U : 0U);
+    ULOG_DEBUG("Sound: input link: %u -> %u", was.high_level_alive ? 1U : 0U, now.high_level_alive ? 1U : 0U);
   }
   if (now.hl_state != was.hl_state) {
-    ULOG_INFO("Sound: input hl: %s -> %s", hl_state_name(was.hl_state), hl_state_name(now.hl_state));
+    ULOG_DEBUG("Sound: input hl: %s -> %s", hl_state_name(was.hl_state), hl_state_name(now.hl_state));
   }
   if (now.blade_running != was.blade_running) {
-    ULOG_INFO("Sound: input blade: %u -> %u", was.blade_running ? 1U : 0U, now.blade_running ? 1U : 0U);
+    ULOG_DEBUG("Sound: input blade: %u -> %u", was.blade_running ? 1U : 0U, now.blade_running ? 1U : 0U);
   }
   if (now.charger != was.charger) {
-    ULOG_INFO("Sound: input charger: %s -> %s", charger_state_name(was.charger), charger_state_name(now.charger));
+    ULOG_DEBUG("Sound: input charger: %s -> %s", charger_state_name(was.charger), charger_state_name(now.charger));
   }
   if (now.gps_rtk != was.gps_rtk) {
-    ULOG_INFO("Sound: input gps_rtk: %s -> %s", GpsService::GetGpsRtkName(was.gps_rtk),
-              GpsService::GetGpsRtkName(now.gps_rtk));
+    ULOG_DEBUG("Sound: input gps_rtk: %s -> %s", GpsService::GetGpsRtkName(was.gps_rtk),
+               GpsService::GetGpsRtkName(now.gps_rtk));
   }
   if (now.emergency != was.emergency) {
-    ULOG_INFO("Sound: input emergency: %s -> %s", emergency_kind_name(was.emergency),
-              emergency_kind_name(now.emergency));
+    ULOG_DEBUG("Sound: input emergency: %s -> %s", emergency_kind_name(was.emergency),
+               emergency_kind_name(now.emergency));
   }
   if (now.emergency_latched != was.emergency_latched) {
-    ULOG_INFO("Sound: input emergency_latched: %u -> %u", was.emergency_latched ? 1U : 0U,
-              now.emergency_latched ? 1U : 0U);
+    ULOG_DEBUG("Sound: input emergency_latched: %u -> %u", was.emergency_latched ? 1U : 0U,
+               now.emergency_latched ? 1U : 0U);
   }
 
   last_inputs_ = now;
