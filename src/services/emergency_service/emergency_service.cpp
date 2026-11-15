@@ -33,6 +33,7 @@ void EmergencyService::OnHighLevelEmergencyChanged(const uint16_t* new_value, ui
   {
     Lock lk(&mtx_);
     last_high_level_emergency_message_ = xbot::service::system::getTimeMicros();
+    high_level_seen_ = true;
   }
   UpdateEmergency(new_value[0], new_value[1] & ~EmergencyReason::SERVICE_NOT_READY);
 }
@@ -42,7 +43,10 @@ uint32_t EmergencyService::CheckTimeouts(uint32_t now) {
   uint32_t block_time = UINT32_MAX;
   {
     Lock lk{&mtx_};
-    const uint32_t heartbeat_age = now - last_high_level_emergency_message_;
+    /* Before the first heartbeat the link is not alive. Without this, "age = now - 0" is
+       smaller than the timeout for the first second after boot, which clears
+       TIMEOUT_HIGH_LEVEL and makes the sound state machine think the high level is there. */
+    const uint32_t heartbeat_age = high_level_seen_ ? (now - last_high_level_emergency_message_) : UINT32_MAX;
     if (TimeoutReached(heartbeat_age, kHighLevelTimeoutUs, block_time)) {
       reasons |= EmergencyReason::TIMEOUT_HIGH_LEVEL;
     }
