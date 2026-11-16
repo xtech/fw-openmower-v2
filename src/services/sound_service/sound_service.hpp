@@ -65,8 +65,16 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
 
   /** @brief Apply a new high-level definitions blob. */
   bool OnRegisterSoundDefinitionsChanged(const void* data, size_t length) override;
-  /** @brief Forward the master volume to the player. */
-  void OnVolumeChanged(const uint8_t& new_value) override;
+  /**
+   * @brief Apply the high level's volume request.
+   *
+   * 0..100 sets the master volume, a negative value means "keep what the firmware has
+   * stored" (services/sound/volume sends -1 by default).
+   */
+  void OnVolumeChanged(const int8_t& new_value) override;
+
+  /** @brief Master volume the Volume output reports (0..100). */
+  uint8_t volume_ = 80U;
 
   /* RPCs (services/sound_service.json): let a host audition sounds at runtime.
      Return 1 = accepted, 0 = rejected */

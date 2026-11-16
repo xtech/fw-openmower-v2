@@ -53,8 +53,16 @@ bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t le
   return accepted;
 }
 
-void SoundService::OnVolumeChanged(const uint8_t& new_value) {
-  set_volume(new_value);
+void SoundService::OnVolumeChanged(const int8_t& new_value) {
+  /* A negative value means "keep what the firmware has stored" (the high level sends -1
+     by default), so only an explicit 0..100 touches the player. set_volume() clamps the
+     upper end. */
+  if (new_value < 0) {
+    return;
+  }
+  volume_ = static_cast<uint8_t>(new_value);
+  set_volume(volume_);
+  SendVolume(volume_);
 }
 
 /*---------------------------------------------------------------------------
