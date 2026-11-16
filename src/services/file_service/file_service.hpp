@@ -60,9 +60,9 @@ class FileService : public FileServiceBase {
   void abort_upload();
   // LittleFS directory commits (lfs_rename -> lfs_dir_commit -> compact/traverse)
   // are stack-hungry: 3072 bytes overflowed with a MemManage fault before the RPC
-  // payloads became blobs. Measured peak after a full sync is 2672 bytes (thread
-  // watermark), so 3584 leaves ~1.3 KB free.
-  THD_WORKING_AREA(wa, 3584){};
+  // payloads became blobs. Measured peak after a full sync is 2696 bytes, so 3328
+  // leaves 632 bytes.
+  THD_WORKING_AREA(wa, 3328){};
 };
 
 #endif  // FILE_SERVICE_HPP

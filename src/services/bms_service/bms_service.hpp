@@ -38,7 +38,7 @@ class BmsService : public BmsServiceBase {
   BmsDriver* bms_ = nullptr;
   const DeviceInfo* bms_info_ = nullptr;
   const LiveData* bms_live_ = nullptr;
-  THD_WORKING_AREA(wa, 2048){};
+  THD_WORKING_AREA(wa, 1536){};
 };
 
 #endif  // BMS_SERVICE_HPP

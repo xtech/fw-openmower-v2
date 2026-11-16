@@ -16,7 +16,7 @@
 #include "lwip/sockets.h"
 static char boardAdvertisementBuffer[100];
 static char boardAdvertisementRequestBuffer[100];
-static THD_WORKING_AREA(waServiceDiscovery, 512);
+static THD_WORKING_AREA(waServiceDiscovery, 640);
 
 static void multicast_sender_thread(void *p) {
   chRegSetThreadName("ServiceDiscovery");
