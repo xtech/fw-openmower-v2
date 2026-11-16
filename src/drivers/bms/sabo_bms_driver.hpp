@@ -50,19 +50,25 @@ class SaboBmsDriver : public BmsDriver {
   bool Init() override;
   void Tick() override;
 
-  const char* GetExtraDataJson() const override;
+  size_t BuildDeviceInfo(char* out, size_t capacity) const override;
 
   bool DumpDevice();
 
  private:
   static constexpr uint8_t DEVICE_ADDRESS = 0x0B;
+  // The pack is either there or not. Only the first kProbeWindowTicks try, so a board
+  // without a pack does not poll the bus forever; kFailuresBeforeAbsent consecutive missed
+  // voltage reads mark a detected pack as absent again.
+  static constexpr uint8_t kProbeWindowTicks = 60;
+  static constexpr uint8_t kFailuresBeforeAbsent = 5;
   const xbot::driver::sabo::config::Bms* bms_cfg_;
 
   SbsProtocol sbs_{};
-  uint16_t battery_status_{0};  // Our BMS is not SBS-compliant, so we like to track the battery status for publishing
 
   bool configured_{false};
-  bool probe();
+  uint8_t probes_left_{kProbeWindowTicks};
+  uint8_t consecutive_failures_{0};
+  void ReadDeviceInfo();
 
   // SBS protocol delegates (avoid overload ambiguity when binding callbacks).
   msg_t SbsReadByte(uint8_t cmd, uint8_t& out);
@@ -79,8 +85,6 @@ class SaboBmsDriver : public BmsDriver {
   msg_t ReadRegister(uint8_t reg, uint16_t& result);
   msg_t ReadRegister(uint8_t reg, int16_t& result);
   msg_t ReadBlock(uint8_t cmd, uint8_t* data, size_t data_capacity, size_t& out_len);
-
-  static int16_t ScaleCurrentRawToMilliA(int16_t raw);
 
   inline void rtrim(char* str);
 };

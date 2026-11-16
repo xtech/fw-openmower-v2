@@ -99,7 +99,13 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
 
  private:
   SaboRobot* sabo_robot_ = nullptr;
-  const xbot::driver::bms::Data* bms_data_ = nullptr;
+  const xbot::driver::bms::DeviceInfo* bms_info_ = nullptr;
+  const xbot::driver::bms::LiveData* bms_live_ = nullptr;
+  // Title of the info section. It doubles as the stale indicator: when the pack stopped
+  // answering, it says so instead of leaving the frozen values uncommented.
+  lv_obj_t* title_label_ = nullptr;
+  bool stale_shown_ = false;
+  void UpdateStaleIndicator();
 
   bool is_created_ = false;
 

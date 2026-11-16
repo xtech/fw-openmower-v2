@@ -14,20 +14,19 @@ void BmsService::SetDriver(BmsDriver* bms_driver) {
 }
 
 void BmsService::service_tick_() {
-  if (bms_data_ == nullptr) return;
+  if (bms_live_ == nullptr) return;
 
   StartTransaction();
-  SendVoltage(bms_data_->pack_voltage_v);
-  SendCurrent(bms_data_->pack_current_a);
-  SendRelativeStateOfCharge(bms_data_->battery_soc);
-  SendRemainingCapacity(bms_data_->remaining_capacity_ah);
-  SendFullChargeCapacity(bms_data_->full_charge_capacity_ah);
-  SendCycleCount(bms_data_->cycle_count);
-  SendTemperature(bms_data_->temperature_c);
-  SendBatteryStatus(bms_data_->battery_status);
-  if (bms_extra_data_ != nullptr) {
-    SendExtraData(bms_extra_data_, (uint32_t)strlen(bms_extra_data_));
-  }
+  SendVoltage(bms_live_->pack_voltage_v);
+  SendCurrent(bms_live_->pack_current_a);
+  SendRelativeStateOfCharge(bms_live_->battery_soc);
+  SendRemainingCapacity(bms_live_->remaining_capacity_ah);
+  SendFullChargeCapacity(bms_live_->full_charge_capacity_ah);
+  SendCycleCount(bms_live_->cycle_count);
+  SendTemperature(bms_live_->temperature_c);
+  SendBatteryStatus(bms_live_->battery_status);
+  SendBatteryStatusRaw(bms_live_->battery_status_raw);
+  SendCellVoltages(bms_live_->cell_voltage_v, bms_info_->cell_count);
   CommitTransaction();
 }
 
@@ -35,7 +34,19 @@ void BmsService::driver_tick_() {
   if (bms_ == nullptr) return;
   bms_->Tick();
   if (bms_->IsPresent()) {
-    bms_data_ = bms_->GetData();
-    bms_extra_data_ = bms_->GetExtraDataJson();
+    bms_info_ = &bms_->GetDeviceInfo();
+    bms_live_ = &bms_->GetLiveData();
+  } else {
+    // Do not keep sending the last values as if they were live.
+    bms_info_ = nullptr;
+    bms_live_ = nullptr;
   }
+}
+
+void BmsService::RPCGetDeviceInfo(uint16_t call_id, char* data, uint16_t* response_length) {
+  // The dispatcher hands in the capacity of the return value and validates it against the
+  // schema's max_length, so the driver can build the JSON straight into it.
+  const size_t written = (bms_ != nullptr && bms_->IsPresent()) ? bms_->BuildDeviceInfo(data, *response_length) : 0U;
+  *response_length = static_cast<uint16_t>(written);
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, data, written);
 }

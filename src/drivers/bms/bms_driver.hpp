@@ -26,8 +26,13 @@ namespace xbot::driver::bms {
 
 static constexpr size_t kMaxCells = 8;
 
-struct Data {
-  // ----- Mostly static data about the BMS and battery pack -----
+/**
+ * @brief Data that describes the pack and never changes while it is connected.
+ *
+ * Read once when the pack is detected (see SaboBmsDriver::Tick), so a consumer can hand it
+ * out again at any time - e.g. as the answer of the BMS service's GetDeviceInfo RPC.
+ */
+struct DeviceInfo {
   char mfr_name[33]{};
   // SBS ManufacturerDate (0x1B) formatted as YYYY-MM-DD (UTC).
   // Empty string means "unknown".
@@ -38,8 +43,16 @@ struct Data {
   uint16_t serial_number{};
   float design_capacity_ah{};
   float design_voltage_v{};
+  uint8_t cell_count{};
+};
 
-  // ----- Dynamic data updated periodically -----
+/**
+ * @brief Data that the pack reports periodically.
+ *
+ * Everything here may change from tick to tick, and stays at its last value when a read
+ * fails - LastOkMs() is what tells a consumer whether the values are still current.
+ */
+struct LiveData {
   float pack_voltage_v{};
   float pack_current_a{};
   float temperature_c{};
@@ -63,10 +76,16 @@ struct Data {
 
   uint16_t cycle_count{};
   uint16_t battery_status{0};  // SBS/SMBus BatteryStatus word, but without error bits.
+  // The BatteryStatus register (0x16) exactly as the pack reported it: the low nibble is
+  // the SBS error code, the vendor bits above it are what battery_status is derived from.
+  uint16_t battery_status_raw{0};
 
   // Cell voltages: only indices [0..cell_count-1] are valid.
-  uint8_t cell_count{};
   float cell_voltage_v[kMaxCells]{};
+
+  // System time of the last tick that read the pack voltage: the age a consumer uses to
+  // decide whether the values above are still current.
+  uint32_t last_ok_ms{};
 };
 
 /**
@@ -75,7 +94,7 @@ struct Data {
 class BmsDriver {
  public:
   explicit BmsDriver(uint8_t num_cells) : num_cells_(ClampCells(num_cells)) {
-    data_.cell_count = num_cells_;
+    info_.cell_count = num_cells_;
   }
   virtual ~BmsDriver() = default;
 
@@ -86,28 +105,49 @@ class BmsDriver {
     return present_;
   }
 
-  // Pointer remains valid for the lifetime of the driver.
-  virtual const Data* GetData() const {
-    return &data_;
+  /// True once a pack was detected. A board without one never shows stale data.
+  bool WasDetected() const {
+    return ever_seen_;
   }
 
-  // Get JSON representation of extra data (which is mostly static or minor)
-  virtual const char* GetExtraDataJson() const = 0;
+  // Both stay valid for the lifetime of the driver.
+  virtual const DeviceInfo& GetDeviceInfo() const {
+    return info_;
+  }
+
+  virtual const LiveData& GetLiveData() const {
+    return live_;
+  }
+
+  // Age of the live values in ms, i.e. how long ago the pack was last read successfully.
+  uint32_t AgeMs(uint32_t now_ms) const {
+    return now_ms - live_.last_ok_ms;
+  }
+
+  // Get JSON representation of the device info (which is static for one pack).
+  // Writes into the buffer the caller provides, so no driver keeps a static JSON buffer.
+  // Returns the number of bytes written (without the terminator).
+  virtual size_t BuildDeviceInfo(char* out, size_t capacity) const = 0;
 
  protected:
   static uint8_t ClampCells(uint8_t num_cells) {
     return (num_cells > (uint8_t)kMaxCells) ? (uint8_t)kMaxCells : num_cells;
   }
 
-  Data data_{};
+  DeviceInfo info_{};
+  LiveData live_{};
 
   void SetPresent(bool present) {
     present_ = present;
+    if (present) {
+      ever_seen_ = true;
+    }
   }
 
  private:
   const uint8_t num_cells_;
   bool present_{false};
+  bool ever_seen_{false};
 };
 
 }  // namespace xbot::driver::bms
