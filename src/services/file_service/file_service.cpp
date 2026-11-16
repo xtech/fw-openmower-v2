@@ -104,40 +104,38 @@ int finalize_file(const char* path, uint32_t hash) {
 
 }  // namespace
 
-void FileService::RPCFileExists(uint16_t call_id, const uint8_t* Path, uint32_t PathLen, uint32_t Hash) {
-  char path[kMaxPath + 1];
-  copy_path(Path, PathLen, path, sizeof(path));
+void FileService::RPCFileExists(uint16_t call_id, const char* Path, uint32_t PathLen, uint32_t Hash) {
+  (void)PathLen;  // validated and terminated by the dispatcher
 
   uint8_t result = 0;
-  if (file_exists(path)) {
+  if (file_exists(Path)) {
     if (Hash == 0U) {
       result = 1;
     } else {
       uint32_t stored = 0;
-      if (read_sidecar_hash(path, stored) && stored == Hash) {
+      if (read_sidecar_hash(Path, stored) && stored == Hash) {
         result = 1;
       }
     }
   }
 
-  ULOG_DEBUG("File: exists '%s' -> %hhu (hash=%#010x)", path, result, Hash);
+  ULOG_DEBUG("File: exists '%s' -> %hhu (hash=%#010x)", Path, result, Hash);
 
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
-void FileService::RPCFileRemove(uint16_t call_id, const uint8_t* Path, uint32_t PathLen) {
-  char path[kMaxPath + 1];
-  copy_path(Path, PathLen, path, sizeof(path));
+void FileService::RPCFileRemove(uint16_t call_id, const char* Path, uint32_t PathLen) {
+  (void)PathLen;  // validated and terminated by the dispatcher
 
   uint8_t result = 0;
-  int remove_result = lfs_remove(&lfs, path);
+  int remove_result = lfs_remove(&lfs, Path);
   if (remove_result != LFS_ERR_OK && remove_result != LFS_ERR_NOENT) {
-    ULOG_WARNING("File: remove '%s' failed (%d)", path, remove_result);
+    ULOG_WARNING("File: remove '%s' failed (%d)", Path, remove_result);
     result = 1;
   } else {
-    ULOG_INFO("File: removed '%s'", path);
+    ULOG_INFO("File: removed '%s'", Path);
     char hash_path[kMaxPath + 6];
-    strcpy(hash_path, path);
+    strcpy(hash_path, Path);
     strcat(hash_path, ".hash");
     lfs_remove(&lfs, hash_path);  // best effort
   }
@@ -159,37 +157,36 @@ void FileService::OnStop() {
   abort_upload();
 }
 
-void FileService::RPCFileWrite(uint16_t call_id, const uint8_t* Path, uint32_t PathLen, uint32_t Offset,
+void FileService::RPCFileWrite(uint16_t call_id, const char* Path, uint32_t PathLen, uint32_t Offset,
                                const uint8_t* Data, uint32_t DataLen, uint32_t Hash) {
-  char path[kMaxPath + 1];
-  copy_path(Path, PathLen, path, sizeof(path));
+  (void)PathLen;  // validated and terminated by the dispatcher
 
   if (Offset == 0U) {
-    ULOG_DEBUG("File: write '%s' (start)", path);
+    ULOG_DEBUG("File: write '%s' (start)", Path);
   }
 
   int32_t result = 0;
 
   do {
     char tmp[kMaxPath + 5];
-    strcpy(tmp, path);
+    strcpy(tmp, Path);
     strcat(tmp, ".tmp");
 
     // The common case is a chunk that continues the open session: no open, no seek and
     // no sync. Anything else - the first chunk, another file, or a session that a
     // restart dropped - reopens the staging file at the requested offset, so an
     // interrupted upload can be continued where it stopped.
-    const bool continues_upload = upload_.isOpen() && strcmp(upload_path_, path) == 0 && Offset == upload_written_;
+    const bool continues_upload = upload_.isOpen() && strcmp(upload_path_, Path) == 0 && Offset == upload_written_;
     if (!continues_upload) {
       abort_upload();
 
       // Create parent directories once, on the first chunk only (skip root-level
       // paths, which need none). Doing this on every chunk would re-traverse the
       // directory tree each time.
-      if (Offset == 0U && strchr(path + 1, '/') != nullptr) {
-        int r = upload_.mkdirp(path);
+      if (Offset == 0U && strchr(Path + 1, '/') != nullptr) {
+        int r = upload_.mkdirp(Path);
         if (r != LFS_ERR_OK) {
-          ULOG_WARNING("File: mkdirp '%s' failed (%d)", path, r);
+          ULOG_WARNING("File: mkdirp '%s' failed (%d)", Path, r);
           result = r;
           break;
         }
@@ -225,7 +222,7 @@ void FileService::RPCFileWrite(uint16_t call_id, const uint8_t* Path, uint32_t P
         }
       }
 
-      strncpy(upload_path_, path, kMaxPath);
+      strncpy(upload_path_, Path, kMaxPath);
       upload_path_[kMaxPath] = '\0';
       upload_written_ = Offset;
     }
@@ -244,7 +241,7 @@ void FileService::RPCFileWrite(uint16_t call_id, const uint8_t* Path, uint32_t P
     result = written;
 
     if (Hash != 0U) {
-      // Only the last chunk pays for the flush: the whole upload was staged in <path>.tmp
+      // Only the last chunk pays for the flush: the whole upload was staged in <Path>.tmp
       // and is committed atomically below, so intermediate chunks need no durability.
       const int sync_result = upload_.sync();
       abort_upload();
@@ -253,12 +250,12 @@ void FileService::RPCFileWrite(uint16_t call_id, const uint8_t* Path, uint32_t P
         result = sync_result;
         break;
       }
-      const int finalize_result = finalize_file(path, Hash);
+      const int finalize_result = finalize_file(Path, Hash);
       if (finalize_result != LFS_ERR_OK) {
-        ULOG_WARNING("File: finalize '%s' failed (%d)", path, finalize_result);
+        ULOG_WARNING("File: finalize '%s' failed (%d)", Path, finalize_result);
         result = finalize_result;
       } else {
-        ULOG_INFO("File: committed '%s' (hash=%#010x)", path, Hash);
+        ULOG_INFO("File: committed '%s' (hash=%#010x)", Path, Hash);
       }
     }
   } while (false);
@@ -266,8 +263,8 @@ void FileService::RPCFileWrite(uint16_t call_id, const uint8_t* Path, uint32_t P
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
-void FileService::RPCFileList(uint16_t call_id, const uint8_t* Path, uint32_t PathLen, uint32_t StartIndex,
-                              uint8_t* data, uint16_t* response_length) {
+void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathLen, uint32_t StartIndex, uint8_t* data,
+                              uint16_t* response_length) {
   char path[kMaxPath + 1];
   copy_path(Path, PathLen, path, sizeof(path));
 

@@ -79,7 +79,7 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
                        uint8_t Unison, uint16_t DetuneHz, uint8_t AttackMs, uint8_t DecayMs, uint8_t Preempt,
                        uint16_t RepeatMs) override;
   /** @brief RPC: play an MP3 from the sound store. */
-  void RPCPlayMp3(uint16_t call_id, const uint8_t* Path, uint32_t PathLen, uint8_t Preempt) override;
+  void RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) override;
   /** @brief RPC: stop playback and clear the queue. */
   void RPCStop(uint16_t call_id) override;
 

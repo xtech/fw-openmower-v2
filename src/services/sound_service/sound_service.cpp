@@ -109,18 +109,12 @@ void SoundService::RPCPlaySequence(uint16_t call_id, const uint8_t* Sequence, ui
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
-void SoundService::RPCPlayMp3(uint16_t call_id, const uint8_t* Path, uint32_t PathLen, uint8_t Preempt) {
-  /* blob parameter, but the path is copied: LittleFS wants a NUL terminated name. */
-  char path[kMaxPath];
-  size_t n = (PathLen < (kMaxPath - 1U)) ? PathLen : (kMaxPath - 1U);
-  memcpy(path, Path, n);
-  path[n] = '\0';
-
+void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) {
   uint8_t result = 0U;
-  if (n > 0U) {
-    const PlayResult res = play_file(path, Preempt != 0U);
+  if (PathLen > 0U) {
+    const PlayResult res = play_file(Path, Preempt != 0U);
     result = play_result_accepted(res) ? 1U : 0U;
-    ULOG_INFO("Sound: RPC mp3 '%s' (%s)", path, play_result_text(res));
+    ULOG_INFO("Sound: RPC mp3 '%s' (%s)", Path, play_result_text(res));
   } else {
     ULOG_WARNING("Sound: RPC mp3 rejected (empty path)");
   }
