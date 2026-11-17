@@ -140,10 +140,10 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
   // BMS data state tracking
   float last_design_voltage_v_ = 0;
   float last_design_capacity_ah_ = 0;
-  float last_full_charge_capacity_ah_ = 0;
+  float last_full_charge_capacity_ah_ = -1.0f;  ///< -1: nothing written yet (0 is valid)
   float last_pack_voltage_v_ = 0;
-  float last_remaining_capacity_ah_ = 0;
-  uint16_t last_cycle_count_ = 0;
+  float last_remaining_capacity_ah_ = -1.0f;  ///< -1: nothing written yet (0 is valid)
+  uint16_t last_cycle_count_ = UINT16_MAX;    ///< sentinel: 0 cycles is a valid reading
   uint8_t last_health_pct_ = 0;
   float last_battery_soc_ = -1.0f;
 

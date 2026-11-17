@@ -314,28 +314,36 @@ void SaboScreenBattery::UpdateBmsInfo() {
     return;
   }
 
-  // BMS has a couple of static data which will not change during runtime
+  // BMS has a couple of static data which will not change during runtime. The flag is only
+  // set once something was actually written: a Tick before the pack answered must not stop
+  // the labels from being filled later.
+  bool filled = false;
   if (bms_info_->mfr_name[0] != '\0') {
     lv_label_set_text_fmt(mfr_val_label_, "%s", bms_info_->mfr_name);
+    filled = true;
   }
 
   if (bms_info_->dev_name[0] != '\0') {
     lv_label_set_text_fmt(dev_val_label_, "%s", bms_info_->dev_name);
+    filled = true;
   }
 
   if (bms_info_->dev_version[0] != '\0') {
     lv_label_set_text_fmt(ver_val_label_, "%s", bms_info_->dev_version);
+    filled = true;
   }
 
   if (bms_info_->serial_number != 0) {
     lv_label_set_text_fmt(ser_val_label_, "%u", bms_info_->serial_number);
+    filled = true;
   }
 
   if (bms_info_->mfr_date[0] != '\0') {
     lv_label_set_text_fmt(dat_val_label_, "%s", bms_info_->mfr_date);
+    filled = true;
   }
 
-  bms_info_printed_ = true;
+  bms_info_printed_ = filled;
 }
 
 void SaboScreenBattery::UpdateBmsData() {
@@ -356,8 +364,7 @@ void SaboScreenBattery::UpdateBmsData() {
     last_design_capacity_ah_ = bms_info_->design_capacity_ah;
   }
 
-  if (bms_live_->full_charge_capacity_ah != last_full_charge_capacity_ah_ &&
-      bms_live_->full_charge_capacity_ah > 0.0f) {
+  if (bms_live_->full_charge_capacity_ah != last_full_charge_capacity_ah_) {
     chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.2fAh", bms_live_->full_charge_capacity_ah);
     lv_label_set_text(full_charge_ah_val_label_, shared_text_buffer_);
     last_full_charge_capacity_ah_ = bms_live_->full_charge_capacity_ah;
@@ -369,13 +376,13 @@ void SaboScreenBattery::UpdateBmsData() {
     last_pack_voltage_v_ = bms_live_->pack_voltage_v;
   }
 
-  if (bms_live_->remaining_capacity_ah != last_remaining_capacity_ah_ && bms_live_->remaining_capacity_ah > 0.0f) {
+  if (bms_live_->remaining_capacity_ah != last_remaining_capacity_ah_) {
     chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.2fAh", bms_live_->remaining_capacity_ah);
     lv_label_set_text(actual_ah_val_label_, shared_text_buffer_);
     last_remaining_capacity_ah_ = bms_live_->remaining_capacity_ah;
   }
 
-  if (bms_live_->cycle_count > 0 && bms_live_->cycle_count != last_cycle_count_) {
+  if (bms_live_->cycle_count != last_cycle_count_) {
     lv_label_set_text_fmt(health_cycles_val_label_, "%u cycles", bms_live_->cycle_count);
     last_cycle_count_ = bms_live_->cycle_count;
   }
