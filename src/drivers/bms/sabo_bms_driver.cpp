@@ -122,7 +122,8 @@ void SaboBmsDriver::Tick() {
       ReadDeviceInfo();
       SetPresent(true);
       consecutive_failures_ = 0;
-      live_.last_ok_ms = TIME_I2MS(chVTGetSystemTimeX());
+      // last_ok_ms is only advanced by a successful voltage sample below; the detection probe
+      // gets away with a BatteryStatus answer, and the retained readings must not look fresh.
       ULOG_INFO("BMS '%s, %s, %s, S/N %u' found at I2C addr 0x%02X", info_.mfr_name, info_.dev_name,
                 info_.dev_chemistry, (unsigned)info_.serial_number, (unsigned)DEVICE_ADDRESS);
     }
@@ -192,7 +193,13 @@ void SaboBmsDriver::Tick() {
 }
 
 void SaboBmsDriver::ReadDeviceInfo() {
-  // Static data about the pack: read once when it is detected.
+  // Static data about the pack: read once when it is detected. Start from a fresh object so
+  // a failed read after a pack swap cannot keep the previous pack's metadata; the cell count
+  // comes from the configuration, not from the pack.
+  const uint8_t cell_count = info_.cell_count;
+  info_ = DeviceInfo{};
+  info_.cell_count = cell_count;
+
   size_t len = 0;
 
   // ManufacturerName (0x20) block
