@@ -576,6 +576,11 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       icon_current_->SetState(WidgetIcon::State::OFF);
       current_bar_->Hide();
     } else {
+      // Undocked, but the pack reports a current: the bar is live and has to be shown again
+      // after a phase without one (a pack that was plugged in after boot, or one that was
+      // lost and came back).
+      icon_current_->SetState(WidgetIcon::State::ON);
+      current_bar_->Show();
       lv_obj_add_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
     }
