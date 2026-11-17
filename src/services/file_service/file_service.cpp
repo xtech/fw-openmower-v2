@@ -241,6 +241,21 @@ void FileService::RPCFileWrite(uint16_t call_id, const char* Path, uint32_t Path
     result = written;
 
     if (Hash != 0U) {
+      // A resumed upload may have staged more than this upload needs - an earlier attempt
+      // got further before it was dropped. The hash below vouches for upload_written_ bytes,
+      // so a longer file must not be committed under it.
+      const int staged = upload_.size();
+      if (staged > static_cast<int>(upload_written_)) {
+        const int r = upload_.truncate(static_cast<lfs_soff_t>(upload_written_));
+        if (r != LFS_ERR_OK) {
+          ULOG_WARNING("File: truncate '%s' to %lu failed (%d)", tmp, static_cast<unsigned long>(upload_written_), r);
+          abort_upload();
+          lfs_remove(&lfs, tmp);
+          result = r;
+          break;
+        }
+      }
+
       // Only the last chunk pays for the flush: the whole upload was staged in <Path>.tmp
       // and is committed atomically below, so intermediate chunks need no durability.
       const int sync_result = upload_.sync();
