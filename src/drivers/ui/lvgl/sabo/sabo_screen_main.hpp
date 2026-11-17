@@ -425,6 +425,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   void UpdateBatteryWidgets() {
     if (sabo_robot_ == nullptr) return;
 
+    // The pack can be detected (or lost) long after this screen was constructed, so the
+    // pointer is re-evaluated here instead of being captured once in the constructor.
+    bms_live_ = sabo_robot_->IsBmsPresent() ? &sabo_robot_->GetBmsLive() : nullptr;
+
     // Static variables for caching and change detection
     static float last_battery_volts;
     static int32_t last_battery_percent;
