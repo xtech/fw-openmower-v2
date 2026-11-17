@@ -303,7 +303,7 @@ static void on_source_end() {
   if (step == PlaybackStep::NONE) {
     const uint32_t pause = pause_left(now);
     if (pause > 0U) {
-      ULOG_INFO("Sound: pausing %u ms after playback", pause);
+      ULOG_DEBUG("Sound: pausing %u ms after playback", pause);
     }
     return;
   }
