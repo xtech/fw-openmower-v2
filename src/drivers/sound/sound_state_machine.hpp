@@ -22,11 +22,11 @@
  *        is what makes it testable.
  *
  *        The state has three sources, and only one of them needs an axis of its own:
- *          HlState — what the high level says it does (idle, undocking, mowing, paused,
- *                    docking, recording)
- *          Alert   — what is wrong (link lost, emergency) and therefore wins.
- *          Sensors — the charger (the high level does not report charging) and the blade
- *                    (the ambience runs while it turns).
+ *          HL_MODE_* — what the high level says it does (idle, undocking, mowing, paused,
+ *                       docking, recording), one field of the signals
+ *          Alert      — what is wrong (link lost, emergency) and therefore wins.
+ *          Sensors    — the charger (the high level does not report charging) and the blade
+ *                       (the ambience runs while it turns).
  *        Only a *change* makes a sound, and an alert is announced first: a link loss
  *        matters more than the blade starting. While an alert lasts, every other state
  *        change is tracked silently, so nothing stale is announced when the alert clears.
@@ -92,14 +92,17 @@ class StateMachine {
   void Reset();
 
   /**
-   * @brief Evaluate one snapshot and perform the resulting output.
+   * @brief Evaluate one 100 ms sample of the signals.
    *
-   * @param inputs  What the services report (see StateInputs).
-   * @param now_ms  A monotonic millisecond clock. It has to be 32 bit: the value is
-   *                compared up to a minute apart (the ambience `every`) and wraps only
-   *                after 49 days, while a uint16 clock would wrap every 65 seconds.
+   * The machine is a sampler: it compares this sample with the previous one, so "what
+   * changed" (the edge) and "what was true before" are decisions of the caller of the
+   * rules, not of each rule. This is the entry point the service uses; the StateInputs
+   * overload below is only a migration shim for the host tests.
+   *
+   * @param now    The signals of this tick (the audible condition is a field of them).
+   * @param now_ms A monotonic millisecond clock (32 bit: the ambience may wait 18 h).
    */
-  void Update(const StateInputs& inputs, uint32_t now_ms);
+  void Update(Signals now, uint32_t now_ms);
 
   /**
    * @brief Re-evaluate the ambient rate, e.g. after a new definitions blob.
@@ -113,12 +116,12 @@ class StateMachine {
 
   /** @brief True while the charger charges (the only state the high level lacks). */
   bool charging() const {
-    return rt_.charging;
+    return (rt_.now & CHARGING) != 0U;
   }
 
   /** @brief True while the blade turns (the ambience follows it). */
   bool blade_running() const {
-    return rt_.blade_running;
+    return (rt_.now & BLADE_RUNNING) != 0U;
   }
 
   /** @brief The current alert (NONE, LINK_LOST or EMERGENCY). */
@@ -126,33 +129,46 @@ class StateMachine {
     return rt_.alert;
   }
 
-  /** @brief The last high-level state reported to the machine. */
-  HlState hl_state() const {
-    return rt_.hl_state;
+  /** @brief The last high level behaviour reported to the machine (one of HL_MODE_*). */
+  Signals hl_state() const {
+    return HlMode(rt_.now);
   }
 
  private:
+  /** Memo bits: latches the machine keeps. Never part of the input signals. */
+  enum : Signals {
+    MEMO_CHARGE_DONE_SEEN = 1u << 0,  ///< The charger reported DONE during this charge
+    MEMO_FIX_SEEN = 1u << 1,          ///< An RTK fix was seen; lost may be announced once
+  };
+
+  /** The bits the ambience depends on: a change re-arms the interval. */
+  static constexpr Signals kAmbienceGate = HL_ALIVE | BLADE_RUNNING | EMERGENCY_KIND_MASK | HL_MODE_MASK;
+
+  /** @brief Boot announcement and alert edges; true when a sound was played. */
+  bool AnnounceAlert(const Sample& t, uint32_t now_ms);
+
+  /** @brief CHARGING_START/DONE edges; audible in every state, including an alert. */
+  bool AnnounceCharging(const Sample& t);
+
+  /** @brief High level behaviour edges (mowing/docking/undocking). Needs the link. */
+  bool AnnounceHighLevel(const Sample& t);
+
+  /** @brief RTK fix/lost edges. Tracked during an emergency, announced after it. */
+  bool AnnounceGps(const Sample& t);
+
   /** @brief The output of an alert transition (rules: sound_state_machine.cpp). */
   void AlertAction(Alert from, Alert to, EmergencyKind kind);
 
   /** @brief The sound of a high level state transition (rules: sound_state_machine.cpp). */
-  static SoundId HlSound(HlState from, HlState to);
+  static SoundId HlSound(Signals from, Signals to);
 
-  /** @brief Which sound may play by itself while the blade turns (the ambience). */
+  /** @brief Which sound may play by itself right now (the ambience). */
   SoundId AmbientSound() const;
-
-  /**
-   * @brief Turn the local RTK edges into the GPS_RTK_FIX/LOST announcements.
-   *
-   * A lost sound is only played after a fix was seen. IDLE and alerts reset that latch,
-   * so booting or recovering in a non-fixed state cannot produce a lost sound.
-   */
-  void UpdateGpsSounds(const StateInputs& inputs);
 
   /** @brief Fetch a usable every/chance policy for @p id; false when it has none. */
   bool AmbientPolicyFor(SoundId id, AmbientPolicy& out) const;
 
-  /** @brief Restart the ambient interval (on boot and on every state change). */
+  /** @brief Restart the ambient interval (on boot and whenever its gate changes). */
   void AmbientArm(uint32_t now_ms);
 
   /** @brief One ambience decision: due and lucky -> play. */
@@ -164,28 +180,25 @@ class StateMachine {
   /**
    * @brief Everything the machine remembers between two Update() calls.
    *
-   * Grouped so Reset() is one assignment: a new field cannot be forgotten there.
-   * The 32-bit timers come first and the small values afterwards, so the struct has
-   * no avoidable internal padding (20 B with the current fields).
+   * `now` is the only source for the previous sample (`prev` of the next call), `memo`
+   * holds the latches; both are signal words so a new fact is one bit, not one field.
+   * The 32-bit timers come first, the small values afterwards (no avoidable padding).
    */
   struct Runtime {
     uint32_t link_lost_since_ms = 0U;  ///< A link loss started here
     uint32_t ambient_due_ms = 0U;      ///< The ambience interval is due here
 
-    Alert alert = Alert::LINK_LOST;             ///< The robot boots without a high level
-    HlState hl_state = HlState::UNKNOWN;        ///< Last reported high level state
-    GpsRtkMode gps_rtk = GpsRtkMode::RTK_NONE;  ///< Last local GPS RTK state
+    Signals now = 0U;   ///< Signals of the last tick (the `prev` of the next sample)
+    Signals memo = 0U;  ///< Latches, see MEMO_*
 
-    bool started = false;           ///< The boot announcement was done
-    bool charging = false;          ///< Last charger state (the CHARGING_START/DONE edges)
-    bool blade_running = false;     ///< Last blade state (the ambience follows it)
-    bool link_lost_timer = false;   ///< A link loss is being timed
-    bool charge_done_seen = false;  ///< The charger reached DONE during this charge
-    bool ambient_armed = false;     ///< An interval is running
-    bool gps_fix_seen = false;      ///< A RTK fix was seen; lost may be announced once
+    Alert alert = Alert::LINK_LOST;  ///< The robot boots without a high level
+
+    bool started = false;          ///< The boot announcement was done
+    bool link_lost_timer = false;  ///< A link loss is being timed
+    bool ambient_armed = false;    ///< An interval is running
   };
 
-  static_assert(sizeof(Runtime) == 20U, "Runtime size changed - check the RAM budget");
+  static_assert(sizeof(Runtime) == 16U, "Runtime size changed - check the RAM budget");
 
   Runtime rt_{};
 };

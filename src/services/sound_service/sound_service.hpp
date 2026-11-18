@@ -38,9 +38,9 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
   static bool Dice(uint8_t chance_pct);
 
   /** @brief Snapshot of the state the machine reacts to, read from the other services. */
-  sound::StateInputs ReadInputs();
+  sound::Signals ReadSignals();
   /** @brief Log the sound-relevant inputs whenever they change (see the .cpp). */
-  void LogInputChanges(const sound::StateInputs& now);
+  void LogSignalChanges(sound::Signals now);
 
   /** @brief Output: stop the current playback and clear the player queue. */
   void StopPlayback() override;
@@ -48,7 +48,7 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
   void PlaySound(SoundId id) override;
 
   /** @brief Previous snapshot, so the state trace only prints something that changed. */
-  sound::StateInputs last_inputs_{};
+  sound::Signals last_signals_ = 0U;
 
   /**
    * @brief Monotonic millisecond clock for the machine, built from the loop's deltas.

@@ -45,175 +45,155 @@ void StateMachine::Reset() {
   rt_ = Runtime{};
 }
 
-void StateMachine::Update(const StateInputs& inputs, uint32_t now_ms) {
-  // --- The alert: emergency first, then a link loss that lasted long enough -------
-  if (inputs.high_level_alive) {
+void StateMachine::Update(Signals now, uint32_t now_ms) {
+  /* One sample per tick: `prev` is what the last call saw, `edge` the bits that changed.
+     Building it here (and not inside every rule) is what keeps the rules free of the
+     "which one is the edge" question. */
+  const Sample t = MakeSample(now, rt_.now);
+
+  /* The link loss is timed before it is announced: a hiccup must not play a sound. */
+  if (t.now & HL_ALIVE) {
     rt_.link_lost_timer = false;
   } else if (!rt_.link_lost_timer) {
     rt_.link_lost_timer = true;
     rt_.link_lost_since_ms = now_ms;
   }
 
-  Alert next_alert = Alert::NONE;
-  /* An audible condition *starts* the alert; leaving it needs the latch to be released as
-     well, so a sensor that lets go while the robot is still latched keeps the alert (and
-     the "all clear" waits for the reset). Reasons whose definition disables latching
-     (`latch: false`) clear as soon as the condition is gone. */
-  const bool dangerous = (inputs.emergency != EmergencyKind::NONE);
-  if (dangerous || (rt_.alert == Alert::EMERGENCY && inputs.emergency_latched)) {
-    next_alert = Alert::EMERGENCY;
-  } else if (!inputs.high_level_alive &&
-             (rt_.alert == Alert::LINK_LOST || time_reached(now_ms, rt_.link_lost_since_ms + kLinkLostDelayMs))) {
-    /* Only a loss that *persists* is a state change; while we are already in LINK_LOST
-       it stays (the high level simply is not back yet). */
-    next_alert = Alert::LINK_LOST;
-  }
+  /* The ambience gate is a bit test now: the interval restarts whenever it changes. */
+  const bool ambience_changed = (t.now & kAmbienceGate) != (t.prev & kAmbienceGate);
 
-  // --- The sensors: the sources own their filtering; follow their changes directly ---
-  const bool charging = (inputs.charger == ChargerState::CHARGING);
-  const bool blade_before = rt_.blade_running;
-  rt_.blade_running = inputs.blade_running;
-  if (rt_.blade_running != blade_before) {
-    /* The ambience belongs to the blade (see AmbientSound()): its interval restarts when
-       the motor starts or stops. */
+  rt_.now = t.now; /* tracking: every rule below sees prev/edge, never its own history */
+
+  if (ambience_changed) {
     AmbientArm(now_ms);
   }
 
-  if (inputs.charger == ChargerState::DONE) {
-    /* DONE is not an active charge phase, so it can arrive in the same tick that ends the
-       charge: remember it here, the edge below consumes it. */
-    rt_.charge_done_seen = true;
-  }
-
-  // --- Boot: the power-up sweep, but an active emergency outranks it ---------------
-  if (!rt_.started) {
-    rt_.started = true;
-    rt_.charging = charging;
-    rt_.alert = next_alert;
-    /* The first look at the high level is not a transition: it must not replay a state
-       that started before the firmware did (e.g. a reconnect while mowing). */
-    rt_.hl_state = inputs.hl_state;
-    rt_.gps_rtk = inputs.gps_rtk;
-    /* Do not replay the fix announcement at boot, but a fix that already existed still
-       arms the later lost sound. */
-    rt_.gps_fix_seen = (inputs.gps_rtk == GpsRtkMode::RTK_FIX);
-    AmbientArm(now_ms);
-    if (next_alert == Alert::EMERGENCY) {
-      AlertAction(Alert::NONE, Alert::EMERGENCY, inputs.emergency);
-    } else {
-      output_.PlaySound(SoundId::BOOT_COMPLETE);
-    }
-    return;
-  }
-
-  // --- An alert change is announced, and it swallows every other transition --------
-  if (next_alert != rt_.alert) {
-    const Alert previous = rt_.alert;
-    rt_.alert = next_alert;
-    /* The alert is the message. Everything else is taken over silently, so the machine
-       does not replay a state that changed while the alert was active. */
-    rt_.charging = charging;
-    rt_.hl_state = inputs.hl_state;
-    rt_.charge_done_seen = false;
-    if (next_alert == Alert::NONE) {
-      /* Absorb the GPS state that is current when an alert clears: a fix that happened
-         while the alert was active is not announced retroactively, but it still arms a
-         later lost sound. */
-      rt_.gps_rtk = inputs.gps_rtk;
-      rt_.gps_fix_seen = (inputs.gps_rtk == GpsRtkMode::RTK_FIX);
-    } else {
-      rt_.gps_rtk = GpsRtkMode::RTK_NONE;
-      rt_.gps_fix_seen = false;
-    }
-    AmbientArm(now_ms);
-    AlertAction(previous, next_alert, inputs.emergency);
-    return;
-  }
-
-  // --- While an alert lasts, changes are tracked but never announced ---------------
-  if (rt_.alert != Alert::NONE) {
-    rt_.charging = charging;
-    rt_.hl_state = inputs.hl_state;
-    rt_.charge_done_seen = false;
-    rt_.gps_rtk = GpsRtkMode::RTK_NONE;
-    rt_.gps_fix_seen = false;
-    return;
-  }
-
-  // --- Charging: the charger is the only source (the high level reports no charging)
-  if (charging != rt_.charging) {
-    rt_.charging = charging;
-    AmbientArm(now_ms);
-    if (charging) {
-      rt_.charge_done_seen = false;  // a fresh charge: DONE can only be reported from now on
-      output_.PlaySound(SoundId::CHARGING_START);
-      return;
-    }
-    const bool done = rt_.charge_done_seen;
-    rt_.charge_done_seen = false;
-    if (done) {
-      output_.PlaySound(SoundId::CHARGING_DONE);
-      return;
-    }
-  }
-
-  // --- The high level's own state: its announcements ------------------------------
-  if (inputs.hl_state != rt_.hl_state) {
-    const HlState previous = rt_.hl_state;
-    rt_.hl_state = inputs.hl_state;
-
-    if (rt_.hl_state == HlState::UNDOCKING) {
-      /* The drive starts with a single autonomous notice. Its definition may repeat (the
-         ROM fallback uses repeat_ms), so leaving UNDOCKING stops it below. */
-      output_.StopPlayback();
-      output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
-      return;
-    }
-
-    if (rt_.hl_state == HlState::DOCKING || previous == HlState::UNDOCKING || previous == HlState::DOCKING) {
-      /* Leaving a dock transfer ends its sound - the ROM notice repeats until a new sound
-         arrives, and a docking theme may still be running. Entering DOCKING also cuts the
-         mowing sound before its own announcement. */
-      output_.StopPlayback();
-    }
-
-    const SoundId sound = HlSound(previous, rt_.hl_state);
-    if (sound != kNoSound) {
-      output_.PlaySound(sound);
-      return;
-    }
-  }
-
-  // --- GPS: RTK fix/lost edges, independent of the high level's state changes ------
-  UpdateGpsSounds(inputs);
-
-  // --- Ambience: the background sound while the blade turns ------------------------
+  /* The order is the priority: the first rule that plays a sound owns the tick. */
+  if (AnnounceAlert(t, now_ms)) return;
+  if (AnnounceCharging(t)) return;
+  if (AnnounceHighLevel(t)) return;
+  if (AnnounceGps(t)) return;
   AmbientStep(now_ms);
 }
 
-void StateMachine::UpdateGpsSounds(const StateInputs& inputs) {
-  /* IDLE is the high level's "GPS is off" state (it calls setGPS(false) there). Reset the
-     fix latch so a fix from the previous session cannot make a later lost sound. While
-     idle, GPS transitions are deliberately silent. */
-  if (inputs.hl_state == HlState::IDLE || rt_.alert != Alert::NONE) {
-    rt_.gps_rtk = GpsRtkMode::RTK_NONE;
-    rt_.gps_fix_seen = false;
-    return;
+bool StateMachine::AnnounceAlert(const Sample& t, uint32_t now_ms) {
+  /* An audible condition starts the alert; leaving it needs the latch released as well, so
+     a sensor that lets go while the robot is still latched keeps the alert. */
+  Alert next = Alert::NONE;
+  const bool dangerous = EmergencyKindOf(t.now) != EmergencyKind::NONE;
+  if (dangerous || ((rt_.alert == Alert::EMERGENCY) && (t.now & EMERGENCY_LATCHED))) {
+    next = Alert::EMERGENCY;
+  } else if (!(t.now & HL_ALIVE) &&
+             (rt_.alert == Alert::LINK_LOST || time_reached(now_ms, rt_.link_lost_since_ms + kLinkLostDelayMs))) {
+    next = Alert::LINK_LOST;
   }
 
-  if (inputs.gps_rtk == rt_.gps_rtk) {
-    return;
+  if (!rt_.started) {
+    rt_.started = true;
+    rt_.alert = next;
+    /* A fix that already exists is not announced at boot, but it arms the later lost. */
+    if (t.now & RTK_FIX) {
+      rt_.memo |= MEMO_FIX_SEEN;
+    } else {
+      rt_.memo &= ~MEMO_FIX_SEEN;
+    }
+    AmbientArm(now_ms);
+    if (next == Alert::EMERGENCY) {
+      AlertAction(Alert::NONE, Alert::EMERGENCY, EmergencyKindOf(t.now));
+    } else {
+      output_.PlaySound(SoundId::BOOT_COMPLETE);
+    }
+    return true;
   }
 
-  if (inputs.gps_rtk == GpsRtkMode::RTK_FIX) {
+  if (next == rt_.alert) return false;
+
+  const Alert previous = rt_.alert;
+  rt_.alert = next;
+  AmbientArm(now_ms);
+  AlertAction(previous, next, EmergencyKindOf(t.now));
+  return true;
+}
+
+bool StateMachine::AnnounceCharging(const Sample& t) {
+  /* DONE is not an active phase, so it can arrive in the same tick that ends the charge:
+     remember it here, the edge below consumes it. */
+  if (t.now & CHARGER_DONE) {
+    rt_.memo |= MEMO_CHARGE_DONE_SEEN;
+  }
+
+  if (!(t.edge & CHARGING)) return false;
+
+  if (t.now & CHARGING) {
+    rt_.memo &= ~MEMO_CHARGE_DONE_SEEN; /* a fresh charge */
+    output_.PlaySound(SoundId::CHARGING_START);
+    return true;
+  }
+
+  const bool done = (rt_.memo & MEMO_CHARGE_DONE_SEEN) != 0U;
+  rt_.memo &= ~MEMO_CHARGE_DONE_SEEN;
+  if (!done) return false;
+  output_.PlaySound(SoundId::CHARGING_DONE);
+  return true;
+}
+
+bool StateMachine::AnnounceHighLevel(const Sample& t) {
+  const Signals from = HlMode(t.prev);
+  const Signals to = HlMode(t.now);
+  if (from == to) return false;
+
+  /* Without a link there is nobody who announced this behaviour: it is tracked (the bits
+     are) but not played. */
+  if (!(t.now & HL_ALIVE)) return false;
+
+  if (to == HL_MODE_UNDOCKING) {
+    /* The drive starts with a single autonomous notice. Its definition may repeat, so
+       leaving UNDOCKING stops it below. */
+    output_.StopPlayback();
+    output_.PlaySound(SoundId::AUTONOMOUS_NOTICE);
+    return true;
+  }
+
+  if (to == HL_MODE_DOCKING || from == HL_MODE_UNDOCKING || from == HL_MODE_DOCKING) {
+    /* Leaving a dock transfer ends its sound; entering DOCKING cuts the mowing theme. */
+    output_.StopPlayback();
+  }
+
+  const SoundId sound = HlSound(from, to);
+  if (sound == kNoSound) return false;
+  output_.PlaySound(sound);
+  return true;
+}
+
+bool StateMachine::AnnounceGps(const Sample& t) {
+  /* IDLE is the high level's "GPS is off" state: dropping the history makes a fix after
+     IDLE a fresh one, and keeps a later lost from a stale latch. */
+  const bool had_fix = (t.prev & RTK_FIX) != 0U && HlMode(t.prev) != HL_MODE_IDLE;
+  const bool fix = (t.now & RTK_FIX) != 0U;
+
+  if (HlMode(t.now) == HL_MODE_IDLE) {
+    rt_.memo &= ~MEMO_FIX_SEEN;
+    return false;
+  }
+
+  if (fix == had_fix) return false;
+
+  /* An emergency owns the speaker: the fix is tracked either way, only the announcement
+     waits (and a lost that happens during the alert is not replayed afterwards). */
+  const bool audible = EmergencyKindOf(t.now) == EmergencyKind::NONE;
+
+  if (fix) {
+    rt_.memo |= MEMO_FIX_SEEN;
+    if (!audible) return false;
     output_.PlaySound(SoundId::GPS_RTK_FIX);
-    rt_.gps_fix_seen = true;
-  } else if (rt_.gps_rtk == GpsRtkMode::RTK_FIX && rt_.gps_fix_seen) {
-    /* FLOAT and NONE both mean "the fix is gone"; the sound is the same. */
-    output_.PlaySound(SoundId::GPS_RTK_LOST);
-    rt_.gps_fix_seen = false;
+    return true;
   }
-  rt_.gps_rtk = inputs.gps_rtk;
+
+  const bool seen = (rt_.memo & MEMO_FIX_SEEN) != 0U;
+  rt_.memo &= ~MEMO_FIX_SEEN;
+  if (!seen || !audible) return false;
+  output_.PlaySound(SoundId::GPS_RTK_LOST);
+  return true;
 }
 
 //=============================================================================
@@ -275,52 +255,53 @@ void StateMachine::AlertAction(Alert from, Alert to, EmergencyKind kind) {
 /**
  * @brief Which sound a high level state change plays.
  */
-SoundId StateMachine::HlSound(HlState from, HlState to) {
+SoundId StateMachine::HlSound(Signals from, Signals to) {
   if (from == to) return kNoSound;  // Update() only calls this for a change
 
   switch (from) {
-    case HlState::MOWING:
+    case HL_MODE_MOWING:
       switch (to) {
-        case HlState::PAUSED: return SoundId::MOWING_PAUSED;
-        case HlState::DOCKING: return SoundId::DOCKING_START;
-        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        case HL_MODE_PAUSED: return SoundId::MOWING_PAUSED;
+        case HL_MODE_DOCKING: return SoundId::DOCKING_START;
+        case HL_MODE_RECORDING: return SoundId::AREA_RECORDING_MODE;
         default: return kNoSound;
       }
 
-    case HlState::PAUSED:
+    case HL_MODE_PAUSED:
       switch (to) {
-        case HlState::MOWING: return SoundId::MOWING_RESUMED;
-        case HlState::DOCKING: return SoundId::DOCKING_START;
-        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        case HL_MODE_MOWING: return SoundId::MOWING_RESUMED;
+        case HL_MODE_DOCKING: return SoundId::DOCKING_START;
+        case HL_MODE_RECORDING: return SoundId::AREA_RECORDING_MODE;
         default: return kNoSound;
       }
 
-    case HlState::UNDOCKING:
+    case HL_MODE_UNDOCKING:
       switch (to) {
-        case HlState::MOWING: return SoundId::MOWING_START;
-        case HlState::DOCKING: return SoundId::DOCKING_START;
-        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        case HL_MODE_MOWING: return SoundId::MOWING_START;
+        case HL_MODE_DOCKING: return SoundId::DOCKING_START;
+        case HL_MODE_RECORDING: return SoundId::AREA_RECORDING_MODE;
         default: return kNoSound;
       }
 
-    case HlState::DOCKING:
+    case HL_MODE_DOCKING:
       switch (to) {
-        case HlState::MOWING: return SoundId::MOWING_START;
-        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        case HL_MODE_MOWING: return SoundId::MOWING_START;
+        case HL_MODE_RECORDING: return SoundId::AREA_RECORDING_MODE;
         default: return kNoSound;
       }
 
-    case HlState::IDLE:
-    case HlState::RECORDING:
-    case HlState::UNKNOWN:
+    case HL_MODE_IDLE:
+    case HL_MODE_RECORDING:
+    case HL_MODE_UNKNOWN:
       switch (to) {
-        case HlState::MOWING: return SoundId::MOWING_START;
-        case HlState::DOCKING: return SoundId::DOCKING_START;
-        case HlState::RECORDING: return SoundId::AREA_RECORDING_MODE;
+        case HL_MODE_MOWING: return SoundId::MOWING_START;
+        case HL_MODE_DOCKING: return SoundId::DOCKING_START;
+        case HL_MODE_RECORDING: return SoundId::AREA_RECORDING_MODE;
         default: return kNoSound;
       }
+
+    default: return kNoSound;
   }
-  return kNoSound;
 }
 
 /**
@@ -332,7 +313,12 @@ SoundId StateMachine::HlSound(HlState from, HlState to) {
  * probability come from the definition (`every`, `chance`).
  */
 SoundId StateMachine::AmbientSound() const {
-  return rt_.blade_running ? SoundId::MOWING_AMBIENCE : kNoSound;
+  /* The ambience belongs to the work, not to the plan: it needs the blade, an active (not
+     paused) mowing behaviour and a high level that runs it. The gate is a bit test, so a
+     change of any of its bits re-arms the interval in Update(). */
+  const bool active =
+      HlMode(rt_.now) == HL_MODE_MOWING && (rt_.now & (HL_ALIVE | BLADE_RUNNING)) == (HL_ALIVE | BLADE_RUNNING);
+  return active ? SoundId::MOWING_AMBIENCE : kNoSound;
 }
 
 bool StateMachine::AmbientPolicyFor(SoundId id, AmbientPolicy& out) const {
@@ -357,8 +343,8 @@ void StateMachine::AmbientArm(uint32_t now_ms) {
 }
 
 void StateMachine::AmbientStep(uint32_t now_ms) {
-  /* No ambience under an alert: an emergency or a lost high level is not the moment for
-     a cow. The alert change above has just re-armed the interval. */
+  /* No ambience under an alert: the gate already excludes an emergency and a lost link,
+     this is the belt to its braces (and keeps the "alert re-arms" rule in one place). */
   if (rt_.alert != Alert::NONE) {
     return;
   }
