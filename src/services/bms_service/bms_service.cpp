@@ -34,7 +34,7 @@ void BmsService::service_tick_() {
   if (bms_live_->battery_soc >= 0.0f) SendRelativeStateOfCharge(bms_live_->battery_soc);
   if (bms_live_->remaining_capacity_ah >= 0.0f) SendRemainingCapacity(bms_live_->remaining_capacity_ah);
   if (bms_live_->full_charge_capacity_ah >= 0.0f) SendFullChargeCapacity(bms_live_->full_charge_capacity_ah);
-  if (bms_live_->cycle_count >= 0) SendCycleCount(bms_live_->cycle_count);
+  if (bms_live_->cycle_count >= 0) SendCycleCount(static_cast<uint16_t>(bms_live_->cycle_count));
   if (std::isfinite(bms_live_->temperature_c)) SendTemperature(bms_live_->temperature_c);
   if (bms_live_->has_battery_status) {
     SendBatteryStatus(bms_live_->battery_status);

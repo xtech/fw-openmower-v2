@@ -17,6 +17,8 @@
 #ifndef BMS_DRIVER_HPP
 #define BMS_DRIVER_HPP
 
+#include <ch.h>
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -55,8 +57,8 @@ struct DeviceInfo {
  * fails. AgeMs() measures the age of the last successful voltage sample.
  */
 struct LiveData {
-  float pack_voltage_v{};
   // Signed readings start at NaN. Non-negative quantities use -1 until sampled.
+  float pack_voltage_v{-1.0f};
   float pack_current_a{NAN};
   float temperature_c{NAN};
 
@@ -125,7 +127,7 @@ class BmsDriver {
 
   // Age of the live values in ms, i.e. how long ago the pack was last read successfully.
   uint32_t AgeMs() const {
-    if (live_.pack_voltage_v == 0.0f) return UINT32_MAX;
+    if (live_.pack_voltage_v < 0.0f) return UINT32_MAX;
     return TIME_I2MS(chVTTimeElapsedSinceX(live_.last_ok_tick));
   }
 

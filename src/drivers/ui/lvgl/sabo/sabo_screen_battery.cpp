@@ -361,8 +361,7 @@ void SaboScreenBattery::UpdateBmsData() {
 
   UpdateReading(full_charge_ah_val_label_, bms_live_->full_charge_capacity_ah, last_full_charge_capacity_ah_, "%.2fAh");
   UpdateReading(actual_ah_val_label_, bms_live_->remaining_capacity_ah, last_remaining_capacity_ah_, "%.2fAh");
-  const float voltage = bms_live_->pack_voltage_v;
-  UpdateReading(actual_v_val_label_, voltage > 0.0f ? voltage : -1.0f, last_pack_voltage_v_, "%.1fV");
+  UpdateReading(actual_v_val_label_, bms_live_->pack_voltage_v, last_pack_voltage_v_, "%.1fV");
 
   if (bms_live_->cycle_count != last_cycle_count_) {
     last_cycle_count_ = bms_live_->cycle_count;
