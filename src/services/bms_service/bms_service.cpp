@@ -13,8 +13,20 @@ void BmsService::SetDriver(BmsDriver* bms_driver) {
   bms_ = bms_driver;
 }
 
+namespace {
+/** Live values older than this are not published again as if they were current. */
+constexpr uint32_t kLiveMaxAgeMs = 2000U;
+}  // namespace
+
 void BmsService::service_tick_() {
-  if (bms_live_ == nullptr) return;
+  if (bms_ == nullptr || bms_live_ == nullptr || bms_info_ == nullptr) return;
+
+  /* A detection probe may succeed on BatteryStatus alone, while the voltage sample failed.
+     The retained reading must then not go out as a current one: two ticks at 1 Hz cover a
+     single missed read, and anything older is reported by the age instead. */
+  if (bms_->AgeMs(TIME_I2MS(chVTGetSystemTimeX())) > kLiveMaxAgeMs) {
+    return;
+  }
 
   StartTransaction();
   SendVoltage(bms_live_->pack_voltage_v);
