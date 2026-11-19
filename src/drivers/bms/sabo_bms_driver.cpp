@@ -119,11 +119,11 @@ void SaboBmsDriver::Tick() {
     i2cAcquireBus(bms_cfg_->i2c);
     const bool found = sbs_.Probe();
     if (found) {
+      live_ = LiveData{};
       ReadDeviceInfo();
       SetPresent(true);
       consecutive_failures_ = 0;
-      // last_ok_ms is only advanced by a successful voltage sample below; the detection probe
-      // gets away with a BatteryStatus answer, and the retained readings must not look fresh.
+      // The probe may succeed on BatteryStatus alone. Live values start with the next sample.
       ULOG_INFO("BMS '%s, %s, %s, S/N %u' found at I2C addr 0x%02X", info_.mfr_name, info_.dev_name,
                 info_.dev_chemistry, (unsigned)info_.serial_number, (unsigned)DEVICE_ADDRESS);
     }
@@ -132,12 +132,11 @@ void SaboBmsDriver::Tick() {
   }
 
   i2cAcquireBus(bms_cfg_->i2c);
-  const uint32_t now_ms = TIME_I2MS(chVTGetSystemTimeX());
 
   // The pack voltage is the canary: it answers or it does not. A missed read keeps the old
   // value, so the count is what decides whether the values are still live.
   if (sbs_.ReadPackVoltageV(live_.pack_voltage_v)) {
-    live_.last_ok_ms = now_ms;
+    live_.last_ok_tick = chVTGetSystemTimeX();
     consecutive_failures_ = 0;
   } else if (++consecutive_failures_ >= kFailuresBeforeAbsent) {
     // Mark it absent instead of leaving the last values looking live. Probing continues, so
@@ -149,18 +148,18 @@ void SaboBmsDriver::Tick() {
     return;
   }
 
-  float value = 0.0f;
-  if (sbs_.ReadCurrentA(value)) live_.pack_current_a = value;
-  if (sbs_.ReadTemperatureC(value)) live_.temperature_c = value;
-  if (sbs_.ReadRelativeStateOfCharge(value)) live_.battery_soc = value;
-  if (sbs_.ReadRemainingCapacityAh(value)) live_.remaining_capacity_ah = value;
-  if (sbs_.ReadFullChargeCapacityAh(value)) live_.full_charge_capacity_ah = value;
+  sbs_.ReadCurrentA(live_.pack_current_a);
+  sbs_.ReadTemperatureC(live_.temperature_c);
+  sbs_.ReadRelativeStateOfCharge(live_.battery_soc);
+  sbs_.ReadRemainingCapacityAh(live_.remaining_capacity_ah);
+  sbs_.ReadFullChargeCapacityAh(live_.full_charge_capacity_ah);
 
   uint16_t u16 = 0;
   if (sbs_.ReadCycleCount(u16)) live_.cycle_count = u16;
 
   // BatteryStatus (0x16). "FSM-BMZ, 30710, V2.00" support only some of the status bits.
   if (sbs_.ReadBatteryStatus(live_.battery_status_raw)) {
+    live_.has_battery_status = true;
     // Bit 11, 0x0800 looks like a TERMINATE_DISCHARGE_ALARM flag, SoC < 5% ?
     (live_.battery_status_raw & 0b0000100000000000)
         ? SbsProtocol::SetBatteryStatus(live_.battery_status, SbsProtocol::BatteryStatusBit::AlarmTerminateDischarge)
@@ -196,27 +195,27 @@ void SaboBmsDriver::ReadDeviceInfo() {
   // Static data about the pack: read once when it is detected. Start from a fresh object so
   // a failed read after a pack swap cannot keep the previous pack's metadata; the cell count
   // comes from the configuration, not from the pack.
+  const uint32_t generation = info_.generation + 1U;
   const uint8_t cell_count = info_.cell_count;
   info_ = DeviceInfo{};
   info_.cell_count = cell_count;
 
-  size_t len = 0;
+  const auto read_text = [this](SbsProtocol::Command command, auto& text) {
+    size_t length = 0;
+    if (sbs_.ReadBlock(command, reinterpret_cast<uint8_t*>(text), sizeof(text), length) == MSG_OK) {
+      rtrim(text);
+    } else {
+      text[0] = '\0';
+    }
+  };
 
-  // ManufacturerName (0x20) block
-  sbs_.ReadBlock(SbsProtocol::Command::ManufacturerName, reinterpret_cast<uint8_t*>(info_.mfr_name),
-                 sizeof(info_.mfr_name), len);
-  rtrim(info_.mfr_name);
-
-  // DeviceName (0x21) block
-  sbs_.ReadBlock(SbsProtocol::Command::DeviceName, reinterpret_cast<uint8_t*>(info_.dev_name), sizeof(info_.dev_name),
-                 len);
-  rtrim(info_.dev_name);
+  // ManufacturerName (0x20) and DeviceName (0x21) blocks
+  read_text(SbsProtocol::Command::ManufacturerName, info_.mfr_name);
+  read_text(SbsProtocol::Command::DeviceName, info_.dev_name);
 
   // DeviceChemistry (0x22) block
   // "FSM-BMZ, 30710, V2.00" has some kind of version string in it
-  sbs_.ReadBlock(SbsProtocol::Command::DeviceChemistry, reinterpret_cast<uint8_t*>(info_.dev_version),
-                 sizeof(info_.dev_version), len);
-  rtrim(info_.dev_version);
+  read_text(SbsProtocol::Command::DeviceChemistry, info_.dev_version);
   chsnprintf(info_.dev_chemistry, sizeof(info_.dev_chemistry), "LION");
 
   uint16_t tmp_uint16 = 0;
@@ -240,6 +239,7 @@ void SaboBmsDriver::ReadDeviceInfo() {
   if (sbs_.ReadWord(SbsProtocol::Command::DesignVoltage, tmp_uint16) == MSG_OK) {
     info_.design_voltage_v = (float)tmp_uint16 / 1000.0f;
   }
+  info_.generation = generation;
 }
 
 // Keep a serialization failure until the caller can report it as an RPC error.

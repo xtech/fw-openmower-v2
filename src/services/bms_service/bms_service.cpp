@@ -7,7 +7,7 @@
 
 #include "bms_service.hpp"
 
-#include <cstring>
+#include <cmath>
 
 void BmsService::SetDriver(BmsDriver* bms_driver) {
   bms_ = bms_driver;
@@ -24,20 +24,22 @@ void BmsService::service_tick_() {
   /* A detection probe may succeed on BatteryStatus alone, while the voltage sample failed.
      The retained reading must then not go out as a current one: two ticks at 1 Hz cover a
      single missed read, and anything older is reported by the age instead. */
-  if (bms_->AgeMs(TIME_I2MS(chVTGetSystemTimeX())) > kLiveMaxAgeMs) {
+  if (bms_->AgeMs() > kLiveMaxAgeMs) {
     return;
   }
 
   StartTransaction();
   SendVoltage(bms_live_->pack_voltage_v);
-  SendCurrent(bms_live_->pack_current_a);
-  SendRelativeStateOfCharge(bms_live_->battery_soc);
-  SendRemainingCapacity(bms_live_->remaining_capacity_ah);
-  SendFullChargeCapacity(bms_live_->full_charge_capacity_ah);
-  SendCycleCount(bms_live_->cycle_count);
-  SendTemperature(bms_live_->temperature_c);
-  SendBatteryStatus(bms_live_->battery_status);
-  SendBatteryStatusRaw(bms_live_->battery_status_raw);
+  if (std::isfinite(bms_live_->pack_current_a)) SendCurrent(bms_live_->pack_current_a);
+  if (bms_live_->battery_soc >= 0.0f) SendRelativeStateOfCharge(bms_live_->battery_soc);
+  if (bms_live_->remaining_capacity_ah >= 0.0f) SendRemainingCapacity(bms_live_->remaining_capacity_ah);
+  if (bms_live_->full_charge_capacity_ah >= 0.0f) SendFullChargeCapacity(bms_live_->full_charge_capacity_ah);
+  if (bms_live_->cycle_count >= 0) SendCycleCount(bms_live_->cycle_count);
+  if (std::isfinite(bms_live_->temperature_c)) SendTemperature(bms_live_->temperature_c);
+  if (bms_live_->has_battery_status) {
+    SendBatteryStatus(bms_live_->battery_status);
+    SendBatteryStatusRaw(bms_live_->battery_status_raw);
+  }
   SendCellVoltages(bms_live_->cell_voltage_v, bms_info_->cell_count);
   CommitTransaction();
 }

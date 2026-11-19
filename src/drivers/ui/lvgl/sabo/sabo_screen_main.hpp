@@ -500,7 +500,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   void UpdateCurrentWidgets() {
     if (sabo_robot_ == nullptr) return;
 
-    has_bms_current_ = (bms_live_ != nullptr && bms_live_->pack_current_a != 0.0f);
+    has_bms_current_ =
+        (bms_live_ != nullptr && std::isfinite(bms_live_->pack_current_a) && bms_live_->pack_current_a != 0.0f);
 
     // Static variables for caching and change detection
     static float last_current;

@@ -170,7 +170,7 @@ class SaboRobot : public MowerRobot {
 
   // Age of the BMS values in ms, for the "stale data" indication on the display.
   uint32_t GetBmsAgeMs() const {
-    return bms_.AgeMs(TIME_I2MS(chVTGetSystemTimeX()));
+    return bms_.AgeMs();
   }
 
   /// True if the pack answered at least once and the values are older than 5 s now.

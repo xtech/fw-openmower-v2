@@ -11,6 +11,10 @@
 using xbot::service::Lock;
 
 void EmergencyService::OnStop() {
+  {
+    Lock lk{&mtx_};
+    high_level_seen_ = false;
+  }
   // We won't be getting further updates from high level, so set that flag immediately.
   UpdateEmergency(EmergencyReason::TIMEOUT_HIGH_LEVEL);
 }
