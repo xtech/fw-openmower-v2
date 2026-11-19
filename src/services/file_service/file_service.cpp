@@ -292,8 +292,13 @@ void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathL
   // Wire format (see FileList in file_service.json):
   //   [0..4)  uint32 total_count
   //   [4..8)  uint32 entry_count   (as many as fit into the return value)
-  //   [8..)   entry_count × (char[128] full_path + uint32 hash)
-  constexpr uint16_t kEntrySize = 128U + static_cast<uint16_t>(sizeof(uint32_t));
+  //   [8..)   entry_count × (char[132] full_path + uint32 hash)
+  //
+  // The path field is 132 bytes: FileWrite accepts a path of up to 128
+  // characters, so the listed path needs room for the terminator (129) and is rounded
+  // up to keep the hash aligned.
+  constexpr uint16_t kEntryPathSize = 132U;
+  constexpr uint16_t kEntrySize = kEntryPathSize + static_cast<uint16_t>(sizeof(uint32_t));
   constexpr uint16_t kHeaderSize = 2U * static_cast<uint16_t>(sizeof(uint32_t));
 
   // The dispatcher hands in the capacity of the return value, so a caller with a larger
@@ -329,11 +334,11 @@ void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathL
           memcpy(full_path + full_len, info.name, name_len + 1U);
 
           uint8_t* entry = data + kHeaderSize + entry_count * kEntrySize;
-          memset(entry, 0, 128U);
-          strncpy(reinterpret_cast<char*>(entry), full_path, 127U);
+          memset(entry, 0, kEntryPathSize);
+          strncpy(reinterpret_cast<char*>(entry), full_path, kEntryPathSize - 1U);
           uint32_t hash = 0U;
           read_sidecar_hash(full_path, hash);
-          memcpy(entry + 128U, &hash, sizeof(hash));
+          memcpy(entry + kEntryPathSize, &hash, sizeof(hash));
           entry_count++;
         }
       }
