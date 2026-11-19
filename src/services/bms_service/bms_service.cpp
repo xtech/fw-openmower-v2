@@ -44,9 +44,13 @@ void BmsService::driver_tick_() {
 }
 
 void BmsService::RPCGetDeviceInfo(uint16_t call_id, char* data, uint16_t* response_length) {
-  // The dispatcher hands in the capacity of the return value and validates it against the
-  // schema's max_length, so the driver can build the JSON straight into it.
-  const size_t written = (bms_ != nullptr && bms_->IsPresent()) ? bms_->BuildDeviceInfo(data, *response_length) : 0U;
+  // The dispatcher allocates one extra byte for the terminator beyond the wire limit.
+  const int written = bms_ != nullptr ? bms_->BuildDeviceInfo(data, static_cast<size_t>(*response_length) + 1U) : 0;
+  if (written < 0 || written > *response_length) {
+    *response_length = 0;
+    SendRpcResponse(call_id, xbot::datatypes::RpcStatus::ERROR, nullptr, 0);
+    return;
+  }
   *response_length = static_cast<uint16_t>(written);
-  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, data, written);
+  SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, data, *response_length);
 }

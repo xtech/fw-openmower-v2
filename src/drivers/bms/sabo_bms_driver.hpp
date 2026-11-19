@@ -50,7 +50,7 @@ class SaboBmsDriver : public BmsDriver {
   bool Init() override;
   void Tick() override;
 
-  size_t BuildDeviceInfo(char* out, size_t capacity) const override;
+  int BuildDeviceInfo(char* out, size_t capacity) const override;
 
   bool DumpDevice();
 

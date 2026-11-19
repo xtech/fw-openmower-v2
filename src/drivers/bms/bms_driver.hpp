@@ -126,8 +126,9 @@ class BmsDriver {
 
   // Get JSON representation of the device info (which is static for one pack).
   // Writes into the buffer the caller provides, so no driver keeps a static JSON buffer.
-  // Returns the number of bytes written (without the terminator).
-  virtual size_t BuildDeviceInfo(char* out, size_t capacity) const = 0;
+  // Capacity includes the terminator. Returns the payload length, 0 if no pack is present,
+  // or -1 if the JSON could not be serialized in full.
+  virtual int BuildDeviceInfo(char* out, size_t capacity) const = 0;
 
  protected:
   static uint8_t ClampCells(uint8_t num_cells) {

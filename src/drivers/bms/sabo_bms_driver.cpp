@@ -242,70 +242,55 @@ void SaboBmsDriver::ReadDeviceInfo() {
   }
 }
 
-/*
- * Append one field to the extra data JSON and never move the write offset past the
- * end of the buffer.
- *
- * chsnprintf() returns the number of characters it *would* have written, so a
- * truncated call reports more than fits. Summing those return values into a
- * running offset therefore ends up beyond the buffer, and the next call then gets
- * an underflowed (huge, because size_t) size and writes far behind json_buf.
- * json_buf ends right in front of the idle thread working area, so such a write
- * corrupts the idle thread's stack and ends in a HardFault. Only the characters
- * that actually fit may advance the offset.
- */
-static void AppendJson(char* buf, size_t size, int* used, const char* fmt, ...) {
-  if (*used < 0) {
-    *used = 0;
-  }
+// Keep a serialization failure until the caller can report it as an RPC error.
+static void AppendJson(char* buf, size_t size, int& used, const char* fmt, ...) {
+  if (used < 0) return;
 
-  const size_t offset = (size_t)*used;
-  if ((size == 0U) || (offset >= (size - 1U))) {
-    return;  // No room for another character, size includes the terminator.
-  }
-
+  const size_t offset = static_cast<size_t>(used);
+  const size_t remaining = size - offset;
   va_list args;
   va_start(args, fmt);
-  const int written = chvsnprintf(buf + offset, size - offset, fmt, args);
+  const int written = chvsnprintf(buf + offset, remaining, fmt, args);
   va_end(args);
 
-  if (written <= 0) {
+  // chvsnprintf reports the requested length, excluding the terminating NUL.
+  if (written < 0 || static_cast<size_t>(written) >= remaining) {
+    used = -1;
     return;
   }
-
-  const size_t capacity = size - offset - 1U;
-  *used = (int)(offset + (((size_t)written < capacity) ? (size_t)written : capacity));
+  used += written;
 }
 
-size_t SaboBmsDriver::BuildDeviceInfo(char* out, size_t capacity) const {
-  if (out == nullptr || capacity == 0U) return 0;
+int SaboBmsDriver::BuildDeviceInfo(char* out, size_t capacity) const {
+  if (out == nullptr || capacity == 0U) return -1;
   out[0] = '\0';
   if (!IsPresent()) return 0;
 
   int chars = 0;
-  char esc_str[60] = {0};
+  // An SBS text block holds up to 32 bytes, each of which can expand to \u00XX.
+  char esc_str[6U * (sizeof(info_.mfr_name) - 1U) + 1U];
 
   EscapeStringInto(info_.mfr_name, esc_str, sizeof(esc_str));
-  AppendJson(out, capacity, &chars, "{\"mfr_name\":\"%s\"", esc_str);
+  AppendJson(out, capacity, chars, "{\"mfr_name\":\"%s\"", esc_str);
 
   // Manufacturer date: already formatted as YYYY-MM-DD.
-  AppendJson(out, capacity, &chars, ",\"mfr_date\":\"%s\"", info_.mfr_date);
+  AppendJson(out, capacity, chars, ",\"mfr_date\":\"%s\"", info_.mfr_date);
 
   EscapeStringInto(info_.dev_name, esc_str, sizeof(esc_str));
-  AppendJson(out, capacity, &chars, ",\"dev_name\":\"%s\"", esc_str);
+  AppendJson(out, capacity, chars, ",\"dev_name\":\"%s\"", esc_str);
 
   EscapeStringInto(info_.dev_version, esc_str, sizeof(esc_str));
-  AppendJson(out, capacity, &chars, ",\"dev_version\":\"%s\"", esc_str);
+  AppendJson(out, capacity, chars, ",\"dev_version\":\"%s\"", esc_str);
 
   EscapeStringInto(info_.dev_chemistry, esc_str, sizeof(esc_str));
-  AppendJson(out, capacity, &chars, ",\"dev_chemistry\":\"%s\"", esc_str);
+  AppendJson(out, capacity, chars, ",\"dev_chemistry\":\"%s\"", esc_str);
 
-  AppendJson(out, capacity, &chars,
+  AppendJson(out, capacity, chars,
              ",\"serial_number\":%u,\"design_capacity_ah\":%.3f,\"design_voltage_v\":%.3f,\"cell_count\":%u}",
              (unsigned)info_.serial_number, (double)info_.design_capacity_ah, (double)info_.design_voltage_v,
              (unsigned)ClampCells(info_.cell_count));
 
-  return (chars > 0) ? (size_t)chars : 0U;
+  return chars;
 }
 
 bool SaboBmsDriver::DumpDevice() {
