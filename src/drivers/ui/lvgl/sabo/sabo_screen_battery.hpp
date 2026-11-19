@@ -142,9 +142,10 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
   float last_design_capacity_ah_ = 0;
   float last_full_charge_capacity_ah_ = -1.0f;  ///< -1: nothing written yet (0 is valid)
   float last_pack_voltage_v_ = 0;
-  float last_remaining_capacity_ah_ = -1.0f;  ///< -1: nothing written yet (0 is valid)
-  uint16_t last_cycle_count_ = UINT16_MAX;    ///< sentinel: 0 cycles is a valid reading
-  uint8_t last_health_pct_ = 0;
+  float last_remaining_capacity_ah_ = -1.0f;       ///< -1: nothing written yet (0 is valid)
+  uint16_t last_cycle_count_ = UINT16_MAX;         ///< sentinel: 0 cycles is a valid reading
+  static constexpr uint8_t kHealthUnknown = 255U;  ///< No design capacity, health is N/A
+  uint8_t last_health_pct_ = kHealthUnknown;       ///< 255 until the first value is written
   float last_battery_soc_ = -1.0f;
 
   // Threshold constants for cell delta status

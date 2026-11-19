@@ -387,12 +387,19 @@ void SaboScreenBattery::UpdateBmsData() {
     last_cycle_count_ = bms_live_->cycle_count;
   }
 
-  const uint8_t health_pct = bms_info_->design_capacity_ah > 0.0f && bms_live_->full_charge_capacity_ah > 0.0f
-                                 ? static_cast<uint8_t>(std::round(100.0f / bms_info_->design_capacity_ah *
-                                                                   bms_live_->full_charge_capacity_ah))
-                                 : 0;
-  if (health_pct != last_health_pct_ && health_pct > 0) {
-    lv_label_set_text_fmt(health_pct_val_label_, "%u%%", health_pct);
+  /* A pack that reports 0 Ah full-charge capacity has 0 % health, while a missing design
+     capacity means the health is unknown - say that instead of leaving a stale percentage
+     on the screen. */
+  const bool health_known = bms_info_->design_capacity_ah > 0.0f;
+  const uint8_t health_pct = health_known ? static_cast<uint8_t>(std::round(100.0f / bms_info_->design_capacity_ah *
+                                                                            bms_live_->full_charge_capacity_ah))
+                                          : kHealthUnknown;
+  if (health_pct != last_health_pct_) {
+    if (health_known) {
+      lv_label_set_text_fmt(health_pct_val_label_, "%u%%", health_pct);
+    } else {
+      lv_label_set_text(health_pct_val_label_, "N/A");
+    }
     last_health_pct_ = health_pct;
   }
 
