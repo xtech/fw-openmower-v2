@@ -51,12 +51,15 @@ void xBotRobot::InitPlatform() {
 
   pwm_config->channels[MOTOR1_PWM_CHANNEL_1].mode = PWM_OUTPUT_ACTIVE_LOW;
   pwm_config->channels[MOTOR1_PWM_CHANNEL_2].mode = PWM_OUTPUT_ACTIVE_LOW;
+  // Run the timers unprescaled at their full kernel clock (TIM1 on APB2, TIM3 on APB1).
+  // ChibiOS asserts that `frequency` divides the timer clock exactly, so derive it from
+  // the clock tree instead of hardcoding it.
   pwm_config->period = 0xFFF * 4;
-  pwm_config->frequency = 275000000;
+  pwm_config->frequency = STM32_TIMCLK2;
   pwm_config2->channels[MOTOR2_PWM_CHANNEL_1].mode = PWM_OUTPUT_ACTIVE_LOW;
   pwm_config2->channels[MOTOR2_PWM_CHANNEL_2].mode = PWM_OUTPUT_ACTIVE_LOW;
   pwm_config2->period = 0xFFF * 4;
-  pwm_config2->frequency = 275000000;
+  pwm_config2->frequency = STM32_TIMCLK1;
 
   pwmStart(&MOTOR1_PWM, pwm_config);
   if (&MOTOR1_PWM != &MOTOR2_PWM) {
