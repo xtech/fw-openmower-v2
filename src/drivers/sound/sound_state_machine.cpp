@@ -167,11 +167,17 @@ bool StateMachine::AnnounceHighLevel(const Sample& t) {
 
 bool StateMachine::AnnounceGps(const Sample& t) {
   /* IDLE is the high level's "GPS is off" state: dropping the history makes a fix after
-     IDLE a fresh one, and keeps a later lost from a stale latch. */
-  const bool had_fix = (t.prev & RTK_FIX) != 0U && HlMode(t.prev) != HL_MODE_IDLE;
+     IDLE a fresh one, and keeps a later lost from a stale latch. It only counts while the
+     link is alive - after a disconnect the cached behaviour name stays "IDLE" and must not
+     silence the GPS announcements for good. */
+  const bool gps_off = (t.now & HL_ALIVE) != 0U && HlMode(t.now) == HL_MODE_IDLE;
+  /* The history is the plain bit: while the high level holds IDLE the receiver is off, so a
+     fix afterwards is a real transition. Masking the idle out of prev instead would turn the
+     exit from "IDLE with a fix still latched" into a fix announcement nobody asked for. */
+  const bool had_fix = (t.prev & RTK_FIX) != 0U;
   const bool fix = (t.now & RTK_FIX) != 0U;
 
-  if (HlMode(t.now) == HL_MODE_IDLE) {
+  if (gps_off) {
     rt_.memo &= ~MEMO_FIX_SEEN;
     return false;
   }
