@@ -21,8 +21,13 @@
 
 #include <FileServiceBase.hpp>
 
+#include "filesystem/file.hpp"
+
 class FileService : public FileServiceBase {
  public:
+  /** Maximum path length accepted by the RPC layer (see file_service.json). */
+  static constexpr size_t kMaxPath = 128U;
+
   explicit FileService(uint16_t service_id) : FileServiceBase(service_id, wa, sizeof(wa)) {
   }
 
@@ -35,11 +40,29 @@ class FileService : public FileServiceBase {
                    uint16_t* response_length) override;
   void RPCFileStats(uint16_t call_id, uint32_t* data, uint16_t* response_length) override;
 
+  /** A claim restarts the service, so drop the upload that belongs to the old owner. */
+  void OnStop() override;
+
  private:
+  /**
+   * @brief Staging file of the upload in progress.
+   *
+   * Kept open between the chunks of one upload: only the first chunk pays for
+   * open() and only the last one for sync(), which is what makes a large transfer
+   * cheap on flash. It is a member and not a local of the RPC because the file
+   * cache (FS_CACHE_SIZE) would otherwise sit on the service thread stack.
+   */
+  File upload_;
+  char upload_path_[kMaxPath + 1]{};
+  uint32_t upload_written_ = 0;
+
+  /** Forget the current upload: closes the staging file, keeps it on flash. */
+  void abort_upload();
   // LittleFS directory commits (lfs_rename -> lfs_dir_commit -> compact/traverse)
-  // are stack-hungry; 3072 bytes overflowed (MemManage fault). Measured peak is
-  // 3388 bytes (thread watermark), so 4096 leaves ~20% headroom.
-  THD_WORKING_AREA(wa, 4096){};
+  // are stack-hungry: 3072 bytes overflowed with a MemManage fault before the RPC
+  // payloads became blobs. Measured peak after a full sync is 2696 bytes, so 3328
+  // leaves 632 bytes.
+  THD_WORKING_AREA(wa, 3328){};
 };
 
 #endif  // FILE_SERVICE_HPP

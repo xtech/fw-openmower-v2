@@ -78,7 +78,7 @@ class SaboCoverUIDisplayDriverUC1698 {
   SaboCoverUIDisplayDriverUC1698(const xbot::driver::sabo::config::Lcd& lcd_cfg) : lcd_cfg_(lcd_cfg) {
   }
 
-  THD_WORKING_AREA(wa_, 640);  // AH20251106 In use = 320
+  THD_WORKING_AREA(wa_, 896);  // AH20261116 measured 576 with the LVGL screen
   thread_t* thread_ = nullptr;
 
   // We need some signals to start and finish our async SPI transfers

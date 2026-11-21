@@ -99,7 +99,13 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
 
  private:
   SaboRobot* sabo_robot_ = nullptr;
-  const xbot::driver::bms::Data* bms_data_ = nullptr;
+  const xbot::driver::bms::DeviceInfo* bms_info_ = nullptr;
+  const xbot::driver::bms::LiveData* bms_live_ = nullptr;
+  // Title of the info section. It doubles as the stale indicator: when the pack stopped
+  // answering, it says so instead of leaving the frozen values uncommented.
+  lv_obj_t* title_label_ = nullptr;
+  bool stale_shown_ = false;
+  void UpdateStaleIndicator();
 
   bool is_created_ = false;
 
@@ -127,18 +133,18 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
   WidgetIcon* cell_status_icons_[BATTERY_CELLS] = {nullptr};
 
   // State tracking for updates
-  bool bms_info_printed_ = false;
+  uint32_t displayed_generation_ = 0;
   float last_cell_voltages_[BATTERY_CELLS] = {0};
-  int last_cell_diffs_[BATTERY_CELLS] = {0};
+  static constexpr int kUnknownDelta = INT32_MIN;
+  int last_cell_diffs_[BATTERY_CELLS]{};
 
   // BMS data state tracking
-  float last_design_voltage_v_ = 0;
-  float last_design_capacity_ah_ = 0;
-  float last_full_charge_capacity_ah_ = 0;
-  float last_pack_voltage_v_ = 0;
-  float last_remaining_capacity_ah_ = 0;
-  uint16_t last_cycle_count_ = 0;
-  uint8_t last_health_pct_ = 0;
+  float last_full_charge_capacity_ah_ = -1.0f;  ///< -1: nothing written yet (0 is valid)
+  float last_pack_voltage_v_ = -1.0f;
+  float last_remaining_capacity_ah_ = -1.0f;       ///< -1: nothing written yet (0 is valid)
+  int32_t last_cycle_count_ = -1;                  ///< -1 until the first successful read
+  static constexpr uint8_t kHealthUnknown = 255U;  ///< No design capacity, health is N/A
+  uint8_t last_health_pct_ = kHealthUnknown;       ///< 255 until the first value is written
   float last_battery_soc_ = -1.0f;
 
   // Threshold constants for cell delta status
@@ -192,6 +198,7 @@ class SaboScreenBattery : public ScreenBase<ScreenId, ButtonId> {
    * @brief Update BMS data display
    */
   void UpdateBmsData();
+  void UpdateReading(lv_obj_t* label, float value, float& previous, const char* format);
 
   /**
    * @brief Update cell voltages and visualization

@@ -30,11 +30,11 @@
 
 namespace {
 
-/** Maximum path length accepted by the RPC layer (see file_service.json). */
-constexpr size_t kMaxPath = 128U;
+/** Shortcut for the path budget the RPC layer accepts (see file_service.json). */
+constexpr size_t kMaxPath = FileService::kMaxPath;
 
-/** Copies an RPC string parameter into a guaranteed null-terminated buffer. */
-void copy_path(const char* src, uint32_t src_len, char* dst, size_t dst_size) {
+/** Copies an RPC path parameter (a len delimited blob) into a null-terminated buffer. */
+void copy_path(const void* src, uint32_t src_len, char* dst, size_t dst_size) {
   size_t n = (src_len < dst_size - 1U) ? src_len : (dst_size - 1U);
   memcpy(dst, src, n);
   dst[n] = '\0';
@@ -105,39 +105,37 @@ int finalize_file(const char* path, uint32_t hash) {
 }  // namespace
 
 void FileService::RPCFileExists(uint16_t call_id, const char* Path, uint32_t PathLen, uint32_t Hash) {
-  char path[kMaxPath + 1];
-  copy_path(Path, PathLen, path, sizeof(path));
+  (void)PathLen;  // validated and terminated by the dispatcher
 
   uint8_t result = 0;
-  if (file_exists(path)) {
+  if (file_exists(Path)) {
     if (Hash == 0U) {
       result = 1;
     } else {
       uint32_t stored = 0;
-      if (read_sidecar_hash(path, stored) && stored == Hash) {
+      if (read_sidecar_hash(Path, stored) && stored == Hash) {
         result = 1;
       }
     }
   }
 
-  ULOG_INFO("File: exists '%s' -> %hhu (hash=%#010x)", path, result, Hash);
+  ULOG_DEBUG("File: exists '%s' -> %hhu (hash=%#010x)", Path, result, Hash);
 
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
 void FileService::RPCFileRemove(uint16_t call_id, const char* Path, uint32_t PathLen) {
-  char path[kMaxPath + 1];
-  copy_path(Path, PathLen, path, sizeof(path));
+  (void)PathLen;  // validated and terminated by the dispatcher
 
   uint8_t result = 0;
-  int remove_result = lfs_remove(&lfs, path);
+  int remove_result = lfs_remove(&lfs, Path);
   if (remove_result != LFS_ERR_OK && remove_result != LFS_ERR_NOENT) {
-    ULOG_WARNING("File: remove '%s' failed (%d)", path, remove_result);
+    ULOG_WARNING("File: remove '%s' failed (%d)", Path, remove_result);
     result = 1;
   } else {
-    ULOG_INFO("File: removed '%s'", path);
+    ULOG_INFO("File: removed '%s'", Path);
     char hash_path[kMaxPath + 6];
-    strcpy(hash_path, path);
+    strcpy(hash_path, Path);
     strcat(hash_path, ".hash");
     lfs_remove(&lfs, hash_path);  // best effort
   }
@@ -145,80 +143,124 @@ void FileService::RPCFileRemove(uint16_t call_id, const char* Path, uint32_t Pat
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
+void FileService::abort_upload() {
+  if (upload_.isOpen()) {
+    upload_.close();
+  }
+  upload_written_ = 0;
+  upload_path_[0] = '\0';
+}
+
+void FileService::OnStop() {
+  // The owner that opened the upload is gone (claim, or the service is stopped for a
+  // reconfiguration); a stale handle would only keep the cache occupied.
+  abort_upload();
+}
+
 void FileService::RPCFileWrite(uint16_t call_id, const char* Path, uint32_t PathLen, uint32_t Offset,
                                const uint8_t* Data, uint32_t DataLen, uint32_t Hash) {
-  char path[kMaxPath + 1];
-  copy_path(Path, PathLen, path, sizeof(path));
-
   if (Offset == 0U) {
-    ULOG_INFO("File: write '%s' (start)", path);
+    ULOG_DEBUG("File: write '%s' (start)", Path);
   }
 
   int32_t result = 0;
 
   do {
-    File file;
+    char tmp[kMaxPath + 5];
+    strcpy(tmp, Path);
+    strcat(tmp, ".tmp");
 
-    // Create parent directories once, on the first chunk only (skip root-level
-    // paths, which need none). Doing this on every chunk would re-traverse the
-    // directory tree each time.
-    if (Offset == 0U && strchr(path + 1, '/') != nullptr) {
-      int r = file.mkdirp(path);
+    // The common case is a chunk that continues the open session: no open, no seek and
+    // no sync. Anything else - the first chunk, another file, or a session that a
+    // restart dropped - reopens the staging file at the requested offset, so an
+    // interrupted upload can be continued where it stopped.
+    const bool continues_upload =
+        Offset != 0U && upload_.isOpen() && strcmp(upload_path_, Path) == 0 && Offset == upload_written_;
+    if (!continues_upload) {
+      abort_upload();
+
+      // Create parent directories once, on the first chunk only (skip root-level
+      // paths, which need none). Doing this on every chunk would re-traverse the
+      // directory tree each time.
+      if (Offset == 0U && PathLen > 1U && strchr(Path + 1, '/') != nullptr) {
+        int r = upload_.mkdirp(Path);
+        if (r != LFS_ERR_OK) {
+          ULOG_WARNING("File: mkdirp '%s' failed (%d)", Path, r);
+          result = r;
+          break;
+        }
+      }
+
+      int r = upload_.open(tmp, LFS_O_WRONLY | LFS_O_CREAT);
       if (r != LFS_ERR_OK) {
-        ULOG_WARNING("File: mkdirp '%s' failed (%d)", path, r);
+        ULOG_WARNING("File: open '%s' failed (%d)", tmp, r);
         result = r;
         break;
       }
+
+      const int staged = upload_.size();
+      if (staged < 0 || static_cast<uint32_t>(staged) < Offset) {
+        ULOG_WARNING("File: '%s' has %d of %lu staged bytes", tmp, staged, static_cast<unsigned long>(Offset));
+        abort_upload();
+        if (staged >= 0) lfs_remove(&lfs, tmp);
+        result = staged < 0 ? staged : LFS_ERR_INVAL;
+        break;
+      }
+      if (static_cast<uint32_t>(staged) > Offset) {
+        // Commit the shorter prefix before acknowledging any replacement bytes. After a
+        // reset, a continuation must never see the previous upload's suffix as durable.
+        r = upload_.truncate(static_cast<lfs_soff_t>(Offset));
+        if (r == LFS_ERR_OK) r = upload_.sync();
+        if (r != LFS_ERR_OK) {
+          ULOG_WARNING("File: reset '%s' to %lu bytes failed (%d)", tmp, static_cast<unsigned long>(Offset), r);
+          abort_upload();
+          result = r;
+          break;
+        }
+      }
+      if (Offset > 0U) {
+        r = upload_.seek(static_cast<lfs_soff_t>(Offset), LFS_SEEK_SET);
+        if (r < 0) {
+          ULOG_WARNING("File: seek '%s' failed (%d)", tmp, r);
+          abort_upload();
+          result = r;
+          break;
+        }
+      }
+
+      strncpy(upload_path_, Path, kMaxPath);
+      upload_path_[kMaxPath] = '\0';
+      upload_written_ = Offset;
     }
 
-    char tmp[kMaxPath + 5];
-    strcpy(tmp, path);
-    strcat(tmp, ".tmp");
-
-    int flags = LFS_O_WRONLY | LFS_O_CREAT;
-    if (Offset == 0U) {
-      flags |= LFS_O_TRUNC;  // fresh upload: drop any stale .tmp remainder
-    }
-    int r = file.open(tmp, flags);
-    if (r != LFS_ERR_OK) {
-      ULOG_WARNING("File: open '%s' failed (%d)", tmp, r);
-      result = r;
-      break;
-    }
-    r = file.seek(static_cast<lfs_soff_t>(Offset), LFS_SEEK_SET);
-    if (r < 0) {
-      ULOG_WARNING("File: seek '%s' failed (%d)", tmp, r);
-      result = r;
-      break;
-    }
-    r = file.write(const_cast<uint8_t*>(Data), DataLen);
-    if (r != static_cast<int>(DataLen)) {
+    const int written = upload_.write(const_cast<uint8_t*>(Data), DataLen);
+    if (written != static_cast<int>(DataLen)) {
       // LittleFS returns the full count or a negative error, but a short write must never be
       // committed: the hash below would then vouch for a truncated file.
-      ULOG_WARNING("File: write '%s' failed (%d of %u bytes)", tmp, r, static_cast<unsigned int>(DataLen));
-      result = (r < 0) ? r : LFS_ERR_IO;
+      ULOG_WARNING("File: write '%s' failed (%d of %u bytes)", tmp, written, static_cast<unsigned int>(DataLen));
+      abort_upload();
+      lfs_remove(&lfs, tmp);  // do not let the next chunk continue a damaged staging file
+      result = (written < 0) ? written : LFS_ERR_IO;
       break;
     }
-
-    // sync() flushes the chunk and commits the file size. If it fails, the staged upload is
-    // incomplete or not durable and must not be finalized, so report the error and leave the
-    // .tmp behind (the next upload with Offset == 0 truncates it again). ~File() closes it.
-    const int sync_result = file.sync();
-    if (sync_result != LFS_ERR_OK) {
-      ULOG_WARNING("File: sync '%s' failed (%d)", tmp, sync_result);
-      result = sync_result;
-      break;
-    }
-    file.close();
-    result = r;  // bytes written
+    upload_written_ += DataLen;
+    result = written;
 
     if (Hash != 0U) {
-      int finalize_result = finalize_file(path, Hash);
+      // Commit the completed staging file before renaming it over the destination.
+      const int sync_result = upload_.sync();
+      abort_upload();
+      if (sync_result != LFS_ERR_OK) {
+        ULOG_WARNING("File: sync '%s' failed (%d)", tmp, sync_result);
+        result = sync_result;
+        break;
+      }
+      const int finalize_result = finalize_file(Path, Hash);
       if (finalize_result != LFS_ERR_OK) {
-        ULOG_WARNING("File: finalize '%s' failed (%d)", path, finalize_result);
+        ULOG_WARNING("File: finalize '%s' failed (%d)", Path, finalize_result);
         result = finalize_result;
       } else {
-        ULOG_INFO("File: committed '%s' (hash=%#010x)", path, Hash);
+        ULOG_INFO("File: committed '%s' (hash=%#010x)", Path, Hash);
       }
     }
   } while (false);
@@ -239,10 +281,20 @@ void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathL
 
   // Wire format (see FileList in file_service.json):
   //   [0..4)  uint32 total_count
-  //   [4..8)  uint32 entry_count   (0 or 1 per 256-byte response)
-  //   [8..)   entry_count × (char[128] full_path + uint32 hash)
-  constexpr uint16_t kEntrySize = 128U + static_cast<uint16_t>(sizeof(uint32_t));
+  //   [4..8)  uint32 entry_count   (as many as fit into the return value)
+  //   [8..)   entry_count × (char[132] full_path + uint32 hash)
+  //
+  // The path field is 132 bytes: FileWrite accepts a path of up to 128
+  // characters, so the listed path needs room for the terminator (129) and is rounded
+  // up to keep the hash aligned.
+  constexpr uint16_t kEntryPathSize = 132U;
+  constexpr uint16_t kEntrySize = kEntryPathSize + static_cast<uint16_t>(sizeof(uint32_t));
   constexpr uint16_t kHeaderSize = 2U * static_cast<uint16_t>(sizeof(uint32_t));
+
+  // The dispatcher hands in the capacity of the return value, so a caller with a larger
+  // buffer gets more entries per call instead of exactly one.
+  const uint16_t capacity =
+      (*response_length > kHeaderSize) ? static_cast<uint16_t>((*response_length - kHeaderSize) / kEntrySize) : 0U;
 
   uint32_t total_count = 0;
   uint32_t entry_count = 0;
@@ -250,7 +302,8 @@ void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathL
   lfs_dir_t dir;
   if (lfs_dir_open(&lfs, &dir, path) == LFS_ERR_OK) {
     struct lfs_info info;
-    uint32_t idx = 0;
+    const bool needs_separator = path_len != 0U && path[path_len - 1U] != '/';
+    const size_t prefix_len = path_len + (needs_separator ? 1U : 0U);
     while (lfs_dir_read(&lfs, &dir, &info) > 0) {
       if (info.type != LFS_TYPE_REG) continue;
 
@@ -259,31 +312,22 @@ void FileService::RPCFileList(uint16_t call_id, const char* Path, uint32_t PathL
       if (name_len >= 5U && strcmp(info.name + name_len - 5U, ".hash") == 0) continue;
       if (name_len >= 4U && strcmp(info.name + name_len - 4U, ".tmp") == 0) continue;
 
-      if (idx == StartIndex && entry_count == 0U) {
-        char full_path[kMaxPath + 1];
-        size_t full_len = path_len;
-        if (full_len >= sizeof(full_path)) full_len = sizeof(full_path) - 1U;
-        memcpy(full_path, path, full_len);
-        if (full_len > 0U && full_path[full_len - 1U] != '/' && full_len < sizeof(full_path) - 1U) {
-          full_path[full_len++] = '/';
-        }
-        const size_t remaining = sizeof(full_path) - full_len;
-        if (name_len < remaining) {
-          memcpy(full_path + full_len, info.name, name_len + 1U);
+      if (prefix_len + name_len > kMaxPath) continue;
 
-          uint8_t* entry = data + kHeaderSize;
-          memset(entry, 0, 128U);
-          strncpy(reinterpret_cast<char*>(entry), full_path, 127U);
-          uint32_t hash = 0U;
-          read_sidecar_hash(full_path, hash);
-          memcpy(entry + 128U, &hash, sizeof(hash));
-          entry_count = 1U;
-        }
-      }
-      idx++;
+      ++total_count;
+      if (total_count <= StartIndex || entry_count == capacity) continue;
+
+      uint8_t* entry = data + kHeaderSize + entry_count * kEntrySize;
+      memset(entry, 0, kEntryPathSize);
+      memcpy(entry, path, path_len);
+      if (needs_separator) entry[path_len] = '/';
+      memcpy(entry + prefix_len, info.name, name_len);
+      uint32_t hash = 0U;
+      read_sidecar_hash(reinterpret_cast<const char*>(entry), hash);
+      memcpy(entry + kEntryPathSize, &hash, sizeof(hash));
+      ++entry_count;
     }
     lfs_dir_close(&lfs, &dir);
-    total_count = idx;
   }
 
   if (StartIndex == 0U) {

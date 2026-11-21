@@ -156,8 +156,27 @@ class SaboRobot : public MowerRobot {
   }
 
   // BMS data access
-  const xbot::driver::bms::Data* GetBmsData() const {
-    return bms_.GetData();
+  const xbot::driver::bms::DeviceInfo& GetBmsInfo() const {
+    return bms_.GetDeviceInfo();
+  }
+
+  const xbot::driver::bms::LiveData& GetBmsLive() const {
+    return bms_.GetLiveData();
+  }
+
+  bool IsBmsPresent() const {
+    return bms_.IsPresent();
+  }
+
+  // Age of the BMS values in ms, for the "stale data" indication on the display.
+  uint32_t GetBmsAgeMs() const {
+    return bms_.AgeMs();
+  }
+
+  /// True if the pack answered at least once and the values are older than 5 s now.
+  /// A board without a pack is never "stale", it simply has no BMS data.
+  bool IsBmsDataStale() const {
+    return bms_.WasDetected() && (!bms_.IsPresent() || GetBmsAgeMs() > 5000U);
   }
 
   // BMS debug access

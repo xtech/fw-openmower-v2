@@ -60,6 +60,13 @@ class EmergencyService : public EmergencyServiceBase {
 
   uint16_t reasons_ = EmergencyReason::TIMEOUT_INPUTS | EmergencyReason::TIMEOUT_HIGH_LEVEL;
   uint32_t last_high_level_emergency_message_ = 0;
+  /**
+   * A high level heartbeat arrived at least once. Until then the link is not alive:
+   * "age = now - 0" would look fresh for the first second after boot, which clears
+   * TIMEOUT_HIGH_LEVEL and makes the sound state machine announce a
+   * connected -> disconnected -> connected sequence.
+   */
+  bool high_level_seen_ = false;
 
   etl::vector<ServiceExt*, 16> required_services_{};
 };

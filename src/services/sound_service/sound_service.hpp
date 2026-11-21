@@ -65,8 +65,16 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
 
   /** @brief Apply a new high-level definitions blob. */
   bool OnRegisterSoundDefinitionsChanged(const void* data, size_t length) override;
-  /** @brief Forward the master volume to the player. */
-  void OnVolumeChanged(const uint8_t& new_value) override;
+  /**
+   * @brief Apply the high level's volume request.
+   *
+   * 0..100 sets the master volume, a negative value means "keep what the firmware has
+   * stored" (services/sound/volume sends -1 by default).
+   */
+  void OnVolumeChanged(const int8_t& new_value) override;
+
+  /** @brief Master volume the Volume output reports (0..100). */
+  uint8_t volume_ = 80U;
 
   /* RPCs (services/sound_service.json): let a host audition sounds at runtime.
      Return 1 = accepted, 0 = rejected */
@@ -74,8 +82,8 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
   void RPCPlaySound(uint16_t call_id, SoundId Sound) override;
   /** @brief RPC: play a synthesised tone. */
   void RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t DurationMs, uint8_t Volume, uint8_t Preempt) override;
-  /** @brief RPC: play a synthesised sequence. */
-  void RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave, uint8_t Volume,
+  /** @brief RPC: play a synthesised sequence. The notes stay in the received packet. */
+  void RPCPlaySequence(uint16_t call_id, const uint8_t* Sequence, uint32_t SequenceLen, Waveform Wave, uint8_t Volume,
                        uint8_t Unison, uint16_t DetuneHz, uint8_t AttackMs, uint8_t DecayMs, uint8_t Preempt,
                        uint16_t RepeatMs) override;
   /** @brief RPC: play an MP3 from the sound store. */
@@ -83,9 +91,9 @@ class SoundService : public SoundServiceBase, public sound::SoundOutput {
   /** @brief RPC: stop playback and clear the queue. */
   void RPCStop(uint16_t call_id) override;
 
-  // Measured high-water mark after a full definitions sync: 2724 bytes with one
-  // HeatshrinkDataSource. 4096 leaves ~1.7 KB free for the error/LittleFS paths.
-  THD_WORKING_AREA(wa, 4096){};
+  // Measured high-water mark after a definitions sync and playback: 2988 bytes (thread
+  // watermark), so 3584 leaves ~0.9 KB free for the error/LittleFS paths.
+  THD_WORKING_AREA(wa, 3584){};
 };
 
 #endif  // SOUND_SERVICE_HPP

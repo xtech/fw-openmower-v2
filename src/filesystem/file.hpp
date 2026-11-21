@@ -71,6 +71,11 @@ class File {
     return lfs_file_size(&lfs, &file_);
   }
 
+  /** @brief Cut the open file to `size` bytes (drops a longer staging remainder). */
+  int truncate(lfs_soff_t size) {
+    return lfs_file_truncate(&lfs, &file_, size);
+  }
+
   [[nodiscard]] bool isOpen() const {
     return is_open;
   }

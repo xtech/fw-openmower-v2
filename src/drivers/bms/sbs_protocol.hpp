@@ -283,11 +283,90 @@ class SbsProtocol {
     return true;
   }
 
+  // ----- Getters in standard SBS semantics -----
+
+  /// Current LSB in mA. SBS defines 1 mA per LSB; a pack that reports something else
+  /// (the Sabo BMS reports 10 mA per LSB) sets it once after construction.
+  void SetCurrentLsbMilliA(uint8_t lsb_ma) {
+    current_lsb_ma_ = (lsb_ma == 0U) ? 1U : lsb_ma;
+  }
+
+  /// True if the pack answers at all: Voltage first, BatteryStatus as the fallback.
+  bool Probe() const {
+    uint16_t mv = 0;
+    if (ReadWord(Command::Voltage, mv) == MSG_OK && mv > 0U) return true;
+    uint16_t status = 0;
+    return ReadWord(Command::BatteryStatus, status) == MSG_OK;
+  }
+
+  /// Voltage (0x09) in V. A pack never reports 0 V, so that is "no answer".
+  bool ReadPackVoltageV(float& out) const {
+    uint16_t mv = 0;
+    if (ReadWord(Command::Voltage, mv) != MSG_OK || mv == 0U) return false;
+    out = static_cast<float>(mv) / 1000.0f;
+    return true;
+  }
+
+  /// Temperature (0x08) in °C: the register is 0.1 K.
+  bool ReadTemperatureC(float& out) const {
+    uint16_t deci_kelvin = 0;
+    if (ReadWord(Command::Temperature, deci_kelvin) != MSG_OK || deci_kelvin == 0U) return false;
+    out = (static_cast<float>(deci_kelvin) * 0.1f) - 273.15f;
+    return true;
+  }
+
+  /// Current (0x0A) in A, signed (charging is positive at the pack unless it reports the
+  /// other way round). Scaled with current_lsb_ma_.
+  bool ReadCurrentA(float& out) const {
+    int16_t raw = 0;
+    if (ReadInt16(Command::Current, raw) != MSG_OK) return false;
+    out = (static_cast<float>(raw) * static_cast<float>(current_lsb_ma_)) / 1000.0f;
+    return true;
+  }
+
+  /// RelativeStateOfCharge (0x0D) as 0..1.
+  bool ReadRelativeStateOfCharge(float& out) const {
+    uint16_t percent = 0;
+    if (ReadWord(Command::RelativeStateOfCharge, percent) != MSG_OK) return false;
+    float soc = static_cast<float>(percent) / 100.0f;
+    if (soc < 0.0f) soc = 0.0f;
+    if (soc > 1.0f) soc = 1.0f;
+    out = soc;
+    return true;
+  }
+
+  /// RemainingCapacity (0x0F) in Ah. 0 is a valid value (empty pack).
+  bool ReadRemainingCapacityAh(float& out) const {
+    uint16_t mah = 0;
+    if (ReadWord(Command::RemainingCapacity, mah) != MSG_OK) return false;
+    out = static_cast<float>(mah) / 1000.0f;
+    return true;
+  }
+
+  /// FullChargeCapacity (0x10) in Ah. A pack that has never been learned reports 0.
+  bool ReadFullChargeCapacityAh(float& out) const {
+    uint16_t mah = 0;
+    if (ReadWord(Command::FullChargeCapacity, mah) != MSG_OK) return false;
+    out = static_cast<float>(mah) / 1000.0f;
+    return true;
+  }
+
+  /// CycleCount (0x17). 0 is valid - a new pack has no cycles yet.
+  bool ReadCycleCount(uint16_t& out) const {
+    return ReadWord(Command::CycleCount, out) == MSG_OK;
+  }
+
+  /// BatteryStatus (0x16) word, untouched (the error bits are in the low nibble).
+  bool ReadBatteryStatus(uint16_t& out) const {
+    return ReadWord(Command::BatteryStatus, out) == MSG_OK;
+  }
+
  private:
   ReadByteFn read_byte_{};
   ReadWordFn read_word_{};
   ReadInt16Fn read_int16_{};
   ReadBlockFn read_block_{};
+  uint8_t current_lsb_ma_{1};
 };
 
 }  // namespace xbot::driver::bms

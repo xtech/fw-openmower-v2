@@ -85,7 +85,9 @@ static constexpr eventmask_t EVT_STOP_PLAYBACK = EVENT_MASK(3U);  ///< Stop play
 /** @brief Idle poll interval of the player thread (see the watchdog in player_thread). */
 static constexpr uint32_t kIdlePollMs = 250U;
 
-static THD_WORKING_AREA(s_player_wa, 3072U);
+/** @brief The playback thread's stack. Measured high-water mark (thread watermark, after a
+ *  definitions sync and playback): 2024 bytes, so this leaves ~0.9 KB free. */
+static THD_WORKING_AREA(s_player_wa, 2560U);
 static thread_t* s_player_thd = nullptr;
 
 /** @brief The playback policy (queue, preempt, repeat, pause), guarded by s_playback_mutex. */
@@ -301,7 +303,7 @@ static void on_source_end() {
   if (step == PlaybackStep::NONE) {
     const uint32_t pause = pause_left(now);
     if (pause > 0U) {
-      ULOG_INFO("Sound: pausing %u ms after playback", pause);
+      ULOG_DEBUG("Sound: pausing %u ms after playback", pause);
     }
     return;
   }

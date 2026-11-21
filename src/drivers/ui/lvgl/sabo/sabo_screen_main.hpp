@@ -56,7 +56,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   SaboScreenMain() : ScreenBase<ScreenId, ButtonId>(ScreenId::MAIN) {
     if (robot != nullptr) {
       sabo_robot_ = static_cast<SaboRobot*>(robot);
-      bms_data_ = sabo_robot_->GetBmsData();
+      bms_live_ = sabo_robot_->IsBmsPresent() ? &sabo_robot_->GetBmsLive() : nullptr;
       charger_ = &sabo_robot_->GetCharger();
     }
   }
@@ -210,7 +210,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
  private:
   SaboRobot* sabo_robot_ = nullptr;
-  const xbot::driver::bms::Data* bms_data_ = nullptr;
+  const xbot::driver::bms::LiveData* bms_live_ = nullptr;
   ChargerDriver* charger_ = nullptr;
 
   static constexpr lv_coord_t TOPBAR_HEIGHT = 19;
@@ -425,6 +425,10 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   void UpdateBatteryWidgets() {
     if (sabo_robot_ == nullptr) return;
 
+    // The pack can be detected (or lost) long after this screen was constructed, so the
+    // pointer is re-evaluated here instead of being captured once in the constructor.
+    bms_live_ = sabo_robot_->IsBmsPresent() ? &sabo_robot_->GetBmsLive() : nullptr;
+
     // Static variables for caching and change detection
     static float last_battery_volts;
     static int32_t last_battery_percent;
@@ -433,8 +437,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
 
     float battery_volts = 0.0f;
     // Prefer BMS pack voltage, then driver-based charger reading, then power-service
-    if (bms_data_ != nullptr && bms_data_->pack_voltage_v > 2.0f) {
-      battery_volts = std::round(bms_data_->pack_voltage_v * 10.0f) / 10.0f;
+    if (bms_live_ != nullptr && bms_live_->pack_voltage_v > 2.0f) {
+      battery_volts = std::round(bms_live_->pack_voltage_v * 10.0f) / 10.0f;
     } else if (charger_ != nullptr) {
       float charger_batt_volts = 0.0f;
       if (charger_->readBatteryVoltage(charger_batt_volts)) {
@@ -496,7 +500,8 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   void UpdateCurrentWidgets() {
     if (sabo_robot_ == nullptr) return;
 
-    has_bms_current_ = (bms_data_ != nullptr && bms_data_->pack_current_a != 0.0f);
+    has_bms_current_ =
+        (bms_live_ != nullptr && std::isfinite(bms_live_->pack_current_a) && bms_live_->pack_current_a != 0.0f);
 
     // Static variables for caching and change detection
     static float last_current;
@@ -508,7 +513,7 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     float current = 0.0f;
     // Prefer BMS pack current, then driver-based charger reading
     if (has_bms_current_) {
-      current = std::round(bms_data_->pack_current_a * 100.0f) / 100.0f;
+      current = std::round(bms_live_->pack_current_a * 100.0f) / 100.0f;
     } else if (charger_ != nullptr) {
       float charger_current = 0.0f;
       if (charger_->readChargeCurrent(charger_current)) {
@@ -572,6 +577,11 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
       icon_current_->SetState(WidgetIcon::State::OFF);
       current_bar_->Hide();
     } else {
+      // Undocked, but the pack reports a current: the bar is live and has to be shown again
+      // after a phase without one (a pack that was plugged in after boot, or one that was
+      // lost and came back).
+      icon_current_->SetState(WidgetIcon::State::ON);
+      current_bar_->Show();
       lv_obj_add_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
     }

@@ -29,7 +29,8 @@ using namespace xbot::driver::sabo::types;
 SaboScreenBattery::SaboScreenBattery() : ScreenBase<ScreenId, ButtonId>(ScreenId::BATTERY) {
   if (robot != nullptr) {
     sabo_robot_ = static_cast<SaboRobot*>(robot);
-    bms_data_ = sabo_robot_->GetBmsData();
+    bms_info_ = &sabo_robot_->GetBmsInfo();
+    bms_live_ = &sabo_robot_->GetBmsLive();
   }
 }
 
@@ -66,10 +67,10 @@ void SaboScreenBattery::Create(lv_color_t bg_color, lv_color_t fg_color) {
 
 int SaboScreenBattery::CreateBmsInfoSection(lv_obj_t* parent, int y_pos) {
   // Title Battery Information
-  lv_obj_t* title = lv_label_create(screen_);
-  lv_label_set_text(title, "Battery Information");
-  lv_obj_set_style_text_font(title, &orbitron_16b, LV_PART_MAIN);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, y_pos);
+  title_label_ = lv_label_create(screen_);
+  lv_label_set_text(title_label_, "Battery Information");
+  lv_obj_set_style_text_font(title_label_, &orbitron_16b, LV_PART_MAIN);
+  lv_obj_align(title_label_, LV_ALIGN_TOP_MID, 0, y_pos);
   y_pos += 19;
 
   // Separator line
@@ -261,6 +262,7 @@ int SaboScreenBattery::CreateBmsCellSection(lv_obj_t* parent, int y_pos) {
 
   // Init data rows and cells
   for (size_t i = 0; i < BATTERY_CELLS; i++) {
+    last_cell_diffs_[i] = kUnknownDelta;
     int grid_row = i + 1;  // +1 because row 0 is header
 
     // Cell number (static, no need to store)
@@ -284,114 +286,147 @@ int SaboScreenBattery::CreateBmsCellSection(lv_obj_t* parent, int y_pos) {
 }
 
 void SaboScreenBattery::Tick() {
+  UpdateStaleIndicator();
   UpdateBmsInfo();
   UpdateBmsData();
   UpdateCellVoltages();
 }
 
-void SaboScreenBattery::UpdateBmsInfo() {
-  if (bms_data_ == nullptr || !is_created_ || bms_info_printed_) {
+void SaboScreenBattery::UpdateStaleIndicator() {
+  if (!is_created_ || title_label_ == nullptr || sabo_robot_ == nullptr) return;
+
+  const bool stale = sabo_robot_->IsBmsDataStale();
+  if (!stale) {
+    if (stale_shown_) {
+      lv_label_set_text(title_label_, "Battery Information");
+      stale_shown_ = false;
+    }
     return;
   }
 
-  // BMS has a couple of static data which will not change during runtime
-  if (bms_data_->mfr_name[0] != '\0') {
-    lv_label_set_text_fmt(mfr_val_label_, "%s", bms_data_->mfr_name);
+  // The values below are the last ones the pack reported - say so instead of pretending
+  // they are live.
+  const uint32_t age = sabo_robot_->GetBmsAgeMs();
+  if (age == UINT32_MAX) {
+    lv_label_set_text(title_label_, "NO LIVE DATA");
+  } else {
+    lv_label_set_text_fmt(title_label_, "STALE DATA %us", (unsigned)(age / 1000U));
   }
+  stale_shown_ = true;
+}
 
-  if (bms_data_->dev_name[0] != '\0') {
-    lv_label_set_text_fmt(dev_val_label_, "%s", bms_data_->dev_name);
+void SaboScreenBattery::UpdateBmsInfo() {
+  if (!is_created_ || bms_info_ == nullptr) return;
+  const uint32_t generation = bms_info_->generation;
+  if (generation == 0U || generation == displayed_generation_) return;
+  displayed_generation_ = generation;
+
+  lv_label_set_text(mfr_val_label_, bms_info_->mfr_name[0] ? bms_info_->mfr_name : "N/A");
+  lv_label_set_text(dev_val_label_, bms_info_->dev_name[0] ? bms_info_->dev_name : "N/A");
+  lv_label_set_text(ver_val_label_, bms_info_->dev_version[0] ? bms_info_->dev_version : "N/A");
+  lv_label_set_text(dat_val_label_, bms_info_->mfr_date[0] ? bms_info_->mfr_date : "N/A");
+  if (bms_info_->serial_number != 0) {
+    lv_label_set_text_fmt(ser_val_label_, "%u", bms_info_->serial_number);
+  } else {
+    lv_label_set_text(ser_val_label_, "N/A");
   }
-
-  if (bms_data_->dev_version[0] != '\0') {
-    lv_label_set_text_fmt(ver_val_label_, "%s", bms_data_->dev_version);
+  if (bms_info_->design_voltage_v > 0.0f) {
+    chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", bms_info_->design_voltage_v);
+    lv_label_set_text(design_v_val_label_, shared_text_buffer_);
+  } else {
+    lv_label_set_text(design_v_val_label_, "N/A");
   }
-
-  if (bms_data_->serial_number != 0) {
-    lv_label_set_text_fmt(ser_val_label_, "%u", bms_data_->serial_number);
+  if (bms_info_->design_capacity_ah > 0.0f) {
+    chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.2fAh", bms_info_->design_capacity_ah);
+    lv_label_set_text(design_ah_val_label_, shared_text_buffer_);
+  } else {
+    lv_label_set_text(design_ah_val_label_, "N/A");
   }
+}
 
-  if (bms_data_->mfr_date[0] != '\0') {
-    lv_label_set_text_fmt(dat_val_label_, "%s", bms_data_->mfr_date);
+// All quantities shown here are non-negative. -1 represents a missing reading.
+void SaboScreenBattery::UpdateReading(lv_obj_t* label, float value, float& previous, const char* format) {
+  if (value == previous) return;
+  previous = value;
+  if (value < 0.0f) {
+    lv_label_set_text(label, "N/A");
+    return;
   }
-
-  bms_info_printed_ = true;
+  chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, format, value);
+  lv_label_set_text(label, shared_text_buffer_);
 }
 
 void SaboScreenBattery::UpdateBmsData() {
-  if (bms_data_ == nullptr || !is_created_) {
-    return;
+  if (bms_info_ == nullptr || !is_created_) return;
+
+  UpdateReading(full_charge_ah_val_label_, bms_live_->full_charge_capacity_ah, last_full_charge_capacity_ah_, "%.2fAh");
+  UpdateReading(actual_ah_val_label_, bms_live_->remaining_capacity_ah, last_remaining_capacity_ah_, "%.2fAh");
+  UpdateReading(actual_v_val_label_, bms_live_->pack_voltage_v, last_pack_voltage_v_, "%.1fV");
+
+  if (bms_live_->cycle_count != last_cycle_count_) {
+    last_cycle_count_ = bms_live_->cycle_count;
+    if (last_cycle_count_ >= 0) {
+      lv_label_set_text_fmt(health_cycles_val_label_, "%u cycles", static_cast<unsigned>(last_cycle_count_));
+    } else {
+      lv_label_set_text(health_cycles_val_label_, "N/A");
+    }
   }
 
-  // BMS has a couple of static data which will not change during runtime
-  if (bms_data_->design_voltage_v != last_design_voltage_v_ && bms_data_->design_voltage_v > 0.0f) {
-    chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", bms_data_->design_voltage_v);
-    lv_label_set_text(design_v_val_label_, shared_text_buffer_);
-    last_design_voltage_v_ = bms_data_->design_voltage_v;
-  }
-
-  if (bms_data_->design_capacity_ah != last_design_capacity_ah_ && bms_data_->design_capacity_ah > 0.0f) {
-    chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.2fAh", bms_data_->design_capacity_ah);
-    lv_label_set_text(design_ah_val_label_, shared_text_buffer_);
-    last_design_capacity_ah_ = bms_data_->design_capacity_ah;
-  }
-
-  if (bms_data_->full_charge_capacity_ah != last_full_charge_capacity_ah_ &&
-      bms_data_->full_charge_capacity_ah > 0.0f) {
-    chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.2fAh", bms_data_->full_charge_capacity_ah);
-    lv_label_set_text(full_charge_ah_val_label_, shared_text_buffer_);
-    last_full_charge_capacity_ah_ = bms_data_->full_charge_capacity_ah;
-  }
-
-  if (bms_data_->pack_voltage_v != last_pack_voltage_v_ && bms_data_->pack_voltage_v > 0.0f) {
-    chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.1fV", bms_data_->pack_voltage_v);
-    lv_label_set_text(actual_v_val_label_, shared_text_buffer_);
-    last_pack_voltage_v_ = bms_data_->pack_voltage_v;
-  }
-
-  if (bms_data_->remaining_capacity_ah != last_remaining_capacity_ah_ && bms_data_->remaining_capacity_ah > 0.0f) {
-    chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.2fAh", bms_data_->remaining_capacity_ah);
-    lv_label_set_text(actual_ah_val_label_, shared_text_buffer_);
-    last_remaining_capacity_ah_ = bms_data_->remaining_capacity_ah;
-  }
-
-  if (bms_data_->cycle_count > 0 && bms_data_->cycle_count != last_cycle_count_) {
-    lv_label_set_text_fmt(health_cycles_val_label_, "%u cycles", bms_data_->cycle_count);
-    last_cycle_count_ = bms_data_->cycle_count;
-  }
-
-  const uint8_t health_pct = bms_data_->design_capacity_ah > 0.0f && bms_data_->full_charge_capacity_ah > 0.0f
-                                 ? static_cast<uint8_t>(std::round(100.0f / bms_data_->design_capacity_ah *
-                                                                   bms_data_->full_charge_capacity_ah))
-                                 : 0;
-  if (health_pct != last_health_pct_ && health_pct > 0) {
-    lv_label_set_text_fmt(health_pct_val_label_, "%u%%", health_pct);
+  /* A pack that reports 0 Ah full-charge capacity has 0 % health, while a missing design
+     capacity means the health is unknown - say that instead of leaving a stale percentage
+     on the screen. */
+  const bool health_known = bms_info_->design_capacity_ah > 0.0f && bms_live_->full_charge_capacity_ah >= 0.0f;
+  const uint8_t health_pct = health_known ? static_cast<uint8_t>(std::round(100.0f / bms_info_->design_capacity_ah *
+                                                                            bms_live_->full_charge_capacity_ah))
+                                          : kHealthUnknown;
+  if (health_pct != last_health_pct_) {
+    if (health_known) {
+      lv_label_set_text_fmt(health_pct_val_label_, "%u%%", health_pct);
+    } else {
+      lv_label_set_text(health_pct_val_label_, "N/A");
+    }
     last_health_pct_ = health_pct;
   }
 
-  if (bms_data_->battery_soc >= 0.0f && bms_data_->battery_soc != last_battery_soc_) {
-    lv_label_set_text_fmt(soc_val_label_, "%u%%", static_cast<unsigned>(bms_data_->battery_soc * 100));
-    last_battery_soc_ = bms_data_->battery_soc;
+  if (bms_live_->battery_soc != last_battery_soc_) {
+    last_battery_soc_ = bms_live_->battery_soc;
+    if (last_battery_soc_ >= 0.0f) {
+      lv_label_set_text_fmt(soc_val_label_, "%u%%", static_cast<unsigned>(last_battery_soc_ * 100));
+    } else {
+      lv_label_set_text(soc_val_label_, "N/A");
+    }
   }
 }
 
 void SaboScreenBattery::UpdateCellVoltages() {
-  if (bms_data_ == nullptr || bms_data_->cell_count == 0) {
+  if (!is_created_ || bms_info_ == nullptr || bms_info_->cell_count == 0) {
     return;
   }
 
   // Update cell voltages
   for (size_t i = 0; i < BATTERY_CELLS; i++) {
-    float voltage = std::round(bms_data_->cell_voltage_v[i] * 1000.0f) / 1000.0f;  // Round to 3 decimal places
+    float voltage = std::round(bms_live_->cell_voltage_v[i] * 1000.0f) / 1000.0f;  // Round to 3 decimal places
     if (voltage != last_cell_voltages_[i]) {
-      chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.3fV", voltage);
-      lv_label_set_text(cell_voltage_labels_[i], shared_text_buffer_);
+      if (voltage > 0.0f) {
+        chsnprintf(shared_text_buffer_, SHARED_TEXT_BUFFER_SIZE, "%.3fV", voltage);
+        lv_label_set_text(cell_voltage_labels_[i], shared_text_buffer_);
+      } else {
+        lv_label_set_text(cell_voltage_labels_[i], "N/A");
+      }
       last_cell_voltages_[i] = voltage;
     }
   }
 
   // Update cell differences (delta to previous cell) and status icons
   for (size_t i = 1; i < BATTERY_CELLS; i++) {
+    if (last_cell_voltages_[i] == 0.0f || last_cell_voltages_[i - 1] == 0.0f) {
+      if (last_cell_diffs_[i] != kUnknownDelta) {
+        lv_label_set_text(cell_diff_labels_[i], "N/A");
+        if (cell_status_icons_[i]) cell_status_icons_[i]->SetIcon(WidgetIcon::Icon::UNDEF);
+        last_cell_diffs_[i] = kUnknownDelta;
+      }
+      continue;
+    }
     int diff = static_cast<int>(std::round((last_cell_voltages_[i] - last_cell_voltages_[i - 1]) * 1000.0f));
     if (diff != last_cell_diffs_[i]) {
       lv_label_set_text_fmt(cell_diff_labels_[i], "%dmV", diff);

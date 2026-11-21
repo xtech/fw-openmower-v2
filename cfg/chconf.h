@@ -891,6 +891,14 @@ extern volatile uint32_t last_idle_tick;
  */
 #define CHPRINTF_USE_FLOAT TRUE
 
+/**
+ * @brief Idle thread stack size.
+ * @details The port default of 32 bytes is below what the idle thread actually
+ *          needs (80 bytes measured, plus the port context frame). The stack
+ *          watermark report flagged it as a permanent overflow.
+ */
+#define PORT_IDLE_THREAD_STACK_SIZE 192
+
 #endif  /* CHCONF_H */
 
 /** @} */

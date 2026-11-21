@@ -53,8 +53,18 @@ bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t le
   return accepted;
 }
 
-void SoundService::OnVolumeChanged(const uint8_t& new_value) {
-  set_volume(new_value);
+void SoundService::OnVolumeChanged(const int8_t& new_value) {
+  /* A negative value means "keep what the firmware has stored" (the high level sends -1
+     by default), so only an explicit 0..100 touches the player. The value is clamped here,
+     not only inside set_volume(), because the Volume output has to report what is actually
+     played. */
+  if (new_value < 0) {
+    return;
+  }
+  const uint8_t volume = (new_value > 100) ? 100U : static_cast<uint8_t>(new_value);
+  volume_ = volume;
+  set_volume(volume);
+  SendVolume(volume);
 }
 
 /*---------------------------------------------------------------------------
@@ -79,12 +89,14 @@ void SoundService::RPCPlayTone(uint16_t call_id, uint16_t Freq, uint16_t Duratio
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
-void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint32_t SequenceLen, Waveform Wave,
+void SoundService::RPCPlaySequence(uint16_t call_id, const uint8_t* Sequence, uint32_t SequenceLen, Waveform Wave,
                                    uint8_t Volume, uint8_t Unison, uint16_t DetuneHz, uint8_t AttackMs, uint8_t DecayMs,
                                    uint8_t Preempt, uint16_t RepeatMs) {
+  /* blob parameter: the text stays in the received packet, nothing is copied. */
+  const char* text = reinterpret_cast<const char*>(Sequence);
   /* Note array stays on this thread's stack: kMaxNotes * 8 B = 64 B. */
   Note notes[kMaxNotes]{};
-  const uint8_t count = parse_sequence(Sequence, SequenceLen, notes, kMaxNotes);
+  const uint8_t count = parse_sequence(text, SequenceLen, notes, kMaxNotes);
   uint8_t result = 0U;
   if (count > 0U) {
     const PlayResult res =
@@ -95,29 +107,24 @@ void SoundService::RPCPlaySequence(uint16_t call_id, const char* Sequence, uint3
       ULOG_INFO(
           "Sound: RPC sequence '%.*s' (%hhu notes, %s, vol %hhu, unison %hhu, detune %hu, attack %hhu ms, "
           "decay %hhu ms, repeat %hu ms)",
-          static_cast<int>(SequenceLen), Sequence, count, Waveform_to_string(Wave), Volume, Unison, DetuneHz, AttackMs,
+          static_cast<int>(SequenceLen), text, count, Waveform_to_string(Wave), Volume, Unison, DetuneHz, AttackMs,
           DecayMs, RepeatMs);
     } else {
       ULOG_WARNING("Sound: RPC sequence rejected (%s)", play_result_text(res));
     }
   } else {
     /* %.*s takes an int width, hence the cast. */
-    ULOG_WARNING("Sound: RPC sequence rejected (%.*s)", static_cast<int>(SequenceLen), Sequence);
+    ULOG_WARNING("Sound: RPC sequence rejected (%.*s)", static_cast<int>(SequenceLen), text);
   }
   SendRpcResponse(call_id, xbot::datatypes::RpcStatus::SUCCESS, &result, sizeof(result));
 }
 
 void SoundService::RPCPlayMp3(uint16_t call_id, const char* Path, uint32_t PathLen, uint8_t Preempt) {
-  char path[kMaxPath];
-  size_t n = (PathLen < (kMaxPath - 1U)) ? PathLen : (kMaxPath - 1U);
-  memcpy(path, Path, n);
-  path[n] = '\0';
-
   uint8_t result = 0U;
-  if (n > 0U) {
-    const PlayResult res = play_file(path, Preempt != 0U);
+  if (PathLen > 0U) {
+    const PlayResult res = play_file(Path, Preempt != 0U);
     result = play_result_accepted(res) ? 1U : 0U;
-    ULOG_INFO("Sound: RPC mp3 '%s' (%s)", path, play_result_text(res));
+    ULOG_INFO("Sound: RPC mp3 '%s' (%s)", Path, play_result_text(res));
   } else {
     ULOG_WARNING("Sound: RPC mp3 rejected (empty path)");
   }
@@ -284,28 +291,28 @@ void SoundService::LogInputChanges(const StateInputs& now) {
   const StateInputs& was = last_inputs_;
 
   if (now.high_level_alive != was.high_level_alive) {
-    ULOG_INFO("Sound: input link: %u -> %u", was.high_level_alive ? 1U : 0U, now.high_level_alive ? 1U : 0U);
+    ULOG_DEBUG("Sound: input link: %u -> %u", was.high_level_alive ? 1U : 0U, now.high_level_alive ? 1U : 0U);
   }
   if (now.hl_state != was.hl_state) {
-    ULOG_INFO("Sound: input hl: %s -> %s", hl_state_name(was.hl_state), hl_state_name(now.hl_state));
+    ULOG_DEBUG("Sound: input hl: %s -> %s", hl_state_name(was.hl_state), hl_state_name(now.hl_state));
   }
   if (now.blade_running != was.blade_running) {
-    ULOG_INFO("Sound: input blade: %u -> %u", was.blade_running ? 1U : 0U, now.blade_running ? 1U : 0U);
+    ULOG_DEBUG("Sound: input blade: %u -> %u", was.blade_running ? 1U : 0U, now.blade_running ? 1U : 0U);
   }
   if (now.charger != was.charger) {
-    ULOG_INFO("Sound: input charger: %s -> %s", charger_state_name(was.charger), charger_state_name(now.charger));
+    ULOG_DEBUG("Sound: input charger: %s -> %s", charger_state_name(was.charger), charger_state_name(now.charger));
   }
   if (now.gps_rtk != was.gps_rtk) {
-    ULOG_INFO("Sound: input gps_rtk: %s -> %s", GpsService::GetGpsRtkName(was.gps_rtk),
-              GpsService::GetGpsRtkName(now.gps_rtk));
+    ULOG_DEBUG("Sound: input gps_rtk: %s -> %s", GpsService::GetGpsRtkName(was.gps_rtk),
+               GpsService::GetGpsRtkName(now.gps_rtk));
   }
   if (now.emergency != was.emergency) {
-    ULOG_INFO("Sound: input emergency: %s -> %s", emergency_kind_name(was.emergency),
-              emergency_kind_name(now.emergency));
+    ULOG_DEBUG("Sound: input emergency: %s -> %s", emergency_kind_name(was.emergency),
+               emergency_kind_name(now.emergency));
   }
   if (now.emergency_latched != was.emergency_latched) {
-    ULOG_INFO("Sound: input emergency_latched: %u -> %u", was.emergency_latched ? 1U : 0U,
-              now.emergency_latched ? 1U : 0U);
+    ULOG_DEBUG("Sound: input emergency_latched: %u -> %u", was.emergency_latched ? 1U : 0U,
+               now.emergency_latched ? 1U : 0U);
   }
 
   last_inputs_ = now;
