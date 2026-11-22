@@ -5,6 +5,19 @@
 
 #include <ulog.h>
 
+/*
+ * The SPI1 configuration in Init() uses MBR = FPCLK/32, so the SPI clock is
+ * STM32_SPI1CLK / 32. SPI1 is clocked from PLL2_P (STM32_SPI123SEL in mcuconf.h),
+ * i.e. 200 MHz -> 6.25 MHz. 12.5 MHz was the fastest clock verified with the
+ * HEF4794BT/HC165 chain, so guard against anything faster appearing silently
+ * after a clock tree change (same pattern as the I2C TIMINGR guard in board_ex.c).
+ */
+#if (STM32_SPI1CLK == 0)
+#error "SPI1 kernel clock unknown, cannot verify the CoverUI SPI bus clock"
+#elif (STM32_SPI1CLK / 32) > 12500000
+#error "CoverUI SPI clock (STM32_SPI1CLK / 32) exceeds the verified 12.5 MHz"
+#endif
+
 namespace xbot::driver::ui {
 
 bool SaboCoverUICaboDriverBase::Init() {
