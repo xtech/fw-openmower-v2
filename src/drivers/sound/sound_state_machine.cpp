@@ -91,12 +91,6 @@ bool StateMachine::AnnounceAlert(const Sample& t, uint32_t now_ms) {
   if (!rt_.started) {
     rt_.started = true;
     rt_.alert = next;
-    /* A fix that already exists is not announced at boot, but it arms the later lost. */
-    if (t.now & RTK_FIX) {
-      rt_.memo |= MEMO_FIX_SEEN;
-    } else {
-      rt_.memo &= ~MEMO_FIX_SEEN;
-    }
     AmbientArm(now_ms);
     if (next == Alert::EMERGENCY) {
       AlertAction(Alert::NONE, Alert::EMERGENCY, EmergencyKindOf(t.now));
@@ -110,6 +104,9 @@ bool StateMachine::AnnounceAlert(const Sample& t, uint32_t now_ms) {
 
   const Alert previous = rt_.alert;
   rt_.alert = next;
+  /* The alert swallowed the charge edges: a DONE from the previous charge must not end the
+     next one (the wired-in version cleared it on reconnect for the same reason). */
+  rt_.memo &= ~MEMO_CHARGE_DONE_SEEN;
   AmbientArm(now_ms);
   AlertAction(previous, next, EmergencyKindOf(t.now));
   return true;
@@ -126,6 +123,13 @@ bool StateMachine::AnnounceCharging(const Sample& t) {
 
   if (t.now & CHARGING) {
     rt_.memo &= ~MEMO_CHARGE_DONE_SEEN; /* a fresh charge */
+    /* Docking contact and DOCKING -> IDLE arrive in the same sample on a real dock: the
+       transfer ends where the charge begins, so its sound is stopped before the new one is
+       queued (a stop after the play would swallow CHARGING_START). */
+    const Signals was = HlMode(t.prev);
+    if (was == HL_MODE_DOCKING || was == HL_MODE_UNDOCKING) {
+      output_.StopPlayback();
+    }
     output_.PlaySound(SoundId::CHARGING_START);
     return true;
   }
@@ -141,6 +145,11 @@ bool StateMachine::AnnounceHighLevel(const Sample& t) {
   const Signals from = HlMode(t.prev);
   const Signals to = HlMode(t.now);
   if (from == to) return false;
+
+  /* An active emergency owns the speaker: a behaviour change must not stop the alarm (a lift
+     while docking would end it with the dock exit stop below). The mode is in rt_.now either
+     way, and there is nothing to replay once the alert is gone. */
+  if (rt_.alert == Alert::EMERGENCY) return false;
 
   /* Without a link there is nobody who announced this behaviour: it is tracked (the bits
      are) but not played. */
@@ -166,38 +175,26 @@ bool StateMachine::AnnounceHighLevel(const Sample& t) {
 }
 
 bool StateMachine::AnnounceGps(const Sample& t) {
-  /* IDLE is the high level's "GPS is off" state: dropping the history makes a fix after
-     IDLE a fresh one, and keeps a later lost from a stale latch. It only counts while the
-     link is alive - after a disconnect the cached behaviour name stays "IDLE" and must not
-     silence the GPS announcements for good. */
   const bool gps_off = (t.now & HL_ALIVE) != 0U && HlMode(t.now) == HL_MODE_IDLE;
-  /* The history is the plain bit: while the high level holds IDLE the receiver is off, so a
-     fix afterwards is a real transition. Masking the idle out of prev instead would turn the
-     exit from "IDLE with a fix still latched" into a fix announcement nobody asked for. */
   const bool had_fix = (t.prev & RTK_FIX) != 0U;
   const bool fix = (t.now & RTK_FIX) != 0U;
 
-  if (gps_off) {
-    rt_.memo &= ~MEMO_FIX_SEEN;
-    return false;
-  }
+  if (gps_off) return false;
 
   if (fix == had_fix) return false;
 
-  /* An emergency owns the speaker: the fix is tracked either way, only the announcement
-     waits (and a lost that happens during the alert is not replayed afterwards). */
-  const bool audible = EmergencyKindOf(t.now) == EmergencyKind::NONE;
+  /* An active alert owns the speaker: the fix is tracked either way (rt_.now), only the
+     announcement waits. A lost that happens during the emergency is consumed here as well,
+     so it is never replayed after the all clear; LINK_LOST keeps the GPS audible. */
+  const bool audible = rt_.alert != Alert::EMERGENCY;
 
   if (fix) {
-    rt_.memo |= MEMO_FIX_SEEN;
     if (!audible) return false;
     output_.PlaySound(SoundId::GPS_RTK_FIX);
     return true;
   }
 
-  const bool seen = (rt_.memo & MEMO_FIX_SEEN) != 0U;
-  rt_.memo &= ~MEMO_FIX_SEEN;
-  if (!seen || !audible) return false;
+  if (!audible) return false;
   output_.PlaySound(SoundId::GPS_RTK_LOST);
   return true;
 }
@@ -299,6 +296,9 @@ SoundId StateMachine::HlSound(Signals from, Signals to) {
     case HL_MODE_IDLE:
     case HL_MODE_RECORDING:
     case HL_MODE_UNKNOWN:
+    /* AUTONOMOUS is the fallback for a behaviour name this firmware does not know: the
+       behaviour itself stays silent, but the next known mode keeps its entry sound. */
+    case HL_MODE_AUTONOMOUS:
       switch (to) {
         case HL_MODE_MOWING: return SoundId::MOWING_START;
         case HL_MODE_DOCKING: return SoundId::DOCKING_START;

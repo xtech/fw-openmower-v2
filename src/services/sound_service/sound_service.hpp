@@ -7,7 +7,7 @@
 #include <drivers/sound/sound_state_machine.hpp>
 
 using namespace xbot::service;
-/** @brief The sound driver (StateMachine, StateInputs, …) — spelled `sound::` below. */
+/** @brief The sound driver (StateMachine, Signals, …) — spelled `sound::` below. */
 namespace sound = xbot::driver::sound;
 
 /** @brief The low-level sound service: owns the player and runs the state machine. */

@@ -17,7 +17,7 @@
  *        owns *audio* (queue, formats, volume).  This machine is the thin layer in
  *        between: it turns a state transition into a sound.
  *
- *        The inputs are plain booleans (see StateInputs), so the rules read like
+ *        The inputs are the Signals word (one bit per fact), so the rules read like
  *        sentences, and the machine needs neither hardware nor a service to run — which
  *        is what makes it testable.
  *
@@ -96,8 +96,7 @@ class StateMachine {
    *
    * The machine is a sampler: it compares this sample with the previous one, so "what
    * changed" (the edge) and "what was true before" are decisions of the caller of the
-   * rules, not of each rule. This is the entry point the service uses; the StateInputs
-   * overload below is only a migration shim for the host tests.
+   * rules, not of each rule.
    *
    * @param now    The signals of this tick (the audible condition is a field of them).
    * @param now_ms A monotonic millisecond clock (32 bit: the ambience may wait 18 h).
@@ -138,7 +137,6 @@ class StateMachine {
   /** Memo bits: latches the machine keeps. Never part of the input signals. */
   enum : Signals {
     MEMO_CHARGE_DONE_SEEN = 1u << 0,  ///< The charger reported DONE during this charge
-    MEMO_FIX_SEEN = 1u << 1,          ///< An RTK fix was seen; lost may be announced once
   };
 
   /** The bits the ambience depends on: a change re-arms the interval. */

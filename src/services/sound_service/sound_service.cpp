@@ -308,7 +308,7 @@ void SoundService::LogSignalChanges(const Signals now) {
   if (changed & RTK_FIX) {
     ULOG_DEBUG("Sound: input gps_rtk: fix=%u -> fix=%u", (was & RTK_FIX) ? 1U : 0U, (now & RTK_FIX) ? 1U : 0U);
   }
-  if (EmergencyKindOf(now) != EmergencyKindOf(was)) {
+  if (EmergencyKindOf(now) != EmergencyKindOf(was) || ((now ^ was) & EMERGENCY_LATCHED)) {
     ULOG_DEBUG("Sound: input emergency: %s -> %s (latched=%u)", emergency_kind_name(EmergencyKindOf(was)),
                emergency_kind_name(EmergencyKindOf(now)), (now & EMERGENCY_LATCHED) ? 1U : 0U);
   }
