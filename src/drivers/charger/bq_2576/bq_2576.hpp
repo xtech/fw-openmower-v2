@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <drivers/charger/charger.hpp>
+#include <drivers/charger/no_battery_detector.hpp>
 
 #include "hal.h"
 
@@ -62,6 +63,11 @@ class BQ2576 : public ChargerDriver {
   // Charger control (0x17) persistent state
   // Defaults: VRECHG=95.2%, DIS_CE_PIN=1, EN_CHG_BIT_RESET_BEHAVIOR=1, EN_CHG=1
   uint8_t charger_control_reg_ = 0b10011001;
+
+  // Detects a charger that runs without a battery pack (status flaps active<->DONE).
+  // PowerService and the UI poll the status from different threads.
+  MUTEX_DECL(no_battery_mtx_);
+  NoBatteryDetector no_battery_detector_{};
 
   bool readRegister(uint8_t reg, uint8_t &result);
   bool readRegister(uint8_t reg, uint16_t &result);

@@ -230,6 +230,9 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
   // State tracking
   uint8_t last_sensor_bits_ = 0;
   bool is_docked_ = false;
+  // Last charger status, refreshed by UpdateDockWidgets and used by the battery/current
+  // widgets: without a pack the charger only reports the bulk capacitors.
+  CHARGER_STATUS charger_status_ = CHARGER_STATUS::UNKNOWN;
   bool has_bms_current_ = false;
 
   // GPS display widgets
@@ -419,6 +422,22 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     }
   }
 
+  /** @brief Does a BMS pack report a usable pack voltage? */
+  [[nodiscard]] bool HasBmsPack() const {
+    return bms_live_ != nullptr && bms_live_->pack_voltage_v > 2.0f;
+  }
+
+  /**
+   * @brief Is the charger running without a battery pack?
+   *
+   * The charger driver reports NO_BATTERY while its status flaps (bulk capacitors only).
+   * Its voltage and current readings are meaningless then, so the widgets show nothing
+   * unless a BMS pack provides real values.
+   */
+  [[nodiscard]] bool IsPackMissing() const {
+    return charger_status_ == CHARGER_STATUS::NO_BATTERY && !HasBmsPack();
+  }
+
   /**
    * @brief Update battery widgets (icon, voltage bar)
    */
@@ -435,9 +454,23 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     static WidgetIcon::Icon last_battery_icon = WidgetIcon::Icon::BATTERY_FULL;
     static WidgetIcon::State last_battery_state = WidgetIcon::State::ON;
 
+    // No pack: the charger only sees its bulk capacitors, so its voltage is not a battery
+    // voltage. Show nothing instead of a battery that is not there (while docked the
+    // charger status label reports "No Battery").
+    if (IsPackMissing()) {
+      battery_voltage_bar_->Hide();
+      icon_battery_->SetState(WidgetIcon::State::OFF);
+      last_battery_state = WidgetIcon::State::OFF;
+      // Force the text to be redrawn once a pack reports a voltage again.
+      last_battery_volts = -1.0f;
+      last_battery_percent = -1;
+      return;
+    }
+    battery_voltage_bar_->Show();
+
     float battery_volts = 0.0f;
     // Prefer BMS pack voltage, then driver-based charger reading, then power-service
-    if (bms_live_ != nullptr && bms_live_->pack_voltage_v > 2.0f) {
+    if (HasBmsPack()) {
       battery_volts = std::round(bms_live_->pack_voltage_v * 10.0f) / 10.0f;
     } else if (charger_ != nullptr) {
       float charger_batt_volts = 0.0f;
@@ -506,6 +539,12 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     // Static variables for caching and change detection
     static float last_current;
 
+    // No pack: the charger current is capacitor inrush, not a charge current.
+    if (IsPackMissing() && !has_bms_current_) {
+      current_bar_->Hide();
+      return;
+    }
+
     if (!is_docked_ && !has_bms_current_) {
       return;  // Not docked and, no BMS current available, skip update
     }
@@ -551,13 +590,19 @@ class SaboScreenMain : public ScreenBase<ScreenId, ButtonId> {
     }
     charger_->readChargeCurrent(charge_current);
     charger_status = charger_->getChargerStatus();
+    charger_status_ = charger_status;
 
     // Update docked state
     icon_docked_->SetState(is_docked_ ? WidgetIcon::State::ON : WidgetIcon::State::OFF);
 
     if (is_docked_) {
-      icon_current_->SetState(WidgetIcon::State::ON);
-      current_bar_->Show();
+      // Without a pack there is no charge current to show (see IsPackMissing).
+      const bool show_current = !IsPackMissing();
+      if (show_current) {
+        current_bar_->Show();
+      } else {
+        current_bar_->Hide();
+      }
       lv_obj_remove_flag(adapter_voltage_label_, LV_OBJ_FLAG_HIDDEN);
       lv_obj_remove_flag(charger_status_label_, LV_OBJ_FLAG_HIDDEN);
 

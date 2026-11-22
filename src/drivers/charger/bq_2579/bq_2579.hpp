@@ -6,6 +6,7 @@
 #define BQ_2579_HPP
 
 #include <drivers/charger/charger.hpp>
+#include <drivers/charger/no_battery_detector.hpp>
 
 using CHARGER_STATUS = ChargerDriver::CHARGER_STATUS;
 
@@ -43,6 +44,10 @@ class BQ2579 : public ChargerDriver {
   static constexpr uint8_t REG_Charger_Status_1 = 0x1C;
   static constexpr uint8_t REG_FAULT_Status_0 = 0x20;
   static constexpr uint8_t REG_FAULT_Status_1 = 0x21;
+
+  // Detects a charger that runs without a battery pack (status flaps active<->DONE).
+  MUTEX_DECL(no_battery_mtx_);
+  NoBatteryDetector no_battery_detector_{};
 
   bool readRegister(uint8_t reg, uint8_t &result);
   bool readRegister(uint8_t reg, uint16_t &result);

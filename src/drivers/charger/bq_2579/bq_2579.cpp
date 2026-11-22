@@ -49,15 +49,31 @@ CHARGER_STATUS BQ2579::getChargerStatus() {
     return CHARGER_STATUS::COMMS_ERROR;
   }
 
+  CHARGER_STATUS status_value;
   switch (status >> 5) {
-    case 0x00: return CHARGER_STATUS::NOT_CHARGING;
-    case 0x01: return CHARGER_STATUS::TRICKLE;
-    case 0x02: return CHARGER_STATUS::PRE_CHARGE;
-    case 0x03: return CHARGER_STATUS::CC;
-    case 0x04: return CHARGER_STATUS::CV;
-    case 0x07: return CHARGER_STATUS::DONE;
+    case 0x00: status_value = CHARGER_STATUS::NOT_CHARGING; break;
+    case 0x01: status_value = CHARGER_STATUS::TRICKLE; break;
+    case 0x02: status_value = CHARGER_STATUS::PRE_CHARGE; break;
+    case 0x03: status_value = CHARGER_STATUS::CC; break;
+    case 0x04: status_value = CHARGER_STATUS::CV; break;
+    case 0x07: status_value = CHARGER_STATUS::DONE; break;
     default: return CHARGER_STATUS::UNKNOWN;
   }
+
+  // Without a pack the charger flaps between an active phase and DONE (bulk capacitors
+  // only). Report that as one clean status instead of letting every consumer see the
+  // edges. A failed ADC read only skips this sample, the phase itself stays valid.
+  float charge_current = 0.0f;
+  if (readChargeCurrent(charge_current)) {
+    const uint32_t now_ms = TIME_I2MS(chVTGetSystemTimeX());
+    chMtxLock(&no_battery_mtx_);
+    const bool no_battery = no_battery_detector_.update(status_value, charge_current, now_ms);
+    chMtxUnlock(&no_battery_mtx_);
+    if (no_battery) {
+      return CHARGER_STATUS::NO_BATTERY;
+    }
+  }
+  return status_value;
 }
 bool BQ2579::init() {
   // reset to default values
