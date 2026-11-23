@@ -37,9 +37,6 @@ static constexpr uint32_t kStateMachineTickUs = kStateMachineTickMs * 1'000U;
  * silent: the link state has its own ROS_CONNECTED/ROS_DISCONNECTED sounds, and the high
  * level's initial latched state at connect is normal operation, not an alert.
  */
-static constexpr uint16_t kAudibleReasons =
-    EmergencyReason::STOP | EmergencyReason::LIFT | EmergencyReason::LIFT_MULTIPLE | EmergencyReason::COLLISION |
-    EmergencyReason::COLLISION_MULTIPLE | EmergencyReason::MOWER_RPM_LIMIT | EmergencyReason::MOWER_RPM_TIMEOUT;
 
 bool SoundService::OnRegisterSoundDefinitionsChanged(const void* data, size_t length) {
   const bool accepted = SoundConfig::Parse(data, length);
@@ -160,24 +157,31 @@ bool SoundService::Dice(uint8_t chance_pct) {
  *
  * Only one condition names the episode (the machine announces it once).
  */
+struct ReasonKind {
+  uint16_t reasons;  ///< Any of these bits selects the kind; the table order is the priority
+  EmergencyKind kind;
+};
+
+/** @brief The audible reasons and the kind they announce. */
+static constexpr ReasonKind kReasonKinds[] = {
+    {EmergencyReason::STOP, EmergencyKind::STOP},
+    {EmergencyReason::LIFT | EmergencyReason::LIFT_MULTIPLE, EmergencyKind::LIFT},
+    {EmergencyReason::COLLISION | EmergencyReason::COLLISION_MULTIPLE, EmergencyKind::COLLISION},
+    {EmergencyReason::MOWER_RPM_LIMIT, EmergencyKind::RPM_LIMIT},
+    {EmergencyReason::MOWER_RPM_TIMEOUT, EmergencyKind::RPM_TIMEOUT},
+};
+
+/**
+ * @brief Which kind an audible condition is (the sound side of the reason bits).
+ *
+ * The table order is the priority: STOP wins over LIFT wins over COLLISION wins over the mower
+ * protections. "Audible" *is* the table, so a reason without an entry stays silent.
+ */
 static EmergencyKind KindOf(uint16_t reasons) {
-  if ((reasons & EmergencyReason::STOP) != 0U) {
-    return EmergencyKind::STOP;
-  }
-  if ((reasons & (EmergencyReason::LIFT | EmergencyReason::LIFT_MULTIPLE)) != 0U) {
-    return EmergencyKind::LIFT;
-  }
-  if ((reasons & (EmergencyReason::COLLISION | EmergencyReason::COLLISION_MULTIPLE)) != 0U) {
-    return EmergencyKind::COLLISION;
-  }
-  if ((reasons & EmergencyReason::MOWER_RPM_LIMIT) != 0U) {
-    return EmergencyKind::RPM_LIMIT;
-  }
-  if ((reasons & EmergencyReason::MOWER_RPM_TIMEOUT) != 0U) {
-    return EmergencyKind::RPM_TIMEOUT;
-  }
-  if ((reasons & kAudibleReasons) != 0U) {
-    return EmergencyKind::OTHER;
+  for (const auto& rule : kReasonKinds) {
+    if ((reasons & rule.reasons) != 0U) {
+      return rule.kind;
+    }
   }
   return EmergencyKind::NONE;
 }
@@ -190,17 +194,22 @@ static EmergencyKind KindOf(uint16_t reasons) {
  * stay UNKNOWN, so a new behaviour in the high level never silences the existing ones; the
  * machine then simply has no announcement for it.
  */
-static HlState HlStateOf(HighLevelStatus state_id, const char* name) {
+static Signals HlStateOf(HighLevelStatus state_id, const char* name) {
   if (name != nullptr) {
-    if (strcmp(name, "IDLE") == 0) return HlState::IDLE;
-    if (strcmp(name, "UNDOCKING") == 0) return HlState::UNDOCKING;
-    if (strcmp(name, "MOWING") == 0) return HlState::MOWING;
-    if (strcmp(name, "PAUSED") == 0) return HlState::PAUSED;
-    if (strcmp(name, "DOCKING") == 0) return HlState::DOCKING;
-    if (strcmp(name, "AREA_RECORDING") == 0) return HlState::RECORDING;
+    if (strcmp(name, "IDLE") == 0) return HL_MODE_IDLE;
+    if (strcmp(name, "UNDOCKING") == 0) return HL_MODE_UNDOCKING;
+    if (strcmp(name, "MOWING") == 0) return HL_MODE_MOWING;
+    if (strcmp(name, "PAUSED") == 0) return HL_MODE_PAUSED;
+    if (strcmp(name, "DOCKING") == 0) return HL_MODE_DOCKING;
+    if (strcmp(name, "AREA_RECORDING") == 0) return HL_MODE_RECORDING;
   }
-  if (state_id == HighLevelStatus::RECORDING) return HlState::RECORDING;
-  return HlState::UNKNOWN;
+  // Fallback when the behaviour name is new
+  switch (state_id) {
+    case HighLevelStatus::IDLE: return HL_MODE_IDLE;
+    case HighLevelStatus::AUTONOMOUS: return HL_MODE_AUTONOMOUS;
+    case HighLevelStatus::RECORDING: return HL_MODE_RECORDING;
+    default: return HL_MODE_UNKNOWN;
+  }
 }
 
 /**
@@ -225,97 +234,86 @@ static ChargerState ChargerStateOf(CHARGER_STATUS status) {
   return ChargerState::UNKNOWN;
 }
 
-StateInputs SoundService::ReadInputs() {
-  StateInputs in{};
+Signals SoundService::ReadSignals() {
+  Signals s = 0U;
 
-  /* Emergency: the high level timeout is the link, the audible bits are the danger. Every
-     audible condition arrives together with EmergencyReason::LATCH once it lasted its
-     configured delay, so a flickering sensor never reaches the machine. */
-  /* What the high level is doing: its behaviour name is what the announcements follow. */
-  const etl::string<100> hl_name = high_level_service.GetStateName();
-  in.hl_state = HlStateOf(high_level_service.GetStateId(), hl_name.c_str());
-
+  // Emergency
   const uint16_t reasons = emergency_service.GetEmergencyReasons();
-  in.high_level_alive = (reasons & EmergencyReason::TIMEOUT_HIGH_LEVEL) == 0U;
-  in.emergency = KindOf(reasons);
-  in.emergency_latched = (reasons & EmergencyReason::LATCH) != 0U;
+  if ((reasons & EmergencyReason::TIMEOUT_HIGH_LEVEL) == 0U) s |= HL_ALIVE;
+  s |= EmergencyKindBits(KindOf(reasons));
+  if ((reasons & EmergencyReason::LATCH) != 0U) s |= EMERGENCY_LATCHED;
 
-  /* Mowing: the blade turns. MowerService owns that definition (it is the same value it
-     reports as `MowerRunning`), so the sound logic needs no RPM threshold of its own. */
-  if (robot != nullptr && robot->NeedsService(xbot::service_ids::MOWER)) {
-    in.blade_running = mower_service.IsMowerRunning();
+  // What the high level is doing: its behaviour name is what the announcements follow.
+  const etl::string<100> name = high_level_service.GetStateName();
+  s |= HlStateOf(high_level_service.GetStateId(), name.c_str());
+
+  // Mowing
+  if (robot != nullptr && robot->NeedsService(xbot::service_ids::MOWER) && mower_service.IsMowerRunning()) {
+    s |= BLADE_RUNNING;
   }
 
-  /* Charging: one enum instead of two booleans (the states are mutually exclusive). */
+  // Charging: the charger phase is two facts here (charging, done); UNKNOWN/FAULT/IDLE is silent.
   if (robot != nullptr && robot->NeedsService(xbot::service_ids::POWER)) {
-    in.charger = ChargerStateOf(power_service.GetChargerStatus());
+    switch (ChargerStateOf(power_service.GetChargerStatus())) {
+      case ChargerState::CHARGING: s |= CHARGING; break;
+      case ChargerState::DONE: s |= CHARGER_DONE; break;
+      default: break;
+    }
   }
 
-  /* GPS RTK: the local receiver state is the source of the fix/lost announcements. The
-     high level's gps_enabled flag is not part of HighLevelStatus, and the actual RTK
-     state is what those sounds describe. */
-  if (robot != nullptr && robot->NeedsService(xbot::service_ids::GPS)) {
-    in.gps_rtk = gps_service.GetGpsRtkMode();
+  // GPS RTK: the local receiver state is the source of the fix/lost announcements.
+  if (robot != nullptr && robot->NeedsService(xbot::service_ids::GPS) &&
+      gps_service.GetGpsRtkMode() == GpsRtkMode::RTK_FIX) {
+    s |= RTK_FIX;
   }
 
-  return in;
+  return s;
 }
 
 void SoundService::StopPlayback() {
   stop();
   ULOG_INFO("Sound: stop (alert=%s hl=%s charging=%u blade=%u)", alert_name(machine_.alert()),
-            hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U, machine_.blade_running() ? 1U : 0U);
+            hl_name(machine_.hl_state()), machine_.charging() ? 1U : 0U, machine_.blade_running() ? 1U : 0U);
 }
 
 void SoundService::PlaySound(SoundId id) {
   const PlayResult res = play_sound_id(id);
   ULOG_INFO("Sound: play '%s' (alert=%s hl=%s charging=%u blade=%u, %s)", SoundId_to_string(id),
-            alert_name(machine_.alert()), hl_state_name(machine_.hl_state()), machine_.charging() ? 1U : 0U,
+            alert_name(machine_.alert()), hl_name(machine_.hl_state()), machine_.charging() ? 1U : 0U,
             machine_.blade_running() ? 1U : 0U, play_result_text(res));
 }
 
 /**
  * @brief Log every change of a sound-relevant input, whether a sound follows or not.
  *
- * This is the debugging trace: a mower that stays silent is diagnosed from its state
- * history, not from its sounds. One line per changed input keeps it greppable
- * (`Sound: input …`) and costs nothing while everything is steady - which is most of the
- * time on a robot that stands in the garden.
- *
- * The machine follows the inputs as the services report them; filtering belongs to the
- * owning service (the charger is polled once per second, the mower state already comes
- * from a fresh ESC sample). The raw changes are logged here because a bouncing signal is
- * exactly what one wants to see when a sound is late.
+ * This is the debugging trace: a mower that stays silent is diagnosed from its state history
  */
-void SoundService::LogInputChanges(const StateInputs& now) {
-  const StateInputs& was = last_inputs_;
+void SoundService::LogSignalChanges(const Signals now) {
+  const Signals was = last_signals_;
+  const Signals changed = static_cast<Signals>(now ^ was);
 
-  if (now.high_level_alive != was.high_level_alive) {
-    ULOG_DEBUG("Sound: input link: %u -> %u", was.high_level_alive ? 1U : 0U, now.high_level_alive ? 1U : 0U);
+  if (changed & HL_ALIVE) {
+    ULOG_DEBUG("Sound: input link: %u -> %u", (was & HL_ALIVE) ? 1U : 0U, (now & HL_ALIVE) ? 1U : 0U);
   }
-  if (now.hl_state != was.hl_state) {
-    ULOG_DEBUG("Sound: input hl: %s -> %s", hl_state_name(was.hl_state), hl_state_name(now.hl_state));
+  if (HlMode(now) != HlMode(was)) {
+    ULOG_DEBUG("Sound: input hl: %s -> %s", hl_name(was), hl_name(now));
   }
-  if (now.blade_running != was.blade_running) {
-    ULOG_DEBUG("Sound: input blade: %u -> %u", was.blade_running ? 1U : 0U, now.blade_running ? 1U : 0U);
+  if (changed & BLADE_RUNNING) {
+    ULOG_DEBUG("Sound: input blade: %u -> %u", (was & BLADE_RUNNING) ? 1U : 0U, (now & BLADE_RUNNING) ? 1U : 0U);
   }
-  if (now.charger != was.charger) {
-    ULOG_DEBUG("Sound: input charger: %s -> %s", charger_state_name(was.charger), charger_state_name(now.charger));
+  if (changed & (CHARGING | CHARGER_DONE)) {
+    ULOG_DEBUG("Sound: input charger: %u/%u -> %u/%u", (was & CHARGING) ? 1U : 0U, (was & CHARGER_DONE) ? 1U : 0U,
+               (now & CHARGING) ? 1U : 0U, (now & CHARGER_DONE) ? 1U : 0U);
   }
-  if (now.gps_rtk != was.gps_rtk) {
-    ULOG_DEBUG("Sound: input gps_rtk: %s -> %s", GpsService::GetGpsRtkName(was.gps_rtk),
-               GpsService::GetGpsRtkName(now.gps_rtk));
+  if (changed & RTK_FIX) {
+    ULOG_DEBUG("Sound: input gps_rtk: fix=%u -> fix=%u", (was & RTK_FIX) ? 1U : 0U, (now & RTK_FIX) ? 1U : 0U);
   }
-  if (now.emergency != was.emergency) {
-    ULOG_DEBUG("Sound: input emergency: %s -> %s", emergency_kind_name(was.emergency),
-               emergency_kind_name(now.emergency));
-  }
-  if (now.emergency_latched != was.emergency_latched) {
-    ULOG_DEBUG("Sound: input emergency_latched: %u -> %u", was.emergency_latched ? 1U : 0U,
-               now.emergency_latched ? 1U : 0U);
+  if (EmergencyKindOf(now) != EmergencyKindOf(was) || ((now ^ was) & EMERGENCY_LATCHED)) {
+    ULOG_DEBUG("Sound: input emergency: %s -> %s (latched=%u)", emergency_kind_name(EmergencyKindOf(was)),
+               emergency_kind_name(EmergencyKindOf(now)), (now & EMERGENCY_LATCHED) ? 1U : 0U);
   }
 
-  last_inputs_ = now;
+  last_signals_ = now;
 }
 
 uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/) {
@@ -330,8 +328,8 @@ uint32_t SoundService::OnLoop(uint32_t now_micros, uint32_t /*last_tick_micros*/
   /* Nothing here needs the packet queue: the machine is the only periodic work, so the
      loop simply wakes up for it. Update() performs its stop/play calls through the
      output hooks; the player queue preserves their order. */
-  const StateInputs in = ReadInputs();
-  LogInputChanges(in);
-  machine_.Update(in, now_ms_);
+  const Signals now = ReadSignals();
+  LogSignalChanges(now);
+  machine_.Update(now, now_ms_);
   return kStateMachineTickUs;
 }

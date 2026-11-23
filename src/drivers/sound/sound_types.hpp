@@ -81,37 +81,6 @@ inline const char* emergency_kind_name(EmergencyKind k) {
 }
 
 /**
- * @brief What the high level is doing, collapsed to the states that change the audio.
- *
- * The high level already sends this with every cycle (`/high_level_status` →
- * HighLevelService: `HighLevelStatus` IDLE/AUTONOMOUS/RECORDING plus the behaviour name).
- * The *names* are what matters here: the mode alone cannot tell undocking from docking.
- */
-enum class HlState : uint8_t {
-  UNKNOWN,    ///< No high level state (yet, or an unknown behaviour)
-  IDLE,       ///< Nothing runs: standing in the station or on the lawn
-  UNDOCKING,  ///< Leaving the station (autonomous driving)
-  MOWING,     ///< Mowing
-  PAUSED,     ///< Mowing was paused
-  DOCKING,    ///< Driving back to the station
-  RECORDING,  ///< Area recording (the app drives it)
-};
-
-/** @brief Short names for logs (and test failures). */
-inline const char* hl_state_name(HlState s) {
-  switch (s) {
-    case HlState::UNKNOWN: return "UNKNOWN";
-    case HlState::IDLE: return "IDLE";
-    case HlState::UNDOCKING: return "UNDOCKING";
-    case HlState::MOWING: return "MOWING";
-    case HlState::PAUSED: return "PAUSED";
-    case HlState::DOCKING: return "DOCKING";
-    case HlState::RECORDING: return "RECORDING";
-  }
-  return "?";
-}
-
-/**
  * @brief What the charger reports right now.
  *
  * One value instead of separate `charging`/`charge_done` booleans: the two states are
@@ -136,35 +105,83 @@ inline const char* charger_state_name(ChargerState s) {
 }
 
 /**
- * @brief One snapshot of the robot state the sound logic reacts to.
+ * @brief What is true in this tick, one bit per fact.
  *
- * The caller (SoundService) fills this from the services that own the information, so
- * the machine itself has no dependency on them.
- *
- * @note  There is deliberately no battery percentage here: the high level owns the
- *        battery policy and decides when a battery is "low" (and may play
- *        SoundId::LOW_BATTERY explicitly). The low level only reports what it can see.
+ * The machine is a *sampler*: Update() runs every 100 ms and nobody tells it what changed.
  */
-struct StateInputs {
-  bool high_level_alive = false;                  ///< The ROS heartbeat is here (never true before the first one)
-  EmergencyKind emergency = EmergencyKind::NONE;  ///< Which audible condition is active
-  /**
-   * @brief The emergency is *latched*, i.e. it only clears when the latch is released.
-   *
-   * Every audible condition reaches the low level together with EmergencyReason::LATCH
-   * once it lasted its configured delay (input_service/mower_service), so a flickering
-   * sensor never shows up here at all. A definition may switch latching off
-   * (`latch: false`), then the condition simply disappears again — and so does the alert.
-   *
-   * The consequence for the machine: the alert is *entered* by the condition and only
-   * *left* once neither the condition nor the latch is there any more.
-   */
-  bool emergency_latched = false;
-  HlState hl_state = HlState::UNKNOWN;           ///< What the high level reports (its behaviour name)
-  GpsRtkMode gps_rtk = GpsRtkMode::RTK_NONE;     ///< Local GPS RTK state (GpsService)
-  bool blade_running = false;                    ///< The mower motor turns (mowing)
-  ChargerState charger = ChargerState::UNKNOWN;  ///< Charger phase (the high level reports no charging)
+using Signals = uint16_t;
+enum : Signals {
+  /* Bits 0..2: the *mode* as a field - exactly one value, not a flag set. The name avoids a
+     collision with the high level's own vocabulary: HighLevelStatus calls 0..3 its states
+     (NULL/IDLE/AUTONOMOUS/RECORDING), while 4..7 are SUBSTATES of AUTONOMOUS - i.e.
+     behaviours, not states. In the sound logic both are simply "what is it doing". */
+  HL_MODE_SHIFT = 0,
+  HL_MODE_MASK = 0x7U << HL_MODE_SHIFT,
+  HL_MODE_UNKNOWN = 0U,     ///< = HIGH_LEVEL_STATE_NULL
+  HL_MODE_IDLE = 1U,        ///< = HIGH_LEVEL_STATE_IDLE
+  HL_MODE_AUTONOMOUS = 2U,  ///< = HIGH_LEVEL_STATE_AUTONOMOUS, behaviour name unknown
+  HL_MODE_RECORDING = 3U,   ///< = HIGH_LEVEL_STATE_RECORDING
+  HL_MODE_UNDOCKING = 4U,   ///< SUBSTATE: leaving the station
+  HL_MODE_MOWING = 5U,      ///< SUBSTATE: mowing
+  HL_MODE_PAUSED = 6U,      ///< SUBSTATE: mowing was paused
+  HL_MODE_DOCKING = 7U,     ///< SUBSTATE: driving back to the station
+
+  HL_ALIVE = 1u << 8,  ///< The high level heartbeat is here => ROS is running
+
+  /* Bits 3..5: which audible condition is active, as a field (0 = none). The field holds the
+     EmergencyKind value itself, so the cast is lossless and there is no second table here.
+     Whether an emergency is active is therefore not a bit - it is "the field is not NONE". */
+  EMERGENCY_KIND_SHIFT = 3,
+  EMERGENCY_KIND_MASK = 0x7U << EMERGENCY_KIND_SHIFT,
+
+  EMERGENCY_LATCHED = 1u << 9,  ///< It stays until the latch is released
+  CHARGING = 1u << 10,          ///< The charger is in an active phase
+  CHARGER_DONE = 1u << 11,      ///< The charger reports the charge complete
+  BLADE_RUNNING = 1u << 12,     ///< The mower motor turns
+  RTK_FIX = 1u << 13            ///< The local GPS has an RTK fix (falling edge = lost)
 };
+
+/** @brief The mode field of the signals (one of HL_MODE_*). */
+inline Signals HlMode(Signals s) {
+  return s & HL_MODE_MASK;
+}
+
+/** @brief The audible condition of the signals (NONE when there is none). */
+inline EmergencyKind EmergencyKindOf(Signals s) {
+  return static_cast<EmergencyKind>((s & EMERGENCY_KIND_MASK) >> EMERGENCY_KIND_SHIFT);
+}
+
+/** @brief The bits of an audible condition, for building a sample. */
+inline Signals EmergencyKindBits(EmergencyKind kind) {
+  return static_cast<Signals>((static_cast<Signals>(kind) << EMERGENCY_KIND_SHIFT) & EMERGENCY_KIND_MASK);
+}
+
+/** @brief Short names for logs (and test failures). */
+inline const char* hl_name(Signals s) {
+  switch (HlMode(s)) {
+    case HL_MODE_IDLE: return "IDLE";
+    case HL_MODE_AUTONOMOUS: return "AUTONOMOUS";
+    case HL_MODE_RECORDING: return "RECORDING";
+    case HL_MODE_UNDOCKING: return "UNDOCKING";
+    case HL_MODE_MOWING: return "MOWING";
+    case HL_MODE_PAUSED: return "PAUSED";
+    case HL_MODE_DOCKING: return "DOCKING";
+    default: return "UNKNOWN";
+  }
+}
+
+/**
+ * @brief One sample of the machine: what is true now, what was true, and the xor'ed edge.
+ */
+struct Sample {
+  Signals now = 0U;   ///< Signals of this tick
+  Signals prev = 0U;  ///< Signals of the last tick
+  Signals edge = 0U;  ///< now ^ prev: the bits that changed
+};
+
+inline Sample MakeSample(Signals now, Signals prev) {
+  return Sample{now, prev, static_cast<Signals>(now ^ prev)};
+}
 
 /**
  * @brief every/chance of one sound, as configured in the definition.
