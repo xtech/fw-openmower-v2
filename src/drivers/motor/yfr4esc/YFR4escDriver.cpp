@@ -10,7 +10,7 @@
 #include "cobs.h"
 #include "crc16_hw.hpp"
 #define LOG_TAG_STR "YFR4esc"
-#include "ulog_rate_limit.hpp"
+#include <ulog_rate_limit.hpp>
 
 namespace xbot::driver::motor {
 
