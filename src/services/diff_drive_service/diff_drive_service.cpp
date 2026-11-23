@@ -106,16 +106,16 @@ void DiffDriveService::tick() {
   }
 
   // Name the silent side in the logs (rate limited): a missing drive ESC otherwise only shows
-  // up as a disconnected status, which is easy to miss. Signed compares: a timestamp written by
-  const int32_t left_age_us = static_cast<int32_t>(now - last_left_esc_state_micros_);
-  if (left_age_us > static_cast<int32_t>(kEscStateTimeoutUs)) {
-    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Left ESC not responding: no status for %d ms",
-                      static_cast<int>(left_age_us / 1000));
+  // up as a disconnected status, which is easy to miss.
+  const uint32_t left_age_us = now - last_left_esc_state_micros_;
+  if (left_age_us > kEscStateTimeoutUs) {
+    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Left ESC not responding: no status for %u ms",
+                      static_cast<unsigned>(left_age_us / 1000));
   }
-  const int32_t right_age_us = static_cast<int32_t>(now - last_right_esc_state_micros_);
-  if (right_age_us > static_cast<int32_t>(kEscStateTimeoutUs)) {
-    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Right ESC not responding: no status for %d ms",
-                      static_cast<int>(right_age_us / 1000));
+  const uint32_t right_age_us = now - last_right_esc_state_micros_;
+  if (right_age_us > kEscStateTimeoutUs) {
+    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Right ESC not responding: no status for %u ms",
+                      static_cast<unsigned>(right_age_us / 1000));
   }
 
   duty_sent_ = false;

@@ -87,11 +87,14 @@ void MowerService::tick() {
 
     // A dead mower ESC only shows up as EmergencyReason::SERVICE_NOT_READY, which names no
     // service. Log it (rate limited) so the log names the motor that stopped answering.
-    const uint32_t now = xbot::service::system::getTimeMicros();
-    const int32_t age_us = static_cast<int32_t>(now - last_valid_esc_state_micros_);
-    if (age_us > static_cast<int32_t>(kEscStateTimeoutUs)) {
-      ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Mower ESC not responding: no status for %d ms",
-                        static_cast<int>(age_us / 1000));
+    // Load the timestamp before sampling the clock: the ESC callback only stores times that are
+    // already in the past, so the unsigned age cannot go negative (no lock needed), and a dead
+    // ESC keeps counting. Will swallow one message on wrap after ~71 min.
+    const uint32_t last_status_micros = last_valid_esc_state_micros_.load();
+    const uint32_t age_us = xbot::service::system::getTimeMicros() - last_status_micros;
+    if (age_us > kEscStateTimeoutUs) {
+      ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Mower ESC not responding: no status for %u ms",
+                        static_cast<unsigned>(age_us / 1000));
     }
   } else {
     // We got recent data, send it
