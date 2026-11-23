@@ -34,6 +34,19 @@
 
 #include <ulog.h>
 
+/*
+ * The SPI1 configuration in Init() uses MBR = FPCLK/8, so the SPI clock is
+ * STM32_SPI1CLK / 8. SPI1 is clocked from PLL2_P (STM32_SPI123SEL in mcuconf.h),
+ * i.e. 200 MHz -> 25 MHz, which is exactly the UC1698u maximum rating.
+ * A different clock tree silently changes the bus clock, so check it here
+ * (same pattern as the I2C TIMINGR guard in board_ex.c).
+ */
+#if (STM32_SPI1CLK == 0)
+#error "SPI1 kernel clock unknown, cannot verify the UC1698 SPI bus clock"
+#elif (STM32_SPI1CLK / 8) > 25000000
+#error "UC1698 SPI clock (STM32_SPI1CLK / 8) exceeds the 25 MHz UC1698u rating"
+#endif
+
 namespace xbot::driver::ui {
 
 bool SaboCoverUIDisplayDriverUC1698::Init() {

@@ -52,9 +52,9 @@ void Init() {
   rccResetADC3();
 
   // Clock mode: AHB clock / 4
-  // With 25MHz HSE, PLL1 configured for 550MHz system clock
-  // AHB clock = 550MHz / 2 (D1HPRE) = 275MHz
-  // ADC clock = 275MHz / 4 = 68.75MHz (ADC3 range is 1.5-75MHz)
+  // With 25MHz HSE, PLL1 configured for 520MHz system clock
+  // AHB clock = 520MHz / 2 (D1HPRE) = 260MHz
+  // ADC clock = 260MHz / 4 = 65MHz (ADC3 range is 1.5-75MHz)
   ADC3_COMMON->CCR = ADC_CCR_CKMODE_AHB_DIV4;
 
   rccDisableADC3();

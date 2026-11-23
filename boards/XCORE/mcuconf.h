@@ -77,6 +77,12 @@
 /*
  * PLLs static settings.
  * Reading STM32 Reference Manual is required.
+ *
+ * PLL1: HSE 25MHz / DIVM 5 = 5MHz ref, * DIVN 104 = 520MHz VCO.
+ *   P = 520MHz (SYSCLK), Q = 260MHz, R = 260MHz.
+ * 520MHz is the STM32H723 maximum in VOS0 without CPU_FREQ_BOOST
+ * (SYSCFG_UR18). 550MHz would require that boost option bit, which is not
+ * compatible with the RAM ECC we want to use, so we stay at 520MHz.
  */
 #define STM32_PLLSRC                        STM32_PLLSRC_HSE_CK
 #define STM32_PLLCFGR_MASK                  ~0
@@ -84,8 +90,8 @@
 #define STM32_PLL1_P_ENABLED                TRUE
 #define STM32_PLL1_Q_ENABLED                TRUE
 #define STM32_PLL1_R_ENABLED                TRUE
-#define STM32_PLL1_DIVM_VALUE               2
-#define STM32_PLL1_DIVN_VALUE               44
+#define STM32_PLL1_DIVM_VALUE               5
+#define STM32_PLL1_DIVN_VALUE               104
 #define STM32_PLL1_FRACN_VALUE              0
 #define STM32_PLL1_DIVP_VALUE               1
 #define STM32_PLL1_DIVQ_VALUE               2

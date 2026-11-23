@@ -93,7 +93,7 @@ class SaboCoverUICaboDriverBase {
    * Their 5V HIGH level is built by pull-ups only (open-drain level shifter, e.g. SN74LVC07A
    * as of carrierboard v0.6), so the rising edge is an RC edge in the range of some 10 to
    * 100ns. A strobe created by back-to-back palWriteLine() calls lasts only a few CPU cycles
-   * (~15ns @ 550MHz in -Os builds) and would therefore never reach the input threshold of the
+   * (~15ns @ 520MHz in -Os builds) and would therefore never reach the input threshold of the
    * 5V devices. This busy-wait makes the strobe/setup times deterministic and independent of
    * the build's optimization level, the instruction cache and the kernel tick frequency.
    *
