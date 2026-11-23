@@ -77,11 +77,6 @@ class MowerService : public MowerServiceBase {
   THD_WORKING_AREA(wa, 1024){};
   MotorDriver::ESCState esc_state_{};
   bool esc_state_valid_ = false;
-  // A "Mower ESC not responding" warning was logged and the ESC has not answered since.
-  // Drives the single recovery message, so a dead ESC is visible in the logs.
-  bool esc_link_warned_ = false;
-  // getTimeMicros() of that warning; a status newer than this one ends the outage.
-  uint32_t esc_link_warned_micros_ = 0;
 
   // How old the last ESC status may be before it counts as "no ESC" (see HasEscState).
   static constexpr uint32_t kEscStateTimeoutUs = 1'000'000;

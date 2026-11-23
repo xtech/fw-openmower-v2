@@ -29,8 +29,6 @@ bool MowerService::OnStart() {
   // not show up as an ESC timeout.
   last_valid_esc_state_micros_ = xbot::service::system::getTimeMicros();
   esc_state_valid_ = false;
-  esc_link_warned_ = false;
-  esc_link_warned_micros_ = 0;
   return true;
 }
 
@@ -87,29 +85,15 @@ void MowerService::tick() {
     ramping_ = false;
     SendMowerStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
 
-    // A dead mower ESC only shows up as EmergencyReason::SERVICE_NOT_READY, which names no service,
-    // and the disconnected status above is easy to miss in the topic.
-    // Log it (once every few seconds) so a user can see which motor is not answering.
-    // The age is relative to the service start (see OnStart), so boot/Stage-2 time is not
-    // reported as an ESC timeout.
+    // A dead mower ESC only shows up as EmergencyReason::SERVICE_NOT_READY, which names no
+    // service. Log it (rate limited) so the log names the motor that stopped answering.
     const uint32_t now = xbot::service::system::getTimeMicros();
-    const uint32_t age_us = now - last_valid_esc_state_micros_;
-    // Only an actual timeout is an outage: on the first tick after start nothing is wrong yet.
-    if (age_us > kEscStateTimeoutUs) {
-      ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Mower ESC not responding: no status for %u ms",
-                        static_cast<unsigned>(age_us / 1000));
-      esc_link_warned_ = true;
-      esc_link_warned_micros_ = now;
+    const int32_t age_us = static_cast<int32_t>(now - last_valid_esc_state_micros_);
+    if (age_us > static_cast<int32_t>(kEscStateTimeoutUs)) {
+      ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Mower ESC not responding: no status for %d ms",
+                        static_cast<int>(age_us / 1000));
     }
   } else {
-    // A status arrived after the warning: that is the recovery. Comparing the timestamps
-    // instead of the age keeps a wrapped age (32 bit microseconds, 2^32 us = 71.6 min of
-    // silence) from reporting a recovery that never happened.
-    if (esc_link_warned_ && static_cast<int32_t>(last_valid_esc_state_micros_ - esc_link_warned_micros_) > 0) {
-      esc_link_warned_ = false;
-      ULOG_ARG_INFO(&service_id_, "Mower ESC responding again");
-    }
-
     // We got recent data, send it
     StartTransaction();
     SendMowerESCTemperature(esc_state_.temperature_pcb);

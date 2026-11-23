@@ -51,10 +51,6 @@ bool DiffDriveService::OnStart() {
   const uint32_t now = xbot::service::system::getTimeMicros();
   last_left_esc_state_micros_ = now;
   last_right_esc_state_micros_ = now;
-  left_esc_link_warned_ = false;
-  right_esc_link_warned_ = false;
-  left_esc_link_warned_micros_ = 0;
-  right_esc_link_warned_micros_ = 0;
   return true;
 }
 
@@ -109,32 +105,17 @@ void DiffDriveService::tick() {
     CommitTransaction();
   }
 
-  // Name the silent side in the logs. A missing drive ESC otherwise only shows up as a
-  // disconnected status (easy to miss) and as the anonymous EmergencyReason::SERVICE_NOT_READY.
-  // Rate limited to one line every few seconds, with a single line when the ESC answers again.
-  // The recovery needs a status newer than the warning: comparing the age alone would report
-  // a recovery whenever the 32 bit microsecond age wraps around (2^32 us = 71.6 min silence).
-  const uint32_t left_age = now - last_left_esc_state_micros_;
-  if (left_age > kEscStateTimeoutUs) {
-    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Left ESC not responding: no status for %u ms",
-                      static_cast<unsigned>(left_age / 1000));
-    left_esc_link_warned_ = true;
-    left_esc_link_warned_micros_ = now;
-  } else if (left_esc_link_warned_ &&
-             static_cast<int32_t>(last_left_esc_state_micros_ - left_esc_link_warned_micros_) > 0) {
-    left_esc_link_warned_ = false;
-    ULOG_ARG_INFO(&service_id_, "Left ESC responding again");
+  // Name the silent side in the logs (rate limited): a missing drive ESC otherwise only shows
+  // up as a disconnected status, which is easy to miss. Signed compares: a timestamp written by
+  const int32_t left_age_us = static_cast<int32_t>(now - last_left_esc_state_micros_);
+  if (left_age_us > static_cast<int32_t>(kEscStateTimeoutUs)) {
+    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Left ESC not responding: no status for %d ms",
+                      static_cast<int>(left_age_us / 1000));
   }
-  const uint32_t right_age = now - last_right_esc_state_micros_;
-  if (right_age > kEscStateTimeoutUs) {
-    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Right ESC not responding: no status for %u ms",
-                      static_cast<unsigned>(right_age / 1000));
-    right_esc_link_warned_ = true;
-    right_esc_link_warned_micros_ = now;
-  } else if (right_esc_link_warned_ &&
-             static_cast<int32_t>(last_right_esc_state_micros_ - right_esc_link_warned_micros_) > 0) {
-    right_esc_link_warned_ = false;
-    ULOG_ARG_INFO(&service_id_, "Right ESC responding again");
+  const int32_t right_age_us = static_cast<int32_t>(now - last_right_esc_state_micros_);
+  if (right_age_us > static_cast<int32_t>(kEscStateTimeoutUs)) {
+    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Right ESC not responding: no status for %d ms",
+                      static_cast<int>(right_age_us / 1000));
   }
 
   duty_sent_ = false;
