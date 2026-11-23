@@ -30,6 +30,7 @@ bool MowerService::OnStart() {
   last_valid_esc_state_micros_ = xbot::service::system::getTimeMicros();
   esc_state_valid_ = false;
   esc_link_warned_ = false;
+  esc_link_warned_micros_ = 0;
   return true;
 }
 
@@ -92,12 +93,19 @@ void MowerService::tick() {
     // The age is relative to the service start (see OnStart), so boot/Stage-2 time is not
     // reported as an ESC timeout.
     const uint32_t now = xbot::service::system::getTimeMicros();
-    const uint32_t age_ms = (now - last_valid_esc_state_micros_) / 1000;
-    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Mower ESC not responding: no status for %u ms",
-                      static_cast<unsigned>(age_ms));
-    esc_link_warned_ = true;
+    const uint32_t age_us = now - last_valid_esc_state_micros_;
+    // Only an actual timeout is an outage: on the first tick after start nothing is wrong yet.
+    if (age_us > kEscStateTimeoutUs) {
+      ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Mower ESC not responding: no status for %u ms",
+                        static_cast<unsigned>(age_us / 1000));
+      esc_link_warned_ = true;
+      esc_link_warned_micros_ = now;
+    }
   } else {
-    if (esc_link_warned_) {
+    // A status arrived after the warning: that is the recovery. Comparing the timestamps
+    // instead of the age keeps a wrapped age (32 bit microseconds, 2^32 us = 71.6 min of
+    // silence) from reporting a recovery that never happened.
+    if (esc_link_warned_ && static_cast<int32_t>(last_valid_esc_state_micros_ - esc_link_warned_micros_) > 0) {
       esc_link_warned_ = false;
       ULOG_ARG_INFO(&service_id_, "Mower ESC responding again");
     }

@@ -33,6 +33,9 @@ class DiffDriveService : public DiffDriveServiceBase {
   // A "not responding" warning was logged and that ESC has not answered since.
   bool left_esc_link_warned_ = false;
   bool right_esc_link_warned_ = false;
+  // getTimeMicros() of that warning; a status newer than this one ends the outage.
+  uint32_t left_esc_link_warned_micros_ = 0;
+  uint32_t right_esc_link_warned_micros_ = 0;
   // No status for longer than this counts as "ESC not responding".
   static constexpr uint32_t kEscStateTimeoutUs = 1'000'000;
   static constexpr uint8_t ESC_LEFT = 1 << 0;
