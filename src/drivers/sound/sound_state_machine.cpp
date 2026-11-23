@@ -125,9 +125,10 @@ bool StateMachine::AnnounceCharging(const Sample& t) {
     rt_.memo &= ~MEMO_CHARGE_DONE_SEEN; /* a fresh charge */
     /* Docking contact and DOCKING -> IDLE arrive in the same sample on a real dock: the
        transfer ends where the charge begins, so its sound is stopped before the new one is
-       queued (a stop after the play would swallow CHARGING_START). */
+       queued (a stop after the play would swallow CHARGING_START). An active alarm owns the
+       speaker, though: the stop must not end it the same way the high level path would. */
     const Signals was = HlMode(t.prev);
-    if (was == HL_MODE_DOCKING || was == HL_MODE_UNDOCKING) {
+    if (rt_.alert != Alert::EMERGENCY && (was == HL_MODE_DOCKING || was == HL_MODE_UNDOCKING)) {
       output_.StopPlayback();
     }
     output_.PlaySound(SoundId::CHARGING_START);
