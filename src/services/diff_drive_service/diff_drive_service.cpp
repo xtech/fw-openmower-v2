@@ -8,10 +8,14 @@
 
 #include <drivers/motor/motor_driver.hpp>
 #include <services.hpp>
+#include <services/esc_status_compat.hpp>
 #include <ulog_rate_limit.hpp>
 #include <xbot-service/portable/system.hpp>
 
 using namespace xbot::driver::motor;
+
+// The service enum and the driver enum must not drift apart
+static_assert(EscStatusMatchesDriverEnum<DriveEscStatus>(), "DriveEscStatus and MotorDriver drifted apart");
 
 void DiffDriveService::OnEmergencyChangedEvent() {
   bool emergency = emergency_service.GetEmergencyReasons() != 0;

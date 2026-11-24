@@ -5,10 +5,14 @@
 #include "mower_service.hpp"
 
 #include <cmath>
+#include <services/esc_status_compat.hpp>
 #include <ulog_rate_limit.hpp>
 #include <xbot-service/portable/system.hpp>
 
 #include "services.hpp"
+
+// The service enum and the driver enum must not drift apart
+static_assert(EscStatusMatchesDriverEnum<MowerEscStatus>(), "MowerEscStatus and MotorDriver drifted apart");
 
 void MowerService::OnCreate() {
   chDbgAssert(mower_driver_ != nullptr, "Mower Motor Driver cannot be null!");
