@@ -8,10 +8,14 @@
 
 #include <drivers/motor/motor_driver.hpp>
 #include <services.hpp>
+#include <services/esc_status_compat.hpp>
 #include <ulog_rate_limit.hpp>
 #include <xbot-service/portable/system.hpp>
 
 using namespace xbot::driver::motor;
+
+// The service enum and the driver enum must not drift apart
+static_assert(EscStatusMatchesDriverEnum<DriveEscStatus>(), "DriveEscStatus and MotorDriver drifted apart");
 
 void DiffDriveService::OnEmergencyChangedEvent() {
   bool emergency = emergency_service.GetEmergencyReasons() != 0;
@@ -97,10 +101,10 @@ void DiffDriveService::tick() {
   if (now - last_valid_esc_state_micros_ > kEscStateTimeoutUs) {
     StartTransaction();
     if (!left_esc_state_valid_) {
-      SendLeftESCStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
+      SendLeftESCStatus(DriveEscStatus::DISCONNECTED);
     }
     if (!right_esc_state_valid_) {
-      SendRightESCStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
+      SendRightESCStatus(DriveEscStatus::DISCONNECTED);
     }
     CommitTransaction();
   }
@@ -165,11 +169,11 @@ void DiffDriveService::ProcessStatusUpdate() {
   StartTransaction();
   SendLeftESCTemperature(left_esc_state_.temperature_pcb);
   SendLeftESCCurrent(left_esc_state_.current_input);
-  SendLeftESCStatus(static_cast<uint8_t>(left_esc_state_.status));
+  SendLeftESCStatus(static_cast<DriveEscStatus>(left_esc_state_.status));
 
   SendRightESCTemperature(right_esc_state_.temperature_pcb);
   SendRightESCCurrent(right_esc_state_.current_input);
-  SendRightESCStatus(static_cast<uint8_t>(right_esc_state_.status));
+  SendRightESCStatus(static_cast<DriveEscStatus>(right_esc_state_.status));
 
   // Calculate the twist according to wheel ticks
   if (last_ticks_valid) {

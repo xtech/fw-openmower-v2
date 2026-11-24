@@ -5,10 +5,14 @@
 #include "mower_service.hpp"
 
 #include <cmath>
+#include <services/esc_status_compat.hpp>
 #include <ulog_rate_limit.hpp>
 #include <xbot-service/portable/system.hpp>
 
 #include "services.hpp"
+
+// The service enum and the driver enum must not drift apart
+static_assert(EscStatusMatchesDriverEnum<MowerEscStatus>(), "MowerEscStatus and MotorDriver drifted apart");
 
 void MowerService::OnCreate() {
   chDbgAssert(mower_driver_ != nullptr, "Mower Motor Driver cannot be null!");
@@ -83,7 +87,7 @@ void MowerService::tick() {
     mower_duty_ = 0;
     mower_duty_target_ = 0;
     ramping_ = false;
-    SendMowerStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
+    SendMowerStatus(MowerEscStatus::DISCONNECTED);
 
     // A dead mower ESC only shows up as EmergencyReason::SERVICE_NOT_READY, which names no
     // service. Log it (rate limited) so the log names the motor that stopped answering.
@@ -101,7 +105,7 @@ void MowerService::tick() {
     StartTransaction();
     SendMowerESCTemperature(esc_state_.temperature_pcb);
     SendMowerMotorCurrent(esc_state_.current_input);
-    SendMowerStatus(static_cast<uint8_t>(esc_state_.status));
+    SendMowerStatus(static_cast<MowerEscStatus>(esc_state_.status));
     SendMowerMotorTemperature(esc_state_.temperature_motor);
     SendMowerRunning(IsMowerRunning());
     SendMowerMotorRPM(esc_state_.rpm);
