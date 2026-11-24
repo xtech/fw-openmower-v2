@@ -5,6 +5,7 @@
 #include "mower_service.hpp"
 
 #include <cmath>
+#include <ulog_rate_limit.hpp>
 #include <xbot-service/portable/system.hpp>
 
 #include "services.hpp"
@@ -23,6 +24,11 @@ bool MowerService::OnStart() {
   mower_duty_ = 0;
   mower_duty_target_ = 0;
   ramping_ = false;
+  // The "not responding" age counts from here, not from boot. Stage 2 (waiting for the
+  // robot variant from ROS) can take ~20 s before the services even exist, and that must
+  // not show up as an ESC timeout.
+  last_valid_esc_state_micros_ = xbot::service::system::getTimeMicros();
+  esc_state_valid_ = false;
   return true;
 }
 
@@ -78,6 +84,18 @@ void MowerService::tick() {
     mower_duty_target_ = 0;
     ramping_ = false;
     SendMowerStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
+
+    // A dead mower ESC only shows up as EmergencyReason::SERVICE_NOT_READY, which names no
+    // service. Log it (rate limited) so the log names the motor that stopped answering.
+    // Load the timestamp before sampling the clock: the ESC callback only stores times that are
+    // already in the past, so the unsigned age cannot go negative (no lock needed), and a dead
+    // ESC keeps counting. Will swallow one message on wrap after ~71 min.
+    const uint32_t last_status_micros = last_valid_esc_state_micros_.load();
+    const uint32_t age_us = xbot::service::system::getTimeMicros() - last_status_micros;
+    if (age_us > kEscStateTimeoutUs) {
+      ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Mower ESC not responding: no status for %u ms",
+                        static_cast<unsigned>(age_us / 1000));
+    }
   } else {
     // We got recent data, send it
     StartTransaction();

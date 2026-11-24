@@ -8,6 +8,7 @@
 
 #include <drivers/motor/motor_driver.hpp>
 #include <services.hpp>
+#include <ulog_rate_limit.hpp>
 #include <xbot-service/portable/system.hpp>
 
 using namespace xbot::driver::motor;
@@ -44,6 +45,12 @@ bool DiffDriveService::OnStart() {
 
   speed_l_ = speed_r_ = 0;
   last_ticks_valid = false;
+  // The "not responding" age counts from here, not from boot: Stage 2 (waiting for the robot
+  // variant from ROS) can take ~20 s before the services even exist, and that must not show
+  // up as an ESC timeout.
+  const uint32_t now = xbot::service::system::getTimeMicros();
+  last_left_esc_state_micros_ = now;
+  last_right_esc_state_micros_ = now;
   return true;
 }
 
@@ -86,7 +93,8 @@ void DiffDriveService::tick() {
   right_esc_driver_->RequestStatus();
 
   // Check, if we have received ESC status updates recently. If not, send a disconnected message
-  if (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ > 1'000'000) {
+  const uint32_t now = xbot::service::system::getTimeMicros();
+  if (now - last_valid_esc_state_micros_ > kEscStateTimeoutUs) {
     StartTransaction();
     if (!left_esc_state_valid_) {
       SendLeftESCStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
@@ -95,6 +103,19 @@ void DiffDriveService::tick() {
       SendRightESCStatus(static_cast<uint8_t>(MotorDriver::ESCState::ESCStatus::ESC_STATUS_DISCONNECTED));
     }
     CommitTransaction();
+  }
+
+  // Name the silent side in the logs (rate limited): a missing drive ESC otherwise only shows
+  // up as a disconnected status, which is easy to miss.
+  const uint32_t left_age_us = now - last_left_esc_state_micros_;
+  if (left_age_us > kEscStateTimeoutUs) {
+    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Left ESC not responding: no status for %u ms",
+                      static_cast<unsigned>(left_age_us / 1000));
+  }
+  const uint32_t right_age_us = now - last_right_esc_state_micros_;
+  if (right_age_us > kEscStateTimeoutUs) {
+    ULOG_ARG_EVERY_MS(WARNING, 5'000, &service_id_, "Right ESC not responding: no status for %u ms",
+                      static_cast<unsigned>(right_age_us / 1000));
   }
 
   duty_sent_ = false;
@@ -118,6 +139,7 @@ void DiffDriveService::LeftESCCallback(const MotorDriver::ESCState& state) {
   chMtxLock(&state_mutex_);
   left_esc_state_ = state;
   left_esc_state_valid_ = true;
+  last_left_esc_state_micros_ = xbot::service::system::getTimeMicros();
   escs_connected_ |= ESC_LEFT;
   if (right_esc_state_valid_) {
     ProcessStatusUpdate();
@@ -129,6 +151,7 @@ void DiffDriveService::RightESCCallback(const MotorDriver::ESCState& state) {
   chMtxLock(&state_mutex_);
   right_esc_state_ = state;
   right_esc_state_valid_ = true;
+  last_right_esc_state_micros_ = xbot::service::system::getTimeMicros();
   escs_connected_ |= ESC_RIGHT;
   if (left_esc_state_valid_) {
     ProcessStatusUpdate();

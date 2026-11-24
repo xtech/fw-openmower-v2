@@ -27,6 +27,11 @@ class DiffDriveService : public DiffDriveServiceBase {
   bool left_esc_state_valid_ = false;
   bool right_esc_state_valid_ = false;
   uint32_t last_valid_esc_state_micros_ = 0;
+  // Per side timestamp of the last received status (for the "ESC not responding" log).
+  uint32_t last_left_esc_state_micros_ = 0;
+  uint32_t last_right_esc_state_micros_ = 0;
+  // No status for longer than this counts as "ESC not responding".
+  static constexpr uint32_t kEscStateTimeoutUs = 1'000'000;
   static constexpr uint8_t ESC_LEFT = 1 << 0;
   static constexpr uint8_t ESC_RIGHT = 1 << 1;
   etl::atomic<uint8_t> escs_connected_{0};

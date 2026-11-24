@@ -34,8 +34,10 @@ class MowerService : public MowerServiceBase {
    * known state may treat it as current.
    */
   [[nodiscard]] bool HasEscState() const {
-    return esc_state_valid_ &&
-           (xbot::service::system::getTimeMicros() - last_valid_esc_state_micros_ <= kEscStateTimeoutUs);
+    // Load the timestamp before sampling the clock: the ESC callback only stores times that are
+    // already in the past, so the age cannot go negative. No lock needed (see tick()).
+    const uint32_t last_status_micros = last_valid_esc_state_micros_.load();
+    return esc_state_valid_ && (xbot::service::system::getTimeMicros() - last_status_micros <= kEscStateTimeoutUs);
   }
 
   /**
@@ -76,12 +78,13 @@ class MowerService : public MowerServiceBase {
  private:
   THD_WORKING_AREA(wa, 1024){};
   MotorDriver::ESCState esc_state_{};
-  bool esc_state_valid_ = false;
+  // Written by the ESC callback (driver thread) and read by tick()
+  etl::atomic<bool> esc_state_valid_{false};
+  etl::atomic<uint32_t> last_valid_esc_state_micros_{0};
 
   // How old the last ESC status may be before it counts as "no ESC" (see HasEscState).
   static constexpr uint32_t kEscStateTimeoutUs = 1'000'000;
   uint32_t last_duty_received_micros_ = 0;
-  uint32_t last_valid_esc_state_micros_ = 0;
 
   float mower_duty_ = 0;         // applied duty [-1, 1]; sign = direction, 0 = off
   float mower_duty_target_ = 0;  // commanded duty; mower_duty_ ramps to it on reversal
