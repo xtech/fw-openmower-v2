@@ -226,6 +226,7 @@ static ChargerState ChargerStateOf(CHARGER_STATUS status) {
     case CHARGER_STATUS::CV:
     case CHARGER_STATUS::TOP_OFF: return ChargerState::CHARGING;
     case CHARGER_STATUS::DONE: return ChargerState::DONE;
+    case CHARGER_STATUS::NO_BATTERY:
     case CHARGER_STATUS::NOT_CHARGING: return ChargerState::IDLE;
     case CHARGER_STATUS::FAULT:
     case CHARGER_STATUS::COMMS_ERROR:

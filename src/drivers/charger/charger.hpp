@@ -33,6 +33,7 @@ class ChargerDriver {
     DONE,
     FAULT,
     COMMS_ERROR,
+    NO_BATTERY,
     UNKNOWN
   };
 
@@ -46,6 +47,7 @@ class ChargerDriver {
       "Done",               // DONE
       "Fault",              // FAULT
       "Comms Error",        // COMMS_ERROR
+      "No Battery",         // NO_BATTERY
       "Unknown"             // UNKNOWN
   };
 
