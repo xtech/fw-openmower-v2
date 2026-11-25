@@ -123,7 +123,7 @@ class SaboRobot : public MowerRobot {
     return TestESC(right_motor_driver_);
   }
   bool TestMowerESC() {
-    return TestESC(mower_motor_driver_);
+    return TestESC(mower_motor_driver_[0]);
   }
 
   // CoverUI button access for SaboInputDriver

@@ -12,13 +12,19 @@
 #include "../include/worx_robot.hpp"
 #include "../include/xbot_robot.hpp"
 #include "../include/yardforce_robot.hpp"
-#include "../include/yardforce_v4_robot.hpp"
 
 // ── Public detection API ──────────────────────────────────────────────────────
 
 Robot* TryAutoDetectRobot() {
+  // Order matters for boot time (not for correctness): the cheap carrier-EEPROM checks come
+  // first, the YardForce probe (blocking, up to 10 x 40 ms while no ESC-YFR4 answers).
   if (SaboRobot::IsAutoDetected()) return new SaboRobot{};
   if (xBotRobot::IsAutoDetected()) return new xBotRobot{};
+
+  // YardForce and YardForce-V4 share the carrier board; the mower ESC on UARTD2 (VESC
+  // vs YFR4 protocol, probed once and cached) decides. The two checks are mutually exclusive.
+  if (YardForce_V4Robot::IsAutoDetected()) return new YardForce_V4Robot{};
+  if (YardForceRobot::IsAutoDetected()) return new YardForceRobot{};
   return nullptr;
 }
 
@@ -50,7 +56,8 @@ Robot* GetRobotByName(etl::string_view name) {
 
 // ── MowerRobot motor initialisation ──────────────────────────────────────────
 
-void MowerRobot::InitMotors() {
+template <typename MowerDriverT, size_t kMowerMotors>
+void MowerRobotBase<MowerDriverT, kMowerMotors>::InitMotors() {
   left_motor_driver_.SetUART(&UARTD1, 115200);
   right_motor_driver_.SetUART(&UARTD4, 115200);
 
@@ -61,8 +68,19 @@ void MowerRobot::InitMotors() {
   InitMowerEsc();
 }
 
-void MowerRobot::InitMowerEsc() {
-  mower_motor_driver_.SetUART(&UARTD2, 115200);
+template <typename MowerDriverT, size_t kMowerMotors>
+void MowerRobotBase<MowerDriverT, kMowerMotors>::InitMowerEsc() {
+  // One mower motor per robot today. Several motors (same type, running in parallel) need a
+  // per-motor UART and - more importantly - a MowerService that fans out (see MowerRobotBase
+  // in robot.hpp). The assertion keeps the multi-motor case from being half implemented.
+  static_assert(kMowerMotors == 1,
+                "Multi-motor mowers need a fan-out in the MowerService (see MowerRobotBase in robot.hpp)");
+
+  mower_motor_driver_[0].SetUART(&UARTD2, 115200);
   mower_esc_driver_interface_.Start();
-  mower_service.SetDriver(&mower_motor_driver_);
+  mower_service.SetDriver(&mower_motor_driver_[0]);
 }
+
+// The mower variant is chosen at runtime, so both instantiations are compiled into the binary.
+template class MowerRobotBase<xbot::driver::motor::VescDriver, 1>;
+template class MowerRobotBase<xbot::driver::motor::YFR4escDriver, 1>;

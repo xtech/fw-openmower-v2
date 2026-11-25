@@ -4,11 +4,15 @@
 #include <hal.h>
 
 #include <cmath>
+#include <cstring>
 #include <globals.hpp>
 #include <services.hpp>
 
-void YardForceRobot::InitPlatform() {
-  InitMotors();
+#include "../include/mower_esc_probe.hpp"
+
+template <typename MowerDriverT>
+void YardForceRobotT<MowerDriverT>::InitPlatform() {
+  this->InitMotors();
   charger_.setI2C(&I2CD1);
   power_service.SetDriver(&charger_);
   RegisterAdcSensors();
@@ -24,13 +28,31 @@ void YardForceRobot::InitPlatform() {
   palSetLine(LINE_GPIO4);
 }
 
-bool YardForceRobot::BoardIsCompatible() {
+template <typename MowerDriverT>
+bool YardForceRobotT<MowerDriverT>::BoardIsCompatible() {
   return (strncmp("hw-openmower-yardforce", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0 &&
           carrier_board_info.version_major == 1) ||
          strncmp("hw-xbot-devkit", carrier_board_info.board_id, sizeof(carrier_board_info.board_id)) == 0;
 }
 
-void YardForceRobot::RegisterAdcSensors() {
+template <typename MowerDriverT>
+bool YardForceRobotT<MowerDriverT>::IsAutoDetected() {
+  if (!BoardIsCompatible()) {
+    return false;
+  }
+
+  // YardForce and YardForce-V4 share the same carrier board; the protocol of the mower ESC on
+  // UARTD2 tells the variant. The probe result is cached, so the second variant's check is free.
+  const xbot::driver::motor::MowerEscKind kind = xbot::driver::motor::ProbeMowerEscOnce(&UARTD2);
+  if constexpr (std::is_same_v<MowerDriverT, xbot::driver::motor::YFR4escDriver>) {
+    return kind == xbot::driver::motor::MowerEscKind::YFR4;
+  } else {
+    return kind == xbot::driver::motor::MowerEscKind::VESC;
+  }
+}
+
+template <typename MowerDriverT>
+void YardForceRobotT<MowerDriverT>::RegisterAdcSensors() {
   using namespace xbot::driver::adc1;
 
   // ADC is only useable on carrier board v1.2.0 and later
@@ -78,3 +100,7 @@ void YardForceRobot::RegisterAdcSensors() {
       const_cast<float*>(&ADC_BATTERY_VOLTAGE_SCALE), EmaFilterConfig{0.3f, 0.7f, 0.5f, true});
   RegisterConversionGroup(v_battery_cg);
 }
+
+// Both YardForce variants are selected at runtime, so both instantiations are compiled in.
+template class YardForceRobotT<xbot::driver::motor::VescDriver>;
+template class YardForceRobotT<xbot::driver::motor::YFR4escDriver>;

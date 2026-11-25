@@ -22,12 +22,14 @@ A single codebase supports **10 different robot platforms** through runtime robo
 
 ## Supported Platforms
 
-The firmware supports 10 robot platforms, selected at runtime via two-stage detection: Stage 1 (Sabo/xBot auto-detect from EEPROM) and Stage 2 (ROS sets the robot variant via the MetaService `Robot Firmware` register). Each platform defines its own battery parameters, motor drivers, charger IC, and carrier board compatibility. No compile-time flags are needed — a single binary serves all platforms.
+The firmware supports 10 robot platforms, selected at runtime via two-stage detection: Stage 1 (Sabo/xBot auto-detect from EEPROM, YardForce/YardForce-Rev4 from a probe of the mower ESC protocol on UARTD2) and Stage 2 (ROS sets the robot variant via the MetaService `Robot Firmware` register, only needed for the remaining boards). Each platform defines its own battery parameters, motor drivers, charger IC, and carrier board compatibility. No compile-time flags are needed — a single binary serves all platforms.
+
+The two YardForce variants share the same carrier board and differ only in the mower ESC (VESC vs YFR4). Both are detected in Stage 1: `TryAutoDetectRobot()` listens on the mower UART for a few YFR4 status frames (the YFR4 ESC streams at ~100 Hz, a VESC only answers polls) and picks the variant, so YardForce does not wait for the high level to boot.
 
 | Platform     | Runtime Name   | Base Robot               | Battery      | Carrier Board          | Charger | Notes                                     |
 | ------------ | -------------- | ------------------------ | ------------ | ---------------------- | ------- | ----------------------------------------- |
 | YardForce    | `YardForce`    | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  |                                           |
-| YardForce V4 | `YardForce-V4` | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  | YFR4 mower ESC                            |
+| YardForce V4 | `YardForce-V4` | Older Rev4 SA/SC types   | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  | YFR4 mower ESC                            |
 | Universal 5S | `Universal-5S` | Universal                | 5S (21V)     | hw-openmower-universal | BQ2576  |                                           |
 | Universal 7S | `Universal-7S` | Universal                | 7S (29.4V)   | hw-openmower-universal | BQ2576  |                                           |
 | Universal 8S | `Universal-8S` | Universal                | 8S (33.6V)   | hw-openmower-universal | BQ2576  |                                           |
@@ -181,7 +183,7 @@ Each platform has a concrete implementation in `robots/src/` (e.g., `sabo_robot.
 1. HAL and ChibiOS kernel initialization (D-Cache disabled for Ethernet DMA)
 2. LWIP networking with DHCP (MAC address from ID EEPROM)
 3. LittleFS flash filesystem mount
-4. Platform detection via `TryAutoDetectRobot()` (Stage 1: EEPROM) or `GetRobotByName()` (Stage 2: ROS MetaService)
+4. Platform detection via `TryAutoDetectRobot()` (Stage 1: EEPROM for Sabo/xBot, mower-ESC probe on UARTD2 for the YardForce family) or `GetRobotByName()` (Stage 2: ROS MetaService, for the boards without a Stage 1 signature)
 5. `InitPlatform()` -- hardware-specific setup (charger, motors, sensors)
 6. xbot I/O framework start
 7. `StartServices()` -- conditional service startup per platform
