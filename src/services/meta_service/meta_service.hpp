@@ -27,6 +27,7 @@ class MetaService : public MetaServiceBase {
  protected:
   void RPCGetFirmwareVersion(uint16_t call_id, char* data, uint16_t* response_length) override;
   void RPCGetMajorVersion(uint16_t call_id) override;
+  void RPCGetRobotVariant(uint16_t call_id, char* data, uint16_t* response_length) override;
 
  private:
   // 1024 bytes: the previous 512-byte stack overflowed inside newlib snprintf()

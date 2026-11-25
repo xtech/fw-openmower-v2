@@ -26,6 +26,8 @@ The firmware supports 10 robot platforms, selected at runtime via two-stage dete
 
 The two YardForce variants share the same carrier board and differ only in the mower ESC (VESC vs YFR4). Both are detected in Stage 1: `TryAutoDetectRobot()` listens on the mower UART for a few YFR4 status frames (the YFR4 ESC streams at ~100 Hz, a VESC only answers polls) and picks the variant, so YardForce does not wait for the high level to boot.
 
+The variant the firmware runs as is reported back to the high level through the MetaService RPC `GetRobotVariant` (`Low level robot variant: YardForce-V4` in the ROS log), because everything logged during boot is gone before anything listens to the remote log. Until detection finished (or Stage 2 resolved it) the firmware answers `BUSY`, so the high level keeps asking instead of caching a wrong name.
+
 | Platform     | Runtime Name   | Base Robot               | Battery      | Carrier Board          | Charger | Notes                                     |
 | ------------ | -------------- | ------------------------ | ------------ | ---------------------- | ------- | ----------------------------------------- |
 | YardForce    | `YardForce`    | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  |                                           |
@@ -272,7 +274,7 @@ The OpenMower ecosystem spans multiple repositories:
 
 CI automatically runs pre-commit checks and builds the unified firmware on every pull request. Tagged releases (`v*`) are automatically packaged and published to GitHub Releases.
 
-To add support for a new robot platform, create a class inheriting from `Robot` or `MowerRobot` in `robots/`, implement the required virtual methods (`BoardIsCompatible()` + `FirmwareName()` for Stage 2, or `IsAutoDetected()` for Stage 1), and register it in `robot.cpp`'s `GetRobotByName()` and/or `TryAutoDetectRobot()`.
+To add support for a new robot platform, create a class in `robots/` and derive it from the matching base, wrapped with its own name - `class FooRobot : public VariantNamed<FooRobot, MowerRobot>` plus `static const char* Name()`; Stage 1 needs `static bool IsAutoDetected()`, Stage 2 needs `static bool BoardIsCompatible()`. That wrapper turns `Name()` into the virtual `VariantName()` reported by the MetaService variant RPC, so no robot implements it by hand. Register the new class in `robot.cpp`'s `GetRobotByName()` and/or `TryAutoDetectRobot()`.
 
 ## License
 

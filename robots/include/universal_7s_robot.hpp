@@ -7,12 +7,12 @@
  * @class Universal7SRobot
  * @brief Universal robot platform variant for 7S (7-series) battery packs.
  */
-class Universal7SRobot : public UniversalRobot {
+class Universal7SRobot : public VariantNamed<Universal7SRobot, UniversalRobot> {
  public:
   static bool BoardIsCompatible() {
     return UniversalRobot::BoardIsCompatible();
   }
-  static const char* FirmwareName() {
+  static const char* Name() {
     return "Universal-7S";
   }
 

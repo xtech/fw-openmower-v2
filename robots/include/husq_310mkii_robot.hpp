@@ -5,10 +5,10 @@
 
 #include "robot.hpp"
 
-class husq310MKIIRobot : public MowerRobot {
+class husq310MKIIRobot : public VariantNamed<husq310MKIIRobot, MowerRobot> {
  public:
   static bool BoardIsCompatible();
-  static const char* FirmwareName() {
+  static const char* Name() {
     return "Husq310MKII";
   }
   void InitPlatform() override;

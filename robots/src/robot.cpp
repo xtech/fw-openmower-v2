@@ -36,20 +36,20 @@ bool BoardSupportsStage2() {
 }
 
 Robot* GetRobotByName(etl::string_view name) {
-  if (YardForceRobot::BoardIsCompatible() && name == etl::string_view(YardForceRobot::FirmwareName()))
+  if (YardForceRobot::BoardIsCompatible() && name == etl::string_view(YardForceRobot::Name()))
     return new YardForceRobot{};
-  if (YardForce_V4Robot::BoardIsCompatible() && name == etl::string_view(YardForce_V4Robot::FirmwareName()))
+  if (YardForce_V4Robot::BoardIsCompatible() && name == etl::string_view(YardForce_V4Robot::Name()))
     return new YardForce_V4Robot{};
-  if (Universal5SRobot::BoardIsCompatible() && name == etl::string_view(Universal5SRobot::FirmwareName()))
+  if (Universal5SRobot::BoardIsCompatible() && name == etl::string_view(Universal5SRobot::Name()))
     return new Universal5SRobot{};
-  if (Universal7SRobot::BoardIsCompatible() && name == etl::string_view(Universal7SRobot::FirmwareName()))
+  if (Universal7SRobot::BoardIsCompatible() && name == etl::string_view(Universal7SRobot::Name()))
     return new Universal7SRobot{};
-  if (Universal8SRobot::BoardIsCompatible() && name == etl::string_view(Universal8SRobot::FirmwareName()))
+  if (Universal8SRobot::BoardIsCompatible() && name == etl::string_view(Universal8SRobot::Name()))
     return new Universal8SRobot{};
-  if (WorxRobot::BoardIsCompatible() && name == etl::string_view(WorxRobot::FirmwareName())) return new WorxRobot{};
-  if (Lyfco_E1600Robot::BoardIsCompatible() && name == etl::string_view(Lyfco_E1600Robot::FirmwareName()))
+  if (WorxRobot::BoardIsCompatible() && name == etl::string_view(WorxRobot::Name())) return new WorxRobot{};
+  if (Lyfco_E1600Robot::BoardIsCompatible() && name == etl::string_view(Lyfco_E1600Robot::Name()))
     return new Lyfco_E1600Robot{};
-  if (husq310MKIIRobot::BoardIsCompatible() && name == etl::string_view(husq310MKIIRobot::FirmwareName()))
+  if (husq310MKIIRobot::BoardIsCompatible() && name == etl::string_view(husq310MKIIRobot::Name()))
     return new husq310MKIIRobot{};
   return nullptr;
 }

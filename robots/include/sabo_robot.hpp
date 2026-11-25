@@ -19,7 +19,7 @@ using namespace xbot::driver::sabo;
 using namespace xbot::driver::bms;
 using namespace xbot::driver::adc1;
 
-class SaboRobot : public MowerRobot {
+class SaboRobot : public VariantNamed<SaboRobot, MowerRobot> {
  public:
   // Hardware configuration, detected and initialized in constructor initializer list
   const config::HardwareConfig hardware_config;
@@ -27,6 +27,9 @@ class SaboRobot : public MowerRobot {
   SaboRobot();
 
   static bool IsAutoDetected();
+  static const char* Name() {
+    return "Sabo";
+  }
   void InitPlatform() override;
 
   bool NeedsService(uint16_t id) override {

@@ -9,10 +9,10 @@
 
 using namespace xbot::driver::input;
 
-class WorxRobot : public MowerRobot {
+class WorxRobot : public VariantNamed<WorxRobot, MowerRobot> {
  public:
   static bool BoardIsCompatible();
-  static const char* FirmwareName() {
+  static const char* Name() {
     return "Worx";
   }
   void InitPlatform() override;

@@ -11,6 +11,7 @@
 #include <debug/debug_tcp_interface.hpp>
 #include <drivers/charger/charger.hpp>
 #include <limits>
+#include <type_traits>
 
 // Forward declare ProtocolType from GpsServiceBase.hpp
 enum class ProtocolType : uint8_t;
@@ -21,7 +22,10 @@ class Robot {
   virtual void InitPlatform() = 0;
   // Hardware detection is static per-class:
   //   Phase 1 (unique hardware): static bool IsAutoDetected()
-  //   Phase 2 (name-configured): static bool BoardIsCompatible() + static const char* FirmwareName()
+  //   Phase 2 (name-configured): static bool BoardIsCompatible() + static const char* Name()
+
+  // Name of the variant this robot runs as ("YardForce-V4", "Universal-7S", ...)
+  virtual const char* VariantName() const = 0;
 
   virtual bool NeedsService(uint16_t id) {
     if (id == xbot::service_ids::SOUND) return HasSound();  // sound only where the board has a chip
@@ -134,6 +138,31 @@ class Robot {
    */
   virtual float GetMowerMaxSafeRpm() {
     return std::numeric_limits<float>::quiet_NaN();
+  }
+};
+
+/**
+ * Adds the variant name to a robot: turns the static Name() of the concrete class into the virtual
+ * VariantName() that Robot requires, once instead of once per robot.
+ *
+ *   class SaboRobot : public VariantNamed<SaboRobot, MowerRobot> {
+ *    public:
+ *     static const char* Name() {
+ *       return "Sabo";
+ *     }
+ *   };
+ *
+ * The name has to stay a static function of the class (Stage 2 in robot.cpp compares ll/board
+ * against it before any robot object exists), and it cannot be called VariantName() itself -
+ * a static function may not hide a virtual one of the same signature.
+ */
+template <typename Variant, typename Base>
+class VariantNamed : public Base {
+  static_assert(std::is_base_of_v<Robot, Base>, "VariantNamed must wrap a Robot base");
+
+ public:
+  const char* VariantName() const override {
+    return Variant::Name();
   }
 };
 

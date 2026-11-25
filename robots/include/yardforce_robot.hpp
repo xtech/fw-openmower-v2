@@ -21,7 +21,7 @@
  * variant waits for the MetaService / Stage 2.
  */
 template <typename MowerDriverT>
-class YardForceRobotT : public MowerRobotBase<MowerDriverT> {
+class YardForceRobotT : public VariantNamed<YardForceRobotT<MowerDriverT>, MowerRobotBase<MowerDriverT>> {
  public:
   static bool BoardIsCompatible();
   /**
@@ -31,7 +31,7 @@ class YardForceRobotT : public MowerRobotBase<MowerDriverT> {
    */
   static bool IsAutoDetected();
 
-  static const char* FirmwareName() {
+  static const char* Name() {
     if constexpr (std::is_same_v<MowerDriverT, xbot::driver::motor::YFR4escDriver>) {
       return "YardForce-V4";
     } else {
