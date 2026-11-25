@@ -17,8 +17,11 @@ constexpr size_t kProbeBufferSize = 512;
 constexpr uint32_t kProbeWindowMs = 40;
 constexpr uint32_t kProbeWindows = 10;
 
-// COBS worst case for one status frame (plus the stripped delimiter).
-constexpr size_t kMaxEncodedFrameSize = sizeof(yfr4esc::StatusPacket) + sizeof(yfr4esc::StatusPacket) / 254 + 2;
+// COBS worst case for one status frame: 48 payload bytes become 49 encoded bytes (one code byte,
+// plus one per 254 payload bytes). The delimiter is stripped before the decode, so it needs no
+// room - and the buffer must not be taller than that: cobs_decode() does not check the output size,
+// 50 encoded bytes would write 49 bytes into the 48 byte decoded buffer.
+constexpr size_t kMaxEncodedFrameSize = sizeof(yfr4esc::StatusPacket) + sizeof(yfr4esc::StatusPacket) / 254 + 1;
 
 /**
  * @brief Scratch memory for one probe run, taken from the heap for its duration only.
