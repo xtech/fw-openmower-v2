@@ -7,9 +7,9 @@
  * @class Universal8SRobot
  * @brief Universal robot platform variant for 8S (8-series) battery packs.
  */
-class Universal8SRobot : public UniversalRobot {
+class Universal8SRobot : public VariantNamed<Universal8SRobot, UniversalRobot> {
  public:
-  static const char* FirmwareName() {
+  static const char* Name() {
     return "Universal-8S";
   }
   float Power_GetDefaultBatteryFullVoltage() override {

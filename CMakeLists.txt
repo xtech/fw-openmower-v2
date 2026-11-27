@@ -69,8 +69,8 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user defined library search paths
 )
 
-# Add LVGL assets
-file(GLOB LVGL_ASSETS_SRC
+# Add LVGL assets (CONFIGURE_DEPENDS: new or removed asset files are picked up without a manual re-configure)
+file(GLOB LVGL_ASSETS_SRC CONFIGURE_DEPENDS
     "src/drivers/ui/lvgl/assets/*.c"
     "src/drivers/ui/lvgl/assets/Orbitron/*.c"
     "src/drivers/ui/lvgl/assets/fontawesome-free-7.1.0-desktop/*.c"

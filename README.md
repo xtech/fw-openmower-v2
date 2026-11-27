@@ -22,12 +22,16 @@ A single codebase supports **10 different robot platforms** through runtime robo
 
 ## Supported Platforms
 
-The firmware supports 10 robot platforms, selected at runtime via two-stage detection: Stage 1 (Sabo/xBot auto-detect from EEPROM) and Stage 2 (ROS sets the robot variant via the MetaService `Robot Firmware` register). Each platform defines its own battery parameters, motor drivers, charger IC, and carrier board compatibility. No compile-time flags are needed — a single binary serves all platforms.
+The firmware supports 10 robot platforms, selected at runtime via two-stage detection: Stage 1 (Sabo/xBot auto-detect from EEPROM, YardForce/YardForce-Rev4 from a probe of the mower ESC protocol on UARTD2) and Stage 2 (ROS sets the robot variant via the MetaService `Robot Firmware` register, only needed for the remaining boards). Each platform defines its own battery parameters, motor drivers, charger IC, and carrier board compatibility. No compile-time flags are needed — a single binary serves all platforms.
+
+The two YardForce variants share the same carrier board and differ only in the mower ESC (VESC vs YFR4). Both are detected in Stage 1: `TryAutoDetectRobot()` listens on the mower UART for a few YFR4 status frames (the YFR4 ESC streams at ~100 Hz, a VESC only answers polls) and picks the variant, so YardForce does not wait for the high level to boot.
+
+The variant the firmware runs as is reported back to the high level through the MetaService RPC `GetRobotVariant` (`Low level robot variant: YardForce-V4` in the ROS log), because everything logged during boot is gone before anything listens to the remote log. Until detection finished (or Stage 2 resolved it) the firmware answers `BUSY`, so the high level keeps asking instead of caching a wrong name.
 
 | Platform     | Runtime Name   | Base Robot               | Battery      | Carrier Board          | Charger | Notes                                     |
 | ------------ | -------------- | ------------------------ | ------------ | ---------------------- | ------- | ----------------------------------------- |
 | YardForce    | `YardForce`    | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  |                                           |
-| YardForce V4 | `YardForce-V4` | Classic 500(B)           | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  | YFR4 mower ESC                            |
+| YardForce V4 | `YardForce-V4` | Older Rev4 SA/SC types   | 7S (29.4V)   | hw-openmower-yardforce | BQ2576  | YFR4 mower ESC                            |
 | Universal 5S | `Universal-5S` | Universal                | 5S (21V)     | hw-openmower-universal | BQ2576  |                                           |
 | Universal 7S | `Universal-7S` | Universal                | 7S (29.4V)   | hw-openmower-universal | BQ2576  |                                           |
 | Universal 8S | `Universal-8S` | Universal                | 8S (33.6V)   | hw-openmower-universal | BQ2576  |                                           |
@@ -181,7 +185,7 @@ Each platform has a concrete implementation in `robots/src/` (e.g., `sabo_robot.
 1. HAL and ChibiOS kernel initialization (D-Cache disabled for Ethernet DMA)
 2. LWIP networking with DHCP (MAC address from ID EEPROM)
 3. LittleFS flash filesystem mount
-4. Platform detection via `TryAutoDetectRobot()` (Stage 1: EEPROM) or `GetRobotByName()` (Stage 2: ROS MetaService)
+4. Platform detection via `TryAutoDetectRobot()` (Stage 1: EEPROM for Sabo/xBot, mower-ESC probe on UARTD2 for the YardForce family) or `GetRobotByName()` (Stage 2: ROS MetaService, for the boards without a Stage 1 signature)
 5. `InitPlatform()` -- hardware-specific setup (charger, motors, sensors)
 6. xbot I/O framework start
 7. `StartServices()` -- conditional service startup per platform
@@ -270,7 +274,7 @@ The OpenMower ecosystem spans multiple repositories:
 
 CI automatically runs pre-commit checks and builds the unified firmware on every pull request. Tagged releases (`v*`) are automatically packaged and published to GitHub Releases.
 
-To add support for a new robot platform, create a class inheriting from `Robot` or `MowerRobot` in `robots/`, implement the required virtual methods (`BoardIsCompatible()` + `FirmwareName()` for Stage 2, or `IsAutoDetected()` for Stage 1), and register it in `robot.cpp`'s `GetRobotByName()` and/or `TryAutoDetectRobot()`.
+To add support for a new robot platform, create a class in `robots/` and derive it from the matching base, wrapped with its own name - `class FooRobot : public VariantNamed<FooRobot, MowerRobot>` plus `static const char* Name()`; Stage 1 needs `static bool IsAutoDetected()`, Stage 2 needs `static bool BoardIsCompatible()`. That wrapper turns `Name()` into the virtual `VariantName()` reported by the MetaService variant RPC, so no robot implements it by hand. Register the new class in `robot.cpp`'s `GetRobotByName()` and/or `TryAutoDetectRobot()`.
 
 ## License
 

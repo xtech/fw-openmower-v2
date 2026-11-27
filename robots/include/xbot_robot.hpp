@@ -9,9 +9,12 @@
 
 using xbot::driver::motor::PwmMotorDriver;
 
-class xBotRobot : public Robot {
+class xBotRobot : public VariantNamed<xBotRobot, Robot> {
  public:
   static bool IsAutoDetected();
+  static const char* Name() {
+    return "xBot";
+  }
   void InitPlatform() override;
 
   bool NeedsService(uint16_t id) override {

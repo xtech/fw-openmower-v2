@@ -5,10 +5,10 @@
 
 #include "robot.hpp"
 
-class Lyfco_E1600Robot : public MowerRobot {
+class Lyfco_E1600Robot : public VariantNamed<Lyfco_E1600Robot, MowerRobot> {
  public:
   static bool BoardIsCompatible();
-  static const char* FirmwareName() {
+  static const char* Name() {
     return "Lyfco-E1600";
   }
   void InitPlatform() override;

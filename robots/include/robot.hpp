@@ -3,6 +3,7 @@
 
 #include <drivers/motor/vesc/VescDriver.h>
 #include <drivers/motor/yfr4esc/YFR4escDriver.h>
+#include <etl/array.h>
 #include <etl/string_view.h>
 #include <hal.h>
 #include <service_ids.h>
@@ -10,6 +11,7 @@
 #include <debug/debug_tcp_interface.hpp>
 #include <drivers/charger/charger.hpp>
 #include <limits>
+#include <type_traits>
 
 // Forward declare ProtocolType from GpsServiceBase.hpp
 enum class ProtocolType : uint8_t;
@@ -20,7 +22,10 @@ class Robot {
   virtual void InitPlatform() = 0;
   // Hardware detection is static per-class:
   //   Phase 1 (unique hardware): static bool IsAutoDetected()
-  //   Phase 2 (name-configured): static bool BoardIsCompatible() + static const char* FirmwareName()
+  //   Phase 2 (name-configured): static bool BoardIsCompatible() + static const char* Name()
+
+  // Name of the variant this robot runs as ("YardForce-V4", "Universal-7S", ...)
+  virtual const char* VariantName() const = 0;
 
   virtual bool NeedsService(uint16_t id) {
     if (id == xbot::service_ids::SOUND) return HasSound();  // sound only where the board has a chip
@@ -136,25 +141,66 @@ class Robot {
   }
 };
 
-// TODO: Introduce a VescMowerRobot intermediate class between MowerRobot
-// and the VESC-based robots (YardForce, Universal, ...).
-// VescMowerRobot would own the mower_motor_driver_ VescDriver and
-// the default InitMowerEsc(), while YardForce_V4Robot inherits directly from
-// MowerRobot with its own YFR4 driver (both implement MotorDriver).
-// This avoids an unused VescDriver member in non-VESC mower variants.
-class MowerRobot : public Robot {
+/**
+ * Adds the variant name to a robot: turns the static Name() of the concrete class into the virtual
+ * VariantName() that Robot requires, once instead of once per robot.
+ *
+ *   class SaboRobot : public VariantNamed<SaboRobot, MowerRobot> {
+ *    public:
+ *     static const char* Name() {
+ *       return "Sabo";
+ *     }
+ *   };
+ *
+ * The name has to stay a static function of the class (Stage 2 in robot.cpp compares ll/board
+ * against it before any robot object exists), and it cannot be called VariantName() itself -
+ * a static function may not hide a virtual one of the same signature.
+ */
+template <typename Variant, typename Base>
+class VariantNamed : public Base {
+  static_assert(std::is_base_of_v<Robot, Base>, "VariantNamed must wrap a Robot base");
+
+ public:
+  const char* VariantName() const override {
+    return Variant::Name();
+  }
+};
+
+/**
+ * Robots with mower motors (i.e. everything except xBot).
+ *
+ * The mower driver type is a template parameter, so exactly one mower driver (and one debug
+ * interface) exists at runtime instead of an unused second one for the other variant:
+ *   MowerRobotBase<VescDriver>    -> VESC mower (YardForce Std., Sabo, Universal, Worx, ...)
+ *   MowerRobotBase<YFR4escDriver> -> YardForce-V4 (YardForce Rev4 mower ESC)
+ *
+ * All mower motors of a robot are the same type and are meant to run in parallel, so a robot
+ * with more than one mower motor sets kMowerMotors accordingly (Universal variants are queued
+ * for that).
+ * IMPORTANT for whoever implements that: the MowerService still knows a single
+ * driver - one speed input, one set of telemetry values and one health flag - so multi-motor
+ * support needs a service definition change (mower_service.json + version bump) and a fan-out
+ * in the service (apply the same duty to every motor, decide what to report for RPM/current/
+ * temperature of several motors, check health per motor). Until then InitMowerEsc() refuses to
+ * compile for kMowerMotors > 1 on purpose.
+ */
+template <typename MowerDriverT, size_t kMowerMotors = 1>
+class MowerRobotBase : public Robot {
  protected:
   void InitMotors();
-  virtual void InitMowerEsc();
+  void InitMowerEsc();
 
   xbot::driver::motor::VescDriver left_motor_driver_{};
   xbot::driver::motor::VescDriver right_motor_driver_{};
-  xbot::driver::motor::VescDriver mower_motor_driver_{};
+  etl::array<MowerDriverT, kMowerMotors> mower_motor_driver_{};
 
   DebugTCPInterface left_esc_driver_interface_{65102, &left_motor_driver_};
-  DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver_};
+  DebugTCPInterface mower_esc_driver_interface_{65103, &mower_motor_driver_[0]};
   DebugTCPInterface right_esc_driver_interface_{65104, &right_motor_driver_};
 };
+
+// All VESC-mower robots (unchanged base for Sabo, Universal, Worx, Lyfco, Husq and the YardForce Std.
+using MowerRobot = MowerRobotBase<xbot::driver::motor::VescDriver>;
 
 // Stage 1: returns non-null if the carrier board uniquely identifies one robot.
 Robot* TryAutoDetectRobot();

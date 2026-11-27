@@ -7,12 +7,12 @@
  * @class Universal5SRobot
  * @brief Universal robot platform variant for 5S (5-series) battery packs.
  */
-class Universal5SRobot : public UniversalRobot {
+class Universal5SRobot : public VariantNamed<Universal5SRobot, UniversalRobot> {
  public:
   static bool BoardIsCompatible() {
     return UniversalRobot::BoardIsCompatible();
   }
-  static const char* FirmwareName() {
+  static const char* Name() {
     return "Universal-5S";
   }
 
