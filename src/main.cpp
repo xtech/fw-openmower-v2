@@ -192,6 +192,7 @@ int main() {
     }
   }
 
+  meta_service.SetRobotVariant(robot->VariantName());
   robot->InitPlatform();
   StartServices();
   SetStatusLedMode(LED_MODE_ON);

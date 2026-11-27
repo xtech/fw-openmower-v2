@@ -4,6 +4,7 @@
 #include <etl/string_view.h>
 
 #include <MetaServiceBase.hpp>
+#include <atomic>
 
 // Bump when firmware and ROS side are no longer compatible.
 // ROS refuses to start if its copy of this constant doesn't match.
@@ -24,12 +25,19 @@ class MetaService : public MetaServiceBase {
     return etl::string_view(RobotFirmware.value, RobotFirmware.length);
   }
 
+  // Robot variants supply names with static storage duration.
+  void SetRobotVariant(const char* name) {
+    robot_variant_.store(name, std::memory_order_release);
+  }
+
  protected:
   void RPCGetFirmwareVersion(uint16_t call_id, char* data, uint16_t* response_length) override;
   void RPCGetMajorVersion(uint16_t call_id) override;
   void RPCGetRobotVariant(uint16_t call_id, char* data, uint16_t* response_length) override;
 
  private:
+  std::atomic<const char*> robot_variant_{nullptr};
+
   // 1024 bytes: the previous 512-byte stack overflowed inside newlib snprintf()
   // (remote_logger) while handling SendConfigurationRequest, triggering a
   // MemManage fault in __port_irq_epilogue.

@@ -3,7 +3,6 @@
 #include <git_version.h>
 
 #include <cstring>
-#include <globals.hpp>
 #include <xbot-service/Io.hpp>
 
 void MetaService::RPCGetFirmwareVersion(uint16_t call_id, char* data, uint16_t* response_length) {
@@ -20,9 +19,9 @@ void MetaService::RPCGetMajorVersion(uint16_t call_id) {
 }
 
 void MetaService::RPCGetRobotVariant(uint16_t call_id, char* data, uint16_t* response_length) {
-  // Not created yet: detection or Stage 2 is still running. BUSY means "not done, ask again" -
+  // Until main publishes the selected variant, BUSY means "not done, ask again" -
   // the high level retries instead of caching a wrong name.
-  const char* variant = (robot != nullptr) ? robot->VariantName() : nullptr;
+  const char* variant = robot_variant_.load(std::memory_order_acquire);
   if (variant == nullptr) {
     SendRpcResponse(call_id, xbot::datatypes::RpcStatus::BUSY, nullptr, 0);
     return;
